@@ -1016,6 +1016,7 @@
   "translated_from": "it",
   "translated_with": "ai:gemini",
   "company_stop_words": ["laboratorien", "laboratorium", "pharmazeutische", "pharmazeutischer", "pharmazeutika", "industrie", "gesellschaft", "mbh", "gmbh", "ag", "kg", "holding", "gruppe", "arzneimittel", "fabrik", "pharma"],
+  "cooking_voice": {"next": ["weiter", "nächster", "nächste"], "prev": ["zurück", "vorheriger"], "replay": ["nochmal", "wiederholen", "vorlesen"]},
   "capture": {
     "intent": {
       "recipe": [

@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106d'; // bump when translations change
+const _I18N_VERSION = '20261106e'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106d';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106e';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106d';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106e';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -32643,25 +32643,36 @@ function _recipeMissingPopoverOutside(e) {
     if (el && !el.contains(e.target)) _recipeMissingPopoverClose();
 }
 
-function _recipeMissingPopover(ev, archiveIdx) {
+async function _recipeMissingPopover(ev, archiveIdx) {
     if (ev && ev.stopPropagation) ev.stopPropagation();
+    const target0 = ev && ev.currentTarget ? ev.currentTarget : null;
     _recipeMissingPopoverClose();
     const entry = Array.isArray(_recipeArchiveEntries) ? _recipeArchiveEntries[archiveIdx] : null;
     const r = entry && entry.recipe;
     if (!r) return;
     const info = _recipeArchiveMissingInfo(r);
     if (!info.missing) return;
-    const rows = info.items.map((it) => `<li>${escapeHtml(it.name)}`
-        + `${it.qty ? ` <span class="recipe-missing-qty">${escapeHtml(it.qty)}</span>` : ''}</li>`).join('');
+
+    // What is ALREADY on the shopping list must say so: re-adding it is noise, and a household
+    // standing in the supermarket needs to know the app already wrote it down.
+    const listed = await _recipeShoppingListedNames();
+    const pending = info.items.filter((it) => !listed.has(_recipeNameKey(it.name)));
+    const rows = info.items.map((it) => {
+        const inList = listed.has(_recipeNameKey(it.name));
+        return `<li>${escapeHtml(it.name)}`
+            + `${it.qty ? ` <span class="recipe-missing-qty">${escapeHtml(it.qty)}</span>` : ''}`
+            + `${inList ? ` <span class="recipe-missing-inlist">${escapeHtml(t('recipes.missing_already_listed'))}</span>` : ''}</li>`;
+    }).join('');
+    const btn = pending.length
+        ? `<button type="button" class="btn btn-small btn-primary full-width" onclick="_recipeMissingAddShopping(${archiveIdx}, this)">${escapeHtml(t('recipes.missing_add_shopping'))}</button>`
+        : `<button type="button" class="btn btn-small btn-secondary full-width" disabled>${escapeHtml(t('recipes.missing_all_listed'))}</button>`;
     const el = document.createElement('div');
     el.className = 'recipe-missing-popover';
     el.innerHTML = `<strong>${escapeHtml(t('recipes.missing_popover_title'))}</strong>`
-        + `<ul>${rows}</ul>`
-        + `<button type="button" class="btn btn-small btn-primary full-width" onclick="_recipeMissingAddShopping(${archiveIdx}, this)">${escapeHtml(t('recipes.missing_add_shopping'))}</button>`;
+        + `<ul>${rows}</ul>${btn}`;
     document.body.appendChild(el);
     // Under the chip, clamped to the viewport (a list row can be anywhere on the screen).
-    const target = ev && ev.currentTarget ? ev.currentTarget : null;
-    const rect = target && target.getBoundingClientRect ? target.getBoundingClientRect() : null;
+    const rect = target0 && target0.getBoundingClientRect ? target0.getBoundingClientRect() : null;
     const w = el.offsetWidth || 260;
     const h = el.offsetHeight || 120;
     const left = rect ? Math.max(8, Math.min(window.innerWidth - w - 8, rect.left)) : 8;
@@ -32671,13 +32682,44 @@ function _recipeMissingPopover(ev, archiveIdx) {
     setTimeout(() => document.addEventListener('click', _recipeMissingPopoverOutside, { once: true }), 0);
 }
 
+/** A comparable key for a shopping/product name (case, accents and spacing do not matter). */
+function _recipeNameKey(name) {
+    return String(name || '')
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+}
+
+/** The names already on the shopping list (Bring! or internal), as comparable keys. */
+async function _recipeShoppingListedNames() {
+    const out = new Set();
+    try {
+        const data = await api('shopping_list', {}, 'GET', null, {}, 8000);
+        const rows = (data && Array.isArray(data.purchase)) ? data.purchase : [];
+        rows.forEach((row) => {
+            const name = row && (row.name || row.item || row.display || row.note);
+            const key = _recipeNameKey(name);
+            if (key) out.add(key);
+        });
+    } catch (e) { /* no list, no marks: everything is addable */ }
+    return out;
+}
+
 /** "＋ Metti in Spesa": what is missing goes on the shopping list, in one tap. */
 async function _recipeMissingAddShopping(archiveIdx, btn) {
     const entry = Array.isArray(_recipeArchiveEntries) ? _recipeArchiveEntries[archiveIdx] : null;
     const r = entry && entry.recipe;
     if (!r) return;
-    const names = _recipeArchiveMissingInfo(r).items.map((it) => it.name).filter(Boolean);
-    if (!names.length) return;
+    const listed = await _recipeShoppingListedNames();
+    const names = _recipeArchiveMissingInfo(r).items
+        .map((it) => it.name)
+        .filter((n) => n && !listed.has(_recipeNameKey(n)));
+    if (!names.length) {
+        _recipeMissingPopoverClose();
+        showToast(t('recipes.missing_all_listed'), 'info');
+        return;
+    }
     if (btn) btn.disabled = true;
     try {
         const res = await api('shopping_add', {}, 'POST', {
@@ -35229,6 +35271,10 @@ function _bindRecipeIngredientOpens() {
 // ===== COOKING MODE =====
 let _cookingRecipe = null;
 let _cookingStep = 0;
+/** Short name of the suggested timer (appliance) and whether the step prints its own pill. */
+let _cookingSuggestedShortLabel = '';
+let _cookingStepHasInlineTimer = false;
+let _cookingVoiceRec = null;
 let _cookingTTS = true;
 let _cookingVisited = new Set(); // indices of steps already seen
 
@@ -35457,6 +35503,69 @@ function _cookingFinishSkip() {
     closeCookingMode();
 }
 
+/* ── 🎤 Comandi a voce, UNA frase per tocco ────────────────────────────────────────
+ * Continuous listening was removed from this screen once because Chrome's restart chime was
+ * louder than any hands-free gain. One shot per tap keeps the hands free (a tap is not kneading
+ * dough) without a microphone that beeps through the whole recipe.
+ *
+ * "Avanti" / "Indietro" / "Rileggi" move the recipe — the words are DATA (api/vocab/<lang>.json
+ * → cooking_voice, through vocabCookingVoice()). Anything else is a QUESTION: "non ho il limone,
+ * cosa posso usare?" is not a command, so it goes to SHELFY in the chat, where substitutions can
+ * actually be answered.
+ */
+function _cookingVoiceStopRec() {
+    const btn = document.getElementById('cooking-mic-btn');
+    if (btn) btn.classList.remove('is-listening');
+    if (!_cookingVoiceRec) return;
+    try { _cookingVoiceRec.onend = null; _cookingVoiceRec.onresult = null; _cookingVoiceRec.abort(); } catch (e) { /* already gone */ }
+    _cookingVoiceRec = null;
+}
+
+function _cookingVoiceCommand() {
+    if (_cookingVoiceRec) { _cookingVoiceStopRec(); return; }   // second tap = stop
+    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Ctor) { showToast(t('capture.unsupported'), 'info'); return; }
+    const rec = new Ctor();
+    _cookingVoiceRec = rec;
+    rec.lang = _captureSpeechLang();
+    rec.interimResults = false;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+    const btn = document.getElementById('cooking-mic-btn');
+    if (btn) btn.classList.add('is-listening');
+    rec.onresult = (ev) => {
+        const said = String((ev.results && ev.results[0] && ev.results[0][0] && ev.results[0][0].transcript) || '').trim();
+        _cookingVoiceDispatch(said);
+    };
+    rec.onend = () => {
+        _cookingVoiceRec = null;
+        if (btn) btn.classList.remove('is-listening');
+    };
+    try {
+        rec.start();
+    } catch (e) {
+        _cookingVoiceRec = null;
+        if (btn) btn.classList.remove('is-listening');
+    }
+}
+
+/** One heard phrase → one action, or a question for SHELFY. */
+function _cookingVoiceDispatch(said) {
+    const text = String(said || '').toLowerCase().trim();
+    if (!text) return;
+    const lex = (typeof vocabCookingVoice === 'function') ? vocabCookingVoice() : { next: [], prev: [], replay: [] };
+    const hit = (list) => (list || []).some((w) => w && text.includes(w));
+    if (hit(lex.replay)) { replayCookingTTS(); return; }
+    if (hit(lex.next)) { navigateCookingStep(1); return; }
+    if (hit(lex.prev)) { navigateCookingStep(-1); return; }
+    // Not a command: it is a question (a substitution, a doubt). SHELFY answers in the chat,
+    // with the sentence already written in the field — nothing has to be said twice.
+    if (typeof _shelfyHandOverToChat === 'function') {
+        showToast(t('cooking.voice_ask_shelfy'), 'info');
+        _shelfyHandOverToChat(said);
+    }
+}
+
 /** "Rifai questa ricetta" dal cartellino di fine cottura: esci e rimetti tutto da scalare. */
 function _cookingRedo() {
     _closeCookingFinishPrompt();
@@ -35534,6 +35643,7 @@ function startCookingMode() {
 }
 function closeCookingMode() {
     _cookingVoiceStop();
+    _cookingReading(false);
     _closeCookingFinishPrompt();
     _cookingWakeLockOff();         // the screen may sleep again
     document.getElementById('cooking-overlay').style.display = 'none';
@@ -35734,19 +35844,73 @@ function _cookingScrapTip(stepText) {
  * STATES the time is the control: it starts the same countdown `addSuggestedCookingTimer()`
  * starts (one timer engine, not two), and everything else stays plain escaped text.
  */
+/**
+ * The step sentence, escaped, with the two things a cook reads while looking away: the AMOUNTS
+ * and the FOOD.
+ *
+ * Both come from the recipe itself — the units are symbols (`g`, `ml`, `°C`, `%`) and the names
+ * are the ingredient list — so nothing language-specific lives here, and a recipe written in
+ * German highlights exactly the same way.
+ */
+function _cookingHighlightText(text) {
+    const raw = String(text || '');
+    if (!raw) return '';
+    const spans = [];
+    const collect = (re, cls) => {
+        re.lastIndex = 0;
+        let m;
+        while ((m = re.exec(raw)) !== null) spans.push({ start: m.index, end: m.index + m[0].length, cls });
+    };
+    collect(/\d+(?:[.,]\d+)?\s*(?:g|gr|kg|ml|l|cl|dl|pz|°C|%)/gi, 'ck-qty');
+    const words = ((_cookingRecipe && _cookingRecipe.ingredients) || [])
+        .map((ing) => String((ing && ing.name) || '').trim().split(/\s+/).filter((w) => w.length >= 4)[0] || '')
+        .filter(Boolean);
+    words.forEach((w) => {
+        const esc = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        collect(new RegExp('(?:^|[^\\p{L}])' + esc + '\\p{L}*', 'giu'), 'ck-ing');
+    });
+    if (!spans.length) return escapeHtml(raw);
+    spans.sort((a, b) => a.start - b.start || b.end - a.end);
+    const out = [];
+    let cursor = 0;
+    spans.forEach((sp) => {
+        // The name pattern may start one character early (its left edge): trim it back in.
+        let start = sp.start;
+        if (sp.cls === 'ck-ing' && start < cursor) return;
+        if (sp.cls === 'ck-ing' && /[^\p{L}]/u.test(raw[start] || '')) start += 1;
+        if (start < cursor || start >= sp.end) return;
+        out.push(escapeHtml(raw.slice(cursor, start)));
+        out.push(`<mark class="${sp.cls}">${escapeHtml(raw.slice(start, sp.end))}</mark>`);
+        cursor = sp.end;
+    });
+    out.push(escapeHtml(raw.slice(cursor)));
+    return out.join('');
+}
+
+/**
+ * The step, one sentence: amounts and food highlighted, and the duration inside it IS the
+ * timer button (no second button underneath saying the same thing).
+ */
 function _renderCookingStepText(text) {
     const el = document.getElementById('cooking-step-text');
     if (!el) return;
     const clean = String(text || '');
     const parsed = _parseStepTimers(clean);
-    if (!parsed.total || !parsed.matches.length) { el.textContent = clean; return; }
+    _cookingStepHasInlineTimer = !!(parsed.total && parsed.matches.length);
+    el.classList.remove('is-entering');
+    void el.offsetWidth;                       // restart the fade on every step
+    el.classList.add('is-entering');
+    if (!_cookingStepHasInlineTimer) {
+        el.innerHTML = _cookingHighlightText(clean);
+        return;
+    }
     const first = parsed.matches[0];
     const label = t('cooking.timer_chip');
-    el.innerHTML = escapeHtml(clean.slice(0, first.start))
+    el.innerHTML = _cookingHighlightText(clean.slice(0, first.start))
         + `<button type="button" class="cooking-step-timer" onclick="addSuggestedCookingTimer()"`
         + ` title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">`
         + `⏱️ ${escapeHtml(clean.slice(first.start, first.end).trim())}</button>`
-        + escapeHtml(clean.slice(first.end));
+        + _cookingHighlightText(clean.slice(first.end));
 }
 
 /**
@@ -35791,7 +35955,7 @@ function renderCookingStep() {
     // Mark current step as visited
     _cookingVisited.add(_cookingStep);
 
-    document.getElementById('cooking-step-num').textContent = `${_cookingStep + 1} / ${total}`;
+    document.getElementById('cooking-step-num').textContent = t('cooking.step_of', { n: String(_cookingStep + 1), total: String(total) });
     _renderCookingStepText(cleanStep);
     const scrapEl = document.getElementById('cooking-scrap-hint');
     if (scrapEl) {
@@ -36867,6 +37031,13 @@ function _pickTtsVoice(voices, wantLang, selectedName) {
  * UI never reads German with an Italian voice; the voice chosen in Settings wins only
  * when it actually speaks that language.
  */
+/** "SHELFY sta leggendo": the avatar with the waves, while the voice speaks. */
+function _cookingReading(on) {
+    const el = document.getElementById('cooking-reading');
+    if (!el) return;
+    el.style.display = on ? 'flex' : 'none';
+}
+
 function _speakBrowser(text, opts) {
     const s = getSettings();
     const rate  = parseFloat(s.tts_rate)  || 1;
@@ -36887,6 +37058,11 @@ function _speakBrowser(text, opts) {
         const utt = new SpeechSynthesisUtterance(text);
         utt.rate  = rate;
         utt.pitch = pitch;
+        // A cooking screen read from two metres needs to SHOW who is talking: the avatar with
+        // the waves is on while the voice is, and off when it ends (or fails).
+        utt.onstart = () => _cookingReading(true);
+        utt.onend   = () => _cookingReading(false);
+        utt.onerror = () => _cookingReading(false);
         const chosen = _pickTtsVoice(window.speechSynthesis.getVoices(), wantLang, s.tts_voice);
         if (chosen) {
             utt.voice = chosen;
@@ -37335,21 +37511,31 @@ function setupCookingTimerSuggestion(stepText) {
     const seconds = _parseStepTimer(stepText);
     const suggestEl = document.getElementById('cooking-timer-suggest');
     if (seconds <= 0) {
-        suggestEl.style.display = 'none';
+        if (suggestEl) suggestEl.style.display = 'none';
         _cookingSuggestedSeconds = 0;
         _cookingSuggestedLabel = '';
+        _cookingSuggestedShortLabel = '';
         return;
     }
     _cookingSuggestedSeconds = seconds;
     _cookingSuggestedLabel = _extractTimerLabel(stepText, _cookingStep, seconds);
-    document.getElementById('cooking-timer-suggest-text').textContent =
-        `⏱️ ${_formatTimerDisplay(seconds)}  ·  ${_cookingSuggestedLabel}`;
+    // The pill in the sentence is the button ("- Avvia timer 6 minuti"); the extra chip below
+    // would be the same action twice, so it only appears when the sentence has no duration in
+    // it to tap. The running timer keeps a SHORT name ("Cookeo"), never "Avvia Cookeo: 08:00".
+    _cookingSuggestedShortLabel = _stepApplianceName(stepText) || _cookingSuggestedLabel;
+    if (!suggestEl) return;
+    if (_cookingStepHasInlineTimer) {
+        suggestEl.style.display = 'none';
+        return;
+    }
+    const textEl = document.getElementById('cooking-timer-suggest-text');
+    if (textEl) textEl.textContent = `⏱️ ${_formatTimerDisplay(seconds)}  ·  ${_cookingSuggestedLabel}`;
     suggestEl.style.display = 'flex';
 }
 
 function addSuggestedCookingTimer() {
     if (_cookingSuggestedSeconds <= 0) return;
-    addCookingTimer(_cookingSuggestedSeconds, _cookingSuggestedLabel);
+    addCookingTimer(_cookingSuggestedSeconds, _cookingSuggestedShortLabel || _cookingSuggestedLabel);
     document.getElementById('cooking-timer-suggest').style.display = 'none';
     _cookingSuggestedSeconds = 0;
 }

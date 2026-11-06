@@ -123,6 +123,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   created/updated with clean slugs, test artifacts removed, Mealie back to its 11 recipes.
 
 ### Changed
+- **Cooking mode, rebuilt for a screen read from two metres.** The 3D vertical carousel (a
+  half-cut sentence above and below the step), 20 px type on pure black and 11 px ingredient
+  tags were exactly what a cook with steam and wet hands cannot use. Now:
+  - **one card, no ghosts**: the neighbours stay in the DOM (the navigation code reads them) but
+    are never drawn, and the step fades in with a 220 ms transition;
+  - **kiosk typography**: `clamp(24px, 3.2vw, 34px)` with `line-height: 1.5`, and the AMOUNTS and
+    the FOOD stand out (`mark.ck-qty` mint bold, `mark.ck-ing` lighter bold). Both come from the
+    recipe itself — the units are symbols (`g`, `ml`, `°C`, `%`) and the names are the ingredient
+    list — so nothing language-specific lives in the function;
+  - **ingredients first**: the step's own chips (36 px, 14 px semibold, slate + emerald border)
+    sit at the top of the card, before the sentence that uses them;
+  - **header and status**: `✕ Esci` · dish · `🔊` and `🎤`; below, `Passo n di m` with a segmented
+    emerald bar, restart and the running timers;
+  - **one timer**: the duration inside the sentence is the button, and the duplicate chip below
+    disappears when the sentence already carries it; the floating pill shows a short name
+    (`Cookeo · 05:59`, never `Avvia Cookeo…`) and the beep + spoken alert were already there;
+  - **who is reading**: SHELFY's avatar with waves while the voice speaks (`_cookingReading`,
+    driven by the utterance's own start/end); the step never advances by itself;
+  - palette **Deep Slate & Emerald** (`#0F172A` background, `#1E293B` card at 16 px radius,
+    emerald pill 52 px for the primary action).
+- **Voice commands while cooking, and SHELFY on the phone.** `🎤` listens for ONE phrase per tap
+  (continuous listening was removed once because Chrome's restart chime was louder than any
+  hands-free gain): *avanti* / *indietro* / *rileggi* move the recipe, and the words are DATA
+  (`api/vocab/<lang>.json` → `cooking_voice`, merged by `vocabCookingVoice()`, 20/16/19 synonyms
+  across the six languages). Anything else is a QUESTION — «non ho il limone, cosa posso usare?» —
+  and goes to SHELFY in the chat with the sentence already written: substitutions get answered by
+  the model that knows the pantry.
+- **The shopping list says what is already on it.** The missing-ingredients popover marks each row
+  `Già in lista` and adds only the rest; when everything is already there the button is disabled
+  (`È già tutto in lista`) instead of writing duplicates.
+
+### Changed
 - **The "missing ingredients" warning says what it means, and acts.** The `⚠️ n` badge in front
   of the meal icon is gone: it read as a crash counter (red border, warning triangle, a bare
   number) and it pushed the titles of half the list out of alignment. What is left is a SOFT

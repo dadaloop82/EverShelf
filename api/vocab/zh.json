@@ -999,6 +999,7 @@
   "translated_from": "it",
   "translated_with": "ai:gemini",
   "company_stop_words": ["制药", "药业", "医药", "公司", "集团", "有限公司", "化学", "生物", "科技"],
+  "cooking_voice": {"next": ["下一步", "继续"], "prev": ["上一步", "返回"], "replay": ["再读一遍", "重复"]},
   "capture": {
     "intent": {
       "recipe": [

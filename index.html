@@ -12,29 +12,29 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261106d">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261106d">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261106d">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261106e">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261106e">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261106e">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261106d">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261106e">
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
-    <link rel="stylesheet" href="assets/css/tablet.css?v=20261106d">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261106d">
+    <link rel="stylesheet" href="assets/css/tablet.css?v=20261106e">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261106e">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261106d"></script>
-    <script src="assets/js/core/auth.js?v=20261106d"></script>
-    <script src="assets/js/core/med.js?v=20261106d"></script>
+    <script src="assets/js/core/dom.js?v=20261106e"></script>
+    <script src="assets/js/core/auth.js?v=20261106e"></script>
+    <script src="assets/js/core/med.js?v=20261106e"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261106d"></script>
+    <script src="assets/js/med/italy.js?v=20261106e"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261106d"></script>
+    <script src="assets/js/core/support.js?v=20261106e"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -42,7 +42,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106d';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106e';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -51,13 +51,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106d';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106e';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261106d"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261106e"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -3431,31 +3431,46 @@
 <!-- ===== COOKING MODE OVERLAY ===== -->
 <div id="cooking-overlay" class="cooking-overlay" style="display:none" aria-live="polite">
     <div id="cooking-flash-overlay" class="cooking-flash-overlay"></div>
+    <!-- One way out, the dish, the voice: nothing else in the header. -->
     <div class="cooking-header">
-        <button class="cooking-close-btn" onclick="closeCookingMode()" data-i18n-title="cooking.close" title="Close">✕</button>
+        <button class="cooking-close-btn" onclick="closeCookingMode()" data-i18n-title="cooking.close" title="Chiudi"><span aria-hidden="true">✕</span><span class="cooking-close-label" data-i18n="cooking.exit">Esci</span></button>
         <span class="cooking-title" id="cooking-title"></span>
-        <button class="cooking-tts-btn" id="cooking-tts-btn" onclick="toggleCookingTTS()" data-i18n-title="cooking.tts_btn" title="Read aloud">🔊</button>
+        <span class="cooking-header-actions">
+            <button class="cooking-tts-btn" id="cooking-tts-btn" onclick="toggleCookingTTS()" data-i18n-title="cooking.tts_btn" title="Leggi ad alta voce">🔊</button>
+            <button class="cooking-mic-btn" id="cooking-mic-btn" onclick="_cookingVoiceCommand()" data-i18n-title="cooking.voice_cmd" data-i18n-aria="cooking.voice_cmd" aria-label="Comandi a voce">🎤</button>
+        </span>
     </div>
-    <div id="cooking-timers-bar" class="cooking-timers-bar" style="display:none"></div>
+    <!-- Where we are: passo n di m on a segmented bar, and the running timer. -->
+    <div class="cooking-status">
+        <span class="cooking-step-num" id="cooking-step-num"></span>
+        <div class="cooking-progress-dots" id="cooking-progress-dots" aria-hidden="true"></div>
+        <button class="cooking-restart-btn" onclick="restartCookingMode()" data-i18n-title="cooking.restart_title" data-i18n-aria="cooking.restart_title" aria-label="Ricomincia">↺</button>
+        <div id="cooking-timers-bar" class="cooking-timers-bar" style="display:none"></div>
+    </div>
     <div id="cooking-tools-bar" class="cooking-tools-bar" style="display:none"></div>
     <div class="cooking-body">
-        <div class="cooking-step-header">
-            <div class="cooking-step-num" id="cooking-step-num">1 / 1</div>
-            <button class="cooking-restart-btn" onclick="restartCookingMode()" data-i18n-title="cooking.restart_title" data-i18n="cooking.restart">↺ Restart</button>
+        <!-- ONE card. The ghosts stay in the DOM (the navigation code reads them) but are never
+             drawn: a half-cut sentence above and below the step is exactly what makes a recipe
+             unreadable from two metres away. -->
+        <div class="cooking-card" id="cooking-card">
+            <div class="cooking-step-ings" id="cooking-step-ings" style="display:none"></div>
+            <div class="cooking-wheel" id="cooking-wheel" tabindex="0" data-i18n-aria="cooking.wheel_aria" aria-label="Navigazione passi ricetta">
+                <div class="cooking-step-ghost cooking-step-prev" id="cooking-step-prev" aria-hidden="true"></div>
+                <div class="cooking-step-text" id="cooking-step-text"></div>
+                <div class="cooking-step-ghost cooking-step-next" id="cooking-step-next" aria-hidden="true"></div>
+            </div>
+            <div class="cooking-timer-suggest" id="cooking-timer-suggest" style="display:none">
+                <button class="cooking-timer-add-btn" onclick="addSuggestedCookingTimer()">
+                    <span id="cooking-timer-suggest-text" data-i18n="cooking.timer_chip">⏱️ 00:00 · Timer</span>
+                </button>
+            </div>
         </div>
-        <div class="cooking-progress-dots" id="cooking-progress-dots"></div>
-        <div class="cooking-wheel" id="cooking-wheel" tabindex="0" data-i18n-aria="cooking.wheel_aria" aria-label="Recipe step navigation">
-            <div class="cooking-step-ghost cooking-step-prev" id="cooking-step-prev"></div>
-            <div class="cooking-step-text" id="cooking-step-text"></div>
-            <div class="cooking-step-ghost cooking-step-next" id="cooking-step-next"></div>
+        <!-- Who is reading it out loud. -->
+        <div class="cooking-reading" id="cooking-reading" style="display:none" aria-hidden="true">
+            <img src="assets/img/shelfy/shelfy-avatar-96.png" alt="">
+            <span class="cooking-reading-waves"><i></i><i></i><i></i></span>
         </div>
-        <button class="cooking-replay-btn" id="cooking-replay" onclick="replayCookingTTS()" data-i18n-title="cooking.replay_title" data-i18n="cooking.replay">🔊 Replay</button>
-        <div class="cooking-timer-suggest" id="cooking-timer-suggest" style="display:none">
-            <button class="cooking-timer-add-btn" onclick="addSuggestedCookingTimer()">
-                <span id="cooking-timer-suggest-text" data-i18n="cooking.timer_chip">⏱️ 00:00 · Timer</span>
-            </button>
-        </div>
-        <div class="cooking-step-ings" id="cooking-step-ings" style="display:none"></div>
+        <button class="cooking-replay-btn" id="cooking-replay" onclick="replayCookingTTS()" data-i18n-title="cooking.replay_title" data-i18n="cooking.replay">🔊 Rileggi</button>
         <div class="cooking-scrap-hint" id="cooking-scrap-hint" style="display:none"></div>
         <div id="cooking-zerowaste-tip" class="cooking-zerowaste-tip" style="display:none">
             <span class="cooking-zerowaste-label" data-i18n="cooking.zerowaste_label">♻️ Scarto</span>
@@ -3465,8 +3480,8 @@
         </div>
     </div>
     <div class="cooking-nav">
-        <button class="cooking-nav-btn cooking-prev-btn" id="cooking-prev" onclick="navigateCookingStep(-1)" data-i18n="cooking.prev">◀ Previous</button>
-        <button class="cooking-nav-btn cooking-next-btn" id="cooking-next" onclick="navigateCookingStep(1)" data-i18n="cooking.next">Next ▶</button>
+        <button class="cooking-nav-btn cooking-prev-btn" id="cooking-prev" onclick="navigateCookingStep(-1)" data-i18n="cooking.prev">◀ Precedente</button>
+        <button class="cooking-nav-btn cooking-next-btn" id="cooking-next" onclick="navigateCookingStep(1)" data-i18n="cooking.next">Successivo ▶</button>
     </div>
 </div>
 
@@ -3487,17 +3502,17 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261106d"></script>
-<script src="assets/js/food_facts.generated.js?v=20261106d"></script>
-<script src="assets/js/free_apis.generated.js?v=20261106d"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261106d"></script>
-<script src="assets/js/off_categories.generated.js?v=20261106d"></script>
-<script src="assets/js/core/vocab.js?v=20261106d"></script>
-<script src="assets/js/app.js?v=20261106d"></script>
-<script src="assets/js/audit.js?v=20261106d"></script>
-<script src="assets/js/receipt.js?v=20261106d"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261106d"></script>
-<script src="assets/js/settings_search.js?v=20261106d"></script>
+<script src="assets/js/vocab.generated.js?v=20261106e"></script>
+<script src="assets/js/food_facts.generated.js?v=20261106e"></script>
+<script src="assets/js/free_apis.generated.js?v=20261106e"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261106e"></script>
+<script src="assets/js/off_categories.generated.js?v=20261106e"></script>
+<script src="assets/js/core/vocab.js?v=20261106e"></script>
+<script src="assets/js/app.js?v=20261106e"></script>
+<script src="assets/js/audit.js?v=20261106e"></script>
+<script src="assets/js/receipt.js?v=20261106e"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261106e"></script>
+<script src="assets/js/settings_search.js?v=20261106e"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

@@ -1658,6 +1658,7 @@
     ]
   },
   "company_stop_words": ["aziende", "chimiche", "chimici", "riunite", "riuniti", "laboratorio", "laboratori", "chimico", "chimica", "farmaceutico", "farmaceutica", "farmaceutici", "farmaceutiche", "industrie", "industria", "societa", "società", "spa", "srl", "sas", "snc", "del", "della", "delle", "dei", "degli", "francesco", "group", "groupe", "holding", "pharma"],
+  "cooking_voice": {"next": ["avanti", "successivo", "prossimo", "dopo", "vai avanti"], "prev": ["indietro", "precedente", "torna"], "replay": ["rileggi", "ripeti", "leggi di nuovo", "ancora"]},
   "capture": {
     "intent": {
       "recipe": [

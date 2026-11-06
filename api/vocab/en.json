@@ -1012,6 +1012,7 @@
   "translated_from": "it",
   "translated_with": "ai:gemini",
   "company_stop_words": ["laboratories", "laboratory", "pharmaceutical", "pharmaceuticals", "pharma", "industries", "industry", "company", "co", "holdings", "holding", "group", "plc", "ltd", "limited", "inc", "incorporated", "llc", "corp", "corporation", "gmbh", "ag", "healthcare", "health"],
+  "cooking_voice": {"next": ["next", "forward", "go on", "continue"], "prev": ["back", "previous", "go back"], "replay": ["read again", "repeat", "say again", "again"]},
   "capture": {
     "intent": {
       "recipe": [

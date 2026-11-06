@@ -1008,6 +1008,7 @@
   "translated_from": "it",
   "translated_with": "ai:gemini",
   "company_stop_words": ["laboratoires", "laboratoire", "pharmaceutique", "pharmaceutiques", "industrie", "industries", "societe", "société", "groupe", "holding", "sa", "sas", "sarl", "pharma"],
+  "cooking_voice": {"next": ["suivant", "avance", "continuer"], "prev": ["retour", "précédent", "reculer"], "replay": ["relis", "répète", "encore"]},
   "capture": {
     "intent": {
       "recipe": [

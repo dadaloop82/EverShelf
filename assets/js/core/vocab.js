@@ -316,6 +316,36 @@ function vocabCaptureOf(lang) {
  * (an Italian box printed by a German firm, "Pharmaceuticals" on a US label). Merged, deduped
  * and lowercased once; a language that declares nothing simply adds nothing.
  */
+/**
+ * The words the cooking screen hears for its three commands ("avanti", "indietro", "rileggi").
+ *
+ * DATA like every other word: api/vocab/<lang>.json → "cooking_voice". Every shipped language
+ * contributes, because the recogniser listens in the device language and a cook mixes them.
+ */
+function vocabCookingVoice() {
+    if (vocabCookingVoice._value) return vocabCookingVoice._value;
+    const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
+    const lang = (typeof _currentLang === 'string' && _currentLang) ? _currentLang : 'it';
+    const order = [lang].concat(Object.keys(all).filter(code => code !== lang).sort());
+    const out = { next: [], prev: [], replay: [] };
+    const seen = { next: new Set(), prev: new Set(), replay: new Set() };
+    order.forEach(code => {
+        const data = all[code];
+        const block = data && data.cooking_voice;
+        if (!block || typeof block !== 'object') return;
+        Object.keys(out).forEach(intent => {
+            (block[intent] || []).forEach(word => {
+                const key = String(word == null ? '' : word).trim().toLowerCase();
+                if (key === '' || seen[intent].has(key)) return;
+                seen[intent].add(key);
+                out[intent].push(key);
+            });
+        });
+    });
+    vocabCookingVoice._value = out;
+    return out;
+}
+
 function vocabCompanyStopWords() {
     if (vocabCompanyStopWords._value) return vocabCompanyStopWords._value;
     const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};

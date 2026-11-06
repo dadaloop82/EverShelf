@@ -1008,6 +1008,7 @@
   "translated_from": "it",
   "translated_with": "ai:gemini",
   "company_stop_words": ["laboratorios", "laboratorio", "farmaceutica", "farmacéutica", "farmaceutico", "farmacéutico", "industria", "industrias", "sociedad", "grupo", "holding", "sa", "sl", "srl", "pharma"],
+  "cooking_voice": {"next": ["siguiente", "avanza", "continuar"], "prev": ["atrás", "anterior", "volver"], "replay": ["relee", "repite", "otra vez"]},
   "capture": {
     "intent": {
       "recipe": [
