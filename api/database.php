@@ -308,6 +308,44 @@ function migrateDB(PDO $db): void {
         }
     }
 
+    // Migration: a shopping generic that is only a CONTAINER ("Frutta", "Verdura",
+    // "Latticini"). The title choke point makes every product lead with its genre, and
+    // the shopping-name extractor took the first word — so the list was titled with the
+    // shelf, not with the thing to buy. New writes are refined in computeShoppingName();
+    // this pass repairs the rows already stored. Products whose name gives no better
+    // word are left alone: a brand is not a generic.
+    $genericsFixed = $db->query("SELECT value FROM app_settings WHERE key = 'migration_shopping_generic_v1'")->fetchColumn();
+    if (!$genericsFixed) {
+        require_once __DIR__ . '/lib/product_kind.php';
+        $heads = productKindContainerHeads();
+        $renamed = 0;
+        if ($heads !== []) {
+            $rows = $db->query("SELECT id, name, shopping_name FROM products
+                                WHERE shopping_name IS NOT NULL AND TRIM(shopping_name) != ''")
+                       ->fetchAll(PDO::FETCH_ASSOC);
+            $updGeneric = $db->prepare('UPDATE products SET shopping_name = ? WHERE id = ?');
+            foreach ($rows as $row) {
+                if (!productKindIsContainerHead((string)$row['shopping_name'])) {
+                    continue;
+                }
+                $better = productKindShoppingGeneric((string)$row['name']);
+                if ($better === '' || mb_strtolower($better) === mb_strtolower((string)$row['shopping_name'])) {
+                    continue;
+                }
+                $updGeneric->execute([$better, (int)$row['id']]);
+                $renamed++;
+            }
+        }
+        $db->exec("INSERT OR REPLACE INTO app_settings (key, value)
+                   VALUES ('migration_shopping_generic_v1', '1')");
+        if ($renamed > 0 && class_exists('EverLog')) {
+            EverLog::info('Repaired shopping generics that were only a container word', [
+                'event' => 'shopping_generic_refined',
+                'products' => $renamed,
+            ]);
+        }
+    }
+
     $invCols = $db->query("PRAGMA table_info(inventory)")->fetchAll();
     $invColNames = array_column($invCols, 'name');
     if (!in_array('expiry_user_set', $invColNames)) {

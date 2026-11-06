@@ -128,6 +128,7 @@
     "vinegar",
     "yeast"
   ],
+    "shopping_container_heads": ["frutta", "frutta fresca", "verdura", "verdure", "latticini", "condimenti", "bevande", "surgelati", "snack", "conserve", "carne", "pesce", "cereali", "colazione", "misto", "ver", "conserva"],
   "umbrella_labels": [
     "snacks & sweets",
     "snack & dolci",

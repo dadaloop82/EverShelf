@@ -15545,7 +15545,11 @@ function computeShoppingName(string $name, string $category = '', string $brand 
     //      name — stay exactly what they have always been.
     $curated = productKindFromDictionary($name);
     if ($curated['kind'] !== '') {
-        return $curated['kind'];
+        // A title that leads with a CONTAINER word ("Verdura peperone", "Frutta
+        // limoni") must not title the shopping line: ask the rest of the name to the
+        // same dictionary first, and fall back to the curated kind when it is silent.
+        $specific = productKindShoppingGeneric($name);
+        return $specific !== '' ? $specific : $curated['kind'];
     }
 
     // 2. Bring! catalog back-translation — only when Bring mode is on.
@@ -19186,7 +19190,11 @@ function smartDefaultPlanDays(?PDO $db = null): int {
     if ($inferred !== null) {
         return $inferred;
     }
-    return 30;
+    // A weekly shop is the default: the fresh produce of a 30-day plan rots in five
+    // days ("3 bananas and 5 oranges for a month" is not a shopping list, it is a
+    // spreadsheet). Dry goods are unaffected — their quantity is one or two real
+    // packs, which is what the sale-unit snap guarantees.
+    return SHOPPING_DEFAULT_PLAN_DAYS;
 }
 
 /**
@@ -19548,6 +19556,87 @@ function smartSuggestedConfQty(float $needBase, float $defQty, string $pkgUnit, 
     $maxPkgs = max(1, min(SHOPPING_GUARD_MAX_CONF_PACKS, $maxPkgs));
     return [(float) max(1, min($maxPkgs, $qty)), 'conf'];
 }
+
+/**
+ * Is this item one whose absence stops the kitchen?
+ *
+ * Deliberately a RULE, not a list of product names: a pantry that keeps buying
+ * something twice a week (uses_per_month ≥ 8) and has none left is the only thing
+ * that deserves red. Onions and oranges can wait a day; salt, oil, coffee and milk
+ * cannot. Naming them in code would be vocabulary in the logic file (banned, see
+ * AGENTS.md §4b) and would only work for one language anyway.
+ */
+function shoppingIsEssentialItem(array $item): bool
+{
+    $uses = (float)($item['uses_per_month'] ?? 0);
+    $qty = (float)($item['family_qty'] ?? ($item['current_qty'] ?? 0));
+    if ($uses < SHOPPING_ESSENTIAL_USES_PER_MONTH) {
+        return false;
+    }
+    return $qty <= productQtyThreshold((string)($item['unit'] ?? 'conf'));
+}
+
+/**
+ * Recalibrate the priority scale.
+ *
+ * The list marked 75 rows out of 75 as "⚡ Urgente", which is the same as marking
+ * none: a red badge on the onions destroys the meaning of the red badge on the salt.
+ * Red is kept for an essential item that is finished; a frequently used product that
+ * is out becomes "Presto"; anything else settles at "A breve". Nothing is ever
+ * promoted by this pass — it only ever calms a badge down, and the server stays the
+ * one authority on the scale.
+ */
+function shoppingRecalibrateUrgency(array $items): array
+{
+    foreach ($items as &$item) {
+        $urgency = (string)($item['urgency'] ?? 'none');
+        if ($urgency !== 'critical' && $urgency !== 'high') {
+            continue;
+        }
+        $uses = (float)($item['uses_per_month'] ?? 0);
+        $pct = (float)($item['pct_left'] ?? 100);
+        $essential = shoppingIsEssentialItem($item);
+        $new = $urgency;
+        if ($urgency === 'critical' && !$essential) {
+            $new = ($uses >= SHOPPING_HIGH_USES_PER_MONTH || $pct <= 25) ? 'high' : 'medium';
+        } elseif ($urgency === 'high' && !$essential) {
+            $new = ($uses >= SHOPPING_HIGH_USES_PER_MONTH || $pct <= 25) ? 'high' : 'medium';
+        }
+        if ($new !== $urgency) {
+            $item['urgency'] = $new;
+            $item['urgency_was'] = $urgency;
+        }
+    }
+    unset($item);
+    return $items;
+}
+
+/**
+ * Split the list into "what to buy" and "what you rarely buy".
+ *
+ * A product bought once, months ago, is not a shopping need: putting it in the same
+ * list as the milk buries the milk. It moves to `suggested` — still reachable, still
+ * addable in one tap, but out of the way.
+ */
+function shoppingSplitSuggested(array $items): array
+{
+    $active = [];
+    $suggested = [];
+    foreach ($items as $item) {
+        $buyCount = (int)($item['buy_count'] ?? 0);
+        $uses = (float)($item['uses_per_month'] ?? 0);
+        $keep = !empty($item['on_bring'])
+            || ($item['urgency'] ?? 'none') === 'critical'
+            || (string)($item['suggested_via'] ?? '') !== '';   // explicit household requests
+        if (!$keep && $buyCount <= SHOPPING_RARE_BUY_COUNT && $uses < SHOPPING_RARE_USES_PER_MONTH) {
+            $suggested[] = $item;
+            continue;
+        }
+        $active[] = $item;
+    }
+    return ['items' => $active, 'suggested' => $suggested];
+}
+
 
 function smartShopping(PDO $db, ?int $planDays = null): void {
     EverLog::info('smartShopping');
@@ -20218,6 +20307,14 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         );
         $qtyHorizon = (int)$horizonMeta['days'];
         $shelfCapped = !empty($horizonMeta['capped']);
+        // Fresh produce is planned on a WEEKLY horizon, never on the monthly window:
+        // a 30-day plan for bananas and oranges asks for fruit that rots in five days
+        // and makes the whole list look absurd. Dry goods keep the monthly window
+        // (a 1 kg bag of rice does not care about next Tuesday).
+        $freshHorizon = saleUnitsFreshHorizonDays();
+        if ($qtyHorizon > $freshHorizon && saleUnitsIsFresh((string)($p['category'] ?? ''))) {
+            $qtyHorizon = $freshHorizon;
+        }
 
         $monthlyMeta     = smartMonthlyConsumptionNeed($tx, $dailyRate);
         $monthlyNeed     = smartSanitizePieceMonthly($monthlyMeta['amount'], $useCount, $usesPerMonth, $unit);
@@ -20375,6 +20472,29 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             $suggestedQty = $capped['quantity'];
             $suggestedUnit = $capped['unit'];
         }
+        // A need is not a purchase. Snap it up to the smallest real shelf unit and
+        // hand the client the same step, so "+1" in the stepper means one pack — not
+        // 1 g. This is what turns 1022 g of Trentingrana into 1 kg and 9 boxes of
+        // crackers into a multipack.
+        $saleStep = 0.0;
+        $saleRuleUnit = $suggestedUnit ?? $unit;
+        $saleSnapped = saleUnitSnap(
+            (float)($suggestedQty ?? 0),
+            (string)$saleRuleUnit,
+            (string)($p['category'] ?? ''),
+            (string)$p['name']
+        );
+        $saleStep = (float)$saleSnapped['step'];
+        if ($suggestedQty !== null) {
+            $suggestedQty = $saleSnapped['quantity'];
+            $suggestedUnit = $saleSnapped['unit'];
+        } else {
+            // Nothing computed, but the row is on the list: at least propose one
+            // shelf unit instead of an empty quantity.
+            $suggestedQty = $saleSnapped['quantity'] > 0 ? $saleSnapped['quantity'] : 1;
+            $suggestedUnit = $saleSnapped['unit'];
+            $suggestedApprox = true;
+        }
         $wHint = $wasteLearning[(string)$pid] ?? [];
         if (!empty($wHint['preferred_location'])) {
             $locLabel = $wHint['preferred_location'];
@@ -20423,6 +20543,8 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             'suggested_qty'   => $suggestedQty,
             'suggested_unit'  => $suggestedUnit,
             'suggested_approx' => $suggestedApprox,
+            // The shelf unit of the category: the stepper moves by this.
+            'sale_step'       => $saleStep,
             'monthly_usage'   => round($monthlyNeed, 2),
             'monthly_usage_source' => $monthlySource,
             'period_usage'    => round($periodNeed, 2),
@@ -20480,6 +20602,13 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
     // Sort by score descending (most urgent first)
     usort($items, fn($a, $b) => $b['score'] - $a['score']);
 
+    // The scale is recalibrated server-side, after grouping (so the representative
+    // of a family decides its own badge), and rare products leave the active list.
+    $items = shoppingRecalibrateUrgency($items);
+    $splitItems = shoppingSplitSuggested($items);
+    $items = $splitItems['items'];
+    $suggestedItems = $splitItems['suggested'];
+
     if ($skippedOutOfSeason !== []) {
         EverLog::debug('Smart shopping skipped out-of-season produce', [
             'event' => 'smart_shopping_out_of_season',
@@ -20491,8 +20620,11 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
     echo json_encode([
         'success' => true,
         'items' => $items,
+        // Rarely bought products: still one tap away, but they no longer bury the milk.
+        'suggested' => $suggestedItems,
         'plan_days' => $planDays,
         'plan_days_default' => $planDefault,
+        'fresh_horizon_days' => saleUnitsFreshHorizonDays(),
         'skipped_out_of_season' => count($skippedOutOfSeason),
     ], JSON_UNESCAPED_UNICODE);
 }

@@ -577,6 +577,71 @@ function productKindFromAi(string $name, string $brand, string $category): strin
 }
 
 /**
+ * Words that may lead a title but can never BE the shopping generic.
+ *
+ * "Verdura peperone" is a fine pantry title (the genre leads, as the title rule
+ * wants) but a terrible shopping line: you write "Peperoni" on the list, not
+ * "Verdura". The list lives in `api/vocab/<lang>.json` → `shopping_container_heads`,
+ * so the words stay DATA (AGENTS.md §4b) and the code only compares strings.
+ *
+ * @return list<string>
+ */
+function productKindContainerHeads(): array
+{
+    return array_values(array_map(
+        static fn($w) => mb_strtolower(trim((string)$w)),
+        (array)(evershelfVocab()['shopping_container_heads'] ?? [])
+    ));
+}
+
+/** True when this word is a container head (a shelf genre, not a buyable article). */
+function productKindIsContainerHead(string $word): bool
+{
+    $w = mb_strtolower(trim($word));
+    if ($w === '') {
+        return false;
+    }
+    return in_array($w, productKindContainerHeads(), true);
+}
+
+/**
+ * The buyable generic for a title whose genre is only a container.
+ *
+ * The title choke point makes every product lead with its genre
+ * (`"Verdura peperone"`), and the shopping-name extractor then took the FIRST word
+ * — so the list was titled "Verdura", "Frutta", "Carne". Here the rest of the name is
+ * asked to the same dictionary; when it knows nothing, the empty string says "keep
+ * what you had" rather than inventing a word (a brand is not a generic).
+ */
+function productKindShoppingGeneric(string $name): string
+{
+    $tokens = evershelfSignificantTokens($name);
+    if (count($tokens) < 2) {
+        return '';
+    }
+    $lead = mb_strtolower((string)$tokens[0]);
+    if (!productKindIsContainerHead($lead)) {
+        return '';
+    }
+    $rest = array_slice($tokens, 1);
+    if ($rest === []) {
+        return '';
+    }
+    $alt = productKindFromDictionary(implode(' ', $rest));
+    $kind = trim((string)($alt['kind'] ?? ''));
+    if ($kind !== '' && mb_strtolower($kind) !== $lead && productKindIsPlausibleGenre($kind)) {
+        return productTitleCapitalize($kind);
+    }
+    // No dictionary answer: only a word the pantry already knows as piece produce
+    // ("limoni", "peperone", "patata") may title the row. A brand ("Milbona") or a
+    // qualifier ("impanata") must not, or the repair would invent new nonsense.
+    if (vocabIsPieceProduce((string)$rest[0])) {
+        return productTitleCapitalize((string)$rest[0]);
+    }
+    return '';
+}
+
+/**
  * Leading UI-tab / OFF labels that poisoned titles when used as genres
  * ("Snacks & sweets frollini…", "Vegetables basilico", "Dairy trentingrana…").
  * Stripped on apply so a maintenance pass can heal the pantry.

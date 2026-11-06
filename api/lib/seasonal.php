@@ -633,10 +633,11 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
         $kindStock = $kind !== '' ? (int)($stockKinds[$kind] ?? 0) : 0;
 
         // Score the evidence, not the calendar: a card must be justified by
-        // something the household demonstrably does. Specific evidence first
-        // (this produce, or its buyable family), the coarse kind-level habit as
-        // a lower-ranked fallback — and nothing at all for a produce they never
-        // touch, which is what made the old card look random.
+        // something the household demonstrably does. SPECIFIC evidence only — this
+        // produce, or its buyable family, bought or eaten by this household in the
+        // last year. The coarse kind-level fallbacks ("someone buys some vegetable
+        // twice") used to fill the card with corbezzolo and cardo gobbo: a suggestion
+        // is about them, not about the calendar.
         $score = 0;
         $reasonKey = '';
         if ($boughtCount > 0) {
@@ -645,12 +646,6 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
         } elseif ($consumedCount > 0) {
             $score = 90 + min(30, $consumedCount * 6);
             $reasonKey = 'shopping.seasonal_reason_often_eats';
-        } elseif ($kindEat >= 3) {
-            $score = 60 + min(20, $kindEat);
-            $reasonKey = 'shopping.seasonal_reason_often_eats';
-        } elseif ($kindBuy >= 2) {
-            $score = 40 + min(15, $kindBuy);
-            $reasonKey = 'shopping.seasonal_reason_same_kind';
         } else {
             continue;
         }

@@ -4917,6 +4917,154 @@ body:has(#page-scan.active) .app-content {
     margin-top: 6px;
     line-height: 1.3;
 }
+
+/* ── The card's own answers: a stepper you can press and two real buttons ──────────
+ * A shopping list is read at arm's length, standing up, often with one hand holding a
+ * basket: nothing operational may live in a 11 px sentence. Everything below is at
+ * least 44 px tall, and the only colour on the strip is the emerald of the action that
+ * writes the outcome ("Comprato"); "Non serve" is a neutral secondary.
+ */
+.shop-row-buy {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--surface-border, rgba(148, 163, 184, 0.28));
+}
+.shop-row-buy-label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted, #64748b);
+}
+.shop-qty-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border, #e2e8f0);
+    background: var(--surface-bg, #fff);
+    color: var(--text-main, #0f172a);
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+}
+.shop-qty-btn:active {
+    transform: scale(0.94);
+    background: var(--bg-app, #f1f5f9);
+}
+.shop-qty-value {
+    min-width: 78px;
+    text-align: center;
+    font-size: 1.12rem;
+    font-weight: 800;
+    color: var(--text-main, #0f172a);
+    white-space: nowrap;
+}
+.shop-qty-step {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted, #94a3b8);
+    opacity: 0.8;
+}
+.shop-row-buy .shop-row-price {
+    margin-left: auto;
+}
+.shop-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+.shop-row-btn {
+    flex: 1 1 0;
+    min-height: 46px;
+    padding: 0 16px;
+    border-radius: 12px;
+    font-size: 0.98rem;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+    border: 1px solid transparent;
+    -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.shop-row-btn:active { transform: scale(0.985); }
+
+/* "Suggeriti": the rarely bought products, out of the way and one tap each. */
+.smart-suggested {
+    margin-top: 14px;
+    border-top: 1px dashed var(--surface-border, #e2e8f0);
+    padding-top: 10px;
+}
+.smart-suggested > summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-muted, #475569);
+    list-style: none;
+    padding: 6px 0;
+}
+.smart-suggested > summary::-webkit-details-marker { display: none; }
+.smart-suggested > summary::before { content: '▸ '; }
+.smart-suggested[open] > summary::before { content: '▾ '; }
+.smart-suggested-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px 0 8px;
+}
+.smart-suggested-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border, #e2e8f0);
+    background: var(--surface-bg, #fff);
+    color: var(--text-main, #0f172a);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.smart-suggested-chip:active { background: var(--bg-app, #f1f5f9); }
+.smart-suggested-qty {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-muted, #64748b);
+}
+/* Neutral secondary: "not this time" is a decision, not a danger. */
+.shop-row-btn--dismiss {
+    background: var(--surface-bg, #fff);
+    border-color: var(--surface-border, #e2e8f0);
+    color: var(--text-muted, #475569);
+    flex: 0 0 auto;
+}
+/* ONE emerald, on the action that writes the outcome. */
+.shop-row-btn--bought {
+    background: var(--brand-primary, #059669);
+    border-color: var(--brand-primary, #059669);
+    color: #fff;
+}
+@media (max-width: 480px) {
+    .shop-qty-value { min-width: 62px; font-size: 1.02rem; }
+    .shop-qty-btn { width: 42px; height: 42px; min-width: 42px; }
+    .shop-row-btn { font-size: 0.92rem; padding: 0 10px; }
+}
+
 .shop-row-main {
     display: flex;
     align-items: center;

@@ -26,6 +26,27 @@ const SHOPPING_GUARD_MAX_ML_PER_DAY = 2000.0;
 const SHOPPING_GUARD_MIN_HISTORY_DAYS = 7.0;
 
 /**
+ * Urgency scale thresholds (uses per month).
+ *
+ * `ESSENTIAL` is the only thing that can wear the red badge when the shelf is empty
+ * (twice a week or more): the salt, the oil, the milk. `HIGH` is a regular of the
+ * kitchen, which goes orange. Below both a finished product is just "A breve" — a
+ * badge that says everything is urgent says nothing.
+ */
+const SHOPPING_ESSENTIAL_USES_PER_MONTH = 8.0;
+const SHOPPING_HIGH_USES_PER_MONTH = 4.0;
+
+/**
+ * "Rarely bought": one purchase ever (or none) below half a use a month.
+ * Those rows move out of the list into the `suggested` strip.
+ */
+const SHOPPING_RARE_BUY_COUNT = 1;
+const SHOPPING_RARE_USES_PER_MONTH = 0.5;
+
+/** Planning window (days) when the household never chose one: a weekly shop. */
+const SHOPPING_DEFAULT_PLAN_DAYS = 7;
+
+/**
  * SQL fragment: transaction is real consumption/purchase — not a location move
  * or an undo restoration ([Undone]/[Annullato]), which must not count as buys/uses.
  */

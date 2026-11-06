@@ -5,6 +5,65 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.0] - 2026-11-06
+
+### Changed
+- **A need is not a purchase.** The list computed what the household consumes and printed it as
+  what to buy: **1022 g of Trentingrana**, **13 eggs**, **9 boxes of crackers**, **80 g of oregano**.
+  `data/sale_units.json` now describes the real shelf unit of each category (eggs 6/10/12/20/30,
+  cheese in 250 g steps, meat 100 g, snacks one multipack) and `saleUnitSnap()` (api/lib/sale_units.php)
+  rounds the need **up** to it. The server also sends `sale_step`, so the new stepper in the UI moves
+  by one real pack — the client and the server can no longer disagree on what "+1" means.
+- **Fresh produce is planned over a week, never over the month.** A 30-day horizon on bananas and
+  oranges asks for fruit that rots in five days and made the header claim "quantità calcolate per
+  30 giorni" over 3 bananas. `saleUnitsFreshHorizonDays()` caps frutta/verdura/pane/carne/pesce/
+  latticini/surgelati at 7 days whatever the window says, the header now states both horizons, and
+  `SHOPPING_DEFAULT_PLAN_DAYS` is **7** (a weekly shop) instead of 30. Dry goods are unaffected:
+  their quantity is one or two packs, which is what the snap guarantees.
+- **The priority scale is recalibrated server-side.** 75 rows out of 75 wore "⚡ Urgente", which is
+  the same as marking none: a red badge on the onions destroys the red badge on the salt.
+  `shoppingRecalibrateUrgency()` keeps red for an **essential** item that is finished — a rule, not a
+  product list: used twice a week or more (`SHOPPING_ESSENTIAL_USES_PER_MONTH`) **and** out of stock.
+  A frequent regular goes orange, everything else settles at "A breve". The pass only ever calms a
+  badge down. On this instance: 16 critical/4 high → **7 critical / 12 high / 48 medium / 5 low**.
+- **Rarely bought products leave the list.** A product bought once, months ago, is not a shopping
+  need and it buried the milk. `shoppingSplitSuggested()` moves it to a `suggested[]` payload array,
+  rendered as a collapsed **Suggeriti (N)** strip where one tap puts it back in the list. Anything
+  already on the list (`on_bring`) or critical stays where it is.
+- **Seasonal suggestions only from the household's own history.** The card was allowed to fire on a
+  coarse kind-level habit ("someone buys some vegetable twice"), which is how **corbezzolo** and
+  **cardo gobbo** ended up on an Italian pantry's list. A suggestion now needs specific evidence:
+  this produce, or its buyable family, bought or eaten by them in the last year.
+- **A shopping generic is never a container word.** Because every title now leads with its genre,
+  the shopping name took the first word: the list was titled **Frutta**, **Verdura**, **Latticini**,
+  **Carne**, **Condimenti**. The heads live in the vocab (`shopping_container_heads`, six locales),
+  `productKindShoppingGeneric()` asks the rest of the name to the same dictionary — and only accepts
+  a word the pantry already knows as piece produce, because a brand ("Milbona") is not a generic.
+  The migration `migration_shopping_generic_v1` repairs the rows already stored:
+  `Frutta limoni → Limoni`, `Verdura peperone → Peperone`, `Verdura patata → Patata`.
+
+### Added
+- **The shopping card has three answers, and all of them are buttons.** The actions used to live in
+  one line of 11 px text ("← rimuovi · → a casa | scansiona") — on a wall-mounted tablet every tap
+  was a miss, and the quantity was a passive purple string you could not touch. Now: thumbnail,
+  generic name, the specific one under it with the stock ("Rossa di Tropea · Esaurito"), the priority
+  badge, a **`[−] 3 pz [＋]` stepper** (step = `sale_step`, the correction is kept per product on the
+  device so a refresh does not undo it), and two 46 px buttons — neutral **✕ Non serve** (the dated
+  dismiss, restorable from the drawer) and emerald **🛒 Comprato**. One delegated listener, no inline
+  handlers, and the swipe stays as a shortcut instead of being the only way.
+- **Frequency and stock are drawn, not printed.** "📈 ~14/mese" became **🔥 Quotidiano / ⚡ Abituale /
+  ☕ Occasionale**, and the stock level is a battery (🪫 / 🟨 / 🟩), with the exact number in the
+  tooltip.
+- `GET shopping_dismissed` + `POST shopping_dismissed_restore` (`{key}` | `{all:true}`) and the
+  **Non comprati (N)** drawer under the list.
+
+### Fixed
+- Dried herbs and spices (origano, basilico, prezzemolo, salvia, rosmarino, alloro, timo, spezie,
+  curcuma, paprika, zenzero, cannella, zafferano, curry…) are preserves by definition:
+  "Spezie Origano foglie" was announced as "fuori stagione" in November because its category is
+  `verdura` and the catalogue matched the plant name.
+- The priority pills now carry their counts: a filter that does not say how much it hides is a guess.
+
 ## [1.29.22] - 2026-11-06
 
 ### Changed

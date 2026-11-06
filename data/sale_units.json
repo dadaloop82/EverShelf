@@ -1,0 +1,94 @@
+{
+    "version": 1,
+    "note": "Retail sale units: how a household actually picks a product off the shelf. A suggestion of 1022 g of grana is not a quantity anybody can buy, and 13 eggs is two trays. The rules are DATA so the vocabulary ratchet stays clean: `match` is a lowercase substring of the product name, `categories` is a list of product category slugs, `unit` is the quantity group the rule snaps (`pz` pieces, `g` a measure in g/ml, `conf` whole packs), `step` is the grid (250 g of cheese) and `steps` an explicit ladder (eggs 6/10/12/20/30) where the smallest rung that covers the need wins. `min`/`max` bound one shopping trip.",
+    "fresh": {
+        "categories": ["frutta", "verdura", "pane", "pesce", "carne", "latticini", "surgelati"],
+        "max_horizon_days": 7
+    },
+    "rules": [
+        {
+            "match": ["uov"],
+            "unit": "pz",
+            "steps": [6, 10, 12, 20, 30],
+            "min": 6,
+            "max": 30
+        },
+        {
+            "match": ["pane", "focaccia", "piadina", "bauletto", "toast"],
+            "unit": "g",
+            "step": 250,
+            "min": 250,
+            "max": 1000
+        },
+        {
+            "categories": ["latticini"],
+            "unit": "g",
+            "step": 250,
+            "min": 150,
+            "max": 1000
+        },
+        {
+            "categories": ["carne", "pesce"],
+            "unit": "g",
+            "step": 100,
+            "min": 200,
+            "max": 1000
+        },
+        {
+            "categories": ["frutta", "verdura"],
+            "unit": "g",
+            "step": 250,
+            "min": 250,
+            "max": 2000
+        },
+        {
+            "categories": ["snack", "dolci", "colazione"],
+            "unit": "conf",
+            "step": 1,
+            "min": 1,
+            "max": 2
+        },
+        {
+            "categories": ["pane"],
+            "unit": "conf",
+            "step": 1,
+            "min": 1,
+            "max": 3
+        },
+        {
+            "categories": ["bevande", "alcolici"],
+            "unit": "conf",
+            "step": 1,
+            "min": 1,
+            "max": 6
+        },
+        {
+            "categories": ["pulizia"],
+            "unit": "conf",
+            "step": 1,
+            "min": 1,
+            "max": 2
+        },
+        {
+            "categories": ["frutta", "verdura", "uova"],
+            "unit": "pz",
+            "steps": [1, 2, 3, 4, 6, 8, 10, 12, 15, 20],
+            "min": 1,
+            "max": 20
+        },
+        {
+            "categories": ["conserve", "pasta", "cereali", "condimenti", "surgelati", "altro", "latticini", "carne", "pesce"],
+            "unit": "conf",
+            "step": 1,
+            "min": 1,
+            "max": 4
+        },
+        {
+            "categories": ["latticini", "conserve", "condimenti", "bevande", "altro"],
+            "unit": "pz",
+            "steps": [1, 2, 3, 4, 6, 8, 12],
+            "min": 1,
+            "max": 12
+        }
+    ]
+}

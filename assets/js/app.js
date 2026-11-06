@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106m'; // bump when translations change
+const _I18N_VERSION = '20261106n'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106m';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106n';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106m';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106n';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -29755,6 +29755,8 @@ function estimateItemPrice(product, spec) {
 
 // ===== SMART SHOPPING =====
 let smartShoppingItems = [];
+/** Rarely bought products: kept out of the list, shown in their own strip. */
+let smartShoppingSuggested = [];
 let smartShoppingFilter = 'all';
 let _smartShoppingLastFetch = 0;      // timestamp of last successful fetch
 let _bgShoppingInterval = null; // kept for compatibility, cron handles refresh server-side
@@ -29974,9 +29976,13 @@ function _renderShoppingPlanDaysBar() {
     }
     const hint = document.getElementById('shopping-plan-days-hint');
     if (hint) {
-        hint.textContent = days === def
+        const base = days === def
             ? t('shopping.plan_days_auto').replace('{days}', def)
             : t('shopping.plan_days_custom').replace('{days}', days);
+        // Fresh produce is planned on a week whatever the window says: saying the
+        // whole window is "the horizon" made the header claim 30 days over 3 bananas.
+        const fresh = Number(window._smartFreshHorizonDays) || 7;
+        hint.textContent = base + ' ' + t('shopping.plan_days_fresh').replace('{days}', fresh);
     }
     const resetBtn = document.getElementById('shopping-plan-days-reset');
     if (resetBtn) resetBtn.style.display = isShoppingPlanDaysCustom() ? '' : 'none';
@@ -29995,6 +30001,10 @@ async function loadSmartShopping(forceRefresh = false) {
                 smartShoppingItems.filter(i => i.urgency === 'critical').map(i => i.name)
             );
             smartShoppingItems = _filterPurchasedSmartItems(data.items);
+            // Rarely bought products: out of the list, still one tap away. They never
+            // bury the milk again, but the household must be able to see them.
+            smartShoppingSuggested = Array.isArray(data.suggested) ? data.suggested : [];
+            if (data.fresh_horizon_days) window._smartFreshHorizonDays = parseInt(data.fresh_horizon_days, 10) || 7;
             _offlineSmartCacheSet(smartShoppingItems, planDays);
             _smartShoppingLastFetch = Date.now();
             // NOTE: do NOT clear _cachedPrices here — qty validation (_qty/_unit metadata)
@@ -30175,11 +30185,71 @@ function renderSmartShopping() {
             smartHtml += renderSmartItem(item, items);
         }
     }
+    // "Suggeriti": what this pantry buys once in a while. Out of the way, one tap each.
+    smartHtml += _renderSmartSuggestedStrip();
     container.innerHTML = smartHtml;
+
+    _initSmartSuggestedChips(container);
 
     // Show/hide add button based on checkable items
     const hasCheckable = items.some(i => !i.on_bring);
     actionsEl.style.display = hasCheckable ? 'block' : 'none';
+}
+
+/**
+ * The strip of rarely bought products.
+ *
+ * They used to sit in the list between the milk and the bread, pushing everything the
+ * household actually needs off the first screen. A tap puts one back in the list.
+ */
+function _renderSmartSuggestedStrip() {
+    const rows = Array.isArray(smartShoppingSuggested) ? smartShoppingSuggested : [];
+    if (!rows.length) return '';
+    const chips = rows.slice(0, 12).map((it) => {
+        const name = it.shopping_name || it.name || '';
+        const qty = _shopRowBuyQtyLabel(null, it);
+        return `<button type="button" class="smart-suggested-chip" data-suggested="${escapeHtml(name)}">
+            <span class="smart-suggested-name">${escapeHtml(name)}</span>
+            ${qty ? `<span class="smart-suggested-qty">${escapeHtml(qty)}</span>` : ''}
+        </button>`;
+    }).join('');
+    return `<details class="smart-suggested">
+        <summary>${escapeHtml(t('shopping.suggested_title'))} (${rows.length})</summary>
+        <div class="smart-suggested-chips">${chips}</div>
+    </details>`;
+}
+
+function _initSmartSuggestedChips(container) {
+    if (!container || container._suggestedHandler) return;
+    container._suggestedHandler = async (ev) => {
+        const chip = ev.target.closest('.smart-suggested-chip');
+        if (!chip) return;
+        const name = chip.dataset.suggested || '';
+        if (!name) return;
+        const row = (smartShoppingSuggested || []).find((i) => (i.shopping_name || i.name) === name);
+        if (!row) return;
+        chip.disabled = true;
+        try {
+            const qty = _shopRowBuyQtyLabel(null, row);
+            const spec = qty ? `${qty}` : '';
+            const payload = { items: [{ name, specification: spec }] };
+            if (shoppingListUUID) payload.listUUID = shoppingListUUID;
+            const res = await api('shopping_add', {}, 'POST', payload);
+            if (res.success) {
+                showToast(t('shopping.added_to_list', { n: 1 }), 'success');
+                smartShoppingSuggested = (smartShoppingSuggested || []).filter((i) => (i.shopping_name || i.name) !== name);
+                renderSmartShopping();
+                loadShoppingList();
+            } else {
+                showToast(res.error || t('error.generic'), 'error');
+                chip.disabled = false;
+            }
+        } catch (e) {
+            chip.disabled = false;
+            showToast(t('error.connection'), 'error');
+        }
+    };
+    container.addEventListener('click', container._suggestedHandler);
 }
 
 function renderSmartItem(item) {
@@ -30215,12 +30285,20 @@ function renderSmartItem(item) {
             qtyText = t('shopping.out_of_stock');
         }
 
-        // Usage frequency badge — uses per month, not raw transaction count
+        // Frequency + stock, drawn instead of printed.
+        // "~14/mese" is a number nobody can act on in an aisle; a flame says "you buy
+        // this all the time", a battery says how much is left before it runs out.
         let freqBadge = '';
         const usesMonth = Math.round(parseFloat(item.uses_per_month) || 0);
-        if (usesMonth >= 4) freqBadge = `<span class="smart-freq-badge freq-high">📈 ~${usesMonth}/mese</span>`;
-        else if (usesMonth >= 2) freqBadge = `<span class="smart-freq-badge freq-med">📊 ~${usesMonth}/mese</span>`;
-        else if (usesMonth >= 1) freqBadge = `<span class="smart-freq-badge freq-low">📉 ~${usesMonth}/mese</span>`;
+        if (usesMonth >= 4) freqBadge = `<span class="smart-freq-badge freq-high" title="${escapeHtml(t('shopping.freq_daily'))}">🔥 ${escapeHtml(t('shopping.freq_daily'))}</span>`;
+        else if (usesMonth >= 2) freqBadge = `<span class="smart-freq-badge freq-med" title="${escapeHtml(t('shopping.freq_habit'))}">⚡ ${escapeHtml(t('shopping.freq_habit'))}</span>`;
+        else if (usesMonth >= 1) freqBadge = `<span class="smart-freq-badge freq-low" title="${escapeHtml(t('shopping.freq_occasional'))}">☕ ${escapeHtml(t('shopping.freq_occasional'))}</span>`;
+        // Battery: the stock level as a picture (🪫 empty, 🟨 half, 🟩 full).
+        let batteryBadge = '';
+        if (item.current_qty > 0 || item.family_qty > 0) {
+            const batt = pct <= 15 ? '🪫' : pct <= 50 ? '🟨' : '🟩';
+            batteryBadge = `<span class="smart-battery-badge" title="${escapeHtml(t('shopping.stock_left').replace('{qty}', qtyText))}">${batt}</span>`;
+        }
 
         // Suggested purchase quantity badge
         let suggestBadge = '';
@@ -30264,7 +30342,7 @@ function renderSmartItem(item) {
                     <div class="smart-item-reasons">${item.reasons.map(r => `<span>${escapeHtml(_localizeSmartReason(r))}</span>`).join(' · ')}</div>
                     <div class="smart-item-badges">
                         <span class="smart-urgency-badge" style="color:${u.color}">${u.icon} ${u.label}</span>
-                        ${freqBadge}${predBadge}${expiryBadge}${suggestBadge}
+                        ${freqBadge}${batteryBadge}${predBadge}${expiryBadge}${suggestBadge}
                         ${item.is_opened ? `<span class="smart-freq-badge freq-low">${t('inventory.opened_badge')}</span>` : ''}
                         ${item.on_bring ? `<span class="smart-bring-badge">${t(_isShoppingBringMode() ? 'shopping.bring_badge' : 'shopping.list_badge')}</span>` : ''}
                     </div>
@@ -30831,6 +30909,117 @@ async function addSmartItemQuick(globalIdx) {
     }
 }
 
+/**
+ * How many to buy, editable — the number the stepper edits.
+ *
+ * The household's correction lives on the device (`evershelf_shop_qty_v1`, keyed by
+ * the buyable generic) instead of being recomputed on every render: a person who typed
+ * 6 onions wants 6 onions after a pull-to-refresh too. The server's suggestion is only
+ * the starting point, and the step comes from `sale_step` so "+1" is one real pack.
+ */
+function _shopQtyOverrides() {
+    try {
+        const raw = localStorage.getItem('evershelf_shop_qty_v1');
+        const parsed = raw ? JSON.parse(raw) : null;
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function _shopQtyKey(item, smartData) {
+    const name = String(smartData?.shopping_name || item?.name || '').trim().toLowerCase();
+    return name;
+}
+
+function _shopRowQtyStep(smartData) {
+    const step = Number(smartData?.sale_step);
+    if (Number.isFinite(step) && step > 0) return step;
+    // No retail rule for this product (flour, jam, cereals sold by weight): step by a
+    // sensible amount of the unit itself, never by 1 g.
+    const unit = String(smartData?.suggested_unit || smartData?.unit || '').toLowerCase();
+    if (unit === 'g' || unit === 'ml') return 100;
+    if (unit === 'kg' || unit === 'l' || unit === 'lt') return 0.5;
+    return 1;
+}
+
+function _shopRowBuyQty(item, smartData) {
+    const overrides = _shopQtyOverrides();
+    const key = _shopQtyKey(item, smartData);
+    const saved = Number(overrides[key]);
+    if (Number.isFinite(saved) && saved > 0) return saved;
+    const suggested = Number(smartData?.suggested_qty);
+    if (Number.isFinite(suggested) && suggested > 0) return suggested;
+    return null;
+}
+
+function _shopRowBuyQtyLabel(item, smartData) {
+    const qty = _shopRowBuyQty(item, smartData);
+    if (!qty) return '';
+    const unit = smartData?.suggested_unit || smartData?.unit || item?.unit || '';
+    return _formatSuggestQty(qty, unit) || '';
+}
+
+/** Stepper: the correction is saved at once, so a reload keeps it. */
+function _shopRowQtyAdjust(btn) {
+    const idx = parseInt(btn?.dataset?.idx, 10);
+    const delta = parseInt(btn?.dataset?.qtyDelta, 10);
+    if (!Number.isFinite(idx) || !Number.isFinite(delta)) return;
+    const item = shoppingItems[idx];
+    if (!item) return;
+    const smartData = _matchBringToSmart(item.name, smartShoppingItems);
+    const step = _shopRowQtyStep(smartData);
+    const current = _shopRowBuyQty(item, smartData) || step;
+    const next = Math.max(step, current + delta * step);
+    const overrides = _shopQtyOverrides();
+    const key = _shopQtyKey(item, smartData);
+    if (key) {
+        overrides[key] = next;
+        try { localStorage.setItem('evershelf_shop_qty_v1', JSON.stringify(overrides)); } catch (e) { /* private mode */ }
+    }
+    const unit = smartData?.suggested_unit || smartData?.unit || item?.unit || '';
+    const label = _formatSuggestQty(next, unit) || String(next);
+    const el = document.querySelector(`.shop-qty-value[data-qty-value="${idx}"]`);
+    if (el) el.textContent = label;
+}
+
+/** The two answers of a shopping card. 44 px tall, one verb each. */
+async function _shopRowAction(btn) {
+    const idx = parseInt(btn?.dataset?.idx, 10);
+    const act = String(btn?.dataset?.act || '');
+    if (!Number.isFinite(idx)) return;
+    if (act === 'bought') {
+        await markShoppingItemBoughtAtHome(idx);
+        return;
+    }
+    if (act === 'dismiss') {
+        // "Non serve" is not a delete: shopping_remove with purchased:false writes the
+        // dated dismiss map, so the row comes back on its own and the drawer can restore it.
+        await removeBringItem(idx);
+    }
+}
+
+/** One delegated listener for the whole list: no inline handlers, no per-row rebinding. */
+function _initShopRowActions(container) {
+    if (!container || container._rowActionHandler) return;
+    container._rowActionHandler = (ev) => {
+        const qtyBtn = ev.target.closest('.shop-qty-btn');
+        if (qtyBtn) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            _shopRowQtyAdjust(qtyBtn);
+            return;
+        }
+        const actBtn = ev.target.closest('.shop-row-btn');
+        if (actBtn) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            _shopRowAction(actBtn);
+        }
+    };
+    container.addEventListener('click', container._rowActionHandler);
+}
+
 function _shopRowQtyHtml(smartData) {
     const buyQty = _shoppingBuyQtyDisplay(smartData);
     if (!buyQty) return '';
@@ -30852,13 +31041,77 @@ function _shoppingListSubtitle(item, displayName) {
     return spec || '';
 }
 
-function _shopRowInnerHtml({ displayName, subtitle = '', reason = '', qtyHtml, priceCell, visualHtml, urgencyBadge = '' }) {
+/**
+ * The line under the generic name: what it is in the house, and how much is left.
+ *
+ * The card's title is the BUYABLE generic ("Cipolla"), so the second line has to say
+ * which one ("Rossa di Tropea") and whether the shelf is empty ("Esaurito") — the
+ * household reads it in a shop aisle, not at a desk.
+ */
+function _shoppingRowSubtitle(item, displayName, smartData) {
+    const parts = [];
+    const brand = String(smartData?.brand || item?.brand || '').trim();
+    const specific = _shoppingListSubtitle(item, displayName);
+    if (specific) parts.push(specific);
+    else if (brand) parts.push(brand);
+    const stock = _shopRowStockLabel(smartData);
+    if (stock) parts.push(stock);
+    return parts.join(' · ');
+}
+
+/** "Esaurito" / "3 pz a casa" in one short word — the subtitle's second half. */
+function _shopRowStockLabel(smartData) {
+    if (!smartData) return '';
+    const fam = Number(smartData.family_qty);
+    const own = Number(smartData.current_qty);
+    const qty = Number.isFinite(fam) && fam > 0 ? fam : (Number.isFinite(own) ? own : 0);
+    const unit = smartData.unit || smartData.suggested_unit || '';
+    if (!(qty > 0)) return t('shopping.out_of_stock');
+    return `${qty} ${unit}`.trim();
+}
+
+/**
+ * The shopping row: one card, three answers.
+ *
+ * The old card carried its actions in a line of 11 px text
+ * ("← rimuovi · → a casa | scansiona") — on a wall-mounted tablet every one of those
+ * taps was a miss, and the quantity was a passive purple string you could not touch.
+ * This is the grammar of a shop: a picture, the generic name, the specific one under
+ * it, a priority badge that means something, a stepper you can press and TWO buttons —
+ * the emerald one that writes the outcome and the neutral one that says "not this time".
+ * The swipe stays as a shortcut for whoever uses it; it is no longer the only way.
+ */
+function _shopRowInnerHtml({
+    displayName,
+    subtitle = '',
+    reason = '',
+    priceCell = '',
+    visualHtml = '',
+    urgencyBadge = '',
+    idx = -1,
+    buyQty = '',
+    qtyStep = 1,
+    inList = true,
+}) {
     const subHtml = subtitle
         ? `<div class="shop-row-subtitle">${escapeHtml(subtitle)}</div>`
         : '';
     const reasonHtml = reason
         ? `<div class="shop-row-reason">${escapeHtml(reason)}</div>`
         : '';
+    const step = Number(qtyStep) > 0 ? Number(qtyStep) : 1;
+    const buyHtml = buyQty
+        ? `<div class="shop-row-buy">
+            <span class="shop-row-buy-label">${escapeHtml(t('shopping.buy_label'))}</span>
+            <button type="button" class="shop-qty-btn" data-qty-delta="-1" data-idx="${idx}"
+                    aria-label="${escapeHtml(t('shopping.qty_less'))}">−</button>
+            <span class="shop-qty-value" data-qty-value="${idx}">${escapeHtml(buyQty)}</span>
+            <button type="button" class="shop-qty-btn" data-qty-delta="1" data-idx="${idx}"
+                    aria-label="${escapeHtml(t('shopping.qty_more'))}">＋</button>
+            <span class="shop-qty-step" aria-hidden="true">${step > 0 ? '+' + step : ''}</span>
+            ${priceCell || ''}
+        </div>`
+        : `<div class="shop-row-buy">${priceCell || ''}</div>`;
     return `
     <div class="shop-row-swipe-zones">
         <div class="shop-row-zone shop-row-zone-home">${escapeHtml(t('shopping.swipe_home'))}</div>
@@ -30871,15 +31124,21 @@ function _shopRowInnerHtml({ displayName, subtitle = '', reason = '', qtyHtml, p
             <div class="shop-row-text">
                 <div class="shop-row-title">
                     <span class="shop-row-title-name">${escapeHtml(displayName)}</span>
-                    ${qtyHtml}
                     ${urgencyBadge}
                 </div>
                 ${subHtml}
                 ${reasonHtml}
             </div>
-            ${priceCell || ''}
         </div>
-        <div class="shop-row-swipe-hint">${escapeHtml(t('shopping.swipe_hint_two'))}</div>
+        ${buyHtml}
+        <div class="shop-row-actions">
+            <button type="button" class="shop-row-btn shop-row-btn--dismiss" data-act="dismiss" data-idx="${idx}">
+                ✕ ${escapeHtml(t('shopping.btn_dismiss'))}
+            </button>
+            <button type="button" class="shop-row-btn shop-row-btn--bought" data-act="bought" data-idx="${idx}">
+                🛒 ${escapeHtml(t(inList ? 'shopping.btn_bought' : 'shopping.btn_add_to_list'))}
+            </button>
+        </div>
     </div>`;
 }
 
@@ -31096,6 +31355,7 @@ async function renderShoppingItems(force = false) {
         _renderShoppingPlanDaysBar();
         _updateShoppingFooter();
         _initShopRowSwipe(container);
+        _initShopRowActions(container);
         _initShoppingPullRefresh();
         return;
     }
@@ -31140,7 +31400,6 @@ async function renderShoppingItems(force = false) {
 
         for (const { item, idx, smartData, urgency } of group.items) {
             const displayName = _shoppingListGenericTitle(item, smartData);
-            const qtyHtml = _shopRowQtyHtml(smartData);
             const visualHtml = _shopRowVisualHtml(item, smartData);
             const urgencyClass = _shopRowUrgencyClass(urgency);
             const urgencyBadge = (urgency === 'critical' || urgency === 'high')
@@ -31154,12 +31413,14 @@ async function renderShoppingItems(force = false) {
             <div class="shop-row${urgencyClass}" id="shop-item-${idx}" data-idx="${idx}" data-urgency="${urgency || ''}" data-urgent="${urgency === 'critical' || urgency === 'high' ? '1' : '0'}">
                 ${_shopRowInnerHtml({
                     displayName,
-                    subtitle: _shoppingListSubtitle(item, displayName),
+                    subtitle: _shoppingRowSubtitle(item, displayName, smartData),
                     reason: _shoppingPrimaryReason(smartData || item),
-                    qtyHtml,
                     priceCell,
                     visualHtml,
                     urgencyBadge,
+                    idx,
+                    buyQty: _shopRowBuyQtyLabel(item, smartData),
+                    qtyStep: _shopRowQtyStep(smartData),
                 })}
             </div>`;
         }
@@ -31172,6 +31433,7 @@ async function renderShoppingItems(force = false) {
     _renderShoppingPlanDaysBar();
     _updateShoppingFooter();
     _initShopRowSwipe(container);
+    _initShopRowActions(container);
     _initShoppingPullRefresh();
     requestAnimationFrame(() => {
         _restoreShoppingScroll(scrollY);
