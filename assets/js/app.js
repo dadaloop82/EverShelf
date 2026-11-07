@@ -1955,7 +1955,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261107c'; // bump when translations change
+const _I18N_VERSION = '20261107d'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7146,10 +7146,28 @@ async function _refreshKioskApkLinks() {
 
 /** Called by Kotlin with JSON: { has_update, current, latest, apk_url, error } */
 window._kioskUpdateResult = function(result) {
+    result = result || {};
+    const current = result.current || '?';
+    const latest  = result.latest  || '?';
+
+    // First the part that must work on the WALL: the version it runs, and a notice nobody has
+    // to go looking for. It used to live entirely behind Settings, so a check running at boot
+    // found the panel missing and returned in silence.
+    if (result.has_update) {
+        _kioskPendingApkUrl = result.apk_url || _kioskLocalApkUrl();
+        if (_currentPageId !== 'settings') {
+            showToast(t('kiosk.update_toast', { latest, current }), 'info', 9000);
+        }
+        _setNavBadge('settings', 1);
+    } else if (!result.error) {
+        _setNavBadge('settings', 0);
+    }
+
     const btn    = document.getElementById('btn-kiosk-check-update');
     const status = document.getElementById('kiosk-update-status');
     const installBtn = document.getElementById('btn-kiosk-install-update');
     const verLabel   = document.getElementById('kiosk-update-version-label');
+    // No panel on screen (the household is not in Settings): the notice above is the answer.
     if (!status) return;
 
     if (btn) { btn.disabled = false; btn.textContent = t('kiosk.check_btn'); }
@@ -7166,13 +7184,9 @@ window._kioskUpdateResult = function(result) {
         return;
     }
 
-    const current = result.current || '?';
-    const latest  = result.latest  || '?';
     if (verLabel) verLabel.textContent = t('kiosk.version_installed').replace('{v}', current);
 
     if (result.has_update) {
-        // Prefer server LAN URL when the bridge forgot to pass one.
-        _kioskPendingApkUrl = result.apk_url || _kioskLocalApkUrl();
         status.style.display = '';
         status.style.background = 'rgba(245,158,11,0.1)';
         status.style.border = '1px solid rgba(245,158,11,0.35)';
@@ -7263,6 +7277,54 @@ function _kioskInstallUpdate() {
 // ── Kiosk overlay: X (close) + ↻ (refresh) buttons ───────────────────
 // Injected into #header-left (left zone of the 3-column header).
 // Only shown when _kioskBridge JS interface is available (Android WebView).
+/**
+ * The installed kiosk APK version, as the native bridge reports it ("1.7.26 (27)").
+ * Empty outside the kiosk — and on an APK older than 1.7.26, which had no `getAppVersion()`:
+ * that is why the caller prints a fallback instead of nothing ("did I install the right one?"
+ * has to be answerable on the wall).
+ */
+function _kioskAppVersion() {
+    try {
+        if (typeof _kioskBridge === 'undefined') return '';
+        if (typeof _kioskBridge.getAppVersion !== 'function') return '';
+        return String(_kioskBridge.getAppVersion() || '').trim();
+    } catch (e) {
+        return '';
+    }
+}
+
+/** "kiosk 1.7.26 (27)", or "kiosk < 1.7.26" when the APK is too old to say. */
+function _kioskVersionLabel() {
+    if (!_isKioskDevice()) return '';
+    const v = _kioskAppVersion();
+    return v ? `kiosk ${v}` : 'kiosk < 1.7.26';
+}
+
+/** Print the version under the kiosk controls: page version AND the APK that is running it. */
+function _paintKioskVersion() {
+    if (!_isKioskDevice()) return;
+    const label = _kioskVersionLabel();
+    if (!label) return;
+    // Header: "v1.31.2 · kiosk 1.7.26 (27)" — the two versions were being confused, and the
+    // only way to tell them apart was Android's app info.
+    const head = document.querySelector('.header-version');
+    if (head) {
+        const m = String(head.textContent || '').match(/v[\d.]+\s*(·\s*kiosk.*)?$/);
+        const base = (m && m[0]) ? m[0].split('·')[0].trim() : String(head.textContent || '').trim();
+        head.textContent = `${base} · ${label}`;
+    }
+    const wrap = document.getElementById('_kiosk_overlay');
+    if (wrap && !document.getElementById('_kiosk_version_label')) {
+        const el = document.createElement('span');
+        el.id = '_kiosk_version_label';
+        el.textContent = label;
+        el.title = label;
+        el.style.cssText = 'font-size:10px;font-weight:700;color:rgba(255,255,255,0.85);'
+            + 'white-space:nowrap;letter-spacing:.02em;';
+        wrap.appendChild(el);
+    }
+}
+
 function _injectKioskOverlay() {
     if (typeof _kioskBridge === 'undefined') return;
 
@@ -7290,6 +7352,7 @@ function _injectKioskOverlay() {
             sBtn.addEventListener('click', (e) => { e.stopPropagation(); showPage('settings'); });
             existing.appendChild(sBtn);
         }
+        _paintKioskVersion();
         return;
     }
 
@@ -7334,6 +7397,8 @@ function _injectKioskOverlay() {
     wrap.appendChild(refBtn);
     wrap.appendChild(settingsBtn);
     headerLeft.appendChild(wrap);
+    // …and the version, right under the kiosk controls: page + APK, always visible.
+    _paintKioskVersion();
 }
 
 const _APPLIANCE_KEY_MAP = {
@@ -19550,7 +19615,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107c';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107d';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19560,7 +19625,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261107c';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261107d';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -43729,6 +43794,15 @@ async function _initApp() {
         }, 1200);
     })();
     _injectKioskOverlay(); // kiosk X / refresh buttons (only when running inside Android WebView)
+
+    // A kiosk hears about its own APK update without being asked: the version it is running is
+    // printed under the controls, and the update check no longer waits for somebody to open
+    // Settings (the native side used to throttle it to six hours, so a release published after
+    // the last check stayed invisible all afternoon).
+    if (_isKioskDevice()) {
+        _paintKioskVersion();
+        setTimeout(() => { try { _kioskCheckForUpdates(); } catch (e) { /* old APK */ } }, 4000);
+    }
 
     // "L'app si riavvia quando si usa SHELFY" has to be provable instead of guessed: one line
     // per boot in the client log says HOW this page was loaded and whether the previous

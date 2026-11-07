@@ -636,6 +636,20 @@ class KioskActivity : AppCompatActivity() {
              */
             @JavascriptInterface
             fun getApiToken(): String = prefs.getString("api_token", "") ?: ""
+
+            /**
+             * "1.7.26 (27)" — the page prints it under the kiosk controls, so the question
+             * "did I install the right APK?" is answered on the wall, not in Android's app info.
+             */
+            @JavascriptInterface
+            fun getAppVersion(): String {
+                return try {
+                    val pi = packageManager.getPackageInfo(packageName, 0)
+                    val vc = if (Build.VERSION.SDK_INT >= 28) pi.longVersionCode
+                             else @Suppress("DEPRECATION") pi.versionCode.toLong()
+                    "${pi.versionName ?: "?"} ($vc)"
+                } catch (_: Exception) { "" }
+            }
         }, "_kioskBridge")
 
         val url = prefs.getString(KEY_URL, "http://evershelf.local") ?: "http://evershelf.local"
@@ -718,7 +732,9 @@ class KioskActivity : AppCompatActivity() {
         val now = System.currentTimeMillis()
         if (!forceCheck) {
             val lastCheck = prefs.getLong("last_update_check", 0)
-            if (now - lastCheck < 6 * 60 * 60 * 1000) return
+            // 30 minutes, not 6 hours: a release published after the last check had to wait
+            // six hours before the wall said anything, which reads as "it never told me".
+            if (now - lastCheck < 30 * 60 * 1000) return
         }
         prefs.edit().putLong("last_update_check", now).apply()
 

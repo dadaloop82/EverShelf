@@ -2582,6 +2582,7 @@
     "error_check": "Erreur lors de la vérification des mises à jour",
     "error_start_install": "Erreur au démarrage de l'installation",
     "version_installed": "Installé : {v}",
+    "update_toast": "⬆️ Mise à jour kiosque {latest} disponible (installée {current}) : Réglages → Mise à jour kiosque",
     "update_available": "⬆️ Nouvelle version disponible : <strong>{latest}</strong> (installée : {current})",
     "up_to_date": "✅ Vous êtes à jour — version <strong>{v}</strong>",
     "too_old": "⚠️ Le kiosque installé est trop ancien pour la vérification automatique des mises à jour.<br>Appuyez sur le bouton ci-dessous pour télécharger et installer la nouvelle version directement.",

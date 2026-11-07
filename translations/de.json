@@ -2586,6 +2586,7 @@
     "error_check": "Fehler bei der Update-Prüfung",
     "error_start_install": "Fehler beim Starten der Installation",
     "version_installed": "Installiert: {v}",
+    "update_toast": "⬆️ Kiosk-Update {latest} verfügbar (installiert {current}): Einstellungen → Kiosk-Update",
     "update_available": "⬆️ Neue Version verfügbar: <strong>{latest}</strong> (installiert: {current})",
     "up_to_date": "✅ Du bist auf dem neuesten Stand — Version <strong>{v}</strong>",
     "too_old": "⚠️ Der installierte Kiosk ist zu alt für die automatische Update-Prüfung.<br>Drücke den Knopf unten, um die neue Version direkt herunterzuladen.",

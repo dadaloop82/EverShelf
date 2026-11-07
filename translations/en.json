@@ -2582,6 +2582,7 @@
     "error_check": "Error during update check",
     "error_start_install": "Error starting installation",
     "version_installed": "Installed: {v}",
+    "update_toast": "⬆️ Kiosk update {latest} available (installed {current}): Settings → Kiosk update",
     "update_available": "⬆️ New version available: <strong>{latest}</strong> (installed: {current})",
     "up_to_date": "✅ You are up to date — version <strong>{v}</strong>",
     "too_old": "⚠️ The installed kiosk is too old for automatic update checking.<br>Press the button below to download and install the new version directly.",

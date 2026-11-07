@@ -165,6 +165,9 @@ class SetupActivity : AppCompatActivity() {
         private const val KEY_GEMINI_KEY      = "gemini_api_key"
         private const val KEY_BRING_EMAIL     = "bring_email"
         private const val KEY_BRING_PASSWORD  = "bring_password"
+        /** The server already holds these (get_settings only says so): "keep" must skip the step. */
+        private const val KEY_GEMINI_ON_SERVER = "gemini_on_server"
+        private const val KEY_BRING_ON_SERVER  = "bring_on_server"
         /** Optional support answer — the same four values the web dialog offers. */
         private const val KEY_SUPPORT_MODE    = "support_mode"
         private const val KEY_SUPPORT_DECIDED = "support_decided"
@@ -600,10 +603,14 @@ class SetupActivity : AppCompatActivity() {
                 return
             }
         }
-        // Auto-skip Gemini step if already configured
-        if (step == 7 && !(prefs.getString(KEY_GEMINI_KEY, "") ?: "").isNullOrEmpty()) { showStep(8); return }
-        // Auto-skip Bring step if already configured
-        if (step == 8 && !(prefs.getString(KEY_BRING_EMAIL, "") ?: "").isNullOrEmpty()) { showStep(9); return }
+        // Auto-skip Gemini step if already configured — locally, or on the server ("Mantieni
+        // le impostazioni": the key never leaves the server, so a local field can only be
+        // empty and the wizard asked for it again).
+        if (step == 7 && (!(prefs.getString(KEY_GEMINI_KEY, "") ?: "").isNullOrEmpty()
+                || prefs.getBoolean(KEY_GEMINI_ON_SERVER, false))) { showStep(8); return }
+        // Auto-skip Bring step if already configured (same rule)
+        if (step == 8 && (!(prefs.getString(KEY_BRING_EMAIL, "") ?: "").isNullOrEmpty()
+                || prefs.getBoolean(KEY_BRING_ON_SERVER, false))) { showStep(9); return }
 
         currentStep = step
         val steps = listOf(
@@ -968,6 +975,7 @@ class SetupActivity : AppCompatActivity() {
                             .remove(KEY_MEAL_PLAN).remove(KEY_ZEROWASTE_TIPS)
                             .remove(KEY_GEMINI_KEY).remove(KEY_BRING_EMAIL).remove(KEY_BRING_PASSWORD)
                             .remove(KEY_SUPPORT_MODE)
+                            .remove(KEY_GEMINI_ON_SERVER).remove(KEY_BRING_ON_SERVER)
                             .apply()
                         setupSwitchScreensaver.isChecked = false
                         setupSwitchPrices.isChecked = false
@@ -1004,6 +1012,14 @@ class SetupActivity : AppCompatActivity() {
             .putBoolean(KEY_PRICE_ENABLED, s.optBoolean("price_enabled", false))
             .putBoolean(KEY_MEAL_PLAN, s.optBoolean("meal_plan_enabled", false))
             .putBoolean(KEY_ZEROWASTE_TIPS, s.optBoolean("zerowaste_tips_enabled", false))
+            // "Keep the settings" has to keep EVERYTHING the server already knows, or the
+            // wizard walks the household through the same questions again: the Gemini key and
+            // the Bring! account never travel to the device (get_settings only says whether
+            // they exist), so they are remembered as "already configured on the server" and
+            // their steps are skipped.
+            .putBoolean(KEY_GEMINI_ON_SERVER, s.optBoolean("gemini_key_set", false))
+            .putBoolean(KEY_BRING_ON_SERVER,
+                s.optBoolean("bring_password_set", false) || !s.optString("bring_email").isNullOrEmpty())
             .apply()
         setupSwitchScreensaver.isChecked = prefs.getBoolean(KEY_SCREENSAVER, false)
         setupSwitchPrices.isChecked = prefs.getBoolean(KEY_PRICE_ENABLED, false)

@@ -2582,6 +2582,7 @@
     "error_check": "检查更新时出错",
     "error_start_install": "启动安装时出错",
     "version_installed": "已安装：{v}",
+    "update_toast": "⬆️ 有可用的 kiosk 更新 {latest}（已安装 {current}）：设置 → kiosk 更新",
     "update_available": "⬆️ 有新版本：<strong>{latest}</strong>（当前版本：{current}）",
     "up_to_date": "✅ 已是最新版本：<strong>{v}</strong>",
     "too_old": "⚠️ 当前终端版本太旧，无法自动检查更新。<br>请点击下方按钮直接下载并安装新版本。",

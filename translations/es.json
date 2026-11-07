@@ -2582,6 +2582,7 @@
     "error_check": "Error durante la comprobación de actualizaciones",
     "error_start_install": "Error al iniciar la instalación",
     "version_installed": "Instalado: {v}",
+    "update_toast": "⬆️ Actualización del kiosco {latest} disponible (instalada {current}): Configuración → Actualización kiosco",
     "update_available": "⬆️ Nueva versión disponible: <strong>{latest}</strong> (instalada: {current})",
     "up_to_date": "✅ Estás actualizado — versión <strong>{v}</strong>",
     "too_old": "⚠️ El kiosco instalado es demasiado antiguo para la comprobación automática de actualizaciones.<br>Pulsa el botón de abajo para descargar e instalar la nueva versión directamente.",

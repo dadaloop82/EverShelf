@@ -2582,6 +2582,7 @@
     "error_check": "Errore durante il controllo",
     "error_start_install": "Errore avvio installazione",
     "version_installed": "Installata: {v}",
+    "update_toast": "⬆️ Aggiornamento kiosk {latest} disponibile (installata {current}): Configurazione → Aggiornamento Kiosk",
     "update_available": "⬆️ Nuova versione disponibile: <strong>{latest}</strong> (installata: {current})",
     "up_to_date": "✅ Sei già aggiornato — versione <strong>{v}</strong>",
     "too_old": "⚠️ Il kiosk installato è troppo vecchio per il controllo automatico.<br>Premi il pulsante qui sotto per scaricare e installare la nuova versione direttamente.",

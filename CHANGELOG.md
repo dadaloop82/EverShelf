@@ -5,6 +5,28 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.3] - 2026-11-07
+
+### Added
+- **The kiosk version is on the wall.** The header (and the controls in the corner) now print
+  `v1.31.3 · kiosk 1.7.26 (27)`: the page version AND the APK that is running it. An APK too old
+  to answer says `kiosk < 1.7.26`, which is the answer to "did I install the right one?".
+- **A kiosk update announces itself.** The check ran only from a button in Settings and the
+  native side throttled it to **6 hours**, so a release published after the last check stayed
+  invisible for the rest of the day. Now the check runs at boot, the throttle is 30 minutes, and
+  a newer APK raises a toast (`kiosk.update_toast`) plus a badge on ⚙️ — the Settings panel is
+  only where the *install* button lives, not where the news lives.
+
+### Fixed
+- **"Mantieni le impostazioni" now really keeps them.** The kiosk wizard's keep answer applied
+  four switches and nothing else: the Gemini key and the Bring! account never travel to the
+  device (`get_settings` only says whether they exist), so the wizard asked for both again — on
+  every launch. Their steps are now skipped when the server already holds them
+  (`KEY_GEMINI_ON_SERVER` / `KEY_BRING_ON_SERVER`), and "Riconfigura" clears those flags so the
+  questions come back when they are wanted.
+- **Kiosk APK 1.7.26 (versionCode 27)** — adds `getAppVersion()` to the JS bridge and the 30-minute
+  update throttle.
+
 ## [1.31.2] - 2026-11-07
 
 ### Fixed
