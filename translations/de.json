@@ -2959,6 +2959,7 @@
     "type_instead": "Lieber tippen",
     "unsupported": "Dieser Browser hat keine Spracherkennung: tippe unten (SHELFY versteht trotzdem).",
     "mic_denied": "Mikrofon nicht erlaubt: prüfe die Browser-Berechtigungen und öffne die App über HTTPS. Du kannst unten tippen.",
+    "kiosk_no_voice": "Dieses Tablet hat kein Mikrofon für SHELFY: tippe unten auf einen Satz (oder öffne den Chat).",
     "not_understood": "SHELFY hat es nicht verstanden: versuch „Ich esse einen Apfel“ oder „Ich habe Kopfschmerzen“.",
     "open_failed": "SHELFY ließ sich nicht öffnen. Versuche es noch einmal.",
     "placeholder": "z. B. Ich habe eine Orange verbraucht",

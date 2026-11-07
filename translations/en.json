@@ -2955,6 +2955,7 @@
     "type_instead": "I'd rather type",
     "unsupported": "This browser has no speech recognition: type below (SHELFY understands just the same).",
     "mic_denied": "Microphone not allowed: check the browser permissions and open the app over HTTPS. You can type below.",
+    "kiosk_no_voice": "This tablet has no microphone for SHELFY: tap one of the phrases below (or open the chat).",
     "not_understood": "SHELFY did not understand: try “I eat an apple” or “I have a headache”.",
     "open_failed": "I couldn't open SHELFY. Try again.",
     "placeholder": "e.g. I used an orange",

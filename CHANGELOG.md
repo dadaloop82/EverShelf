@@ -5,6 +5,27 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.1] - 2026-11-07
+
+### Fixed
+- **The kiosk no longer restarts the whole app when SHELFY opens.** The Android WebView has no
+  speech engine, so SHELFY fell back to the text field — and focused it. A soft keyboard over an
+  immersive full-screen WebView relayouts the page, and Android answers that configuration change
+  by **recreating the Activity**: a new WebView, the URL loaded again, the splash on screen. On the
+  wall that is "opening SHELFY restarts everything". Two layers of fix:
+  - **App (works on the tablet already in the kitchen):** `_isKioskDevice()` keeps every keyboard
+    surface closed on a kiosk — `_captureShowType()` refuses to open the row, the "Preferisco
+    scrivere" link is hidden and `_openCaptureSheetInner()` never focuses the field. The sheet says
+    `capture.kiosk_no_voice` («Questo tablet non ha il microfono per SHELFY: tocca una delle frasi
+    qui sotto…») and the example phrases are one tap away, so the assistant is still usable with no
+    keyboard at all.
+  - **APK (`evershelf-kiosk`):** the manifest now declares **every** `configChanges`
+    (`screenLayout|smallestScreenSize|navigation|uiMode|density|fontScale|layoutDirection|locale|
+    colorMode|mcc|mnc|touchscreen` on top of the four it had) and `KioskActivity` overrides
+    `onConfigurationChanged()` to re-apply immersive mode instead of being recreated — a keyboard,
+    a rotation or a locale switch can no longer reload the app. **This half needs a new kiosk build**
+    (the app updates itself, or rebuild and reinstall the APK).
+
 ## [1.31.0] - 2026-11-07
 
 ### Added

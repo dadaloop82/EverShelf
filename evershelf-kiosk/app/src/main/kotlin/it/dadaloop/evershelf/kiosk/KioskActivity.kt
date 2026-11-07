@@ -11,6 +11,7 @@ import android.content.SharedPreferences
 import android.app.PendingIntent
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
@@ -1262,6 +1263,18 @@ class KioskActivity : AppCompatActivity() {
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
+
+    /**
+     * A configuration change (the soft keyboard opening, a rotation, a locale switch) must
+     * never recreate this Activity: a recreation builds a new WebView, which loads the URL
+     * again — on the wall that reads as "the app restarted". The manifest declares every
+     * change we can handle (`configChanges`), so the system calls this instead: the page
+     * stays where it is and we only re-apply the immersive flags the keyboard pushed away.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        enterImmersiveMode()
+    }
 
     override fun onResume() {
         super.onResume()

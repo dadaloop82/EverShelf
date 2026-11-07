@@ -1955,7 +1955,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261107a'; // bump when translations change
+const _I18N_VERSION = '20261107b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -10092,8 +10092,30 @@ function _openCaptureSheetInner() {
                 }).catch(() => {});
             }
         } catch (e) { /* permissions API missing: nothing to say */ }
-    } else if (input) {
+    } else if (input && !_isKioskDevice()) {
+        // Typing is the way in on a phone with no recogniser. A KIOSK never gets this focus:
+        // the soft keyboard over an immersive WebView relayouts the whole page, and Android
+        // answers a keyboard-driven configuration change by RECREATING the Activity — the
+        // WebView then reloads the URL and the app looks like it restarted. See
+        // `_captureSyncMicAvailability`.
         setTimeout(() => { try { input.focus(); } catch (e) {} }, 80);
+    }
+}
+
+/**
+ * Are we inside the Android kiosk WebView?
+ *
+ * The kiosk has no Web Speech engine and no keyboard anyone wants: a soft keyboard over an
+ * immersive full-screen WebView relayouts the page, and a tablet that answers a configuration
+ * change by recreating the Activity reloads the whole app (reported as "opening SHELFY
+ * restarts everything"). Everything that would open a keyboard asks this first.
+ */
+function _isKioskDevice() {
+    try {
+        return typeof _kioskBridge !== 'undefined'
+            || document.documentElement.classList.contains('is-kiosk');
+    } catch (e) {
+        return false;
     }
 }
 
@@ -10137,19 +10159,16 @@ function _captureShowType(show) {
     const row = document.getElementById('capture-input-row');
     const btn = document.getElementById('capture-type-btn');
     if (!row) return;
-    const open = !!show;
+    // A kiosk has no keyboard to give: the row stays closed whatever asks for it (the link
+    // that would open it is hidden too, see `_captureSyncMicAvailability`).
+    const open = !!show && !_isKioskDevice();
     row.hidden = !open;
-    if (btn) btn.hidden = open;
+    if (btn) btn.hidden = open || _isKioskDevice();
     if (!open) return;
     const input = document.getElementById('capture-input');
     // Focusing a text field opens the soft keyboard: only do it when the user asked
-    // (or when there is no other way to speak to the assistant). A KIOSK is the exception:
-    // a wall tablet has no throat to type with, and a system keyboard sliding over an
-    // immersive full-screen WebView is the one platform interaction nobody asked for —
-    // the field is shown, the household taps it if it really wants to.
-    const isKiosk = document.documentElement.classList.contains('is-kiosk')
-        || typeof _kioskBridge !== 'undefined';
-    if (input && !isKiosk) setTimeout(() => { try { input.focus(); } catch (e) { /* no field */ } }, 30);
+    // (or when there is no other way to speak to the assistant).
+    if (input) setTimeout(() => { try { input.focus(); } catch (e) { /* no field */ } }, 30);
 }
 
 /**
@@ -10201,6 +10220,18 @@ function _captureSyncMicAvailability() {
     const wrap = document.getElementById('capture-mic-wrap');
     if (wrap) wrap.hidden = !Ctor;
     if (!Ctor) {
+        // No recogniser. A PHONE gets the text field, because typing is the only way in.
+        // A KIOSK does not: the soft keyboard relayouts the whole page and Android may answer
+        // a configuration change by recreating the Activity, which reloads the WebView — the
+        // app "restarts" on a tap of SHELFY. On the tablet the sentence is chosen from the
+        // examples below (one tap runs it, no keyboard) or from the chat.
+        if (_isKioskDevice()) {
+            _captureShowType(false);
+            const typeBtn = document.getElementById('capture-type-btn');
+            if (typeBtn) typeBtn.hidden = true;
+            _captureStatus('capture.kiosk_no_voice');
+            return;
+        }
         // No recogniser: typing IS the assistant here, so the field opens by itself
         // (the link that normally reveals it would have nothing to offer).
         _captureShowType(true);
@@ -19519,7 +19550,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107b';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19529,7 +19560,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261107a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261107b';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

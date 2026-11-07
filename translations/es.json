@@ -2955,6 +2955,7 @@
     "type_instead": "Prefiero escribir",
     "unsupported": "Este navegador no tiene reconocimiento de voz: escribe abajo (SHELFY lo entiende igual).",
     "mic_denied": "Micrófono no permitido: revisa los permisos del navegador y abre la app en HTTPS. Puedes escribir abajo.",
+    "kiosk_no_voice": "Esta tablet no tiene micrófono para SHELFY: toca una de las frases de abajo (o abre el chat).",
     "not_understood": "SHELFY no lo entendió: prueba «como una manzana» o «tengo dolor de cabeza».",
     "open_failed": "No he podido abrir SHELFY. Inténtalo de nuevo.",
     "placeholder": "Ej.: he usado una naranja",

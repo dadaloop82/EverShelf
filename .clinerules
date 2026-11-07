@@ -168,6 +168,14 @@ runtime/binary files — if a task truly needs one, ask first.
   → «Sto elaborando…» with the ring turned into a spinner the instant the sentence closes
   (silence deadline 1,4 s, so the screen is never still for seconds), and the `[Esegui]`
   field lives behind a neutral «Preferisco scrivere» link, never in the voice view.
+- **A kiosk never opens a keyboard from SHELFY.** The Android WebView has no Web Speech, so the
+  text field was the only fallback — and focusing it opened the soft keyboard, which relayouts an
+  immersive page; Android answers that configuration change by recreating the Activity, i.e. a new
+  WebView loads the URL again and the app "restarts". `_isKioskDevice()` (`_kioskBridge` or
+  `html.is-kiosk`) makes `_captureShowType()` refuse, hides the «Preferisco scrivere» link and keeps
+  `_openCaptureSheetInner()` from focusing; the sheet says `capture.kiosk_no_voice` and the example
+  phrases stay one tap away. The kiosk manifest declares **every** `configChanges` and
+  `KioskActivity.onConfigurationChanged()` re-applies immersive mode, so nothing can recreate it.
 - **SHELFY has a face**: `assets/img/shelfy/shelfy-avatar{,-192,-96}.png` (transparent
   PNG, in the `sw.js` shell) — the centre of the bottom nav, the capture sheet head,
   the intro hero, the confirm card and the foot of the splash (under the open-data
