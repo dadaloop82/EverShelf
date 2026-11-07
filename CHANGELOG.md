@@ -5,6 +5,25 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.4] - 2026-11-07
+
+### Changed
+- **The camera stream carries one thing: the box on a read barcode.** The moving scan line
+  (three keyframes), the particle cloud and its 180 ms pixel scout, the pulsing ring, the
+  drifting dots, the lookup spinner, the live digits, the green ✓ flash, the corner brackets
+  and the `2×` badge are all gone. None of it helped anybody aim, and on a low-end tablet it
+  was a repaint per frame over the camera feed. What appears when a code is actually read is
+  the lock box, placed where the barcode was — and it holds still (no animation).
+- **The status line and the camera controls moved under the picture** (`.scan-below-bar`):
+  torch, shopping mode and flip are still one tap away, with the status text beside them,
+  instead of floating in a dark gradient on top of the stream.
+- **An AI identification is no longer interrupted by a barcode.** Pressing «Identifica AI»
+  started the model reading the frame, but the barcode hunt kept running: one read called
+  `onBarcodeDetected()` → `_resetAiFallbackForNewScan()` bumped `_aiVisualGen`, and the answer
+  arrived classified as *stale* and vanished. Now the hunt pauses for the whole AI turn
+  (`pauseScanner()` also in `_tryGeminiNumberOCR()`), `onBarcodeDetected()` drops a read while a
+  turn is in flight, and a turn that ends without opening anything resumes the scanner itself.
+
 ## [1.31.3] - 2026-11-07
 
 ### Added

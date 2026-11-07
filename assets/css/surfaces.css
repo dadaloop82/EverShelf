@@ -3505,13 +3505,7 @@ a.free-api:hover { border-color: var(--brand-primary); }
 /* The medicine panel reads a LABEL, not a barcode: the particle cloud, the corner frame and the
    sweeping red line belong to the barcode hunt and only add noise here. What replaces them is
    one rectangle that says where to aim and what the app expects to see inside it. */
-#page-scan.is-medical-scan .scanner-line,
-#page-scan.is-medical-scan .scan-ai-cloud,
-#page-scan.is-medical-scan .scan-tracking-pulse,
-#page-scan.is-medical-scan .scan-tracking-dots,
-#page-scan.is-medical-scan .scan-lock-box,
-#page-scan.is-medical-scan .scan-guide-frame,
-#page-scan.is-medical-scan .scan-live-code { display: none !important; }
+#page-scan.is-medical-scan .scan-lock-box { display: none !important; }
 .scan-med-frame {
     position: absolute;
     left: 50%;
@@ -3785,13 +3779,11 @@ button.scan-med-name-hit:focus-visible {
 /* `.btn { display: … }` beats the bare [hidden] attribute — same trap as .scan-action-btn. */
 #scan-med-name-more[hidden] { display: none !important; }
 /* While the app is asking, the camera chrome has nothing to offer. */
-#scanner-viewport.is-asking .scan-viewport-controls,
-#scanner-viewport.is-asking .scan-guide-frame,
-#scanner-viewport.is-asking .scanner-overlay,
 #scanner-viewport.is-asking .scan-med-frame,
-#scanner-viewport.is-asking .scan-tracking-layer,
-#scanner-viewport.is-asking .scan-status-bar,
-#scanner-viewport.is-asking .scan-live-code { display: none !important; }
+#scanner-viewport.is-asking .scan-tracking-layer { display: none !important; }
+/* …and the camera's own row (torch / shopping / flip + status) goes too: while the app asks,
+   the camera has nothing to offer. It lives under the picture now, not over it. */
+#page-scan.is-asking .scan-below-bar { display: none !important; }
 
 /* Uncertain AIC: pick a real pack over the camera (catalogue only). */
 .scan-med-family {
@@ -3849,9 +3841,9 @@ button.scan-med-name-hit:focus-visible {
     color: var(--text-muted);
     line-height: 1.3;
 }
-#scanner-viewport.is-family .scan-viewport-controls,
-#scanner-viewport.is-family .scanner-overlay,
+/* While the pack picker is open the camera layer has nothing to say: the box included. */
 #scanner-viewport.is-family .scan-tracking-layer { display: none !important; }
+#page-scan.is-family .scan-below-bar { display: none !important; }
 
 .scan-med-code-input {
     flex: 1 1 auto;

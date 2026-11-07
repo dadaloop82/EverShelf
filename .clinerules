@@ -168,6 +168,17 @@ runtime/binary files — if a task truly needs one, ask first.
   → «Sto elaborando…» with the ring turned into a spinner the instant the sentence closes
   (silence deadline 1,4 s, so the screen is never still for seconds), and the `[Esegui]`
   field lives behind a neutral «Preferisco scrivere» link, never in the voice view.
+- **The camera stream shows only the barcode box.** `#scanner-viewport` carries **one** overlay,
+  `.scan-lock-box`, placed where a code was really read and holding still; the moving line, the
+  particle cloud (its 180 ms pixel scout is a no-op now), the pulse, the dots, the lookup
+  spinner, the live digits, the ✓ flash, the corner brackets and the `2×` badge are gone. The
+  status text and the torch/flip/shopping controls live **under** the picture
+  (`.scan-below-bar`), never on top of the feed.
+- **An AI identification is never interrupted.** A barcode read during a turn used to call
+  `onBarcodeDetected()` → `_resetAiFallbackForNewScan()`, bump `_aiVisualGen` and make the answer
+  "stale". Now both AI paths `pauseScanner()` for the whole turn, `onBarcodeDetected()` drops a
+  read while `_numOcrRunning || _aiBarcodeVisualRunning`, and the scanner resumes when the turn
+  ends without opening anything.
 - **A kiosk never opens a keyboard from SHELFY.** The Android WebView has no Web Speech, so the
   text field was the only fallback — and focusing it opened the soft keyboard, which relayouts an
   immersive page; Android answers that configuration change by recreating the Activity, i.e. a new

@@ -12,29 +12,29 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261107d">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261107d">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261107d">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261107e">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261107e">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261107e">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261107d">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261107e">
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
-    <link rel="stylesheet" href="assets/css/tablet.css?v=20261107d">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261107d">
+    <link rel="stylesheet" href="assets/css/tablet.css?v=20261107e">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261107e">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261107d"></script>
-    <script src="assets/js/core/auth.js?v=20261107d"></script>
-    <script src="assets/js/core/med.js?v=20261107d"></script>
+    <script src="assets/js/core/dom.js?v=20261107e"></script>
+    <script src="assets/js/core/auth.js?v=20261107e"></script>
+    <script src="assets/js/core/med.js?v=20261107e"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261107d"></script>
+    <script src="assets/js/med/italy.js?v=20261107e"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261107d"></script>
+    <script src="assets/js/core/support.js?v=20261107e"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -42,7 +42,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261107d';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261107e';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -51,13 +51,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107d';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107e';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261107d"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261107e"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -122,7 +122,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.31.3</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.31.4</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -178,7 +178,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.31.3</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.31.4</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -469,19 +469,15 @@
             </div>
 
             <!-- Camera viewport (hero) -->
+            <!-- Camera viewport (hero). NOTHING is drawn over the stream except the box that
+                 closes on a barcode the moment it is read: the moving line, the particle
+                 cloud, the pulsing dots, the lookup ring, the live digits, the ✓ flash and the
+                 corner brackets are all gone. A camera feed full of animation is noise while
+                 you aim — and on a low-end tablet it is also a repaint per frame. The status
+                 text and the controls now live BELOW the picture. -->
             <div class="scanner-viewport" id="scanner-viewport" data-hud="idle">
                 <video id="scanner-video" autoplay playsinline muted webkit-playsinline></video>
                 <canvas id="scanner-canvas" style="display:none"></canvas>
-                <!-- Guide corners -->
-                <div class="scan-guide-frame">
-                    <div class="sgf-corner sgf-tl"></div>
-                    <div class="sgf-corner sgf-tr"></div>
-                    <div class="sgf-corner sgf-bl"></div>
-                    <div class="sgf-corner sgf-br"></div>
-                </div>
-                <div class="scanner-overlay">
-                    <div class="scanner-line"></div>
-                </div>
                 <!-- Medicine panel: ghost AIC digits (OCR crop still uses this box via
                      _medGuideRect). No barcode-style rectangle — that made people aim at the
                      bollino stripes instead of the printed A+9. -->
@@ -489,50 +485,12 @@
                     <span class="scan-med-frame-sample" id="scan-med-frame-sample">A000000000</span>
                     <span class="scan-med-frame-hint" data-i18n="medical.scan_aim_hint">Inquadra A + 9 cifre, non il codice a barre</span>
                 </div>
-                <!-- Tracking feedback: AI-like particle cloud + lock box on barcode -->
+                <!-- The only thing over the video: the box that locks on a read barcode. -->
                 <div class="scan-tracking-layer" id="scan-tracking-layer" aria-hidden="true">
-                    <canvas id="scan-ai-cloud" class="scan-ai-cloud" aria-hidden="true"></canvas>
                     <div class="scan-lock-box" id="scan-lock-box" hidden></div>
-                    <div class="scan-tracking-pulse"></div>
-                    <div class="scan-tracking-dots" id="scan-tracking-dots"></div>
-                    <div class="scan-lookup-ring" id="scan-lookup-ring"></div>
                 </div>
-                <!-- Live partial code preview -->
-                <div class="scan-live-code" id="scan-live-code" style="display:none"></div>
-                <!-- Compact status chip -->
-                <div class="scan-status-bar" id="scan-status-bar">
-                    <span id="scan-status-method" class="scan-status-method"></span>
-                    <span id="scan-status-msg" class="scan-status-msg" data-i18n="scan.status_ready"></span>
-                </div>
-                <!-- AI glass panel (stream stays visible) -->
-                <div class="scan-ai-overlay" id="scan-ai-overlay" style="display:none">
-                    <div class="scan-ai-overlay-inner">
-                        <div class="scan-ai-spinner"></div>
-                        <span class="scan-ai-overlay-label" data-i18n="scan.ai_overlay_label">AI Vision</span>
-                        <span class="scan-ai-overlay-msg" id="scan-ai-overlay-msg"></span>
-                        <ul class="scan-ai-tips">
-                            <li data-i18n="scan.ai_tip_show_product">Mostra il prodotto intero o l'etichetta frontale</li>
-                            <li data-i18n="scan.ai_tip_show_barcode">Se c'è un barcode, tienilo leggibile e fermo</li>
-                        </ul>
-                    </div>
-                </div>
-                <!-- Success flash overlay -->
-                <div class="scan-confirm-overlay" id="scan-confirm-overlay" style="display:none">
-                    <div class="scan-confirm-check">✓</div>
-                    <div class="scan-confirm-name" id="scan-confirm-name"></div>
-                </div>
-                <!-- Viewport inline controls -->
-                <div class="scan-viewport-controls">
-                    <div class="scan-viewport-left">
-                        <button class="scan-ctrl-btn" id="scan-torch-btn" onclick="toggleTorch()" data-i18n-title="scan.torch_hint" title="Torcia">🔦</button>
-                        <button class="scan-ctrl-btn scan-spesa-quick-btn" id="scan-spesa-quick-btn"
-                                onclick="toggleSpesaModeFromCamera()"
-                                data-i18n-title="scan.spesa_quick_hint" data-i18n-aria="scan.spesa_quick_hint"
-                                title="Shopping mode" aria-label="Shopping mode">🛒</button>
-                    </div>
-                    <span class="scan-zoom-badge">2×</span>
-                    <button class="scan-ctrl-btn" id="scan-flip-btn" onclick="flipCamera()" data-i18n-title="scan.flip_hint" title="Cambia fotocamera">🔄</button>
-                </div>
+                <!-- The controls belong to the camera but NOT on top of it: they live under the
+                     picture (see `.scan-below-bar`), so the stream carries only the barcode box. -->
                 <!-- Twenty seconds without a read: the stream STOPS and the app ASKS, in words that
                      fit the screen. The message used to be a status chip (nowrap + ellipsis), so
                      the household read a cut-off line and did not know what to do. -->
@@ -563,6 +521,24 @@
                     <strong class="scan-med-family-title" data-i18n="medical.almost_title">Il codice non è esatto: quale confezione hai in mano?</strong>
                     <div class="scan-med-family-list" id="scan-med-family-list"></div>
                     <button type="button" class="btn btn-outline btn-small" onclick="_medHideFamilyPicker()" data-i18n="medical.family_keep_reading">Continua a leggere</button>
+                </div>
+            </div>
+
+            <!-- What the scanner is doing, and the only controls that belong to the camera
+                 (torch, shopping mode, flip) — all of it UNDER the picture: nothing is layered
+                 on the stream except the box that locks on a read barcode. -->
+            <div class="scan-below-bar">
+                <div class="scan-viewport-left">
+                    <button class="scan-ctrl-btn" id="scan-torch-btn" onclick="toggleTorch()" data-i18n-title="scan.torch_hint" title="Torcia">🔦</button>
+                    <button class="scan-ctrl-btn scan-spesa-quick-btn" id="scan-spesa-quick-btn"
+                            onclick="toggleSpesaModeFromCamera()"
+                            data-i18n-title="scan.spesa_quick_hint" data-i18n-aria="scan.spesa_quick_hint"
+                            title="Shopping mode" aria-label="Shopping mode">🛒</button>
+                    <button class="scan-ctrl-btn" id="scan-flip-btn" onclick="flipCamera()" data-i18n-title="scan.flip_hint" title="Cambia fotocamera">🔄</button>
+                </div>
+                <div class="scan-status-bar" id="scan-status-bar">
+                    <span id="scan-status-method" class="scan-status-method"></span>
+                    <span id="scan-status-msg" class="scan-status-msg" data-i18n="scan.status_ready"></span>
                 </div>
             </div>
 
@@ -3518,17 +3494,17 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261107d"></script>
-<script src="assets/js/food_facts.generated.js?v=20261107d"></script>
-<script src="assets/js/free_apis.generated.js?v=20261107d"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261107d"></script>
-<script src="assets/js/off_categories.generated.js?v=20261107d"></script>
-<script src="assets/js/core/vocab.js?v=20261107d"></script>
-<script src="assets/js/app.js?v=20261107d"></script>
-<script src="assets/js/audit.js?v=20261107d"></script>
-<script src="assets/js/receipt.js?v=20261107d"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261107d"></script>
-<script src="assets/js/settings_search.js?v=20261107d"></script>
+<script src="assets/js/vocab.generated.js?v=20261107e"></script>
+<script src="assets/js/food_facts.generated.js?v=20261107e"></script>
+<script src="assets/js/free_apis.generated.js?v=20261107e"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261107e"></script>
+<script src="assets/js/off_categories.generated.js?v=20261107e"></script>
+<script src="assets/js/core/vocab.js?v=20261107e"></script>
+<script src="assets/js/app.js?v=20261107e"></script>
+<script src="assets/js/audit.js?v=20261107e"></script>
+<script src="assets/js/receipt.js?v=20261107e"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261107e"></script>
+<script src="assets/js/settings_search.js?v=20261107e"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

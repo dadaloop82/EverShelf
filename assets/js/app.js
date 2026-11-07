@@ -1955,7 +1955,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261107d'; // bump when translations change
+const _I18N_VERSION = '20261107e'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4444,6 +4444,15 @@ function _scoutBarcodeRegion(videoEl) {
 
 /** Periodic hunt: move the cloud toward the densest barcode-like patch. */
 function _updateScanCloudScout(videoEl) {
+    // Disabled with the cloud: the stream carries only the lock box now, and scanning the
+    // frame's pixels every 180 ms to aim a decoration nobody sees is pure work on a device
+    // that is already the slowest one in the house. The detector's own box drives the box.
+    void videoEl;
+    return;
+}
+
+/** Kept for the call sites: the particle cloud is gone, so nothing to draw. */
+function _updateScanCloudScoutLegacy(videoEl) {
     if (!videoEl || _scanCloudMode === 'lock') return;
     if (Date.now() < _scanDetectorHitUntil) return;
     const now = Date.now();
@@ -4834,6 +4843,9 @@ async function _tryGeminiNumberOCR(options = {}) {
     if (!video || !video.videoWidth) { showToast(t('error.camera'), 'error'); return; }
     _numOcrRunning = true;
     _updateScanAiButton();
+    // The barcode hunt pauses for the whole AI turn, exactly like the visual path: while the
+    // model is reading the frame, a read would cancel the answer (see onBarcodeDetected).
+    pauseScanner();
     const btn = document.getElementById('scan-num-ocr-btn');
     if (btn) { btn.disabled = true; btn.textContent = t('scan.num_ocr_searching'); }
     _setScanStatus(t('scan.status_ocr_searching'), 'retry', t('scan.method_ai_ocr'));
@@ -4874,6 +4886,11 @@ async function _tryGeminiNumberOCR(options = {}) {
         _numOcrRunning = false;
         _updateScanAiButton();
         if (btn) { btn.disabled = false; btn.textContent = t('scan.num_ocr_btn'); }
+        // A turn that ends without opening anything must not leave the hunt paused: the
+        // household pressed "Identifica AI" and expects the camera to keep looking after it.
+        if (!_aiBarcodeVisualRunning && _currentPageId === 'scan' && scannerStream && !_aiDetectedProductDraft) {
+            resumeScanner();
+        }
     }
 }
 
@@ -19615,7 +19632,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107d';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107e';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19625,7 +19642,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261107d';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261107e';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -22477,6 +22494,15 @@ async function _handleBarcodeResolve(result, barcode) {
 
 async function onBarcodeDetected(barcode) {
     if (_spesaScanUiBlocked()) return;
+    // An AI identification is a decision the household made, and it takes a second: a barcode
+    // crossing the frame meanwhile must not cancel it. It did — this function opened its own
+    // product sheet and `_resetAiFallbackForNewScan()` bumped `_aiVisualGen`, so the answer
+    // arrived "stale" and the identification simply vanished. The read is dropped here; the
+    // scanner resumes by itself when the AI turn is over.
+    if (_numOcrRunning || _aiBarcodeVisualRunning) {
+        scanLog(`Barcode ${barcode} ignored: an AI identification is in flight`);
+        return;
+    }
     _dismissFamilySiblingPrompt();
     _resetAiFallbackForNewScan();
     _clearSpesaAiFallbackTimers();

@@ -385,7 +385,6 @@ textarea.form-input,
 .shopping-plan-days-input,
 .unit-select,
 .recipe-fuel-field,
-.scan-live-code { border-radius: var(--radius-sm); }
 
 .form-input:focus,
 .search-bar input:focus,

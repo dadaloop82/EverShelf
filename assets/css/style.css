@@ -3472,496 +3472,100 @@ body:has(#page-scan.active) .app-content {
     pointer-events: none;
 }
 
-/* — Guide frame corners — */
-.scan-guide-frame {
-    position: absolute;
-    inset: 0;
-    z-index: 11;
-    pointer-events: none;
-}
-.sgf-corner {
-    position: absolute;
-    width: 22px;
-    height: 22px;
-    border-color: rgba(255,255,255,0.85);
-    border-style: solid;
-}
-.sgf-tl { top: 14px; left: 14px; border-width: 3px 0 0 3px; border-radius: 3px 0 0 0; transition: inset 0.25s ease, width 0.25s, height 0.25s; }
-.sgf-tr { top: 14px; right: 14px; border-width: 3px 3px 0 0; border-radius: 0 3px 0 0; transition: inset 0.25s ease, width 0.25s, height 0.25s; }
-.sgf-bl { bottom: 48px; left: 14px; border-width: 0 0 3px 3px; border-radius: 0 0 0 3px; transition: inset 0.25s ease, width 0.25s, height 0.25s; }
-.sgf-br { bottom: 48px; right: 14px; border-width: 0 3px 3px 0; border-radius: 0 0 3px 0; transition: inset 0.25s ease, width 0.25s, height 0.25s; }
-.scanner-viewport[data-hud="confirming"] .sgf-corner,
-.scanner-viewport[data-hud="found"] .sgf-corner {
-    width: 28px;
-    height: 28px;
-    border-color: #4ade80;
-}
-.scanner-viewport[data-hud="partial"] .sgf-corner {
-    border-color: #fbbf24;
-}
-.scanner-viewport[data-hud="lookup"] .sgf-corner,
-.scanner-viewport[data-hud="ai"] .sgf-corner {
-    border-color: color-mix(in srgb, var(--primary-light) 80%, #fff);
-}
-
-/* Tracking layer — AI-like particle cloud + lock box on barcode */
+/* ── The camera stream carries ONE thing: the box on a read barcode ──────────
+   Everything else that used to be drawn over the picture is gone: the moving scan
+   line (three keyframes), the particle cloud, the pulsing ring, the drifting dots,
+   the lookup spinner, the live digits, the green ✓ flash and the corner brackets.
+   A viewfinder full of animation is noise while you aim, and on a low-end tablet
+   it is a repaint per frame. What stays is the lock box: it appears when a code is
+   actually read, and that is the feedback that matters. */
 .scan-tracking-layer {
     position: absolute;
     inset: 0;
     z-index: 11;
     pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.25s ease;
-}
-.scanner-viewport[data-hud="idle"] .scan-tracking-layer,
-.scanner-viewport[data-hud="scanning"] .scan-tracking-layer,
-.scanner-viewport[data-hud="partial"] .scan-tracking-layer,
-.scanner-viewport[data-hud="confirming"] .scan-tracking-layer,
-.scanner-viewport[data-hud="found"] .scan-tracking-layer,
-.scanner-viewport[data-hud="lookup"] .scan-tracking-layer,
-.scanner-viewport[data-hud="ai"] .scan-tracking-layer {
-    opacity: 1;
-}
-.scan-ai-cloud {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    display: block;
 }
 .scan-lock-box {
     position: absolute;
-    border: 2px dashed rgba(180, 220, 255, 0.7);
+    border: 2px solid #4ade80;
     border-radius: 10px;
-    box-shadow:
-        0 0 0 1px rgba(0,0,0,0.25),
-        0 0 14px rgba(120, 180, 255, 0.35);
-    background: rgba(120, 180, 255, 0.05);
-    transition: left 0.18s ease-out, top 0.18s ease-out, width 0.18s ease-out, height 0.18s ease-out, opacity 0.15s, border-color 0.2s;
-    opacity: 0;
-    pointer-events: none;
-}
-.scan-lock-box.is-visible {
-    opacity: 1;
-}
-.scan-lock-box.is-locked {
-    border-style: solid;
-    border-width: 2.5px;
-    border-color: #4ade80;
-    background: rgba(74, 222, 128, 0.08);
-    box-shadow:
-        0 0 0 1px rgba(0,0,0,0.35),
-        0 0 18px rgba(74, 222, 128, 0.55),
-        inset 0 0 20px rgba(74, 222, 128, 0.12);
-    animation: scanLockFlash 0.45s ease-out;
-}
-@keyframes scanLockFlash {
-    0%   { transform: scale(1.08); box-shadow: 0 0 28px rgba(74,222,128,0.85); }
-    100% { transform: scale(1); }
-}
-.scan-tracking-pulse {
-    position: absolute;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.25);
+    background: rgba(74, 222, 128, 0.06);
+    /* No animation: the box is placed where the code was read and stays put. */
     left: 50%;
     top: 50%;
-    width: 72px;
-    height: 72px;
-    margin: -36px 0 0 -36px;
-    border-radius: 50%;
-    border: 2px solid rgba(251, 191, 36, 0.55);
-    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.35);
-    animation: scanTrackPulse 1.4s ease-out infinite;
-    opacity: 0;
+    width: 60%;
+    height: 20%;
+    margin-left: -30%;
+    margin-top: -10%;
+    display: none;
 }
-.scanner-viewport[data-hud="partial"] .scan-tracking-pulse {
-    opacity: 1;
-    border-color: rgba(251, 191, 36, 0.85);
-}
-.scanner-viewport[data-hud="confirming"] .scan-tracking-pulse,
-.scanner-viewport[data-hud="found"] .scan-tracking-pulse,
-.scanner-viewport[data-hud="lookup"] .scan-tracking-pulse {
-    opacity: 1;
-    border-color: rgba(74, 222, 128, 0.9);
-    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.4);
-}
-@keyframes scanTrackPulse {
-    0%   { transform: scale(0.85); opacity: 0.95; }
-    70%  { transform: scale(1.35); opacity: 0; }
-    100% { transform: scale(1.35); opacity: 0; }
-}
-/* Legacy CSS-grid dots kept as soft fallback under the canvas cloud */
-.scan-tracking-dots {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 120px;
-    height: 80px;
-    margin: -40px 0 0 -60px;
-    background-image: radial-gradient(circle, rgba(255,255,255,0.35) 1px, transparent 1.2px);
-    background-size: 14px 14px;
-    opacity: 0.25;
-    mask-image: radial-gradient(ellipse at center, #000 20%, transparent 70%);
-    -webkit-mask-image: radial-gradient(ellipse at center, #000 20%, transparent 70%);
-    animation: scanDotsDrift 2.4s linear infinite;
-}
-@keyframes scanDotsDrift {
-    from { background-position: 0 0; }
-    to   { background-position: 14px 14px; }
-}
-.scan-lookup-ring {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 56px;
-    height: 56px;
-    margin: -28px 0 0 -28px;
-    border-radius: 50%;
-    border: 3px solid rgba(255,255,255,0.2);
-    border-top-color: #4ade80;
-    opacity: 0;
-}
-.scanner-viewport[data-hud="lookup"] .scan-lookup-ring {
-    opacity: 1;
-    animation: scanLookupSpin 0.7s linear infinite;
-}
-@keyframes scanLookupSpin {
-    to { transform: rotate(360deg); }
-}
+.scan-lock-box[hidden] { display: none; }
+.scan-lock-box.is-visible { display: block; }
+.scan-lock-box.is-locked { border-width: 2.5px; }
 
-/* — Scan line — */
-.scanner-overlay {
-    position: absolute;
-    top: 50%;
-    left: 10%;
-    right: 10%;
-    height: 3px;
-    transform: translateY(-50%);
-    z-index: 10;
-    pointer-events: none;
-}
-.scanner-line {
-    width: 100%;
-    height: 3px;
-    background: var(--danger);
-    box-shadow: 0 0 10px var(--danger);
-    animation: scanLine 2s ease-in-out infinite;
-    transition: background 0.2s, box-shadow 0.2s, height 0.2s;
-}
-.scanner-line.scanning {
-    background: #00c853;
-    box-shadow: 0 0 12px #00c853;
-    animation: scanLineActive 0.8s ease-in-out infinite;
-}
-.scanner-line.detecting {
-    background: #ffd600;
-    box-shadow: 0 0 20px #ffd600, 0 0 40px rgba(255,214,0,0.4);
-    height: 5px;
-    animation: scanLineDetect 0.3s ease-in-out infinite;
-}
-@keyframes scanLine {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-}
-@keyframes scanLineActive {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
-@keyframes scanLineDetect {
-    0%, 100% { opacity: 1; transform: scaleY(1); }
-    50% { opacity: 0.7; transform: scaleY(2); }
-}
-
-/* — Live partial code — */
-.scan-live-code {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, calc(-50% - 14px));
-    z-index: 12;
-    background: rgba(0,0,0,0.65);
-    color: #ffd600;
-    font-family: monospace;
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: 2px;
-    padding: 4px 12px;
-    border-radius: 8px;
-    pointer-events: none;
-    white-space: nowrap;
-}
-
-/* — Success confirm overlay — */
-.scan-confirm-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    background: rgba(0,180,80,0.72);
+/* ── Under the picture: status + the camera's own controls ───────────────────
+   These used to float over the stream (a translucent chip at the top, buttons in a
+dark gradient at the bottom). The stream now holds only the barcode box, and these
+   live on the page background where they are easier to read and easier to hit. */
+.scan-below-bar {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    border-radius: inherit;
-    animation: scanConfirmFade 0.1s ease-in;
-}
-@keyframes scanConfirmFade {
-    from { opacity: 0; transform: scale(0.94); }
-    to   { opacity: 1; transform: scale(1); }
-}
-.scan-confirm-check {
-    font-size: 2.8rem;
-    color: #fff;
-    line-height: 1;
-}
-.scan-confirm-name {
-    font-size: 0.92rem;
-    font-weight: 700;
-    color: #fff;
-    text-align: center;
-    padding: 0 16px;
-    max-width: 100%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* — Compact status chip (doesn't eat the stream) — */
-.scan-status-bar {
-    position: absolute;
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    pointer-events: none;
-    z-index: 12;
-    max-width: calc(100% - 24px);
-}
-.scan-status-method {
-    font-size: 0.58rem;
-    color: rgba(255,255,255,0.55);
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    font-family: monospace;
-}
-.scan-status-msg {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: rgba(255,255,255,0.95);
-    background: rgba(0,0,0,0.5);
-    padding: 5px 12px;
-    border-radius: 999px;
-    text-align: center;
-    max-width: 100%;
-    /* Default food scanner stays one line; medicine mode overrides to wrap (surfaces.css). */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    transition: color 0.2s, background 0.2s;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-}
-.scan-status-msg:empty { visibility: hidden; }
-.scan-status-msg.state-partial { color: #fbbf24; }
-.scan-status-msg.state-invalid { color: #f87171; background: rgba(239,68,68,0.28); }
-.scan-status-msg.state-confirmed { color: #4ade80; background: rgba(74,222,128,0.22); }
-.scan-status-msg.state-retry { color: #fb923c; }
-
-/* — AI glass panel: stream stays visible — */
-.scan-ai-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    padding: 12px 12px 52px;
-    background: linear-gradient(to top, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.12) 45%, transparent 70%);
-    backdrop-filter: blur(1.5px);
-    -webkit-backdrop-filter: blur(1.5px);
-    border-radius: inherit;
-    pointer-events: none;
-}
-.scan-ai-overlay-inner {
-    display: flex;
-    flex-direction: column;
     align-items: center;
     gap: 8px;
-    width: 100%;
-    max-width: 340px;
-    padding: 14px 16px 16px;
-    background: rgba(15, 23, 42, 0.55);
-    border: 1px solid rgba(255,255,255,0.22);
-    border-radius: 16px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 8px 28px rgba(0,0,0,0.28);
-    pointer-events: auto;
-}
-.scan-ai-spinner {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: 3px solid rgba(255,255,255,0.25);
-    border-top-color: #fff;
-    animation: scanLookupSpin 0.75s linear infinite;
-}
-.scan-ai-overlay-label {
-    font-size: 0.65rem;
-    color: rgba(255,255,255,0.55);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-family: monospace;
-}
-.scan-ai-overlay-msg {
-    font-size: 0.92rem;
-    font-weight: 700;
-    color: #fff;
-    text-align: center;
-    max-width: 280px;
-}
-.scan-ai-tips {
-    margin: 4px 0 0;
-    padding: 0;
-    list-style: none;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.scan-ai-tips li {
-    font-size: 0.8rem;
-    line-height: 1.35;
-    color: rgba(255,255,255,0.88);
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: rgba(255,255,255,0.08);
-    border-left: 3px solid color-mix(in srgb, var(--primary-light) 70%, #fff);
-}
-
-/* — Action bar under stream (always visible, generous tap targets) — */
-.scan-action-bar {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    flex-shrink: 0;
-    padding: 4px 0 2px;
-}
-.scan-action-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    min-height: 72px;
-    padding: 12px 8px;
-    border-radius: 16px;
-    border: 1.5px solid var(--border);
-    background: var(--bg-card);
-    color: var(--text);
-    font-weight: 700;
-    cursor: pointer;
-    box-shadow: var(--es-shadow-card, 0 2px 8px rgba(0,0,0,0.04));
-    transition: transform 0.12s, background 0.15s, border-color 0.15s, opacity 0.15s;
-}
-.scan-action-btn:active { transform: scale(0.97); }
-.scan-action-btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
-.scan-action-btn.scan-action-ai {
-    border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
-    background: color-mix(in srgb, var(--primary) 10%, var(--bg-card));
-    color: var(--primary-dark, var(--primary));
-}
-.scan-action-icon { font-size: 1.55rem; line-height: 1; }
-.scan-action-label { font-size: 0.88rem; line-height: 1.2; text-align: center; }
-
-/* Short phones: keep buttons usable, only trim a little */
-@media (max-height: 700px) {
-    #page-scan .page-header { margin-bottom: 4px; padding-bottom: 4px; }
-    .scan-container { gap: 6px; }
-    .scan-quick-rail { max-height: 16%; }
-    .scanner-viewport { min-height: 96px; border-radius: 12px; }
-    .scan-action-bar { gap: 8px; padding: 2px 0; }
-    .scan-action-btn { min-height: 60px; padding: 10px 6px; gap: 4px; }
-    .scan-action-icon { font-size: 1.35rem; }
-    .scan-action-label { font-size: 0.8rem; }
-}
-
-/* Name search sheet (on demand) */
-.scan-search-sheet {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 12px;
-    box-shadow: var(--es-shadow-card, 0 4px 16px rgba(0,0,0,0.08));
-    flex-shrink: 1;
-}
-.scan-search-sheet-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-weight: 700;
-    margin-bottom: 10px;
-}
-.scan-search-close {
-    border: none;
-    background: transparent;
-    font-size: 1.1rem;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 4px 8px;
-}
-
-/* — Viewport overlay controls (torch / zoom / flip) — */
-.scan-viewport-controls {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 15;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 10px;
-    background: linear-gradient(transparent, rgba(0,0,0,0.55));
+    padding: 8px 2px 0;
+    flex-wrap: wrap;
 }
 .scan-viewport-left {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex: 0 0 auto;
 }
 .scan-ctrl-btn {
-    background: rgba(255,255,255,0.15);
-    border: 1.5px solid rgba(255,255,255,0.45);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: 50%;
-    width: 38px;
-    height: 38px;
-    font-size: 1.1rem;
-    color: #fff;
+    width: 40px;
+    height: 40px;
+    font-size: 1.05rem;
+    color: var(--text-main);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
 }
-.scan-ctrl-btn:active { background: rgba(255,255,255,0.35); }
-.scan-ctrl-btn.torch-on { background: rgba(255,220,0,0.35); border-color: #ffd600; }
-.scan-ctrl-btn.spesa-on { background: rgba(34,197,94,0.22); border-color: rgba(34,197,94,0.9); }
-.scan-zoom-badge {
-    background: rgba(0,0,0,0.55);
-    color: #fff;
-    font-size: 0.85rem;
-    font-weight: 800;
-    padding: 4px 10px;
-    border-radius: 14px;
-    border: 1.5px solid rgba(255,255,255,0.4);
-    letter-spacing: 0.5px;
+.scan-ctrl-btn:active { background: var(--bg-muted, #e2e8f0); }
+.scan-ctrl-btn.torch-on { background: rgba(255,214,0,0.28); border-color: #e6c200; }
+.scan-ctrl-btn.spesa-on { background: rgba(34,197,94,0.18); border-color: rgba(34,197,94,0.85); }
+
+.scan-status-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    flex: 1 1 140px;
+    min-width: 0;
 }
+.scan-status-method {
+    font-size: 0.58rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-family: monospace;
+}
+.scan-status-method:empty { display: none; }
+.scan-status-msg {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-main);
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+.scan-status-msg:empty { visibility: hidden; }
+.scan-status-msg.state-partial { color: #b45309; }
+.scan-status-msg.state-invalid { color: #b91c1c; }
+.scan-status-msg.state-confirmed { color: #047857; }
+.scan-status-msg.state-retry { color: #b45309; }
 
 /* — Scan result: full-page sheet over the camera (not a strip under the stream) — */
 .scan-result {
