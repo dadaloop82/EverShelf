@@ -635,6 +635,44 @@ function _logBootDiagnostics() {
     _shelfyMarkOpen(false);
 }
 
+/**
+ * Write a line to the server log RIGHT NOW, surviving the page being unloaded.
+ *
+ * A reload leaves no trace otherwise: the normal `remoteLog()` buffer flushes two seconds
+ * later, i.e. after the page is gone. `fetch(..., { keepalive: true })` keeps the request
+ * alive across the unload, so "it restarted by itself" can finally carry a reason:
+ *   - `[PAGEHIDE] reload:<why>` → the page reloaded ITSELF (a `_reloadPage()` call);
+ *   - `[PAGEHIDE] unload`        → something outside the page reloaded/navigated it
+ *                                  (the kiosk's ↻, its watchdog, or a new Activity).
+ */
+function _remoteLogSync(level, msg) {
+    try {
+        const token = (typeof getApiToken === 'function') ? getApiToken() : '';
+        const qs = token ? `&api_token=${encodeURIComponent(token)}` : '';
+        fetch(`api/index.php?action=client_log${qs}`, {
+            method: 'POST',
+            keepalive: true,
+            headers: { 'Content-Type': 'application/json', 'X-EverShelf-Request': '1' },
+            body: JSON.stringify({ messages: [`[${level}] ${msg}`] }),
+        }).catch(() => {});
+    } catch (e) { /* logging must never throw */ }
+}
+
+/** Why the page is about to reload itself (empty when something outside does it). */
+let _pendingReloadReason = '';
+
+/** The one way the app reloads itself: say so in the log first. */
+function _reloadPage(reason) {
+    _pendingReloadReason = String(reason || 'unknown');
+    _remoteLogSync('RELOAD', `${_pendingReloadReason} shelfy=${_captureState || '-'} page=${_currentPageId || '-'}`);
+    location.reload();
+}
+
+window.addEventListener('pagehide', () => {
+    const why = _pendingReloadReason ? `reload:${_pendingReloadReason}` : 'unload';
+    _remoteLogSync('PAGEHIDE', `${why} shelfy=${_captureState || '-'} page=${_currentPageId || '-'} v=${_loadedVersion || '-'}`);
+});
+
 // ── Global uncaught error handler ────────────────────────────────────────────
 window.addEventListener('error', function(e) {
     const msg = e.message || String(e.error);
@@ -1955,7 +1993,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261107e'; // bump when translations change
+const _I18N_VERSION = '20261107f'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2157,7 +2195,7 @@ function changeLanguage(lang) {
         location.replace(url.toString());
         return;
     }
-    location.reload();
+    _reloadPage('language');
 }
 
 // ===== DARK MODE =====
@@ -5906,7 +5944,7 @@ async function _backupRestore(filename) {
             // the UI always shows its own literal key so the audit sees it and an
             // unknown key can never surface as "settings.backup.…".
             alert('✅ ' + t('settings.backup.restore_done') + '\n\n' + t('settings.backup.reload_hint'));
-            location.reload();
+            _reloadPage('backup_restore');
         } else {
             if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + _apiErrorText(r); }
         }
@@ -7310,36 +7348,67 @@ function _kioskAppVersion() {
     }
 }
 
-/** "kiosk 1.7.26 (27)", or "kiosk < 1.7.26" when the APK is too old to say. */
+/** "kiosk 1.7.26 (27)" for a title/tooltip, or '' when the APK is too old to say. */
 function _kioskVersionLabel() {
     if (!_isKioskDevice()) return '';
     const v = _kioskAppVersion();
-    return v ? `kiosk ${v}` : 'kiosk < 1.7.26';
+    return v ? `kiosk ${v}` : '';
 }
 
-/** Print the version under the kiosk controls: page version AND the APK that is running it. */
+/**
+ * The header carries the app version — and the kiosk APK version **only when there is room**.
+ *
+ * The two versions were being flattened into one string ("v1.31.4 · kiosk 1.7.26 (27)"), which
+ * is both wide and wrong: `reportError()` reads `.header-version` as the app version. They are
+ * two elements now: `.header-version` (the app, always) and `#header-kiosk-version` (the APK,
+ * `kiosk 1.7.26`, distinguished by its own dimmer style). The kiosk label is hidden first when
+ * the row does not fit, then the branch — a phone keeps the app version and nothing else, a
+ * tablet on the wall shows both.
+ */
 function _paintKioskVersion() {
-    if (!_isKioskDevice()) return;
-    const label = _kioskVersionLabel();
-    if (!label) return;
-    // Header: "v1.31.2 · kiosk 1.7.26 (27)" — the two versions were being confused, and the
-    // only way to tell them apart was Android's app info.
-    const head = document.querySelector('.header-version');
-    if (head) {
-        const m = String(head.textContent || '').match(/v[\d.]+\s*(·\s*kiosk.*)?$/);
-        const base = (m && m[0]) ? m[0].split('·')[0].trim() : String(head.textContent || '').trim();
-        head.textContent = `${base} · ${label}`;
+    const head = document.querySelector('.header-title');
+    const kioskEl = document.getElementById('header-kiosk-version');
+    const branchEl = document.getElementById('header-branch');
+    if (!head) return;
+
+    const isKiosk = _isKioskDevice();
+    const apk = _kioskAppVersion();
+    const showKiosk = !!(isKiosk && apk);
+
+    // Start from "everything on", then take away what does not fit.
+    if (kioskEl) {
+        kioskEl.hidden = !showKiosk;
+        kioskEl.textContent = showKiosk ? `kiosk ${apk}` : '';
+        kioskEl.title = showKiosk ? `kiosk ${apk}` : '';
     }
-    const wrap = document.getElementById('_kiosk_overlay');
-    if (wrap && !document.getElementById('_kiosk_version_label')) {
-        const el = document.createElement('span');
-        el.id = '_kiosk_version_label';
-        el.textContent = label;
-        el.title = label;
-        el.style.cssText = 'font-size:10px;font-weight:700;color:rgba(255,255,255,0.85);'
-            + 'white-space:nowrap;letter-spacing:.02em;';
-        wrap.appendChild(el);
+    head.classList.remove('is-version-compact', 'is-version-tight');
+
+    // `.header-title` is `white-space: nowrap`, so a row that does not fit OVERFLOWS
+    // (scrollWidth > clientWidth) instead of wrapping: that is the honest measurement.
+    const fits = () => head.scrollWidth <= head.clientWidth + 1;
+    if (fits()) return;
+
+    // No room for the kiosk version: keep the app version (and the branch, if it fits).
+    if (kioskEl && !kioskEl.hidden) {
+        kioskEl.hidden = true;
+        head.classList.add('is-version-compact');
+        if (fits()) return;
     }
+    // Still no room: the branch label goes too, the app version never does.
+    if (branchEl && !branchEl.hidden) {
+        branchEl.hidden = true;
+        head.classList.add('is-version-tight');
+    }
+}
+
+/** Re-fit the header on rotation/resize and after the translations arrive. */
+function _initHeaderVersionFit() {
+    _paintKioskVersion();
+    let t = 0;
+    window.addEventListener('resize', () => {
+        clearTimeout(t);
+        t = setTimeout(_paintKioskVersion, 120);
+    }, { passive: true });
 }
 
 function _injectKioskOverlay() {
@@ -19632,7 +19701,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107e';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107f';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19642,7 +19711,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261107e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261107f';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -43027,7 +43096,7 @@ function setupWizardNav(dir) {
         localStorage.setItem('evershelf_setup_step', String(_setupStep + 1));
         localStorage.setItem('evershelf_setup_pending', JSON.stringify(_setupPendingSteps));
         localStorage.setItem('evershelf_setup_data', JSON.stringify(_setupData));
-        location.reload();
+        _reloadPage('setup_language');
         return;
     }
 
@@ -43680,7 +43749,7 @@ function _showStartupErrorPopup(title, detail, errorEl, retryBtn) {
 
 /** Retry button handler in the startup error screen. */
 function _startupRetry() {
-    location.reload();
+    _reloadPage('startup_retry');
 }
 
 /** Start the heartbeat loop (called once from _initApp). */
@@ -43822,13 +43891,16 @@ async function _initApp() {
     _injectKioskOverlay(); // kiosk X / refresh buttons (only when running inside Android WebView)
 
     // A kiosk hears about its own APK update without being asked: the version it is running is
-    // printed under the controls, and the update check no longer waits for somebody to open
-    // Settings (the native side used to throttle it to six hours, so a release published after
-    // the last check stayed invisible all afternoon).
+    // printed in the header (when the row has room for it) and the update check no longer waits
+    // for somebody to open Settings (the native side used to throttle it to six hours, so a
+    // release published after the last check stayed invisible all afternoon).
     if (_isKioskDevice()) {
-        _paintKioskVersion();
         setTimeout(() => { try { _kioskCheckForUpdates(); } catch (e) { /* old APK */ } }, 4000);
     }
+    _initHeaderVersionFit();
+    // The title is translated after this point, so the row is measured again once the width is
+    // the real one (a longer label in German can push the versions out of the header).
+    setTimeout(() => { try { _paintKioskVersion(); } catch (e) { /* layout not ready */ } }, 600);
 
     // "L'app si riavvia quando si usa SHELFY" has to be provable instead of guessed: one line
     // per boot in the client log says HOW this page was loaded and whether the previous

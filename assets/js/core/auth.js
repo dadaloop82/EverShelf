@@ -109,7 +109,7 @@ function _promptPairingCode() {
             if (data.api_token) {
                 setApiToken(data.api_token);
                 overlay.remove();
-                location.reload();
+                if (typeof _reloadPage === 'function') _reloadPage('pairing'); else location.reload();
                 return;
             }
         } catch (_) { /* fall through to the error below */ }
@@ -150,7 +150,7 @@ function _promptApiTokenIfNeeded() {
         if (v) {
             setApiToken(v);
             overlay.remove();
-            location.reload();
+            if (typeof _reloadPage === 'function') _reloadPage('api_token'); else location.reload();
         }
     };
 }

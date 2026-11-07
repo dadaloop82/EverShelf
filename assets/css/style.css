@@ -782,6 +782,37 @@ body.is-booting.is-revealing .bottom-nav {
     letter-spacing: 0.03em;
 }
 
+/* The kiosk APK version, beside the app version and only when the row has room for it
+   (`_paintKioskVersion()` hides it first, then the branch, never the app version).
+   A dot separates the two so "v1.31.5" and "kiosk 1.7.26" are never read as one thing. */
+.header-kiosk-version {
+    font-size: 0.58rem;
+    font-weight: 600;
+    opacity: 0.62;
+    letter-spacing: 0.02em;
+    color: var(--primary, #10b981);
+    white-space: nowrap;
+}
+.header-kiosk-version::before {
+    content: '·';
+    margin-right: 4px;
+    opacity: 0.7;
+    color: var(--text-muted, #64748b);
+}
+.header-kiosk-version[hidden] { display: none; }
+
+/* When the header runs out of room it is the TITLE that gives way, never the versions: the
+   household asked to always see at least the app version, and an ellipsised "EverShelf" still
+   says which app this is. */
+.header-title > span[data-i18n="nav.title"] {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.header-title .header-version,
+.header-title .header-kiosk-version,
+.header-title .header-branch { flex: 0 0 auto; }
+
 /* Branch label beside the version: smaller and dimmer than the semver, ellipsised
    so a long branch name can never push the title out of the header. Refreshed by
    scripts/bump-version.sh; `.header-version` keeps ONLY the semver because

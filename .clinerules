@@ -168,6 +168,16 @@ runtime/binary files — if a task truly needs one, ask first.
   → «Sto elaborando…» with the ring turned into a spinner the instant the sentence closes
   (silence deadline 1,4 s, so the screen is never still for seconds), and the `[Esegui]`
   field lives behind a neutral «Preferisco scrivere» link, never in the voice view.
+- **Two versions in the header, one rule for space.** `.header-version` stays a **bare semver**
+  (`reportError()` reads it as the app version); the kiosk APK version lives in
+  `#header-kiosk-version` ("kiosk 1.7.26"), from `_kioskBridge.getAppVersion()`. `_paintKioskVersion()`
+  shows both only when the row fits, then drops the kiosk label, then `#header-branch`, and lets
+  the TITLE ellipsise — at least the app version is always readable. Re-measured on resize and
+  after the translations; never append anything to `.header-version`.
+- **A reload names its author.** Self-reloads go through `_reloadPage('why')` (logs `[RELOAD] …`
+  first); a `pagehide` handler posts `[PAGEHIDE] reload:<why>` or `[PAGEHIDE] unload` with
+  `fetch(…, {keepalive:true})`. `unload` with no `reload:` line means something OUTSIDE the page
+  reloaded it (kiosk ↻, watchdog, new Activity).
 - **The camera stream shows only the barcode box.** `#scanner-viewport` carries **one** overlay,
   `.scan-lock-box`, placed where a code was really read and holding still; the moving line, the
   particle cloud (its 180 ms pixel scout is a no-op now), the pulse, the dots, the lookup

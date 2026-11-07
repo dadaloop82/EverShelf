@@ -5,6 +5,32 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.5] - 2026-11-07
+
+### Changed
+- **Two versions in the header, and the app version never loses.** `v1.31.5` and the APK that
+  runs it (`kiosk 1.7.26`) are **two elements** now — `.header-version` (read by `reportError()` as
+  the app version, so it must stay a bare semver) and `#header-kiosk-version`, dimmer and
+  emerald, separated by a dot. `_paintKioskVersion()` measures the row: if it does not fit the
+  kiosk label goes first, then the branch label, and it is the **title** that gets ellipsised —
+  on a phone you still read the app version, on the wall you read both (verified at 1000/420/260
+  px). Re-measured on resize and after the translations arrive; the label appended to the kiosk
+  controls in the corner is gone (it was the thing eating the space).
+
+### Added
+- **A reload now names its author in the log.** Every self-reload goes through
+  `_reloadPage('why')` (language, backup restore, setup language, startup retry, pairing,
+  API token), which writes `[RELOAD] why shelfy=… page=…` **before** reloading, and a
+  `pagehide` handler posts `[PAGEHIDE] reload:<why>` or `[PAGEHIDE] unload` with
+  `fetch(…, {keepalive:true})` — the buffered logger would flush two seconds after the page is
+  gone. So the next «SHELFY restarts the app» is decidable: `unload` with no `reload:` line means
+  something OUTSIDE the page reloaded it (the kiosk's ↻, its watchdog, or a new Activity), which
+  is exactly what the tablet still does.
+- Evidence from the server while writing this: the tablet still loads `/dispensa/` twice, 16 s
+  apart (10:31:24 → 10:31:40), and `data/error_reports.log` still has **no `[kiosk]` line at all**
+  — the APK on the wall does not have the instrumentation, i.e. the 1.7.26 update has not been
+  installed yet (`kiosk-create` would appear at every start).
+
 ## [1.31.4] - 2026-11-07
 
 ### Changed
