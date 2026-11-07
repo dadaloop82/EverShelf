@@ -673,6 +673,38 @@ window.addEventListener('pagehide', () => {
     _remoteLogSync('PAGEHIDE', `${why} shelfy=${_captureState || '-'} page=${_currentPageId || '-'} v=${_loadedVersion || '-'}`);
 });
 
+/**
+ * Measure a blocked main thread — the one thing that makes a kiosk reload itself.
+ *
+ * The kiosk's page watchdog asks the page for a value every five minutes and reloads it when no
+ * answer arrives in six seconds: a stall is therefore indistinguishable from a crash on the
+ * wall. This keeps its own time and says how long the thread was gone and what was on screen
+ * (`shelfy=open` is the interesting case), so "it restarted when I opened SHELFY" stops being a
+ * guess. Zero cost when nothing is wrong: one 1 s timer and, where the browser has it, the
+ * `longtask` observer.
+ */
+(function _watchMainThreadStalls() {
+    let last = performance.now();
+    setInterval(() => {
+        const now = performance.now();
+        const gap = now - last - 1000;   // the interval's own period is not a stall
+        last = now;
+        if (gap > 1500) {
+            _remoteLogSync('JANK', `blocked ${Math.round(gap)}ms shelfy=${_captureState || '-'} page=${_currentPageId || '-'}`);
+        }
+    }, 1000);
+    try {
+        if (typeof PerformanceObserver !== 'function') return;
+        new PerformanceObserver((list) => {
+            for (const e of list.getEntries()) {
+                if (e.duration >= 1500) {
+                    _remoteLogSync('LONGTASK', `${Math.round(e.duration)}ms shelfy=${_captureState || '-'} page=${_currentPageId || '-'}`);
+                }
+            }
+        }).observe({ entryTypes: ['longtask'] });
+    } catch (e) { /* older engine: the interval above still measures */ }
+})();
+
 // ── Global uncaught error handler ────────────────────────────────────────────
 window.addEventListener('error', function(e) {
     const msg = e.message || String(e.error);
@@ -1993,7 +2025,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261107f'; // bump when translations change
+const _I18N_VERSION = '20261107g'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19701,7 +19733,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107f';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107g';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19711,7 +19743,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261107f';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261107g';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -43895,6 +43927,9 @@ async function _initApp() {
     // for somebody to open Settings (the native side used to throttle it to six hours, so a
     // release published after the last check stayed invisible all afternoon).
     if (_isKioskDevice()) {
+        // And it goes in the log: "did the update install?" is answered by the server, not by a
+        // screenshot of the header.
+        remoteLog('KIOSK', `apk=${_kioskAppVersion() || 'unknown'}`);
         setTimeout(() => { try { _kioskCheckForUpdates(); } catch (e) { /* old APK */ } }, 4000);
     }
     _initHeaderVersionFit();

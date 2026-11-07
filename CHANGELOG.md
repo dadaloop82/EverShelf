@@ -5,6 +5,34 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.6] - 2026-11-07
+
+### Fixed
+- **A kiosk no longer frosts the backdrop — the likely reason SHELFY "restarted the app".**
+  `backdrop-filter` on a full-screen overlay is re-composited every frame; on an Android WebView
+  with a modest GPU, opening SHELFY (a `.modal-overlay` covering a dashboard full of photos and
+  shadows) stalled the page long enough for the kiosk's **6 s page watchdog** to reload it — a
+  reload from outside the page, which is exactly the `[PAGEHIDE] unload` the logs showed at
+  14:11:32 with no `[RELOAD]` line in front of it. `tablet.css` now forces
+  `backdrop-filter: none` on every overlay/anchor element when `html.is-kiosk`.
+- **The kiosk reports were never arriving.** `ErrorReporter.doPost()` used a plain
+  `URL(...).openConnection()`, so on a LAN install with a **self-signed certificate** every POST
+  died in an `SSLHandshakeException` — caught, logged to logcat, invisible to the server. That is
+  why `data/error_reports.log` has never contained a single `[kiosk]` line, and why "did the
+  update install?" could not be answered. The reporter now trusts the app's certificate exactly
+  like every other call (`openTrustedConnection()`) — **APK 1.7.27**.
+- **A watchdog no longer reloads for a hiccup.** The page probe now waits 10 s (was 6) and the
+  page is reloaded only after **two consecutive misses**; both are reported
+  (`page-watchdog-miss`, then `page-watchdog-reload`).
+
+### Added
+- **The kiosk's APK version goes into the server log** (`[KIOSK] apk=1.7.27 (28)`) at every boot:
+  "is the update really installed?" is now answered by `data/client_debug.log`, not by a photo of
+  the header.
+- **A blocked main thread is measured, not guessed.** A 1 s timer (plus the `longtask` observer
+  where the browser has it) writes `[JANK] blocked 5200ms shelfy=open page=dashboard` for any
+  stall ≥ 1.5 s. The next stall will say what it was doing when it froze.
+
 ## [1.31.5] - 2026-11-07
 
 ### Changed

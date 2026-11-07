@@ -283,3 +283,29 @@ html.is-touch-tablet .chat-sheet {
     border-radius: var(--radius, 16px);
     max-height: 86vh;
 }
+
+/* ── A kiosk never blurs the backdrop ────────────────────────────────────────
+ * `backdrop-filter` on a FULL-SCREEN overlay is re-composited on every frame, and on an
+ * Android WebView with a modest GPU opening SHELFY (a `.modal-overlay` covering the whole
+ * dashboard, itself a page of photos and shadows) froze the page long enough for the
+ * kiosk's 6 s page watchdog to reload the app — which the household sees as "the app
+ * restarted". A frosted scrim is not worth a restart: on a kiosk the scrim stays flat.
+ * ========================================================================= */
+html.is-kiosk .modal-overlay,
+html.is-kiosk .modal-content,
+html.is-kiosk .sheet-backdrop,
+html.is-kiosk .scan-search-sheet,
+html.is-kiosk .scan-status-msg,
+html.is-kiosk .shelfy-confirm,
+html.is-kiosk #capture-sheet,
+html.is-kiosk #shelfy-intro,
+html.is-kiosk #shelfy-confirm,
+html.is-kiosk #chat-overlay,
+html.is-kiosk #chat-sheet,
+html.is-kiosk #recipe-overlay,
+html.is-kiosk .recipe-dialog,
+html.is-kiosk .cooking-finish-card,
+html.is-kiosk .cooking-voice-hint {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}

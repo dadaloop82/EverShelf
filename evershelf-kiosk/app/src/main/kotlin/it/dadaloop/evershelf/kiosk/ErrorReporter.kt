@@ -333,7 +333,24 @@ object ErrorReporter {
                 put("ts",         SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()))
             }
 
-            val conn = URL(endpoint).openConnection() as HttpURLConnection
+            // A LAN install answers on a self-signed certificate. A plain `openConnection()`
+            // throws SSLHandshakeException here — silently, because this function must never
+            // throw — which is why the server log has NEVER received a kiosk report even
+            // though the app has been sending them: trust it, exactly like every other call
+            // this app makes (openTrustedConnection()).
+            val raw = URL(endpoint).openConnection()
+            if (raw is javax.net.ssl.HttpsURLConnection) {
+                val trustAll = arrayOf<javax.net.ssl.TrustManager>(object : javax.net.ssl.X509TrustManager {
+                    override fun checkClientTrusted(c: Array<java.security.cert.X509Certificate>?, t: String?) {}
+                    override fun checkServerTrusted(c: Array<java.security.cert.X509Certificate>?, t: String?) {}
+                    override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+                })
+                val sc = javax.net.ssl.SSLContext.getInstance("TLS")
+                sc.init(null, trustAll, java.security.SecureRandom())
+                raw.sslSocketFactory = sc.socketFactory
+                raw.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
+            }
+            val conn = raw as HttpURLConnection
             conn.requestMethod = "POST"
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             conn.setRequestProperty("Accept", "application/json")
