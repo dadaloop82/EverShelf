@@ -5,6 +5,24 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.2] - 2026-11-07
+
+### Fixed
+- **A kiosk no longer instantiates 20 MB of WASM at boot.** `preloadBarcodeEngines()` warmed
+  ZBar and the whole Tesseract core on every start, for a scanner nobody had opened. On a
+  low-RAM tablet WebView that spike is the cheapest way to lose the renderer — and a dead
+  renderer means `onRenderProcessGone` → `recreate()` → the page loads the URL again, i.e. "the
+  app restarted". The preload is now skipped on a kiosk (`_isKioskDevice()`): `initScanner()`
+  loads the engines on demand behind its own loading state, so the first scan is a little
+  slower and the kiosk stays up.
+- **The kiosk can now prove what reloads it.** The tablet's page reloads showed up in the
+  server access log (two page loads seconds apart) but nowhere in the app's reports: the APK
+  now reports `kiosk-create` (`recreated` true/false), `kiosk-config-change` (which change
+  arrived) and `kiosk-resume-reload` (with the WebView URL and the configured one). And
+  `sameAppUrl()` treats `/dispensa/`, `/dispensa/index.html` and a URL with a query string as
+  the same page, so an `onResume` can no longer reload the app for a difference that is not one.
+- **APK 1.7.25 (versionCode 26)** — needed for the OTA check to see the update.
+
 ## [1.31.1] - 2026-11-07
 
 ### Fixed

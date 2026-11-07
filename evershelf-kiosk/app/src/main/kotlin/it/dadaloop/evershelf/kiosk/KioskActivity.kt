@@ -182,6 +182,20 @@ class KioskActivity : AppCompatActivity() {
 
         val savedUrl = prefs.getString(KEY_URL, "") ?: ""
         ErrorReporter.init(this, savedUrl)
+        // Which kind of birth is this? A fresh launch, or the system rebuilding the Activity
+        // (a configuration change we did not declare, or the process coming back)? It is the
+        // difference between "the app was opened" and "the app restarted on its own", and it
+        // is the one thing a page reload cannot tell us.
+        ErrorReporter.reportMessage(
+            type = "kiosk-create",
+            message = if (savedInstanceState != null) "KioskActivity re-created" else "KioskActivity created",
+            extra = mapOf(
+                "recreated" to (savedInstanceState != null),
+                "changing_configurations" to isChangingConfigurations,
+                "url" to savedUrl,
+            ),
+            forceReport = false
+        )
 
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
@@ -1189,7 +1203,10 @@ class KioskActivity : AppCompatActivity() {
         if (current.isNullOrBlank()) return false
         fun norm(u: String): String = u.trim()
             .substringBefore('#')
+            .substringBefore('?')
             .removeSuffix("/")
+            .removeSuffix("/index.html")
+            .removeSuffix("/index.htm")
             .replace(Regex("^https?://", RegexOption.IGNORE_CASE), "")
         return norm(current) == norm(configured)
     }
@@ -1273,6 +1290,22 @@ class KioskActivity : AppCompatActivity() {
      */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        // Provable instead of guessed: with every change handled here, an Activity recreation
+        // must never happen — if the app still reloads, this line says which change arrived.
+        ErrorReporter.reportMessage(
+            type = "kiosk-config-change",
+            message = "Configuration change handled without recreating the Activity",
+            extra = mapOf(
+                "orientation" to newConfig.orientation,
+                "screenLayout" to newConfig.screenLayout,
+                "keyboard" to newConfig.keyboard,
+                "keyboardHidden" to newConfig.keyboardHidden,
+                "locale" to newConfig.locales?.get(0)?.toString().orEmpty(),
+                "smallestScreenWidthDp" to newConfig.smallestScreenWidthDp,
+                "densityDpi" to newConfig.densityDpi,
+            ),
+            forceReport = false
+        )
         enterImmersiveMode()
     }
 
@@ -1284,7 +1317,22 @@ class KioskActivity : AppCompatActivity() {
             // The WebView canonicalises the URL ("host:8080" → "host:8080/"), so a
             // strict compare reloaded the whole app on every resume — a needless
             // flash. Reload only when the WebView is not on the app any more.
-            if (url.isNotEmpty() && !sameAppUrl(webView.url, url)) webView.loadUrl(url)
+            if (url.isNotEmpty() && !sameAppUrl(webView.url, url)) {
+                // This reload is the other way the app can "restart" by itself: onResume used
+                // to compare the URLs strictly, so a WebView sitting on `…/index.html` (or on
+                // the same page with a query string) was reloaded on every resume. It is
+                // logged with both URLs, so a reload nobody asked for names itself.
+                ErrorReporter.reportMessage(
+                    type = "kiosk-resume-reload",
+                    message = "onResume reloaded the page: the WebView was not on the app URL",
+                    extra = mapOf(
+                        "webview_url" to (webView.url ?: ""),
+                        "configured_url" to url,
+                    ),
+                    forceReport = false
+                )
+                webView.loadUrl(url)
+            }
             // Re-apply screensaver flag in case the user changed it in Settings
             applyScreensaverFlag()
         }

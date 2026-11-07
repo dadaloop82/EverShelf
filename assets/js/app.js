@@ -1955,7 +1955,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261107b'; // bump when translations change
+const _I18N_VERSION = '20261107c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19550,7 +19550,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107b';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107c';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19560,7 +19560,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261107b';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261107c';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -19636,9 +19636,21 @@ function _ensureBarcodeEngines() {
 }
 
 /** Preload WASM/OCR engines during idle time so first scan is faster. */
+/**
+ * Warm the scanner engines while the household is not looking.
+ *
+ * Skipped on a KIOSK. The preload pulls ZBar and — above all — the Tesseract core, which is
+ * several megabytes of JavaScript that instantiates a large WASM module: on a low-RAM tablet
+ * WebView that spike at boot is enough to make the renderer die (and a dead renderer is
+ * `onRenderProcessGone` → `recreate()` → the page loads the URL again, which the household
+ * sees as "the app restarted"). The engines are only needed by the scanner, and
+ * `initScanner()` loads them on demand behind its own loading state, so nothing is lost:
+ * a kiosk simply starts cold the first time somebody scans.
+ */
 function preloadBarcodeEngines() {
     if (_barcodeEnginesPreloadStarted) return;
     _barcodeEnginesPreloadStarted = true;
+    if (_isKioskDevice()) return;
     const run = () => {
         _ensureBarcodeEngines().catch(() => {});
         _ensureTesseractWorker().catch(() => {});

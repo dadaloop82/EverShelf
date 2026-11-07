@@ -27,8 +27,8 @@ android {
         applicationId = "it.dadaloop.evershelf.kiosk"
         minSdk = 24
         targetSdk = 35
-        versionCode = 25
-        versionName = "1.7.24"
+        versionCode = 26
+        versionName = "1.7.25"
     }
 
     signingConfigs {
