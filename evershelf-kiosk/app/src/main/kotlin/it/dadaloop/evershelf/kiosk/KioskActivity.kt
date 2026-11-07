@@ -95,10 +95,20 @@ class KioskActivity : AppCompatActivity() {
     // never answers. Every 5 minutes we ask it for a value; if the answer does not
     // arrive in 6 s the page is reloaded once (never more: the next probe waits for
     // the interval), instead of leaving a dead tablet on the wall.
+    // Page watchdog: a WebView whose renderer hangs keeps showing the last frame and
+    // never answers. Every 5 minutes we ask it for a value; if the answer does not
+    // arrive in 10 s the page is reloaded once (never more: the next probe waits for
+    // the interval), instead of leaving a dead tablet on the wall.
+    //
+    // 10 s and TWO consecutive missed probes, not 6 s and one: opening a heavy overlay on a
+    // weak GPU can stall the main thread for a few seconds, and reloading the whole app for a
+    // hiccup is exactly the "it restarted on its own" the household reports. A page that is
+    // really gone misses twice.
     private val watchdogHandler = Handler(Looper.getMainLooper())
     private val WATCHDOG_INTERVAL_MS = 5L * 60 * 1000
-    private val WATCHDOG_TIMEOUT_MS = 6_000L
+    private val WATCHDOG_TIMEOUT_MS = 10_000L
     private var watchdogAnswered = true
+    private var watchdogMisses = 0
     private val watchdogRunnable = object : Runnable {
         override fun run() {
             if (!isFinishing && webView.visibility == View.VISIBLE) {
@@ -106,12 +116,23 @@ class KioskActivity : AppCompatActivity() {
                 webView.evaluateJavascript("1+1") { watchdogAnswered = true }
                 watchdogHandler.postDelayed({
                     if (!watchdogAnswered) {
+                        watchdogMisses++
                         ErrorReporter.reportMessage(
-                            type    = "page-watchdog-reload",
-                            message = "The page did not answer a JS probe for 6 s: reloading once",
+                            type    = "page-watchdog-miss",
+                            message = "The page did not answer a JS probe for 10 s (miss $watchdogMisses of 2)",
                             forceReport = false
                         )
-                        webView.reload()
+                        if (watchdogMisses >= 2) {
+                            watchdogMisses = 0
+                            ErrorReporter.reportMessage(
+                                type    = "page-watchdog-reload",
+                                message = "The page missed two JS probes in a row: reloading once",
+                                forceReport = true
+                            )
+                            webView.reload()
+                        }
+                    } else {
+                        watchdogMisses = 0
                     }
                 }, WATCHDOG_TIMEOUT_MS)
             }
