@@ -3502,6 +3502,9 @@ a.free-api:hover { border-color: var(--brand-primary); }
 /* The hand entry of the medicine panel lives behind its own button: in the food panel it does
    not exist, and the strip stays the camera's. */
 #page-scan:not(.is-medical-scan) #scan-med-code-open { display: none !important; }
+/* …and the strip itself is empty in the medicine panel (all three of its buttons are hidden
+   above): an empty flex row would still take its margin and a line of height. */
+#page-scan.is-medical-scan .scan-action-bar { display: none; }
 /* The medicine panel reads a LABEL, not a barcode: the particle cloud, the corner frame and the
    sweeping red line belong to the barcode hunt and only add noise here. What replaces them is
    one rectangle that says where to aim and what the app expects to see inside it. */

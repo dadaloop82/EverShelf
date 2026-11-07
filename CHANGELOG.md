@@ -32,6 +32,20 @@ Kiosk APK only.
   `can_install_unknown` and the lock-task state — so the next refusal explains itself instead of
   asking the household to destroy the appliance.
 
+## [1.31.13] - 2026-11-07
+
+### Fixed
+- **The scanner's three buttons are real buttons.** `Identifica AI · Cerca · Manuale` carried
+  **no CSS rule at all** — nothing for `.scan-action-bar`, nothing for `.scan-action-btn`: the
+  browser drew them (grey 3D border, default font, no touch target, no pressed state), next to a
+  rest of the app that is fully themed. They now follow the house grammar: `--touch-min` (44 px),
+  `--radius-sm`, `--surface-bg` + `--surface-border` for the two neutral secondaries and **one
+  emerald** (`--brand-primary`) for `Identifica AI`, the action that actually identifies something;
+  a soft pressed state, `prefers-reduced-motion` respected, `text-overflow: ellipsis` so the
+  longest label never breaks the row. The equal-share rule is scoped to `.scan-action-bar >`
+  children, so the medicine panel's lone `Scrivi codice` button (a direct child of the page, same
+  class) keeps its own size, and the strip disappears when the medicine panel hides all three.
+
 ## [1.31.12] - 2026-11-07
 
 ### Fixed

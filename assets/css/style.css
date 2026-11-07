@@ -3560,13 +3560,74 @@ dark gradient at the bottom). The stream now holds only the barcode box, and the
     gap: 8px;
     flex: 0 0 auto;
 }
-/* The action row had NO base rule at all: as a flex item it defaulted to `flex-shrink: 1`, so on a
-   short screen the column compressed it below its own content and its three buttons were cut —
-   half behind the bottom nav, where they cannot be tapped. It never shrinks; the stream above is
-   the element that gives the space back. */
+/* ── The scanner's action strip: three real buttons ──────────────────────────
+ * These had NO styling at all, so the browser drew them: grey 3D borders, the default font, no
+ * touch target, no pressed state — "grezzi" next to everything else in the app. They now follow
+ * the house grammar: ONE emerald for the action that does the work (Identifica AI), neutral
+ * secondaries for the other two, no pastel colours, `--touch-min` so a finger can hit them.
+ * ========================================================================= */
 .scan-action-bar {
     flex: 0 0 auto;
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
 }
+.scan-action-btn {
+    min-height: var(--touch-min, 44px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm, 10px);
+    border: 1px solid var(--surface-border, var(--border));
+    background: var(--surface-bg, var(--bg-card));
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
+    line-height: 1.1;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: background 0.15s, border-color 0.15s, transform 0.08s;
+}
+.scan-action-btn:active {
+    transform: scale(0.97);
+    background: color-mix(in srgb, var(--surface-border, var(--border)) 55%, transparent);
+}
+/* The primary of the strip: the one that actually identifies something. */
+.scan-action-btn.scan-action-ai {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #fff;
+}
+.scan-action-btn.scan-action-ai:active {
+    background: var(--brand-primary-hover, var(--brand-primary));
+}
+.scan-action-icon {
+    font-size: 1rem;
+    line-height: 1;
+    flex: 0 0 auto;
+}
+.scan-action-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+    .scan-action-btn { transition: none; }
+    .scan-action-btn:active { transform: none; }
+}
+/* Equal shares INSIDE the strip only: the medicine panel keeps a lone button of the same kind
+   (`#scan-med-code-open`) as a direct child of the page, where `flex: 1 1 0` would make it grow
+   vertically and eat the camera. */
+.scan-action-bar > .scan-action-btn {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
 .scan-ctrl-btn {
     background: var(--bg-card);
     border: 1px solid var(--border);
