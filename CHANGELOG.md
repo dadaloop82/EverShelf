@@ -13,6 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [Kiosk 1.7.31] - 2026-11-07
+
+Kiosk APK only.
+
+### An install failure is never answered with "uninstall the app"
+- The wall asked to uninstall the app on an update while **every published APK is signed with the
+  same key** (the APK Signing Block of 1.7.26 → 1.7.31 reads SHA-256 `36:D8:4A:…:CB:25`,
+  `CN=EverShelf`): the signature was our own misdiagnosis.
+- What really happened: `STATUS_PENDING_USER_ACTION` starts the **system installer**, and the app is
+  in **lock task mode** — another app cannot be brought to the front, the launch was swallowed, the
+  result came back as *cancelled*, and `onActivityResult` popped the "uninstall" dialog for an
+  install that never ran. Lock task is now suspended for the confirmation and re-entered after.
+- The "uninstall" dialog appears **only** when the two signer fingerprints really differ; anything
+  else offers a **retry** with the APK already on disk (no second download).
+- `install_start`, `install_session`, `install_pending_user_action`, `install_confirm_result` and
+  `install_result` log status + statusMessage + extras, both versionCodes, both signer SHA-256s,
+  `signer_match`, `can_install_unknown` and the lock-task state.
+
 ## [Kiosk 1.7.30] - 2026-11-07
 
 Kiosk APK only. **The build that stops the wall restarting itself.**

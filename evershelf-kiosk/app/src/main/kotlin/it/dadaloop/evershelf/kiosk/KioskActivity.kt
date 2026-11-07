@@ -82,6 +82,8 @@ class KioskActivity : AppCompatActivity() {
     private var pendingApkDownloadUrl: String = ""
     private var pendingInstallFile: java.io.File? = null
     private var pendingInstallPkg: String = ""
+    /** The diagnostics of the install in flight, so the result can be read against them. */
+    private var pendingInstallDiag: Map<String, Any?> = emptyMap()
     private var activeInstallBtn: MaterialButton? = null
 
     // Periodic update-check handler (fires every 30 min; internal throttle in checkForUpdates limits real API calls to every 6h)
@@ -193,6 +195,76 @@ class KioskActivity : AppCompatActivity() {
         )
     } catch (e: Exception) {
         mapOf("mem_error" to (e.message ?: "unknown"))
+    }
+
+    /**
+     * The certificate that signs a package or an APK file, as a SHA-256 fingerprint.
+     *
+     * "You must uninstall the app first" is the system's answer to a signature mismatch, and it is
+     * the one install failure that cannot be worked around. Every other status deserves a retry —
+     * so the fingerprint of what is installed and of the APK we are about to install is read and
+     * LOGGED before the session is committed, and the wall only offers "uninstall" when the two
+     * really differ.
+     */
+    private fun signerSha256(pkgName: String? = null, apkPath: String? = null): String {
+        return try {
+            @Suppress("DEPRECATION")
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
+            val info = if (pkgName != null) packageManager.getPackageInfo(pkgName, flags)
+                       else packageManager.getPackageArchiveInfo(apkPath ?: return "", flags)
+            val der: ByteArray? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val si = info?.signingInfo
+                (si?.apkContentsSigners ?: si?.signingCertificateHistory)?.firstOrNull()?.toByteArray()
+            } else {
+                @Suppress("DEPRECATION") info?.signatures?.firstOrNull()?.toByteArray()
+            }
+            if (der == null) "" else java.security.MessageDigest.getInstance("SHA-256")
+                .digest(der).joinToString(":") { String.format("%02X", it) }
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    /** 0 = none, 1 = pinned (screen pinning), 2 = locked task (device owner). -1 = unknown. */
+    private fun lockTaskState(): Int = try {
+        (getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).lockTaskModeState
+    } catch (e: Exception) { -1 }
+
+    /**
+     * Everything an install can be refused for, in one map, written to the server log before the
+     * session is committed and again with its status. A "uninstall first" dialog nobody can
+     * justify is what this removes: the signer of the APK and of the installed app are compared
+     * here, and `signer_match` is what allows the UI to offer that path at all.
+     */
+    private fun installDiagnostics(file: java.io.File, targetPkg: String): Map<String, Any?> {
+        val apkSigner = signerSha256(apkPath = file.absolutePath)
+        val installedSigner = signerSha256(pkgName = targetPkg)
+        @Suppress("DEPRECATION")
+        val apkInfo = try { packageManager.getPackageArchiveInfo(file.absolutePath, 0) } catch (_: Exception) { null }
+        val apkVc: Long = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) apkInfo?.longVersionCode ?: -1L
+            else @Suppress("DEPRECATION") (apkInfo?.versionCode ?: -1).toLong()
+        } catch (_: Exception) { -1L }
+        val installedVc: Long = try {
+            val pi = packageManager.getPackageInfo(targetPkg, 0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) pi.longVersionCode
+            else @Suppress("DEPRECATION") pi.versionCode.toLong()
+        } catch (_: Exception) { -1L }
+        val canUnknown = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            packageManager.canRequestPackageInstalls() else true
+        return mapOf(
+            "pkg" to targetPkg,
+            "apk_vc" to apkVc,
+            "apk_ver" to (apkInfo?.versionName ?: ""),
+            "installed_vc" to installedVc,
+            "apk_signer" to apkSigner,
+            "installed_signer" to installedSigner,
+            "signer_match" to (apkSigner.isNotEmpty() && apkSigner == installedSigner),
+            "can_install_unknown" to canUnknown,
+            "lock_task" to lockTaskState(),
+            "apk_bytes" to file.length(),
+        )
     }
 
     companion object {
@@ -1124,6 +1196,16 @@ class KioskActivity : AppCompatActivity() {
         }
         // Only kiosk self-update is handled; gateway is now integrated
         val targetPkg = packageName
+        // Everything the install can be refused for, written BEFORE the session exists: the two
+        // signers, the two versionCodes, the unknown-sources permission and the lock-task state.
+        // "Installation failed" alone is not a diagnosis; this is.
+        pendingInstallDiag = installDiagnostics(file, targetPkg)
+        ErrorReporter.reportMessage(
+            "install_start",
+            "Installing APK vc=${pendingInstallDiag["apk_vc"]} (${pendingInstallDiag["apk_ver"]}) over installed vc=${pendingInstallDiag["installed_vc"]}",
+            pendingInstallDiag,
+            forceReport = true
+        )
         installWithPackageInstaller(file, targetPkg)
     }
 
@@ -1139,6 +1221,12 @@ class KioskActivity : AppCompatActivity() {
                 params.setInstallReason(android.content.pm.PackageManager.INSTALL_REASON_USER)
             }
             val sessionId = pi.createSession(params)
+            ErrorReporter.reportMessage(
+                "install_session",
+                "PackageInstaller session $sessionId created for $targetPkg",
+                pendingInstallDiag + mapOf("session_id" to sessionId, "lock_task" to lockTaskState()),
+                forceReport = true
+            )
             val session   = pi.openSession(sessionId)
             try {
                 file.inputStream().use { input ->
@@ -1166,11 +1254,47 @@ class KioskActivity : AppCompatActivity() {
                             if (confirmIntent != null) {
                                 pendingInstallFile = file
                                 pendingInstallPkg  = targetPkg
+                                // ★ The system installer is ANOTHER app, and a kiosk in lock task mode
+                                // (screen pinning) refuses to bring one to the front: the launch was
+                                // swallowed, the result came back as "cancelled" and the wall showed
+                                // "you must uninstall the app" for an install that never ran. Leave
+                                // lock task for the duration of the confirmation and re-enter it in
+                                // onActivityResult.
+                                val lockBefore = lockTaskState()
+                                disableKioskLock()
+                                ErrorReporter.reportMessage(
+                                    "install_pending_user_action",
+                                    "System confirmation requested (lock task $lockBefore → ${lockTaskState()})",
+                                    pendingInstallDiag + mapOf(
+                                        "lock_task_before" to lockBefore,
+                                        "lock_task_after"  to lockTaskState()
+                                    ),
+                                    forceReport = true
+                                )
                                 setInstallUI("\u23F3", getString(R.string.install_installing), getString(R.string.install_confirm_detail), 0xFF94a3b8.toInt(), btnEnabled = false)
-                                @Suppress("DEPRECATION")
-                                startActivityForResult(confirmIntent, INSTALL_CONFIRM_REQUEST)
+                                try {
+                                    @Suppress("DEPRECATION")
+                                    startActivityForResult(confirmIntent, INSTALL_CONFIRM_REQUEST)
+                                } catch (ex: Exception) {
+                                    ErrorReporter.reportMessage(
+                                        "install_confirm_start_failed",
+                                        "Could not open the system installer: ${ex.javaClass.simpleName}: ${ex.message}",
+                                        pendingInstallDiag,
+                                        forceReport = true
+                                    )
+                                    enableKioskLock()
+                                    setInstallUI("\u274C", getString(R.string.install_error_install),
+                                        getString(R.string.install_hint_policy), 0xFFf87171.toInt(), btnEnabled = true, progress = -2)
+                                    runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
+                                }
                             } else {
                                 unregisterReceiver(this)
+                                ErrorReporter.reportMessage(
+                                    "install_confirm_missing",
+                                    "STATUS_PENDING_USER_ACTION without a confirmation intent",
+                                    pendingInstallDiag,
+                                    forceReport = true
+                                )
                                 setInstallUI("\u274C", getString(R.string.install_error_install), "No confirmation intent", 0xFFf87171.toInt(), btnEnabled = true, progress = -2)
                             }
                         }
@@ -1185,22 +1309,48 @@ class KioskActivity : AppCompatActivity() {
                         PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
                         PackageInstaller.STATUS_FAILURE_CONFLICT -> {
                             unregisterReceiver(this)
+                            val msg = intent?.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: ""
+                            val diag = pendingInstallDiag + mapOf(
+                                "status" to status,
+                                "status_hint" to installStatusHint(status),
+                                "msg" to msg,
+                                "extras" to (intent?.extras?.keySet()?.joinToString(",") ?: ""),
+                                "lock_task" to lockTaskState()
+                            )
+                            ErrorReporter.reportMessage(
+                                "install_result",
+                                "PackageInstaller status=$status (${installStatusHint(status)}) pkg=$targetPkg signer_match=${diag["signer_match"]}",
+                                diag,
+                                forceReport = true
+                            )
                             runOnUiThread {
                                 pendingInstallFile = file
                                 pendingInstallPkg  = targetPkg
-                                androidx.appcompat.app.AlertDialog.Builder(this@KioskActivity)
-                                    .setTitle(getString(R.string.apk_signature_conflict_title))
-                                    .setMessage(getString(R.string.apk_signature_conflict_msg))
-                                    .setPositiveButton(getString(R.string.btn_uninstall)) { _, _ ->
-                                        disableKioskLock()
-                                        @Suppress("DEPRECATION")
-                                        startActivityForResult(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$targetPkg")), UNINSTALL_REQUEST)
-                                    }
-                                    .setNegativeButton(android.R.string.cancel, null).show()
+                                // Only a REAL signature difference needs an uninstall, and the two
+                                // fingerprints we just logged are what says so.
+                                if (diag["signer_match"] == false) {
+                                    androidx.appcompat.app.AlertDialog.Builder(this@KioskActivity)
+                                        .setTitle(getString(R.string.apk_signature_conflict_title))
+                                        .setMessage(getString(R.string.apk_signature_conflict_msg))
+                                        .setPositiveButton(getString(R.string.btn_uninstall)) { _, _ ->
+                                            disableKioskLock()
+                                            @Suppress("DEPRECATION")
+                                            startActivityForResult(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$targetPkg")), UNINSTALL_REQUEST)
+                                        }
+                                        .setNegativeButton(android.R.string.cancel, null).show()
+                                } else {
+                                    showInstallRetryDialog(status, file, targetPkg)
+                                }
                             }
                         }
                         -1 /* STATUS_FAILURE_ABORTED */ -> {
                             unregisterReceiver(this)
+                            ErrorReporter.reportMessage(
+                                "install_result",
+                                "PackageInstaller status=$status (${installStatusHint(status)}) pkg=$targetPkg",
+                                pendingInstallDiag + mapOf("status" to status, "lock_task" to lockTaskState()),
+                                forceReport = true
+                            )
                             runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
                         }
                         else -> {
@@ -1211,7 +1361,9 @@ class KioskActivity : AppCompatActivity() {
                                 appendLine("Status: $status — ${installStatusHint(status)}")
                                 if (msg.isNotEmpty()) appendLine("Msg: $msg")
                                 appendLine("PKG: $targetPkg")
-                                appendLine("APK: ${file.length() / 1024} KB")
+                                appendLine("APK: ${file.length() / 1024} KB vc=${pendingInstallDiag["apk_vc"]} (installed ${pendingInstallDiag["installed_vc"]})")
+                                appendLine("Signer: ${if (pendingInstallDiag["signer_match"] == true) "same" else "DIFFERENT"}")
+                                appendLine("Unknown sources: ${pendingInstallDiag["can_install_unknown"]}, lock task: ${lockTaskState()}")
                                 appendLine("Android: ${Build.VERSION.SDK_INT} (${Build.VERSION.RELEASE})")
                                 appendLine("Device: $deviceLabel")
                             }
@@ -1219,15 +1371,16 @@ class KioskActivity : AppCompatActivity() {
                                 diagInfo.trim(), 0xFFf87171.toInt(), btnEnabled = true, progress = -2)
                             runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
                             ErrorReporter.reportMessage(
-                                "install_failure",
-                                "PackageInstaller status=$status pkg=$targetPkg android=${Build.VERSION.SDK_INT}",
-                                mapOf(
-                                    "pkg"     to targetPkg,
-                                    "status"  to status,
-                                    "msg"     to msg,
-                                    "apk_kb"  to (file.length() / 1024),
-                                    "android" to Build.VERSION.SDK_INT,
-                                    "device"  to deviceLabel
+                                "install_result",
+                                "PackageInstaller status=$status (${installStatusHint(status)}) pkg=$targetPkg signer_match=${pendingInstallDiag["signer_match"]} android=${Build.VERSION.SDK_INT}",
+                                pendingInstallDiag + mapOf(
+                                    "status"      to status,
+                                    "status_hint" to installStatusHint(status),
+                                    "msg"         to msg,
+                                    "extras"      to (intent?.extras?.keySet()?.joinToString(",") ?: ""),
+                                    "android"     to Build.VERSION.SDK_INT,
+                                    "device"      to deviceLabel,
+                                    "lock_task"   to lockTaskState()
                                 ),
                                 forceReport = true
                             )
@@ -1236,15 +1389,22 @@ class KioskActivity : AppCompatActivity() {
                                 runOnUiThread {
                                     pendingInstallFile = file
                                     pendingInstallPkg  = targetPkg
-                                    androidx.appcompat.app.AlertDialog.Builder(this@KioskActivity)
-                                        .setTitle(getString(R.string.install_failed_title, status))
-                                        .setMessage(diagInfo.trim())
-                                        .setPositiveButton(getString(R.string.btn_uninstall_retry)) { _, _ ->
-                                            disableKioskLock()
-                                            @Suppress("DEPRECATION")
-                                            startActivityForResult(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$targetPkg")), UNINSTALL_REQUEST)
-                                        }
-                                        .setNegativeButton(android.R.string.cancel, null).show()
+                                    // A failure that is NOT a signature conflict is retried, never
+                                    // answered with "uninstall the app": the household must not lose
+                                    // the appliance to a transient status.
+                                    if (pendingInstallDiag["signer_match"] == false) {
+                                        androidx.appcompat.app.AlertDialog.Builder(this@KioskActivity)
+                                            .setTitle(getString(R.string.install_failed_title, status))
+                                            .setMessage(diagInfo.trim())
+                                            .setPositiveButton(getString(R.string.btn_uninstall_retry)) { _, _ ->
+                                                disableKioskLock()
+                                                @Suppress("DEPRECATION")
+                                                startActivityForResult(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$targetPkg")), UNINSTALL_REQUEST)
+                                            }
+                                            .setNegativeButton(android.R.string.cancel, null).show()
+                                    } else {
+                                        showInstallRetryDialog(status, file, targetPkg)
+                                    }
                                 }
                             }
                         }
@@ -1319,6 +1479,39 @@ class KioskActivity : AppCompatActivity() {
         val model = Build.MODEL.takeIf { it.isNotBlank() && it != "unknown" }
             ?: Build.HARDWARE
         return "$mfr $model"
+    }
+
+    /** The failure in words, from the numbers logged with the attempt (no guessing). */
+    private fun installDiagText(status: Int): String = buildString {
+        appendLine("Status: $status — ${installStatusHint(status)}")
+        appendLine("APK vc=${pendingInstallDiag["apk_vc"]} (${pendingInstallDiag["apk_ver"]}) → installed vc=${pendingInstallDiag["installed_vc"]}")
+        appendLine("Signer: ${if (pendingInstallDiag["signer_match"] == true) "same" else "DIFFERENT"}")
+        appendLine("Unknown sources: ${pendingInstallDiag["can_install_unknown"]}, lock task: ${lockTaskState()}")
+        appendLine("Android: ${Build.VERSION.SDK_INT} (${Build.VERSION.RELEASE})")
+        append("Device: ${buildDeviceLabel()}")
+    }
+
+    /**
+     * The honest answer to a failure that is NOT a signature conflict: RETRY, never
+     * "uninstall the app".
+     *
+     * The APK is already on disk and validated, so a retry re-commits a session instead of
+     * downloading 6 MB again — and the household never loses the appliance to a transient status
+     * (a confirmation that did not come up, a session the system aborted, a busy installer).
+     */
+    private fun showInstallRetryDialog(status: Int, file: java.io.File, targetPkg: String) {
+        val title = if (status >= 0) getString(R.string.install_failed_title, status)
+                    else getString(R.string.install_failed_prompt_title)
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(installDiagText(status))
+            .setPositiveButton(getString(R.string.install_btn_retry)) { _, _ ->
+                pendingInstallFile = file
+                pendingInstallPkg  = targetPkg
+                installWithPackageInstaller(file, targetPkg)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun installStatusHint(status: Int): String = when (status) {
@@ -1494,22 +1687,32 @@ class KioskActivity : AppCompatActivity() {
             val url = pendingApkDownloadUrl
             if (url.isNotEmpty()) triggerApkDownload(url)
         }
-        if (requestCode == INSTALL_CONFIRM_REQUEST && resultCode == RESULT_OK) {
-            setInstallUI("\u2705", getString(R.string.install_success), getString(R.string.install_success_detail), 0xFF34d399.toInt(), btnEnabled = false, progress = -2)
-            Handler(Looper.getMainLooper()).postDelayed({ updateBanner.visibility = View.GONE; bannerProgressBar.visibility = View.GONE }, 3000)
-        }
-        if (requestCode == INSTALL_CONFIRM_REQUEST && resultCode != RESULT_OK) {
-            val f = pendingInstallFile; val pkg = pendingInstallPkg
-            if (f != null && f.exists() && pkg.isNotEmpty()) {
-                runOnUiThread {
-                    androidx.appcompat.app.AlertDialog.Builder(this)
-                        .setTitle(getString(R.string.install_failed_prompt_title))
-                        .setMessage(getString(R.string.install_failed_prompt_msg))
-                        .setPositiveButton(getString(R.string.btn_uninstall)) { _, _ ->
-                            disableKioskLock()
-                            startActivityForResult(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$pkg")), UNINSTALL_REQUEST)
-                        }
-                        .setNegativeButton(android.R.string.cancel, null).show()
+        if (requestCode == INSTALL_CONFIRM_REQUEST) {
+            // We left lock task to let the SYSTEM installer on screen: come back in, whatever the
+            // answer was, and log it — a confirmation that never appeared is the difference between
+            // "the APK is wrong" and "the wall could not show the dialog".
+            enableKioskLock()
+            ErrorReporter.reportMessage(
+                "install_confirm_result",
+                "System installer returned resultCode=$resultCode (lock task ${lockTaskState()})",
+                pendingInstallDiag + mapOf(
+                    "result_code" to resultCode,
+                    "result_ok"   to (resultCode == RESULT_OK),
+                    "lock_task"   to lockTaskState()
+                ),
+                forceReport = true
+            )
+            if (resultCode == RESULT_OK) {
+                setInstallUI("\u2705", getString(R.string.install_success), getString(R.string.install_success_detail), 0xFF34d399.toInt(), btnEnabled = false, progress = -2)
+                Handler(Looper.getMainLooper()).postDelayed({ updateBanner.visibility = View.GONE; bannerProgressBar.visibility = View.GONE }, 3000)
+            } else {
+                // Cancelled (or the dialog never came up): offer a retry, never an uninstall.
+                val f = pendingInstallFile; val pkg = pendingInstallPkg
+                setInstallUI("\u274C", getString(R.string.install_error_install),
+                    getString(R.string.install_hint_aborted), 0xFFf87171.toInt(), btnEnabled = true, progress = -2)
+                runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
+                if (f != null && f.exists() && pkg.isNotEmpty()) {
+                    runOnUiThread { showInstallRetryDialog(-1, f, pkg) }
                 }
             }
         }
