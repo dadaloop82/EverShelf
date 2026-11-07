@@ -13,6 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [Kiosk 1.7.27] - 2026-11-07
+
+Kiosk APK only (the web app has its own version line).
+
+### The kiosk can finally tell us why it reloads
+- **Its reports never arrived.** `ErrorReporter.doPost()` used a plain
+  `URL(...).openConnection()`, so on a LAN install with a **self-signed certificate** every POST
+  died in an `SSLHandshakeException` — caught, written to logcat, invisible to the server. That is
+  why `data/error_reports.log` has never contained a single `[kiosk]` line, and why "did the
+  update install?" could not be answered. It now trusts the app's certificate exactly like
+  `openTrustedConnection()` does for every other call.
+- **The watchdog stops reloading for a hiccup.** The page probe waits 10 s (was 6) and the page
+  is reloaded only after **two consecutive misses**; both are reported (`page-watchdog-miss`, then
+  `page-watchdog-reload`). Opening a heavy overlay on a weak GPU can stall the main thread for a
+  few seconds, and reloading the whole app for that is the "it restarted on its own" on the wall.
+
 ## [Kiosk 1.7.26] - 2026-11-07
 
 Kiosk APK only (the web app has its own version line). A new build is required: the tablet
