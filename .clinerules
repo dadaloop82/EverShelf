@@ -201,6 +201,12 @@ runtime/binary files — if a task truly needs one, ask first.
   "stale". Now both AI paths `pauseScanner()` for the whole turn, `onBarcodeDetected()` drops a
   read while `_numOcrRunning || _aiBarcodeVisualRunning`, and the scanner resumes when the turn
   ends without opening anything.
+- **A kiosk update is downloaded by the APP, never by `DownloadManager`.** `DownloadManager`
+  validates HTTPS against the **system** trust store (a LAN install is self-signed) and waits for a
+  network Android calls "internet" — a LAN-only tablet has none: the request sat `PENDING` and the
+  banner said «scaricamento in corso» forever, with not one byte in the server log. `triggerApkDownload()`
+  now uses `openTrustedConnection()`, writes into the app's own folder, puts the progress on the
+  same banner and reports a failure (`install_download_failed`) instead of hanging.
 - **A kiosk never opens a keyboard from SHELFY.** The Android WebView has no Web Speech, so the
   text field was the only fallback — and focusing it opened the soft keyboard, which relayouts an
   immersive page; Android answers that configuration change by recreating the Activity, i.e. a new

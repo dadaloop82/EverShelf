@@ -2,7 +2,6 @@ package it.dadaloop.evershelf.kiosk
 
 import android.annotation.SuppressLint
 import android.Manifest
-import android.app.DownloadManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -83,8 +82,6 @@ class KioskActivity : AppCompatActivity() {
     private var pendingInstallFile: java.io.File? = null
     private var pendingInstallPkg: String = ""
     private var activeInstallBtn: MaterialButton? = null
-    private val pollHandler = Handler(Looper.getMainLooper())
-    private var activeDownloadId: Long = -1
 
     // Periodic update-check handler (fires every 30 min; internal throttle in checkForUpdates limits real API calls to every 6h)
     private val updateCheckHandler = Handler(Looper.getMainLooper())
@@ -278,7 +275,6 @@ class KioskActivity : AppCompatActivity() {
         btnDismissUpdate.setOnClickListener {
             updateBanner.visibility = View.GONE
             bannerProgressBar.visibility = View.GONE
-            pollHandler.removeCallbacksAndMessages(null)
         }
         btnInstallUpdate.setOnClickListener {
             activeInstallBtn = btnInstallUpdate
@@ -378,39 +374,6 @@ class KioskActivity : AppCompatActivity() {
             btn.isEnabled = btnEnabled
             btn.text = "$icon  $title"
         }
-    }
-
-    // ── Download Progress Poll ────────────────────────────────────────────
-
-    private fun startDownloadProgressPoll(downloadId: Long) {
-        activeDownloadId = downloadId
-        pollHandler.removeCallbacksAndMessages(null)
-        fun tick() {
-            if (activeDownloadId != downloadId) return
-            val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-            val c  = dm.query(DownloadManager.Query().setFilterById(downloadId))
-            if (!c.moveToFirst()) { c.close(); return }
-            val status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-            if (status == DownloadManager.STATUS_RUNNING || status == DownloadManager.STATUS_PENDING) {
-                val dl  = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-                val tot = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-                c.close()
-                val pct = if (tot > 0) (dl * 100 / tot).toInt() else 0
-                val dlMb  = dl  / 1_048_576f
-                val totMb = tot / 1_048_576f
-                val txt = if (tot > 0) "%.1f MB / %.1f MB".format(dlMb, totMb) else ""
-                setInstallUI(
-                    "\u23F3",
-                    getString(R.string.install_downloading) + if (tot > 0) " ($pct%)" else "",
-                    txt, 0xFF94a3b8.toInt(),
-                    btnEnabled = false, progress = pct, progressText = txt
-                )
-                pollHandler.postDelayed({ tick() }, 500)
-            } else {
-                c.close()
-            }
-        }
-        pollHandler.post { tick() }
     }
 
     // ── WebView ────────────────────────────────────────────────────────────
@@ -945,6 +908,18 @@ class KioskActivity : AppCompatActivity() {
 
     // ── APK Download + Install ─────────────────────────────────────────────
 
+    /**
+     * Download the update OURSELVES, with the trusted connection.
+     *
+     * DownloadManager was the obvious choice and the wrong one for this app: it validates
+     * `HttpsURLConnection` against the SYSTEM trust store (a LAN install answers with a
+     * self-signed certificate) and it waits for a network Android considers "internet", which a
+     * LAN-only tablet never has — so the request stayed PENDING forever and the banner said
+     * "scaricamento in corso" without a single byte leaving the tablet (the server log has no
+     * request for the APK, ever). `openTrustedConnection()` is what every other call in this app
+     * uses, the progress goes to the same banner, and a failure is said out loud instead of
+     * hanging.
+     */
     private fun triggerApkDownload(apkUrl: String) {
         if (apkUrl.isEmpty()) return
         pendingApkDownloadUrl = apkUrl
@@ -957,59 +932,54 @@ class KioskActivity : AppCompatActivity() {
             )
             return
         }
-        setInstallUI("\u23F3", getString(R.string.install_downloading), getString(R.string.install_downloading_detail), 0xFF94a3b8.toInt(), btnEnabled = false)
-        val destDir  = getExternalFilesDir(null) ?: filesDir
-        val destFile = java.io.File(destDir, "evershelf-update.apk")
-        val dm  = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-        val req = DownloadManager.Request(Uri.parse(apkUrl)).apply {
-            setTitle(getString(R.string.download_title))
-            setDescription(getString(R.string.install_downloading))
-            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            setDestinationUri(Uri.fromFile(destFile))
-            setMimeType("application/vnd.android.package-archive")
-        }
-        val downloadId = dm.enqueue(req)
-        startDownloadProgressPoll(downloadId)
-
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context?, intent: Intent?) {
-                val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
-                if (id != downloadId) return
-                unregisterReceiver(this)
-                val q  = DownloadManager.Query().setFilterById(downloadId)
-                val c  = (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).query(q)
-                var ok = false
-                var dmStatus = -1
-                var dmReason = -1
-                if (c.moveToFirst()) {
-                    dmStatus = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                    dmReason = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
-                    ok = dmStatus == DownloadManager.STATUS_SUCCESSFUL
+        setInstallUI("\u23F3", getString(R.string.install_downloading), getString(R.string.install_downloading_detail), 0xFF94a3b8.toInt(), btnEnabled = false, progress = -1)
+        Thread {
+            val startMs = System.currentTimeMillis()
+            var bytes = 0L
+            try {
+                val conn = openTrustedConnection(apkUrl)
+                conn.connectTimeout = 15000
+                conn.readTimeout = 60000
+                val total = try { conn.contentLengthLong } catch (_: Exception) { -1L }
+                val destDir = getExternalFilesDir(null) ?: filesDir
+                val destFile = java.io.File(destDir, "evershelf-update.apk")
+                conn.inputStream.use { input ->
+                    destFile.outputStream().use { out ->
+                        val buf = ByteArray(64 * 1024)
+                        var lastUi = 0L
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n <= 0) break
+                            out.write(buf, 0, n)
+                            bytes += n
+                            val now = System.currentTimeMillis()
+                            if (now - lastUi > 300) {
+                                lastUi = now
+                                val pct = if (total > 0) ((bytes * 100) / total).toInt() else -1
+                                setInstallUI("\u23F3", getString(R.string.install_downloading), getString(R.string.install_downloading_detail), 0xFF94a3b8.toInt(), btnEnabled = false, progress = pct)
+                            }
+                        }
+                    }
                 }
-                c.close()
-                if (ok) {
-                    pollHandler.removeCallbacksAndMessages(null); activeDownloadId = -1
-                    setInstallUI("\u23F3", getString(R.string.install_installing), getString(R.string.install_installing), 0xFF94a3b8.toInt(), btnEnabled = false, progress = -1)
-                    installApk(destFile)
-                } else {
-                    pollHandler.removeCallbacksAndMessages(null); activeDownloadId = -1
-                    setInstallUI("\u274C", getString(R.string.install_error_download), getString(R.string.install_error_download_detail), 0xFFf87171.toInt(), btnEnabled = true, progress = -2)
-                    runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
-                    ErrorReporter.reportMessage(
-                        "install_download_failed",
-                        "DownloadManager returned failure for URL: $apkUrl",
-                        mapOf("dm_status" to dmStatus, "dm_reason" to dmReason,
-                              "device" to buildDeviceLabel())
-                    )
-                }
+                conn.disconnect()
+                ErrorReporter.reportMessage(
+                    "install_download_ok",
+                    "Update downloaded: $bytes bytes in ${System.currentTimeMillis() - startMs} ms",
+                    mapOf("url" to apkUrl, "bytes" to bytes)
+                )
+                runOnUiThread { installApk(destFile) }
+            } catch (e: Exception) {
+                val detail = "${e.javaClass.simpleName}: ${e.message}"
+                setInstallUI("\u274C", getString(R.string.install_error_download), getString(R.string.install_error_download_detail), 0xFFf87171.toInt(), btnEnabled = true, progress = -2)
+                runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
+                ErrorReporter.reportMessage(
+                    "install_download_failed",
+                    "Direct download failed after $bytes bytes: $detail",
+                    mapOf("url" to apkUrl, "bytes" to bytes),
+                    forceReport = true
+                )
             }
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), RECEIVER_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
-        }
+        }.start()
     }
 
     private fun installApk(file: java.io.File) {

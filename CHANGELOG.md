@@ -5,6 +5,25 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.9] - 2026-11-07
+
+### Fixed
+- **The kiosk update no longer sits on «scaricamento in corso» forever.** The APK was fetched with
+  `DownloadManager`, which is the wrong tool on this setup in two ways: it validates HTTPS against
+  the **system** trust store (a LAN install answers with a self-signed certificate) and it waits
+  for a network Android considers "internet" — which a LAN-only tablet never has. Result: the
+  request stayed `PENDING` and **not a single byte reached the server** (the Apache access log has
+  no `GET /dispensa/releases/evershelf-kiosk.apk` at all, only the `kiosk_update` JSON). The APK now
+  downloads **inside the app** with `openTrustedConnection()` — the same trusted connection every
+  other call uses — into the app's own folder, with the progress on the same banner, and a failure
+  is said out loud (`install_download_failed` + «Riprova») instead of hanging. `installApk()`'s
+  existing checks (PK magic, package name, versionCode) still run before the installer opens.
+  **APK 1.7.28 (versionCode 29).**
+
+### Added
+- `install_download_ok` / `install_download_failed` reports (bytes + elapsed time), so the next
+  update attempt is visible in `data/error_reports.log` even when it fails.
+
 ## [1.31.8] - 2026-11-07
 
 ### Added
