@@ -5,6 +5,35 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.10] - 2026-11-07
+
+### Fixed
+- **The wall stopped restarting itself: an OOM-killed renderer and a resume reload.**
+  The kiosk logs finally named it. `[kiosk] [renderer-killed-oom]` arrived with
+  **`priority=2`** — `RENDERER_PRIORITY_WAIVED`, the priority Android gives a WebView it
+  considers *not visible* — three minutes after a boot, while the household was opening SHELFY;
+  the page came back by itself and read as "the app restarted". The APK now calls
+  `setRendererPriorityPolicy(RENDERER_PRIORITY_IMPORTANT, false)`: on a wall tablet the page IS
+  the appliance and its renderer is never waived, so it is no longer the first thing the system
+  kills. (`[PAGEHIDE] unload` with no `[RELOAD]` line is what proved the reload came from outside
+  the page, and there was no `kiosk-create`/`page-watchdog`/`kiosk-resume-reload` report to
+  explain it: the renderer was resurrected, not the Activity.)
+- **A resume no longer reloads the app for a URL the app itself changed.** `onResume` compared
+  the WebView URL strictly, so any normalisation (`host` → `host/`, `…/index.html`, `?lang=`,
+  `#page-…`) looked like "not on the app any more" and reloaded the whole app on return from
+  standby. It now reloads **only** when the WebView is genuinely off the app (error page,
+  `about:blank`, `data:`, another host), and it **reports** every such reload instead of hiding
+  it behind a duplicated fingerprint.
+
+### Added
+- **The restart is measured, not guessed.** `[MEM]` in `data/client_debug.log` when SHELFY opens
+  and closes on a wall (`shelfy-open` / `shelfy-close`) carries the page's JS heap
+  (`used/total/limit`), the number of images and pantry rows, **and** the device's own figures
+  from the kiosk bridge (`avail_mb`, `total_mb`, `threshold_mb`, `low_memory`, `memory_class_mb`);
+  the APK logs the same snapshot at boot, on every memory trim, and attached to a dead renderer.
+  `[kiosk] [lifecycle] onPause/onResume` names the other half of the timeline, so a reload after a
+  wake can never be mistaken for SHELFY doing it again. **Kiosk APK 1.7.30.**
+
 ## [1.31.9] - 2026-11-07
 
 ### Fixed

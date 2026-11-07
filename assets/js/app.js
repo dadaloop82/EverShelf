@@ -2025,7 +2025,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261107j'; // bump when translations change
+const _I18N_VERSION = '20261107k'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -10236,6 +10236,7 @@ function _openCaptureSheetInner() {
     // First run: SHELFY introduces itself before it starts listening.
     if (!_shelfyIntroSeen()) { _shelfyOpenIntro(); return; }
     sheet.style.display = '';
+    _logKioskMemory('shelfy-open');
     const input = document.getElementById('capture-input');
     if (input) {
         // Never focus it here: focusing a text field opens the soft keyboard on a phone,
@@ -10308,12 +10309,42 @@ function _closeCaptureSheet() {
     const sheet = document.getElementById('capture-sheet');
     if (sheet) sheet.style.display = 'none';
     _shelfyMarkOpen(false);
+    _logKioskMemory('shelfy-close');
     // A turn that was still running is nobody's answer any more: its lookup must not open a
     // sheet over whatever the household is doing now.
     _captureTurnId++;
     _captureWatchdogStop();
     _shelfyDisarm();
     _captureVoiceStop();
+}
+
+/**
+ * What the page and the tablet weigh, in one line, when SHELFY opens and closes.
+ *
+ * The wall restarted itself with `renderer-killed-oom priority=2` and nothing else to go on:
+ * the page can measure its own JS heap, the kiosk bridge can measure the DEVICE
+ * (`memorySnapshot()` on the native side), and those two numbers side by side are what tells a
+ * page that is too heavy from a tablet that has nothing left. Diagnostics only: a throw here
+ * must never keep the sheet from opening, so everything is guarded.
+ */
+function _logKioskMemory(stage) {
+    if (!_isKioskDevice()) return;
+    try {
+        const m = (typeof performance !== 'undefined' && performance.memory) ? performance.memory : null;
+        const heap = m
+            ? `${Math.round(m.usedJSHeapSize / 1048576)}/${Math.round(m.totalJSHeapSize / 1048576)}/${Math.round(m.jsHeapSizeLimit / 1048576)}MB`
+            : 'n/a';
+        let native = '';
+        try {
+            if (typeof _kioskBridge !== 'undefined' && typeof _kioskBridge.mem === 'function') {
+                native = ' ' + _kioskBridge.mem();
+            }
+        } catch (e) { /* an older APK has no mem(): the JS half still prints */ }
+        const imgs = document.images ? document.images.length : 0;
+        const rows = document.getElementById('inventory-list')
+            ? document.getElementById('inventory-list').children.length : 0;
+        _remoteLogSync('MEM', `${stage} js=${heap} imgs=${imgs} rows=${rows}${native}`);
+    } catch (e) { /* diagnostics never break a sheet */ }
 }
 
 function _captureStatus(key, params) {
@@ -19733,7 +19764,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107j';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107k';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19743,7 +19774,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261107j';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261107k';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
