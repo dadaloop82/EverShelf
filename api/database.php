@@ -308,6 +308,43 @@ function migrateDB(PDO $db): void {
         }
     }
 
+    // Migration: rows that arrived with NO best-before date at all ("senza scadenza").
+    // A row without a date never enters "in scadenza" and the pantry can never warn about
+    // it, so a whole shopping trip could sit on the shelf unmonitored. Every new write is
+    // dated at the choke point (addToInventory → inventoryInferExpiryDate, stored as an
+    // ESTIMATE with expiry_user_set = 0); this pass dates the rows already stored, with the
+    // same rule (`estimateSealedExpiryDaysPHP` on the KIND of place they sit in). A medicine
+    // is skipped: its box prints its own date and inventing one would be a safety claim.
+    $expiryInferred = $db->query("SELECT value FROM app_settings WHERE key = 'migration_infer_missing_expiry_v1'")->fetchColumn();
+    if (!$expiryInferred) {
+        $rows = $db->query(
+            "SELECT i.id, i.location, p.name, p.category
+               FROM inventory i
+               JOIN products p ON p.id = i.product_id
+              WHERE i.expiry_date IS NULL
+                AND COALESCE(p.is_medical, 0) = 0"
+        )->fetchAll(PDO::FETCH_ASSOC);
+        $updExpiry = $db->prepare('UPDATE inventory SET expiry_date = ?, expiry_user_set = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+        $dated = 0;
+        foreach ($rows as $row) {
+            $days = max(1, estimateSealedExpiryDaysPHP(
+                (string)($row['name'] ?? ''),
+                (string)($row['category'] ?? ''),
+                (string)($row['location'] ?? '')
+            ));
+            $updExpiry->execute([date('Y-m-d', strtotime('+' . $days . ' days')), (int)$row['id']]);
+            $dated++;
+        }
+        $db->exec("INSERT OR REPLACE INTO app_settings (key, value)
+                   VALUES ('migration_infer_missing_expiry_v1', '1')");
+        if ($dated > 0 && class_exists('EverLog')) {
+            EverLog::info('Dated the inventory rows stored without an expiry', [
+                'event' => 'expiry_inferred_backfill',
+                'rows'  => $dated,
+            ]);
+        }
+    }
+
     // Migration: a shopping generic that is only a CONTAINER ("Frutta", "Verdura",
     // "Latticini"). The title choke point makes every product lead with its genre, and
     // the shopping-name extractor took the first word — so the list was titled with the

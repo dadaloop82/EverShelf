@@ -609,6 +609,32 @@ function _checkWebappUpdate() {
         .catch(() => {});
 }
 
+// ── Boot diagnostics ─────────────────────────────────────────────────────────
+// A page that reloads on its own has to be provable from the log, not guessed: a real reload
+// (`type=reload`) is a different event from the app merely navigating (`type=navigate`), and
+// `shelfy=open` says the previous session was in the assistant when it happened. The flag is
+// spent at every boot, so it never reports a stale session.
+const SHELFY_OPEN_KEY = 'evershelf_shelfy_open';
+
+function _shelfyMarkOpen(open) {
+    try {
+        if (open) sessionStorage.setItem(SHELFY_OPEN_KEY, '1');
+        else sessionStorage.removeItem(SHELFY_OPEN_KEY);
+    } catch (e) { /* private mode / quota: the diagnostic just stays silent */ }
+}
+
+function _logBootDiagnostics() {
+    let navType = 'navigate';
+    try {
+        const nav = performance.getEntriesByType && performance.getEntriesByType('navigation');
+        if (nav && nav.length && nav[0] && nav[0].type) navType = String(nav[0].type);
+    } catch (e) { /* older engine: the default stands */ }
+    let shelfy = 'closed';
+    try { if (sessionStorage.getItem(SHELFY_OPEN_KEY) === '1') shelfy = 'open'; } catch (e) {}
+    remoteLog('BOOT', `type=${navType} shelfy=${shelfy} page=${_currentPageId || '-'} v=${_loadedVersion || '-'}`);
+    _shelfyMarkOpen(false);
+}
+
 // ── Global uncaught error handler ────────────────────────────────────────────
 window.addEventListener('error', function(e) {
     const msg = e.message || String(e.error);
@@ -1929,7 +1955,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106zb'; // bump when translations change
+const _I18N_VERSION = '20261107a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2537,6 +2563,41 @@ function storageKindOfLocation(value) {
 }
 
 /**
+ * The place a guess must LAND IN: one that exists.
+ *
+ * `guessLocation()` and `storageKindOfLocation()` speak the three built-in KINDS (`dispensa`,
+ * `frigo`, `freezer`) and the household may have deleted any of them — a kitchen pantry is then
+ * `custom_dispensa_cucina`, and a form that posts the built-in slug answers "Invalid location"
+ * with the product never written, which on screen is a dead "Aggiungi" button.
+ * A place NAMED after the guess wins ("Dispensa cucina" for a pantry), then one of the same
+ * KIND (a pantry stays a pantry, a fridge a fridge), then the first legal place; `''` when the
+ * household has no place left on that side at all.
+ *
+ * @param {string} value a slug, a label or a storage kind
+ * @param {boolean} [isMedical] resolve inside the medicine cabinet instead of the food places
+ * @returns {string} a key of `LOCATIONS`, or ''
+ */
+function _existingLocationFor(value, isMedical = false) {
+    const pool = Object.entries(LOCATIONS).filter(([key, meta]) =>
+        isMedical ? isMedicalLocation(key, meta.label) : !isMedicalLocation(key, meta.label));
+    if (!pool.length) return '';
+    const key = resolveLocationKey(value);
+    if (pool.some(([k]) => k === key)) return key;
+    // A place NAMED after the guess wins ("Dispensa cucina" for a pantry), then one of the same
+    // KIND (a pantry is still a pantry), then the first legal place of that side. The legacy
+    // aliases are read through, so an old "altro" still means the pantry.
+    const word = String(normalizeLocationKey(String(value || '').trim())).trim().toLowerCase();
+    if (word) {
+        const named = pool.find(([k, meta]) =>
+            String(meta.label || '').toLowerCase().includes(word) || k.includes(word));
+        if (named) return named[0];
+    }
+    const kind = storageKindOfLocation(value);
+    const sameKind = pool.find(([k, meta]) => storageKindOfLocation(k + ' ' + (meta.label || '')) === kind);
+    return (sameKind || pool[0])[0];
+}
+
+/**
  * Mark exactly ONE button as the selected location in a picker.
  *
  * By `data-loc`, never by the button text: "Dispensa" is a substring of "Dispensa cucina",
@@ -2717,7 +2778,7 @@ function _renderLocationSelector(sel, hiddenId, clickFn, currentVal, kind = 'any
                 : true);
     // One selection, by KEY: a label ("Dispensa cucina") and its slug are the same place,
     // and one place's name can contain another's (see markLocationButton()).
-    const cur = resolveLocationKey(currentVal || document.getElementById(hiddenId)?.value || 'dispensa');
+    const cur = resolveLocationKey(currentVal || document.getElementById(hiddenId)?.value || '');
     el.innerHTML = entries.map(([key, meta], idx) => {
         const active = key === cur || (!LOCATIONS[cur] && idx === 0);
         // The cabinet wears its own drawn mark, the pantry/fridge keep their emoji.
@@ -5033,7 +5094,14 @@ function _isProduceCategory(cat) {
 function _aiSuggestedUnit(unit, name, category = '') {
     const u = String(unit || '').toLowerCase().trim();
     if (!['g', 'ml', 'kg', 'l', 'pz', 'conf'].includes(u)) return '';
-    if (u !== 'pz' && _isSoldByPieceProductName(name || '', category)) return 'pz';
+    if (u === 'pz') return u;
+    if (_isSoldByPieceProductName(name || '', category)) return 'pz';
+    // A LOOSE fruit or vegetable is not sold in "confezioni": the label's pack measured in kg
+    // turned Cachi into "1 confezione da 0,757 kg", which breaks the piece fractions, the
+    // minimums and the shopping family. A prepared salad really is a bag, so it keeps its conf,
+    // and produce sold by weight (broccoli, spinach) keeps its grams.
+    const produce = _isProduceCategory(mapToLocalCategory(category || '', name || ''));
+    if (produce && u === 'conf' && !vocabIsPreparedSalad(name || '', '')) return 'pz';
     return u;
 }
 
@@ -5069,7 +5137,13 @@ function _aiStorageFields(draft) {
         // pieces", so the add form starts from one piece and the user says how many.
         return { unit: 'pz', default_quantity: 1, package_unit: '' };
     }
-    return { unit: unit || 'pz', default_quantity: qty > 0 ? qty : 1, package_unit: '' };
+    const unitOut = unit || 'pz';
+    const raw = qty > 0 ? qty : 1;
+    // A starting amount below the pantry's own minimum cannot be saved at all (the add form
+    // refuses it and the API too): "1 g" of broccoli or "2 ml" of cream is a misread of the
+    // label, not a quantity. The floor is the honest start, and the household still edits it.
+    const floor = _addMinQtyForUnit(unitOut);
+    return { unit: unitOut, default_quantity: Math.max(raw, floor), package_unit: '' };
 }
 
 function _normalizeAiMatchName(name) {
@@ -8291,6 +8365,15 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
             if (_networkFailCount >= _NETWORK_FAIL_THRESHOLD) {
                 _showNetworkOverlay();
             }
+            // A WRITE that never reached the server is not something the household should
+            // have to repeat. In a supermarket the phone drops in and out of the network on
+            // every aisle: marking a row "comprato" while it was down wrote nothing, and the
+            // item came back on the list at home ("come se non l'avessi segnato"). The same
+            // queue used by offline mode takes it (`_syncOfflineQueue()` replays it as soon as
+            // the server answers), and the caller gets the optimistic answer it would have got
+            // with offline mode on.
+            const queued = _queueWriteAfterNetworkFail(action, method, body);
+            if (queued) return queued;
             throw fetchErr;
         }
         try {
@@ -9929,9 +10012,36 @@ function _setNavBadge(page, count) {
 /** Live recogniser instance (null when idle). */
 let _captureRec = null;
 
+/**
+ * Open SHELFY — and never take the app down with it.
+ *
+ * Opening the assistant is the one moment a device-specific failure (a speech engine that
+ * throws on `start()`, a permission object that is not there, an element a stale bundle does
+ * not have) used to leave the app in a state the household reads as "it crashed and
+ * restarted": a half-built sheet over the page, or a throw inside the init path. The body
+ * is the old function, unchanged; the wrapper cleans up and says so.
+ */
 function _openCaptureSheet() {
+    try {
+        _openCaptureSheetInner();
+    } catch (err) {
+        try { _closeCaptureSheet(); } catch (e) { /* nothing left to clean up */ }
+        const msg = err && err.message ? err.message : String(err);
+        remoteLog('UNCAUGHT', `SHELFY open failed: ${msg}`);
+        reportError({
+            type:    'shelfy-open-failed',
+            message: msg,
+            stack:   (err && err.stack) || '',
+        });
+        showToast(t('capture.open_failed'), 'error', 6000);
+    }
+}
+
+function _openCaptureSheetInner() {
     const sheet = document.getElementById('capture-sheet');
     if (!sheet) return;
+    // The boot diagnostic reads this after a reload: the assistant was open when it happened.
+    _shelfyMarkOpen(true);
     // A new sentence replaces a pending confirmation: never two writable actions at once.
     _shelfyClearConfirm();
     // The sentence is parsed locally, but the rows it is matched against may cost one round
@@ -9992,6 +10102,7 @@ function _closeCaptureSheet() {
     // succeeding, or a failure in there traps the user behind an overlay.
     const sheet = document.getElementById('capture-sheet');
     if (sheet) sheet.style.display = 'none';
+    _shelfyMarkOpen(false);
     // A turn that was still running is nobody's answer any more: its lookup must not open a
     // sheet over whatever the household is doing now.
     _captureTurnId++;
@@ -10032,8 +10143,13 @@ function _captureShowType(show) {
     if (!open) return;
     const input = document.getElementById('capture-input');
     // Focusing a text field opens the soft keyboard: only do it when the user asked
-    // (or when there is no other way to speak to the assistant).
-    if (input) setTimeout(() => { try { input.focus(); } catch (e) { /* no field */ } }, 30);
+    // (or when there is no other way to speak to the assistant). A KIOSK is the exception:
+    // a wall tablet has no throat to type with, and a system keyboard sliding over an
+    // immersive full-screen WebView is the one platform interaction nobody asked for —
+    // the field is shown, the household taps it if it really wants to.
+    const isKiosk = document.documentElement.classList.contains('is-kiosk')
+        || typeof _kioskBridge !== 'undefined';
+    if (input && !isKiosk) setTimeout(() => { try { input.focus(); } catch (e) { /* no field */ } }, 30);
 }
 
 /**
@@ -10131,6 +10247,9 @@ function _captureSetState(state) {
     _captureState = thinking ? 'thinking' : (listening ? 'listening' : 'idle');
     if (thinking) _captureWatchdogStart();
     else _captureWatchdogStop();
+    // A live turn is the household using the app without touching it: keep the idle clocks
+    // (auto-home, screensaver) away from the conversation.
+    if (listening || thinking) _noteVoiceActivity();
 }
 
 /**
@@ -10305,7 +10424,12 @@ function _captureMeterPulseStart() {
     if (_captureMeterRaf) return;
     const tick = () => {
         _captureMeterRaf = 0;
-        if (_captureState !== 'listening') { _capturePaintLevel(0); return; }
+        // A frame loop that keeps painting after the sheet is closed (or while the tablet is
+        // asleep) is a GPU/battery leak on a device that stays on for weeks: stop unless the
+        // assistant is really on screen and really listening.
+        const sheet = document.getElementById('capture-sheet');
+        const onScreen = !!(sheet && sheet.style.display !== 'none' && sheet.getClientRects().length > 0);
+        if (_captureState !== 'listening' || !onScreen || document.hidden) { _capturePaintLevel(0); return; }
         const since = Date.now() - _captureMeterPulse;
         // ~550 ms half-life: a word lights the bars, a pause lets them fall.
         const level = since >= 0 ? 0.9 * Math.exp(-since / 550) : 0;
@@ -10365,6 +10489,9 @@ function _captureShowTranscript(text, isFinal) {
     // words would be worse than no bubble at all.
     const box = document.getElementById('capture-bubble');
     if (box) box.hidden = !value;
+    // Every recognised chunk is a word said to the assistant: the idle clocks restart from
+    // here (see `_noteVoiceActivity`), so a long dictation is never "inactivity".
+    if (value) _noteVoiceActivity();
 }
 
 /**
@@ -19392,7 +19519,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106zb';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19402,7 +19529,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106zb';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261107a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -24760,12 +24887,16 @@ function showAddForm() {
     // Set qty step based on selected unit
     updateAddQtyStep();
     
-    // Auto-detect location — a medicine goes to its own cabinet, never to the pantry.
+    // Auto-detect location — a medicine goes to its own cabinet, never to the pantry, and the
+    // guess always lands on a place that EXISTS: the built-in "dispensa" may have been deleted.
+    const addIsMedical = _isMedicalRow(currentProduct);
     const medLoc = (getSettings().medical_locations || [])[0];
-    const autoLoc = resolveLocationKey((_isMedicalRow(currentProduct) && medLoc) ? medLoc : guessLocation(currentProduct)) || 'dispensa';
+    const autoLoc = _existingLocationFor(
+        addIsMedical && medLoc ? medLoc : guessLocation(currentProduct),
+        addIsMedical
+    );
     // The picker follows THIS product's domain: a medicine only to the cabinet, food never
     // into it (_renderLocationSelector). The server enforces the same rule.
-    const addIsMedical = _isMedicalRow(currentProduct);
     // A medicine has exactly ONE legal place, so "dove lo metti?" has a single possible answer and
     // is not asked at all — the row goes to the cabinet the module owns. The page also stops
     // speaking about the pantry: it is not where a box goes.
@@ -24779,7 +24910,10 @@ function showAddForm() {
         addTitle.textContent = addIsMedical ? t('medical.add_title') : t('add.title');
     }
     _renderLocationSelector('#page-add .location-selector', 'add-location', 'selectLocation', autoLoc, addIsMedical ? 'medical' : 'food');
-    document.getElementById('add-location').value = autoLoc;
+    // Never re-write the field with a place the picker does not offer: the selector already
+    // settled on the first legal one (the API refuses anything else with "Invalid location").
+    const addLocField = document.getElementById('add-location');
+    if (addLocField && autoLoc && LOCATIONS[autoLoc]) addLocField.value = autoLoc;
     // A medicine with no cabinet configured must not silently fall back to the pantry: the server
     // refuses that write, so the reason is said here, where it can still be fixed.
     if (addIsMedical && !medLoc) {
@@ -25469,6 +25603,8 @@ function _apiErrorText(data) {
     }
     if (key === 'error.product_id_required') return t('error.product_id_required');
     if (key === 'error.quantity_below_min') return t('error.quantity_below_min', data?.error_args || {});
+    // The place the form was holding no longer exists (the household deleted it).
+    if (key === 'error.invalid_location') return t('error.invalid_location');
     // Backup endpoints answer with a translated key: the English prose in
     // `error` is for non-browser callers and must never reach the UI.
     if (key === 'error.backup_no_dir') return t('error.backup_no_dir');
@@ -25703,7 +25839,7 @@ async function submitAdd(e) {
 
             // Submit extra batches (different expiry dates) in the background, silently
             if ((window._addExtraBatches || []).length > 0) {
-                const loc = document.getElementById('add-location')?.value || result.location || 'dispensa';
+                const loc = document.getElementById('add-location')?.value || result.location || _existingLocationFor('dispensa');
                 const selectedUnit = document.getElementById('add-unit').value;
                 const productUnit = currentProduct.unit || 'pz';
                 const confUnit = document.getElementById('add-conf-unit')?.value || null;
@@ -28767,25 +28903,9 @@ function _shoppingBuyQtyDisplay(smartData) {
     return { label: approx + label, monthHint: '', approx: !!eff.suggested_approx };
 }
 
-function markShoppingItemBought(idx) {
-    loadShoppingList._lastUserInteraction = Date.now();
-    const item = shoppingItems[idx];
-    if (!item) return;
-    const smartData = _matchBringToSmart(item.name, smartShoppingItems);
-    _spesaScanTarget = {
-        name: item.name,
-        rawName: item.rawName || '',
-        idx,
-        mode: 'bought',
-        buyQty: _shoppingSuggestedToAddQty(smartData),
-        smartData,
-    };
-    _shoppingBoughtFlow = true;
-    showPage('scan');
-    showToast(t('shopping.bought_scan_toast').replace('{name}', _shoppingListGenericTitle(item, smartData)), 'info');
-}
-
-/** Comprato · a casa — solo rimuove dalla lista (inventario lo fai tu a casa). */
+/**
+ * Comprato · a casa — solo rimuove dalla lista (inventario lo fai tu a casa).
+ */
 async function markShoppingItemBoughtAtHome(idx) {
     loadShoppingList._lastUserInteraction = Date.now();
     const item = shoppingItems[idx];
@@ -30295,9 +30415,13 @@ function _renderSmartSuggestedStrip() {
     const chips = rows.slice(0, 12).map((it) => {
         const name = it.shopping_name || it.name || '';
         const qty = _shopRowBuyQtyLabel(null, it);
+        // The anti-waste advice travels with the suggestion: adding it to the list is the
+        // moment the amount is decided, so it is the moment the smaller number matters.
+        const waste = _shopWasteChipHtml(it);
         return `<button type="button" class="smart-suggested-chip" data-suggested="${escapeHtml(name)}">
             <span class="smart-suggested-name">${escapeHtml(name)}</span>
             ${qty ? `<span class="smart-suggested-qty">${escapeHtml(qty)}</span>` : ''}
+            ${waste}
         </button>`;
     }).join('');
     return `<details class="smart-suggested">
@@ -31383,6 +31507,51 @@ function _shopRowStockLabel(smartData) {
 }
 
 /**
+ * "Prendine 2": the quantity that keeps the purchase inside its own shelf life.
+ *
+ * The suggested quantity is what the household NEEDS; the shelf is how long the food
+ * lives. When the two disagree the difference is not stock, it is waste — `smartShopping()`
+ * answers a `waste` block for that row (keep_qty, shelf_days, cover_days, leftover) and
+ * the row prints the smaller number beside the bigger one, with the reason underneath.
+ * Nothing is forced: the household still taps ✓ with whatever amount the list says, it
+ * just knows before paying that the last pack will be binned.
+ */
+function _shopWasteChipHtml(smartData) {
+    const w = smartData && smartData.waste;
+    if (!w) return '';
+    const keepQty = Number(w.keep_qty) || 0;
+    if (!(keepQty > 0)) return '';
+    const keep = _formatSuggestQty(keepQty, w.keep_unit || '') || String(keepQty);
+    const title = t('shopping.waste_chip_title', {
+        keep,
+        days: String(Number(w.shelf_days) || 0),
+    });
+    // A raw key is never printed, not even in a tooltip: if the strings are not loaded yet
+    // (a cold boot that renders the list before `get_settings` answers) the chip just says
+    // the number.
+    const titleAttr = (title && title !== 'shopping.waste_chip_title')
+        ? ` title="${escapeHtml(title)}"`
+        : '';
+    return `<span class="shop-row-waste-chip"${titleAttr}>🍃 (${escapeHtml(keep)})</span>`;
+}
+
+/** The sentence under an at-risk row: why the smaller number is the one to buy. */
+function _shopWasteHintHtml(smartData) {
+    const w = smartData && smartData.waste;
+    if (!w) return '';
+    const keepQty = Number(w.keep_qty) || 0;
+    if (!(keepQty > 0)) return '';
+    const keep = _formatSuggestQty(keepQty, w.keep_unit || '') || String(keepQty);
+    const hint = t('shopping.waste_hint', {
+        keep,
+        days: String(Number(w.shelf_days) || 0),
+        cover: String(Number(w.cover_days) || 0),
+    });
+    if (!hint || hint === 'shopping.waste_hint') return '';
+    return `<div class="shop-row-waste-hint">🍃 ${escapeHtml(hint)}</div>`;
+}
+
+/**
  * The shopping row: one card, three answers.
  *
  * The old card carried its actions in a line of 11 px text
@@ -31402,6 +31571,8 @@ function _shopRowInnerHtml({
     urgencyBadge = '',
     idx = -1,
     buyQty = '',
+    wasteChip = '',
+    wasteHint = '',
     qtyStep = 1,
     inList = true,
 }) {
@@ -31420,11 +31591,13 @@ function _shopRowInnerHtml({
                    aria-label="${escapeHtml(t('shopping.qty_edit'))}">${escapeHtml(buyQty)}</button>`
         : '';
     return `
-    <div class="shop-row-swipe-zones">
-        <div class="shop-row-zone shop-row-zone-home">${escapeHtml(t('shopping.swipe_home'))}</div>
-        <div class="shop-row-zone shop-row-zone-scan">${escapeHtml(t('shopping.swipe_scan'))}</div>
-    </div>
-    <div class="shop-row-swipe-bg shop-row-swipe-bg-left">${escapeHtml(t('shopping.swipe_remove'))}</div>
+    <!-- Two gestures, two meanings, nothing else. Swiping LEFT is "comprato" (it writes
+         the stock and takes the row off the list), swiping RIGHT is "non lo compro" (a
+         dated dismiss that comes back on its own). The old right-hand side carried a
+         SECOND zone that opened the scanner, so a long swipe on a wall tablet started the
+         camera instead of buying something; the zones are gone. -->
+    <div class="shop-row-swipe-bg shop-row-swipe-bg-right">✕ ${escapeHtml(t('shopping.swipe_not_buying'))}</div>
+    <div class="shop-row-swipe-bg shop-row-swipe-bg-left">✓ ${escapeHtml(t('shopping.swipe_bought'))}</div>
     <div class="shop-row-content">
         <div class="shop-row-main">
             ${visualHtml || ''}
@@ -31432,11 +31605,13 @@ function _shopRowInnerHtml({
                 <div class="shop-row-title">
                     <span class="shop-row-title-name">${escapeHtml(displayName)}</span>
                     ${qtyHtml}
+                    ${wasteChip || ''}
                     ${priceCell || ''}
                     ${urgencyBadge}
                 </div>
                 ${subHtml}
                 ${reasonHtml}
+                ${wasteHint || ''}
             </div>
             <div class="shop-row-quick" aria-hidden="false">
                 <button type="button" class="shop-quick-btn shop-quick-btn--dismiss" data-act="dismiss" data-idx="${idx}"
@@ -31452,10 +31627,13 @@ function _shopSwipeThresholds(row) {
     const w = row?.clientWidth || 300;
     return {
         w,
+        // A suggestion is added with a short swipe right (its own row, one meaning).
         suggestAdd: 52,
-        homeMin: 52,
-        scanMin: Math.max(155, Math.round(w * 0.68)),
-        removeMax: -68,
+        // The list rows have exactly two gestures: LEFT is bought, RIGHT is "not this
+        // time". Both are short on purpose — a long swipe used to cross into a third
+        // action (the scanner), which is what made the gesture feel doubled.
+        boughtMin: 52,
+        notBuyingMin: 52,
     };
 }
 
@@ -31505,14 +31683,15 @@ function _initShopRowSwipe(container) {
             activeContent.style.transform = `translateX(${clamped}px)`;
             activeRow.classList.toggle('swipe-right', clamped >= th.suggestAdd);
         } else if (dx > 0) {
-            const clamped = Math.min(th.w, dx);
+            // Swiping right reveals "non lo compro": the row steps aside, nothing starts.
+            const clamped = Math.min(120, dx);
             activeContent.style.transform = `translateX(${clamped}px)`;
-            activeRow.classList.toggle('zone-home', clamped >= th.homeMin && clamped < th.scanMin);
-            activeRow.classList.toggle('zone-scan', clamped >= th.scanMin);
+            activeRow.classList.toggle('swipe-right', clamped >= th.notBuyingMin);
         } else {
-            const clamped = Math.max(-100, dx);
+            // Swiping left reveals "comprato": the only gesture that writes the stock.
+            const clamped = Math.max(-120, dx);
             activeContent.style.transform = `translateX(${clamped}px)`;
-            activeRow.classList.toggle('swipe-left', clamped <= th.removeMax);
+            activeRow.classList.toggle('swipe-left', clamped <= -th.boughtMin);
         }
     };
 
@@ -31527,7 +31706,7 @@ function _initShopRowSwipe(container) {
         const dx = t0.clientX - startX;
         const dy = Math.abs(t0.clientY - startY);
         content.style.transform = '';
-        row.classList.remove('swipe-right', 'swipe-left', 'zone-home', 'zone-scan');
+        row.classList.remove('swipe-right', 'swipe-left');
         activeRow = null;
         activeContent = null;
 
@@ -31540,9 +31719,11 @@ function _initShopRowSwipe(container) {
         } else {
             const idx = parseInt(row.dataset.idx, 10);
             if (!isNaN(idx)) {
-                if (dx >= th.scanMin) markShoppingItemBought(idx);
-                else if (dx >= th.homeMin) _shopRowBought(idx);   // swipe right = bought (writes the stock too)
-                else if (dx <= th.removeMax) removeBringItem(idx);
+                // LEFT = comprato (writes the stock and leaves the list).
+                // RIGHT = non lo compro (a dated dismiss, it comes back on its own).
+                // Nothing else: no third action, no camera behind a longer swipe.
+                if (dx <= -th.boughtMin) _shopRowBought(idx);
+                else if (dx >= th.notBuyingMin) removeBringItem(idx);
             }
         }
     };
@@ -31615,6 +31796,8 @@ function _renderShoppingSuggestionsInline() {
         const globalIdx = smartShoppingItems.indexOf(item);
         const name = item.shopping_name || item.name;
         const qtyHtml = _shopRowQtyHtml(item);
+        const wasteChip = _shopWasteChipHtml(item);
+        const wasteHint = _shopWasteHintHtml(item);
         const border = URGENCY_BORDER[item.urgency] || URGENCY_BORDER.low;
         const visualHtml = _shopRowVisualHtmlFromSmart(item);
         html += `<div class="shop-row shop-row-suggest${_shopRowUrgencyClass(item.urgency)}" data-suggest-idx="${globalIdx}">
@@ -31626,7 +31809,9 @@ function _renderShoppingSuggestionsInline() {
                         <div class="shop-row-title">
                             <span class="shop-row-title-name">${escapeHtml(name)}</span>
                             ${qtyHtml}
+                            ${wasteChip}
                         </div>
+                        ${wasteHint}
                     </div>
                 </div>
                 <div class="shop-row-swipe-hint">${escapeHtml(t('shopping.swipe_add_hint'))}</div>
@@ -31831,6 +32016,8 @@ async function renderShoppingItems(force = false) {
                     urgencyBadge,
                     idx,
                     buyQty: _shopRowBuyQtyLabel(item, smartData),
+                    wasteChip: _shopWasteChipHtml(smartData),
+                    wasteHint: _shopWasteHintHtml(smartData),
                     qtyStep: _shopRowQtyStep(smartData),
                 })}
             </div>`;
@@ -36032,8 +36219,16 @@ let _cookingStep = 0;
 let _cookingSuggestedShortLabel = '';
 let _cookingStepHasInlineTimer = false;
 let _cookingVoiceRec = null;
-/** Auto-listening: armed again after every step (and after every command). */
-let _cookingVoiceAuto = true;
+/**
+ * Auto-listening: OFF when the cooking mode opens.
+ *
+ * The recogniser used to arm itself 5 s after the recipe appeared (and again after every
+ * step). In a kitchen that is a microphone nobody asked for and Chrome's start chime over
+ * the recipe — the household is holding a whisk, not a menu. The card that explains what
+ * the 🎤 does is shown on every open (5 s), and only a tap on the button turns listening
+ * on; closing the recipe turns it off again.
+ */
+let _cookingVoiceAuto = false;
 let _cookingVoiceArmTimer = 0;
 let _cookingVoiceTries = 0;
 let _cookingTTS = true;
@@ -36284,20 +36479,21 @@ function _cookingVoiceStopRec() {
 }
 
 /**
- * Riarmo automatico dopo un passo.
+ * Riarmo automatico — **solo quando il microfono è stato acceso dall'utente**.
  *
- * Il microfono si spegneva a ogni passo e bisognava ritoccarlo: qui si riapre da solo **5 s dopo**
- * che il passo è comparso — il tempo di far finire la voce di SHELFY, che altrimenti si
- * ascolterebbe da sola — e resta in ascolto finché non sente un comando. Dopo un comando che
- * cambia passo il ciclo ricomincia (il passo nuovo riarma), quindi non serve più toccare nulla.
+ * `_cookingVoiceAuto` è falso all'apertura della modalità cucina: qui non si riarma nulla.
+ * Quando il household tocca 🎤 (una volta), il ciclo riparte dopo ogni comando — il tempo di
+ * far finire la voce di SHELFY, che altrimenti si ascolterebbe da sola — e resta vivo finché
+ * non tocca di nuovo il pulsante o chiude la ricetta.
  *
  * Non è un ascolto continuo: ogni sessione è una frase breve, e dopo `_COOKING_VOICE_RETRIES_MAX`
  * finali muti si ferma da sola — Chrome suona un bip a ogni `start()` e un microfono che trilla
  * per tutta la ricetta è peggio di un microfono spento.
  */
-const _COOKING_VOICE_ARM_MS = 5000;
 const _COOKING_VOICE_RETRY_MS = 1200;
 const _COOKING_VOICE_RETRIES_MAX = 3;
+/** Dopo un comando riuscito: il passo nuovo deve poter finire di essere letto ad alta voce. */
+const _COOKING_VOICE_AFTER_CMD_MS = 2600;
 
 function _cookingVoiceArm(delayMs) {
     if (_cookingVoiceArmTimer) { try { clearTimeout(_cookingVoiceArmTimer); } catch (e) {} _cookingVoiceArmTimer = 0; }
@@ -36351,7 +36547,14 @@ function _cookingVoiceStart() {
         _cookingVoiceRec = null;
         if (btn) btn.classList.remove('is-listening');
         if (!_cookingModeOpen() || !_cookingVoiceAuto) return;
-        if (heard) return;                    // a command: the step change re-arms the cycle
+        if (heard) {
+            // A command landed: the step has changed and SHELFY is reading the new one out
+            // loud, so the next session waits for her to finish (a microphone under the TTS
+            // records the assistant). A productive turn resets the retry budget.
+            _cookingVoiceTries = 0;
+            _cookingVoiceArm(_COOKING_VOICE_AFTER_CMD_MS);
+            return;
+        }
         if (_cookingVoiceTries >= _COOKING_VOICE_RETRIES_MAX) return;
         _cookingVoiceTries++;
         _cookingVoiceArm(_COOKING_VOICE_RETRY_MS);
@@ -36364,12 +36567,13 @@ function _cookingVoiceStart() {
     }
 }
 
-/* ── Il tutorial del microfono: 8 secondi, una volta per dispositivo ───────────────────
- * Un 🎤 non dice niente da solo. Quando la modalità cucina si apre, un cartellino ancorato al
- * pulsante spiega cosa dire — con le parole VERE che il riconoscitore ascolta (le prime di
- * vocabCookingVoice(), quindi nella lingua del dispositivo) — poi sparisce da solo.
+/* ── Il tutorial del microfono: 5 secondi, a ogni apertura ────────────────────────────
+ * Un 🎤 non dice niente da solo, e qui parte SPENTO: quando la modalità cucina si apre, un
+ * cartellino ancorato al pulsante spiega cosa dire — con le parole VERE che il riconoscitore
+ * ascolta (le prime di vocabCookingVoice(), quindi nella lingua del dispositivo) — e che il
+ * microfono lo accende il household, non l'app. Sparisce da solo dopo 5 secondi (e si chiude
+ * con la ✕ o con un tocco fuori): un tutorial che resta è un ostacolo davanti ai fornelli.
  */
-const _COOKING_VOICE_HINT_KEY = 'evershelf_cooking_voice_hint_v1';
 let _cookingVoiceHintTimer = 0;
 
 function _cookingVoiceHintHide() {
@@ -36387,11 +36591,18 @@ function _cookingVoiceHintOutside(e) {
     if (!el.contains(e.target) && !onMic) _cookingVoiceHintHide();
 }
 
+/**
+ * The card that explains the microphone — shown on EVERY open, for 5 seconds.
+ *
+ * It used to appear once per device and stay 8 s; the mic armed itself, so the card was a
+ * footnote to something already happening. Now the mic starts OFF and this is the only sign
+ * that it exists: it has to be there every time, and it has to say who turns it on.
+ *
+ * @param {boolean} [force] kept for the call sites (the card is always shown now)
+ */
 function _cookingVoiceHint(force) {
+    void force;
     if (document.getElementById('cooking-voice-hint')) { _cookingVoiceHintHide(); return; }
-    try {
-        if (!force && localStorage.getItem(_COOKING_VOICE_HINT_KEY) === '1') return;
-    } catch (e) { /* private mode: show it anyway */ }
     const btn = document.getElementById('cooking-mic-btn');
     if (!btn) return;
     const lex = (typeof vocabCookingVoice === 'function') ? vocabCookingVoice() : { next: [], prev: [], replay: [] };
@@ -36423,24 +36634,28 @@ function _cookingVoiceHint(force) {
     el.style.left = Math.round(left) + 'px';
     el.style.top = Math.round(Math.max(8, top)) + 'px';
     btn.classList.add('is-hinting');
-    try { localStorage.setItem(_COOKING_VOICE_HINT_KEY, '1'); } catch (e) { /* private mode */ }
-    _cookingVoiceHintTimer = setTimeout(_cookingVoiceHintHide, 8000);
+    _cookingVoiceHintTimer = setTimeout(_cookingVoiceHintHide, 5000);
     setTimeout(() => document.addEventListener('click', _cookingVoiceHintOutside, { once: true }), 0);
 }
 
 function _cookingVoiceCommand() {
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Ctor) { showToast(t('capture.unsupported'), 'info'); return; }
+    // The tap IS the opt-in: the card asked for it, so it goes away with the answer.
+    _cookingVoiceHintHide();
+    const btn = document.getElementById('cooking-mic-btn');
     if (_cookingVoiceAuto) {
         // Mute: the assistant stops listening until you say otherwise.
         _cookingVoiceAuto = false;
         _cookingVoiceStopRec();
+        if (btn) btn.setAttribute('aria-pressed', 'false');
         showToast(t('cooking.voice_off'), 'info');
         return;
     }
     _cookingVoiceAuto = true;
     _cookingVoiceTries = 0;
     _cookingVoiceArm(0);
+    if (btn) btn.setAttribute('aria-pressed', 'true');
     showToast(t('cooking.voice_on'), 'success');
 }
 
@@ -36529,20 +36744,28 @@ function startCookingMode() {
     if (wheelEl) setTimeout(() => wheelEl.focus(), 20);
     try { screen.orientation?.lock('portrait').catch(() => {}); } catch (_) { /* ignore */ }
     renderCookingStep();
-    // Once per device: what on earth is that 🎤 for. It disappears by itself in 8 s.
-    setTimeout(() => _cookingVoiceHint(false), 700);
+    // ── Il microfono è SPENTO finché non lo accende il household ────────────────
+    // Un riconoscitore che parte da solo, 5 s dopo l'apertura, è un bip sopra la ricetta e
+    // un microfono che nessuno ha chiesto: davanti ai fornelli le mani sono occupate, non
+    // libere di parlare a un assistente. Un cartellino di 5 secondi spiega cosa fa il 🎤 (con
+    // le parole vere che ascolta) e resta lì l'unica via: il tocco sul pulsante.
+    _cookingVoiceAuto = false;
     _cookingVoiceTries = 0;
-    _cookingVoiceArm(_COOKING_VOICE_ARM_MS);
-    // No always-on mic in cooking: Chrome's SpeechRecognition restart chime
-    // (bip-bip-bip) was louder than any hands-free gain. TTS + wheel/taps stay.
+    _cookingVoiceStopRec();
+    setTimeout(() => _cookingVoiceHint(true), 700);
     if (_cookingTTS) {
         const text = _stepStr((_cookingRecipe.steps || [])[_cookingStep]);
         speakCookingStep(text);
     }
 }
 function closeCookingMode() {
+    // Leaving the recipe turns the microphone off for good: the next open starts from the
+    // card again, with the mic cold (see `startCookingMode`).
+    _cookingVoiceAuto = false;
     _cookingVoiceStop();
     _cookingVoiceHintHide();
+    const micBtn = document.getElementById('cooking-mic-btn');
+    if (micBtn) micBtn.setAttribute('aria-pressed', 'false');
     _cookingAutoScrollStop();
     _cookingReading(false);
     _closeCookingFinishPrompt();
@@ -39924,6 +40147,38 @@ function toggleShoppingSection(secKey) {
 const _OFFLINE_QUEUE_MAX = 100;
 let _offlineQueueFullNotified = false;
 
+/**
+ * The writes that survive a lost network: they are applied locally at once and replayed
+ * against the server by `_syncOfflineQueue()` (offline mode) or by
+ * `_queueWriteAfterNetworkFail()` (a request that died in flight, see `api()`).
+ * ONE list, because an operation the queue accepts and the API cannot replay would be
+ * silently dropped in the store.
+ */
+const _OFFLINE_QUEUEABLE_ACTIONS = [
+    'inventory_update', 'inventory_use', 'inventory_delete',
+    'inventory_add', 'inventory_confirm_finished', 'inventory_restore_ghost',
+    'shopping_remove', 'shopping_add', 'spend_add',
+];
+
+/** True while `_syncOfflineQueue()` is replaying: a failed replay must not re-queue. */
+let _offlineReplay = false;
+
+/**
+ * A write whose request never reached the server goes into the queue instead of the bin.
+ *
+ * @returns {object|null} the optimistic answer, or null when the action is not queueable
+ */
+function _queueWriteAfterNetworkFail(action, method, body) {
+    if (_offlineReplay) return null;
+    if (String(method || 'GET').toUpperCase() !== 'POST') return null;
+    if (!_OFFLINE_QUEUEABLE_ACTIONS.includes(action)) return null;
+    _offlineQueuePush(action, body);
+    _applyOptimisticUpdate(action, body);
+    _applyShoppingOptimisticUpdate(action, body);
+    remoteLog('API_QUEUED', `${action}: network lost, queued for replay`);
+    return { success: true, _offline: true, _queued: true };
+}
+
 function _offlineQueuePush(action, body) {
     const q = _offlineQueueGet();
     let dropped = 0;
@@ -40050,10 +40305,10 @@ function _handleOfflineApi(action, params, body) {
     if (EMPTY_READS[action]) return EMPTY_READS[action];
 
     // ─── Writes: queue and apply optimistic update to cache ──────────────────
-    const QUEUEABLE = ['inventory_update', 'inventory_use', 'inventory_delete',
-                       'inventory_add', 'inventory_confirm_finished', 'inventory_restore_ghost',
-                       'shopping_remove', 'shopping_add', 'spend_add'];
-    if (QUEUEABLE.includes(action)) {
+    // ONE list of replayable writes (`_OFFLINE_QUEUEABLE_ACTIONS`): the same array is what
+    // `_queueWriteAfterNetworkFail()` accepts, so offline mode and a request that died in
+    // flight can never disagree about what survives.
+    if (_OFFLINE_QUEUEABLE_ACTIONS.includes(action)) {
         _offlineQueuePush(action, body);
         _applyOptimisticUpdate(action, body);
         _applyShoppingOptimisticUpdate(action, body);
@@ -40177,21 +40432,28 @@ async function _syncOfflineQueue() {
     let synced = 0;
     const failed = [];
     const tempIdMap = {}; // negative temp id → real server id
-    for (const op of q) {
-        if (!op.action) continue;
-        let body = op.body ? { ...op.body } : {};
-        // Resolve any temp IDs from earlier add operations in this batch
-        if (typeof body.id === 'number' && body.id < 0 && tempIdMap[body.id]) {
-            body = { ...body, id: tempIdMap[body.id] };
-        }
-        try {
-            const result = await api(op.action, {}, 'POST', body);
-            if (result && result._offline) { failed.push(op); continue; }
-            if (op.action === 'inventory_add' && result?.id && op.body?.id < 0) {
-                tempIdMap[op.body.id] = result.id;
+    // A replay goes to the server as it is: it must never be re-queued by the failure
+    // path of `api()` (that would append a copy of the pending op on every attempt).
+    _offlineReplay = true;
+    try {
+        for (const op of q) {
+            if (!op.action) continue;
+            let body = op.body ? { ...op.body } : {};
+            // Resolve any temp IDs from earlier add operations in this batch
+            if (typeof body.id === 'number' && body.id < 0 && tempIdMap[body.id]) {
+                body = { ...body, id: tempIdMap[body.id] };
             }
-            synced++;
-        } catch(_) { failed.push(op); }
+            try {
+                const result = await api(op.action, {}, 'POST', body);
+                if (result && result._offline) { failed.push(op); continue; }
+                if (op.action === 'inventory_add' && result?.id && op.body?.id < 0) {
+                    tempIdMap[op.body.id] = result.id;
+                }
+                synced++;
+            } catch(_) { failed.push(op); }
+        }
+    } finally {
+        _offlineReplay = false;
     }
     _offlineQueueSet(failed);
     return synced;
@@ -40308,7 +40570,31 @@ window.addEventListener('offline', () => _showNetworkOverlay());
 window.addEventListener('online',  () => {
     clearTimeout(_offlineBannerTimer); // don't auto-enter offline mode if we just came back
     _networkPingOnce();
+    // Writes that died in flight (`_queueWriteAfterNetworkFail`) go out now — a purchase
+    // marked in a supermarket aisle must not wait for the app to enter and leave offline mode.
+    _flushOfflineQueueSoon();
 });
+
+/**
+ * Send the queued writes as soon as there is a network again (once, debounced).
+ * A queue that only empties when offline mode is entered and left is how a marked
+ * purchase stayed on the list for the whole trip home.
+ */
+let _offlineFlushTimer = null;
+function _flushOfflineQueueSoon() {
+    if (_offlineFlushTimer) return;
+    _offlineFlushTimer = setTimeout(async () => {
+        _offlineFlushTimer = null;
+        if (_offlineMode || _offlineReplay) return;
+        if (_offlineQueueGet().length === 0) return;
+        const synced = await _syncOfflineQueue();
+        if (synced > 0) {
+            _paintOfflineStrip('synced');
+            showToast(t('error.offline_synced').replace('{n}', synced), 'success');
+            refreshCurrentPage();
+        }
+    }, 1500);
+}
 
 // ===== SCREENSAVER & INACTIVITY AUTO-REFRESH =====
 let _inactivityTimer = null;
@@ -40337,8 +40623,12 @@ function _triggerAutoHome() {
     if (_currentPageId === 'shopping') return;
     if (_currentPageId === 'scan' && (_shoppingBoughtFlow || _spesaScanTarget || _spesaMode)) return;
     if (_currentPageId === 'add' && (_shoppingBoughtFlow || _spesaScanTarget)) return;
-    const modal = document.getElementById('modal-overlay');
-    if (modal && modal.style.display === 'flex') return;
+    // A dialog on screen IS the household using the app — any of them, not only the shared
+    // `#modal-overlay`: SHELFY (`#capture-sheet`), the chat, a product sheet, the waste sheet.
+    // Talking never touches the screen, so the idle clock kept running over the conversation
+    // and `showPage('dashboard')` pulled the page out from under it (reported as "l'app si
+    // riavvia quando si usa SHELFY").
+    if (_visibleOverlays().length) return;
     showPage('dashboard');
 }
 let _screensaverClockInterval = null;
@@ -40360,7 +40650,36 @@ function _screensaverBlockedPage() {
     if (document.body.classList.contains('cooking-mode-active')) return true;
     if (_currentPageId === 'scan' && (_spesaMode || _spesaScanTarget || _shoppingBoughtFlow)) return true;
     if (_currentPageId === 'add' && (_spesaScanTarget || _shoppingBoughtFlow)) return true;
+    // A turn in progress is a session exactly like the scanner: SHELFY is listening (or the
+    // confirmation card is counting down), and a clock over the microphone is an overlay the
+    // household did not ask for. An idle sheet does NOT block it — the clock keeps counting.
+    if (_captureTurnLive()) return true;
     return false;
+}
+
+/**
+ * Is SHELFY busy right now — listening, thinking, or holding a confirmation card?
+ * Used by the idle clocks, which are wired to pointer/key events only.
+ */
+function _captureTurnLive() {
+    if (_captureState === 'listening' || _captureState === 'thinking') return true;
+    const card = document.getElementById('shelfy-confirm');
+    if (card && card.getClientRects().length > 0) return true;
+    return false;
+}
+
+/**
+ * Talking is using the app.
+ *
+ * SHELFY is the one surface where the household never touches the screen, and both idle
+ * clocks (auto-home at 2 min, screensaver) are wired to `pointerdown`/`keydown`/`scroll`
+ * only: a conversation longer than the window was pulled back to the Home page mid-sentence,
+ * and the clock screen covered the sheet at five minutes. Every recognised chunk refreshes
+ * them here.
+ */
+function _noteVoiceActivity() {
+    _resetAutoHomeTimer();
+    if (getSettings().screensaver_enabled) resetInactivityTimer();
 }
 
 function resetInactivityTimer() {
@@ -41371,7 +41690,7 @@ async function shoppingBoughtAfterAdd(addResult) {
     if (currentProduct) {
         _shoppingInventoryCache = null;
         await _spesaRemovePurchasedFromList(currentProduct, addResult);
-        const addLoc = document.getElementById('add-location')?.value || 'dispensa';
+        const addLoc = document.getElementById('add-location')?.value || _existingLocationFor('dispensa');
         _showFamilySiblingSuggest(currentProduct.id, addLoc);
     }
     if (addResult?.shopping_kept && addResult.remaining_need?.suggested_qty) {
@@ -43367,6 +43686,11 @@ async function _initApp() {
         }, 1200);
     })();
     _injectKioskOverlay(); // kiosk X / refresh buttons (only when running inside Android WebView)
+
+    // "L'app si riavvia quando si usa SHELFY" has to be provable instead of guessed: one line
+    // per boot in the client log says HOW this page was loaded and whether the previous
+    // session had SHELFY open (`sessionStorage` survives a reload, a fresh open does not).
+    _logBootDiagnostics();
 
     // Sync version label in preloader (in case HTML is stale)
     const preloaderVer = document.getElementById('preloader-version');

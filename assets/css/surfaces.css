@@ -933,28 +933,19 @@ body {
     transition: transform 0.15s, box-shadow 0.15s;
 }
 .capture-mic:active { transform: scale(0.96); }
+/* Recording: the button says "armed" with a STATIC halo. The travelling sonar ring lives on
+   the WRAPPER below, where it is a transform on a pseudo-element. This block used to
+   declare the listening state twice — once with `capture-pulse` and once with a
+   `capture-ping` that animated a 26 px `box-shadow` at 60 fps — i.e. a blurred shadow
+   repainted on every frame, on top of the wrapper ring, for the whole conversation. That is
+   the heaviest paint in this sheet and enough to kill the renderer of a low-end kiosk (a
+   WebView restart looks exactly like "the app restarted"), so both animations are gone. */
 .capture-mic.is-listening {
     box-shadow: 0 0 0 8px color-mix(in srgb, var(--tone-calm) 18%, transparent);
-    animation: capture-pulse 1.4s ease-in-out infinite;
 }
 .capture-mic[hidden] { display: none; }
-@keyframes capture-pulse {
-    0%, 100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--tone-calm) 14%, transparent); }
-    50%      { box-shadow: 0 0 0 14px color-mix(in srgb, var(--tone-calm) 6%, transparent); }
-}
-/* A sonar ring travels outward from the button while the mic records: the level fill
-   alone was easy to miss on a phone at arm's length. Two shadows, so the ring is not
-   clipped by the button's own overflow: hidden (a pseudo-element would be). */
-.capture-mic.is-listening {
-    animation: capture-ping 1.6s ease-out infinite;
-}
-@keyframes capture-ping {
-    0%   { box-shadow: 0 0 0 4px color-mix(in srgb, var(--tone-calm) 30%, transparent), 0 0 0 4px color-mix(in srgb, var(--tone-calm) 22%, transparent); }
-    70%  { box-shadow: 0 0 0 12px color-mix(in srgb, var(--tone-calm) 10%, transparent), 0 0 0 26px transparent; }
-    100% { box-shadow: 0 0 0 12px transparent, 0 0 0 26px transparent; }
-}
 @media (prefers-reduced-motion: reduce) {
-    .capture-mic.is-listening { animation: none; box-shadow: 0 0 0 8px color-mix(in srgb, var(--tone-calm) 18%, transparent); }
+    .capture-mic.is-listening { box-shadow: 0 0 0 8px color-mix(in srgb, var(--tone-calm) 18%, transparent); }
 }
 
 .capture-status {

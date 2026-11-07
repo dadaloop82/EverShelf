@@ -57,6 +57,20 @@ runtime/binary files — if a task truly needs one, ask first.
   `pointercancel` is never a tap, and the gesture must not have moved `.inv-scroll`
   (`scrollTop`). `touch-action: pan-y` stays on the list. Only the **right** swipe exists and
   it opens the same product sheet the tap opens — no left swipe, no "Cosa vuoi fare?" chooser.
+- **In the shopping list two gestures, two meanings.** Left (`≤ −52 px`) is **comprato**
+  (`_shopRowBought`, it writes the stock), right (`≥ 52 px`) is **non lo compro**
+  (`removeBringItem`, the dated dismiss). No third zone: a long right swipe used to open the
+  scanner, which is why the gesture felt doubled (`markShoppingItemBought` is gone).
+- **A purchase is always dated, and its quantity must not be waste.** Every write into
+  `inventory` infers the best-before date when none was typed (`inventoryInferExpiryDate()`,
+  stored as an estimate, `expiry_user_set = 0`; never for a medicine) — `migrateDB` dated the
+  rows already stored without one. And when the suggested quantity would outlive the food,
+  `smartShopping()` attaches `waste` and the row prints the smaller amount beside it
+  (`🍃 (2 pz)` + `shopping.waste_hint`), emerald and never red: nothing is lost yet.
+- **A write that dies in flight is queued, never dropped.** `api()` hands a failed write to the
+  offline queue (`_queueWriteAfterNetworkFail`), so a purchase marked while the phone was
+  offline survives; `_syncOfflineQueue()` replays it at boot, on `online` and when offline
+  mode is left. One list (`_OFFLINE_QUEUEABLE_ACTIONS`) for both paths.
 - **One discard sheet.** `openWasteSheet()` → `_showWasteRecordModal()` (quantity + the four
   reasons) is every "Butta": row, banner, swipe, action page. A medicine keeps its short
   confirm. Never re-add `showThrowForm()` / `throwAll` / `throwPartial`.
@@ -103,6 +117,12 @@ runtime/binary files — if a task truly needs one, ask first.
   the emerald **💬 Continua nella Chat** (`_shelfyHandOverToChat()` writes it into `#chat-input`
   and sends it) and a neutral **🔄 Riprova a voce**. A late answer is dropped by `_captureTurnId`,
   so no sheet ever opens behind the card, and "non ho capito" shows the same two ways forward.
+- **In cooking mode the microphone starts OFF.** `startCookingMode()` never arms the recogniser
+  (`_cookingVoiceAuto = false`): the 5 s auto-start was a chime over the recipe for a mic nobody
+  asked for. A card on the 🎤 says, at every open, what it does and that it is off, and it fades
+  after **5 s**; only the tap turns listening on (`_cookingVoiceCommand`, `aria-pressed`), a
+  second tap mutes, and closing the recipe resets it. After a command it re-arms once the step's
+  TTS is done.
 - **The pantry filter has ONE place control.** The macro pills (Food | pharmacy) + the room menu
   (`_locFoodMenuToggle`) — a **fixed** layer placed by `_locFoodMenuPlace()`: inside the
   horizontally scrolling `.location-tabs` an absolute panel is clipped and the tap reads as "il
@@ -152,6 +172,14 @@ runtime/binary files — if a task truly needs one, ask first.
   PNG, in the `sw.js` shell) — the centre of the bottom nav, the capture sheet head,
   the intro hero, the confirm card and the foot of the splash (under the open-data
   line). Never swap it for a food emoji.
+- **The sheet is cheap to paint, and opening it can never take the app down.** The sonar
+  ring is a `transform`/`opacity` animation on `.capture-mic-wrap::before/::after` — never an
+  animated `box-shadow` (that repaints a blurred shadow every frame and is what a low-end
+  kiosk WebView kills, which reads as "the app restarted"). The level loop
+  (`_captureMeterPulseStart`) stops when the sheet is off screen or the page is hidden, and
+  `_openCaptureSheet()` is a guard around `_openCaptureSheetInner()`: a throw closes the sheet,
+  logs `shelfy-open-failed` and says `capture.open_failed` instead of leaving a half-built
+  overlay. A kiosk never auto-focuses the typing field (no system keyboard over a wall tablet).
 - **Tablet/kiosk CSS is opt-in**: `assets/css/tablet.css` activates on `html.is-kiosk`
   / `html.is-touch-tablet` (set by `_markDeviceChrome()`), never on `min-width` alone —
   a desktop monitor keeps the base styles.

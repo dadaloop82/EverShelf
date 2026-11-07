@@ -2499,6 +2499,17 @@ function inventoryImportAddStock(PDO $db, int $productId, array $data): array {
 
     $expiryUserSet = $expiry ? 1 : 0;
 
+    // The import is the other door into the pantry, and a CSV column that is empty used to
+    // store rows nobody can ever be warned about. Same rule as `addToInventory`: the article's
+    // shelf life in that KIND of place, stored as an estimate (`expiry_user_set = 0`).
+    if (($expiry === null || $expiry === '') && !$openedAt) {
+        $inferred = inventoryInferExpiryDate($db, $productId, (string)$location, $vacuumSealed === 1);
+        if ($inferred !== null) {
+            $expiry = $inferred;
+            $expiryUserSet = 0;
+        }
+    }
+
     if ($openedAt) {
         // Opened packs must stay separate — never merge into sealed stock
         $stmt = $db->prepare('INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed, expiry_user_set, opened_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
@@ -5421,7 +5432,9 @@ function addToInventory(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $productId = (int)($input['product_id'] ?? 0);
     $quantity = (float)($input['quantity'] ?? 1);
-    $location = $input['location'] ?? 'dispensa';
+    // No place means "the first place that exists", never the literal "dispensa": a household
+    // that deleted that built-in got "Invalid location" on every add that did not name one.
+    $location = trim((string)($input['location'] ?? ''));
     $expiry = $input['expiry_date'] ?? null;
     $unit = $input['unit'] ?? null;
     
@@ -5456,10 +5469,27 @@ function addToInventory(PDO $db): void {
 
     // Validate location
     $validLocations = validInventoryLocations($db);
+    // A client that names no place at all (an older bundle, a legacy form) gets a place that
+    // exists instead of a refusal it could not explain.
+    if ($location === '') {
+        $location = (string)($validLocations[0] ?? 'dispensa');
+    }
     if (!in_array($location, $validLocations, true)) {
-        EverLog::warn('addToInventory: invalid location (400)');
+        // The household's own places change: a form still holding a place that has since been
+        // deleted used to end in a bare English "Invalid location" with nothing written.
+        EverLog::warn('addToInventory: invalid location (400)', [
+            'event'      => 'api_inventory_add_invalid_location',
+            'product_id' => $productId,
+            'location'   => $location,
+            'valid'      => $validLocations,
+            'error_key'  => 'error.invalid_location',
+        ]);
         http_response_code(400);
-        echo json_encode(['error' => 'Invalid location']);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Invalid location',
+            'error_key' => 'error.invalid_location',
+        ]);
         return;
     }
 
@@ -5571,6 +5601,29 @@ function addToInventory(PDO $db): void {
     if ($expiry === '' || $expiry === false) {
         $expiry = null;
     }
+
+    // ── Nobody typed a date → the app dates it ──────────────────────────────
+    // A row with NULL expiry never enters "in scadenza", so the pantry can never warn
+    // about it: a whole shopping trip arrived as "senza scadenza" and the household found
+    // out by smelling it. The estimate is the SAME rule the add form shows
+    // (`estimateSealedExpiryDaysPHP`, one port of `estimateExpiryDays()`), the place picks
+    // the kind (pantry / fridge / freezer) and a vacuum pack extends it. It is stored as an
+    // ESTIMATE (`expiry_user_set = 0`), so the product sheet still says "stimata" and the
+    // household can correct it in one tap.
+    if ($expiry === null && !$isMedicalProduct) {
+        $inferred = inventoryInferExpiryDate($db, $productId, (string)$location, $vacuumSealed === 1);
+        if ($inferred !== null) {
+            $expiry = $inferred;
+            $expiryUserSet = 0;
+            EverLog::info('inventory_add: expiry inferred', [
+                'event'      => 'api_inventory_add_expiry_inferred',
+                'product_id' => $productId,
+                'location'   => (string)$location,
+                'vacuum'     => $vacuumSealed,
+                'expiry'     => $inferred,
+            ]);
+        }
+    }
     
     // Merge only into a SEALED row with the SAME location AND SAME expiry_date.
     // Different best-before dates are physically distinct packs and must stay
@@ -5625,7 +5678,22 @@ function addToInventory(PDO $db): void {
 
     clearFinishedDismissed($db, $productId);
     
-    $restock = shoppingHandleRestockAfterAdd($db, $productId);
+    // The stock is on the shelf from here on: the list sync below can fail (SQLite answers
+    // "database is locked" while a cron or a backup holds the writer) and turning that into a
+    // 500 made the household press "Aggiungi" again on a purchase that HAD been recorded —
+    // a doubled quantity and a phantom "hai più scorte del previsto" banner. The purchase is
+    // what matters; the list is synced on the next read.
+    try {
+        $restock = shoppingHandleRestockAfterAdd($db, $productId);
+    } catch (\Throwable $e) {
+        EverLog::warn('inventory_add: the shopping list sync failed after the stock was written', [
+            'event'      => 'api_inventory_add_restock_failed',
+            'product_id' => $productId,
+            'location'   => $location,
+            'reason'     => $e->getMessage(),
+        ]);
+        $restock = ['removed' => false, 'removed_names' => [], 'shopping_kept' => false, 'remaining' => null];
+    }
 
     echo json_encode([
         'success' => true,
@@ -5661,6 +5729,53 @@ function addToInventory(PDO $db): void {
         shoppingClearDismissedForProduct($db, $productId);
     }
     invalidateSmartShoppingCache();
+}
+
+/**
+ * Vacuum packing multiplies the sealed shelf life.
+ * Mirrors `getVacuumExpiryDays()` in app.js: one rule, two ports (the form and the API must
+ * date the same pack the same way).
+ */
+function inventoryVacuumExpiryDays(int $baseDays): int {
+    if ($baseDays <= 14) {
+        return (int)round($baseDays * 3);
+    }
+    if ($baseDays <= 90) {
+        return (int)round($baseDays * 2.5);
+    }
+    return (int)round($baseDays * 1.5);
+}
+
+/**
+ * The best-before date a purchase gets when nobody typed one.
+ *
+ * `estimateSealedExpiryDaysPHP()` is the shelf life of the article in that KIND of place;
+ * a medicine is refused, because a box carries a date printed on it and inventing one would
+ * be a safety claim. Returns NULL only when the product row is gone or medical.
+ *
+ * @param bool $vacuumSealed the pack went in vacuum-sealed (extends the shelf life)
+ * @return string|null YYYY-MM-DD
+ */
+function inventoryInferExpiryDate(PDO $db, int $productId, string $location, bool $vacuumSealed = false): ?string {
+    $stmt = $db->prepare('SELECT name, category, COALESCE(is_medical, 0) AS is_medical FROM products WHERE id = ?');
+    $stmt->execute([$productId]);
+    $prod = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt->closeCursor();   // an open read cursor blocks the writes that follow on SQLite
+    if (!$prod) {
+        return null;
+    }
+    if ((int)($prod['is_medical'] ?? 0) === 1) {
+        return null;
+    }
+    $days = max(1, estimateSealedExpiryDaysPHP(
+        (string)($prod['name'] ?? ''),
+        (string)($prod['category'] ?? ''),
+        $location
+    ));
+    if ($vacuumSealed) {
+        $days = max(1, inventoryVacuumExpiryDays($days));
+    }
+    return date('Y-m-d', strtotime('+' . $days . ' days'));
 }
 
 /** Waste transaction notes use format Buttato|reason_key (legacy: plain "Buttato"). */
@@ -6094,6 +6209,42 @@ function _applyWasteHintsToSuggestion(int $productId, $suggestedQty, string $sug
         }
     }
     return [$suggestedQty, $suggestedUnit];
+}
+
+/**
+ * The quantity that keeps a purchase inside its own shelf life.
+ *
+ * The suggested amount is what the household NEEDS over the plan horizon; the shelf is how
+ * long the food lives. When the two disagree, the difference is not stock — it is the pack
+ * that will be binned. This returns the largest amount that is still EATEN before it
+ * expires, landed on something a shop really sells (a whole piece / pack, or a round
+ * weight), never below one unit and never above the suggestion.
+ *
+ * Pure arithmetic: no network, no AI, no history beyond what `smartShopping()` already has.
+ *
+ * @param float  $keep   the theoretical amount (daily rate × shelf days), item unit
+ * @param string $unit   pz / conf / g / ml / kg / l
+ * @param float  $step   the sale step of the row (0 when unknown)
+ */
+function shoppingWasteSafeQty(float $keep, string $unit, float $step = 0.0): float {
+    if ($keep <= 0) {
+        return 0.0;
+    }
+    $u = strtolower(trim($unit));
+    if ($u === 'pz' || $u === 'conf') {
+        $stepInt = $step >= 2 ? (int)floor($step) : 1;
+        $qty = (int)floor($keep);
+        if ($stepInt > 1) {
+            $qty = (int)floor($qty / $stepInt) * $stepInt;
+        }
+        return (float)max($stepInt, $qty);
+    }
+    // g / ml / kg / l: a round, buyable weight that still fits the shelf.
+    $unitStep = $step > 0
+        ? $step
+        : ($keep >= 500 ? 100.0 : ($keep >= 100 ? 50.0 : ($keep >= 20 ? 10.0 : 1.0)));
+    $qty = floor($keep / $unitStep) * $unitStep;
+    return $qty > 0 ? round($qty, 2) : 0.0;
 }
 
 function useFromInventory(PDO $db): void {
@@ -7409,8 +7560,14 @@ function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $b
         return false;
     };
 
-    // 1. The very same words.
-    $sql = "SELECT id, name, brand, category FROM products WHERE lower(trim(name)) = ?";
+    // 1. The very same words → the same ARTICLE, whatever the pack says on the front.
+    //    The brand is a VARIANT of a food, not its identity: a supermarket's bananas are still
+    //    bananas. Requiring a compatible brand here created one product per label ("Banane
+    //    [SCB]" + "Banane [Iper Poli]", "Panna da cucina" ×3) and every one of them became its
+    //    own family in the shopping engine — which is why the list asked for food that was
+    //    already on the shelf. A barcode still wins above (the strongest identity there is) and
+    //    `$reusable` still refuses the loose-produce/tin clash.
+    $sql = "SELECT id, name, brand, category, unit, default_quantity, package_unit, image_url, barcode FROM products WHERE lower(trim(name)) = ?";
     $params = [$nName];
     if ($excludeId) {
         $sql .= " AND id != ?";
@@ -7418,27 +7575,40 @@ function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $b
     }
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
+    $exact = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
         if (!$reusable($c)) {
             continue;
         }
-        $cBrand = normalizeProductBrand($c['brand'] ?? '');
-        if ($cBrand === $targetBrand) {
+        if (normalizeProductBrand($c['brand'] ?? '') === $targetBrand) {
             return (int)$c['id'];
         }
-        if ($compatible === null && brandsCompatible($brand, $c['brand'] ?? '')) {
-            $compatible = (int)$c['id'];
-        }
+        $exact[] = $c;
+    }
+    if ($exact !== []) {
+        // No row of this brand: keep the one the household already uses (stock, barcode, a
+        // real category win), never a coin toss between two duplicates.
+        usort($exact, static fn(array $a, array $b): int => productCanonicalScore($db, $b) <=> productCanonicalScore($db, $a));
+        $keep = $exact[0];
+        EverLog::info('duplicate product reused across brands', [
+            'event'     => 'product_reuse_brand_variant',
+            'name'      => $nName,
+            'kept_id'   => (int)$keep['id'],
+            'brand_in'  => $brand,
+            'brand_kept' => (string)($keep['brand'] ?? ''),
+        ]);
+        return (int)$keep['id'];
     }
 
     // 2. The same article written at another number ("Pomodoro" ↔ "Pomodori"): the AI
     //    reads the label, the household typed the pantry, and they rarely agree on the
     //    singular — reusing the row is what keeps one article out of two. The SQL only
     //    prefilters on the first word; the decision is the vocabulary's (curated number
-    //    forms + agreement groups + per-language suffix pairs, never a regex).
+    //    forms + agreement groups + per-language suffix pairs, never a regex). The brand is
+    //    read the same way as in step 1: same article, another brand = still one row.
     $firstWord = vocabTokens($name)[0] ?? '';
     if (mb_strlen($firstWord) >= 3) {
-        $sql = "SELECT id, name, brand, category FROM products WHERE lower(trim(name)) LIKE ?";
+        $sql = "SELECT id, name, brand, category, unit, default_quantity, package_unit, image_url, barcode FROM products WHERE lower(trim(name)) LIKE ?";
         $params = [$firstWord . '%'];
         if ($excludeId) {
             $sql .= " AND id != ?";
@@ -7446,6 +7616,7 @@ function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $b
         }
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
+        $sameArticle = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
             if (!productNamesSameArticle($name, (string)($c['name'] ?? '')) || !$reusable($c)) {
                 continue;
@@ -7454,9 +7625,20 @@ function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $b
             if ($cBrand === $targetBrand) {
                 return (int)$c['id'];
             }
-            if ($compatible === null && brandsCompatible($brand, $c['brand'] ?? '')) {
-                $compatible = (int)$c['id'];
-            }
+            $sameArticle[] = $c;
+        }
+        if ($sameArticle !== []) {
+            usort($sameArticle, static fn(array $a, array $b): int => productCanonicalScore($db, $b) <=> productCanonicalScore($db, $a));
+            $keep = $sameArticle[0];
+            EverLog::info('duplicate product reused across brands', [
+                'event'      => 'product_reuse_brand_variant',
+                'name'       => $name,
+                'kept_id'    => (int)$keep['id'],
+                'kept_name'  => (string)($keep['name'] ?? ''),
+                'brand_in'   => $brand,
+                'brand_kept' => (string)($keep['brand'] ?? ''),
+            ]);
+            return (int)$keep['id'];
         }
     }
 
@@ -7571,9 +7753,10 @@ function collectDuplicateProductIds(PDO $db, array $row): array {
                 ]);
                 continue;
             }
-            if (brandsCompatible($row['brand'] ?? '', $c['brand'] ?? '')) {
-                $ids[] = (int)$c['id'];
-            }
+            // The exact same name is the same ARTICLE: the brand is a variant, so a pack of
+            // another brand must consolidate into the row the pantry already uses instead of
+            // living beside it as a second family (see findDuplicateProductId()).
+            $ids[] = (int)$c['id'];
         }
     }
 
@@ -20641,6 +20824,52 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             $suggestedApprox = true;
         }
 
+        // ── Will the suggested pack outlive its own shelf? ──────────────────
+        // What the household NEEDS over the horizon and how long the food LIVES are two
+        // different numbers, and the list only ever showed the first one. When the last
+        // pack would expire before anyone eats it, the difference is not stock: it is the
+        // pack that goes in the bin. The row carries the amount that fits the shelf
+        // (`waste.keep_qty`) so the list can print it beside the suggestion and say why —
+        // the household still buys what it decides to buy.
+        $waste = null;
+        $sqFinal = (float)($suggestedQty ?? 0);
+        $shelfDays = (int)($horizonMeta['shelf_days'] ?? 0);
+        $unitMatches = strtolower((string)($suggestedUnit ?? '')) === strtolower((string)$unit);
+        // Advice only where food really spoils. A dry staple or a bottle keeps for months
+        // (and the NAME heuristics misfire: "Muesli … con fragole e lamponi" measures like
+        // strawberries, 7 days), so the marker would cry waste on a box of cereal — the kind
+        // of noise that teaches the household to ignore it. Same rule as the anomaly
+        // banner: a durable staple raises no predictive notice.
+        $catLower = mb_strtolower((string)($p['category'] ?? ''));
+        $perishable = false;
+        foreach (['latticini', 'carne', 'pesce', 'frutta', 'verdura', 'pane'] as $perishableCat) {
+            if (strpos($catLower, $perishableCat) !== false) { $perishable = true; break; }
+        }
+        if ($perishable && $shelfDays > 0 && $shelfDays <= 45
+            && $sqFinal > 0 && $periodNeed > 0 && $qtyHorizon > 0 && $unitMatches
+            && !evershelfIsDurableStaple(
+                (string)$p['name'],
+                (string)($p['category'] ?? ''),
+                (string)($horizonMeta['location'] ?? '')
+            )) {
+            $dailyRate = $periodNeed / $qtyHorizon;      // the item's own unit per day
+            if ($dailyRate > 0) {
+                $coverDays = $sqFinal / $dailyRate;      // how long THIS purchase lasts
+                if ($coverDays > $shelfDays + 1) {       // +1 day: rounding is not waste
+                    $keep = shoppingWasteSafeQty($dailyRate * $shelfDays, (string)$suggestedUnit, (float)$saleStep);
+                    if ($keep > 0 && $keep < $sqFinal) {
+                        $waste = [
+                            'keep_qty'   => $keep,
+                            'keep_unit'  => (string)$suggestedUnit,
+                            'shelf_days' => $shelfDays,
+                            'cover_days' => (int)round($coverDays),
+                            'leftover'   => round($sqFinal - $keep, 2),
+                        ];
+                    }
+                }
+            }
+        }
+
         $items[] = [
             'product_id' => $pid,
             'name' => $p['name'],
@@ -20685,6 +20914,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             'edible_days'     => $qtyHorizon,
             'shelf_days'      => (int)$horizonMeta['shelf_days'],
             'qty_shelf_capped'=> $shelfCapped,
+            // The smaller quantity that fits the shelf, or NULL when the suggestion is
+            // already eatable. See `shoppingWasteSafeQty()` and the row in app.js.
+            'waste'           => $waste,
         ];
     }
 

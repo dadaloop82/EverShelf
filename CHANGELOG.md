@@ -5,6 +5,128 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.0] - 2026-11-07
+
+### Added
+- **The shopping list says when the suggested quantity would end up in the bin.** A row now
+  carries, beside the suggested amount, the **amount that fits the food's own shelf life**
+  (`🍃 (2 pz)`) and the sentence that explains it («Meglio 7 pz: la quantità suggerita
+  durerebbe 44 giorni, ma scade in 28 — il resto andrebbe buttato»). The server computes it
+  in `smartShopping()` (`waste: {keep_qty, keep_unit, shelf_days, cover_days, leftover}`,
+  helper `shoppingWasteSafeQty()`): daily consumption against the shelf of that KIND of place,
+  landed on something a shop really sells. It only fires on **perishable** categories with a
+  shelf ≤ 45 days and never on a durable staple — a marker that cries waste on a box of cereal
+  is the noise that teaches the household to ignore it. Nothing is forced: the household buys
+  what it decides, it just knows before paying.
+- **A purchase is always dated.** `inventory_add` (and the CSV import) now infers the
+  best-before date when nobody typed one — the same estimate the add form shows, on the kind
+  of place, extended for a vacuum pack — and stores it as an **estimate**
+  (`expiry_user_set = 0`), so the product sheet still says «stimata» and one tap corrects it.
+  A medicine is never dated by the app. `migrateDB` dated the rows that were already stored
+  without one (`migration_infer_missing_expiry_v1`): a row with no date never enters
+  «in scadenza», so the pantry could never warn about it.
+
+### Changed
+- **In cooking mode the microphone starts OFF, and only a tap turns it on.** The recogniser used
+  to arm itself 5 s after the recipe appeared (and again after every step): in a kitchen that is
+  Chrome's start chime over the recipe and a microphone nobody asked for. Now `startCookingMode()`
+  leaves `_cookingVoiceAuto = false`, a card anchored to the 🎤 explains — **on every open**, with
+  the real words of `vocabCookingVoice()` — that the mic is off and that tapping it is what starts
+  listening, and it fades by itself after **5 s** (it used to be once per device, 8 s). A second
+  tap mutes, closing the recipe resets everything, and after a heard command the session re-arms
+  once the step's text-to-speech has finished, so a hands-free cook still works.
+- **Two gestures on a shopping row, and nothing else.** Swiping **left** is «comprato» (it
+  writes the stock and takes the row off the list), swiping **right** is «non lo compro» (the
+  dated dismiss that comes back on its own). The third zone that opened the **camera** on a
+  long right swipe is gone, and so is `markShoppingItemBought()`: a full-width swipe used to
+  start the scanner instead of buying something, which is what made the gesture feel doubled.
+
+### Fixed
+- **A write that dies in flight is queued instead of dropped.** In a supermarket the phone
+  drops in and out of the network on every aisle: marking a row «comprato» while it was down
+  wrote nothing and the item came back on the list at home. `api()` now hands a failed write to
+  the offline queue (`_queueWriteAfterNetworkFail()`), returns the optimistic answer and
+  replays it with `_syncOfflineQueue()` — at boot, on `online` and when offline mode is left.
+  One list of replayable actions (`_OFFLINE_QUEUEABLE_ACTIONS`) for both paths, and
+  `_offlineReplay` stops a failed replay from queueing itself again.
+- **SHELFY's sheet is cheap to paint, and opening it can no longer take the app down.** The
+  capture button declared its listening state twice, one of them animating a 26 px
+  `box-shadow` at 60 fps for the whole conversation — a blurred shadow repainted every frame,
+  on top of the wrapper ring, which is exactly what a low-end kiosk WebView kills (a renderer
+  restart reads as «the app restarted»). The ring is now a `transform`/`opacity` animation on
+  the wrapper only, the level loop stops when the sheet is off screen or the page is hidden,
+  `_openCaptureSheet()` guards the body (a throw closes the sheet, logs `shelfy-open-failed`
+  and says `capture.open_failed`), and a kiosk never auto-focuses the typing field (no system
+  keyboard over a wall tablet).
+
+## [1.30.17] - 2026-11-06
+
+### Fixed
+- **A shopping trip created one product per PACKAGE.** The identity of a food is its name, but
+  the duplicate finder only reused a row when the brand was compatible — and the spesa flow
+  sends the brand printed on the pack. So `Banane [SCB]` and `Banane [Iper Poli]`, `Panna da
+  cucina` ×3, `Tonno all'olio d'oliva` ×4 all lived side by side, and each of them was its own
+  family in the shopping engine: the list asked for food that was on the shelf, the anomaly
+  banner counted one purchase twice, the Storico showed the same load twice. An exact name (or
+  the same article at another number, `Pomodoro` ↔ `Pomodori`) now reuses the row across brands —
+  the brand is a VARIANT of a food, never its identity. The kept row is the one the household
+  already uses (barcode, picture, a real category, the stock), and every cross-brand reuse is
+  logged (`product_reuse_brand_variant`). A barcode still wins first, and loose produce still
+  never merges into the pantry's tin of the same word.
+- **Produce no longer arrives as "confezioni", and nothing starts below the pantry minimum.**
+  A loose fruit read off the label became `1 confezione da 0,757 kg` (Cachi), which broke the
+  piece fractions, the minimum quantities and the family; and a label misread gave 1 g of
+  broccoli or 2 ml of cream as the starting amount, which the form then refused. Produce stays
+  out of `conf` (a prepared salad keeps its bag), and the starting amount is at least the
+  pantry's own minimum for that unit. The vocabulary remains the authority on what is sold by
+  the piece.
+- **`scripts/consolidate-duplicate-products.php`** (new): merges the same-name groups that were
+  created before the rule, with the move the app itself does (inventory, transactions and tags
+  follow the kept row, then the duplicate is deleted). It backs up first (`VACUUM INTO`), skips
+  any group whose stocked rows disagree on the unit (a real conversion, not a merge), and has
+  `--dry-run`. Run on this pantry: **27 groups / 34 rows merged**, 4 groups left on purpose.
+  Verified: inventory rows 210 → 210, total quantity in the pantry 40 053,961 → 40 053,961,
+  transactions 2169 → 2169. Products 539 → 506.
+
+## [1.30.16] - 2026-11-06
+
+### Fixed
+- **SHELFY pulled the Home page out from under the conversation.** The always-on idle clock
+  (2 minutes) only stood down for the shared `#modal-overlay`, so a SHELFY turn — the one flow
+  where the household never touches the screen — let it fire: `showPage('dashboard')` ran while
+  the assistant was still talking, which reads as "l'app si riavvia quando si usa SHELFY". Any
+  visible dialog now stops the auto-home (`_visibleOverlays()`: SHELFY, the chat, a product
+  sheet, the waste sheet), a live turn keeps the clock screen away (`_captureTurnLive()`), and
+  **every recognised chunk refreshes both idle clocks** (`_noteVoiceActivity()`): talking IS
+  using the app.
+- **A reload can now be proved instead of guessed.** One line per boot in
+  `data/client_debug.log` says how the page was loaded (`type=reload` — the browser/app reloaded
+  it — versus `type=navigate`, a fresh open) and whether the previous session had SHELFY open
+  (`shelfy=open`, kept in `sessionStorage`, which a reload preserves and a new launch does not).
+  If the assistant really restarts the app, the next occurrence says so with a type and a page.
+
+## [1.30.15] - 2026-11-06
+
+### Fixed
+- **"Aggiungi" wrote nothing on a pantry the household had renamed.** The place guessed by the add
+  form was the built-in `dispensa`; once that place was deleted (here the kitchen pantry is
+  "Dispensa cucina") the field held a slug no place answers to, the API replied a bare English
+  "Invalid location" and the catalog row stayed **with no stock on any shelf** — a dead button.
+  The guess now always lands on a place that **exists** (`_existingLocationFor()`: the one NAMED
+  after it, then one of the same **kind** — a pantry is still a pantry —, then the first legal
+  place), and the server sends a missing place to the first one that exists and answers
+  `error_key: error.invalid_location` (six locales) instead of untranslated prose.
+- **A retried purchase doubled the stock.** `inventory_add` wrote the row and then answered
+  **HTTP 500** when the shopping-list sync met SQLite's "database is locked": the phone showed
+  "Errore di connessione" for a purchase that HAD been recorded, the household pressed again five
+  seconds later, and the same 250 ml landed twice (Storico: `limmi succo di limone` 250 + 250 at
+  17:31:21 and 17:31:26) — which is also where a phantom "hai più scorte del previsto" banner
+  comes from. The list sync is best effort now: the stock write answers success and the failure is
+  logged (`api_inventory_add_restock_failed`).
+- A refused place is diagnosable: the log carries the place that arrived and the list of the valid
+  ones (`api_inventory_add_invalid_location`), because "Invalid location" alone never said **which**
+  place was wrong.
+
 ## [1.30.14] - 2026-11-06
 
 ### Changed

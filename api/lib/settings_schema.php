@@ -1412,7 +1412,7 @@ function evershelfSettingsSchema(): array
       'env' => '',
       'tab' => 'tab-credits',
       'group' => 'system',
-      'label' => 'recipes.meal_type_label',
+      'label' => 'recipes.chip_group_goals',
       'hint' => 'support.donate_hint',
       'card' => '',
       'card_hint' => '',

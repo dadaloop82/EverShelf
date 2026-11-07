@@ -4816,35 +4816,12 @@ body:has(#page-scan.active) .app-content {
     left: 0;
     right: 50%;
     justify-content: flex-start;
-    background: var(--accent);
+    /* Revealed by swiping RIGHT = "non lo compro": a dismiss is neutral, it never
+       writes stock and it comes back on its own in two weeks. */
+    background: #94a3b8;
     opacity: 0;
     transition: opacity 0.15s;
 }
-.shop-row-swipe-zones {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    z-index: 0;
-}
-.shop-row-zone {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 0 6px;
-    font-size: 0.68rem;
-    font-weight: 700;
-    line-height: 1.15;
-    color: #fff;
-    opacity: 0.35;
-    transition: opacity 0.12s;
-}
-.shop-row-zone-home { background: #64748b; }
-.shop-row-zone-scan { background: var(--accent); }
-.shop-row.zone-home .shop-row-zone-home { opacity: 1; }
-.shop-row.zone-scan .shop-row-zone-scan { opacity: 1; }
-.shop-row.zone-scan .shop-row-zone-home { opacity: 0.25; }
 .shopping-plan-days-bar {
     display: flex;
     flex-wrap: wrap;
@@ -4900,12 +4877,37 @@ body:has(#page-scan.active) .app-content {
     right: 0;
     left: 50%;
     justify-content: flex-end;
-    background: #94a3b8;
+    /* Revealed by swiping LEFT = "comprato": this is the gesture that writes the outcome,
+       so it wears the one emerald of the row. */
+    background: var(--brand-primary);
     opacity: 0;
     transition: opacity 0.15s;
 }
 .shop-row.swipe-right .shop-row-swipe-bg-right { opacity: 1; }
 .shop-row.swipe-left .shop-row-swipe-bg-left { opacity: 1; }
+/* The anti-waste advice beside the suggested quantity: emerald, because nothing has
+   been lost yet — it is the smaller number that avoids losing it. Never red. */
+.shop-row-waste-chip {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 7px;
+    border-radius: 9999px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 35%, transparent);
+    background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+    color: var(--brand-primary);
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+.shop-row-waste-hint {
+    margin-top: 2px;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: var(--text-muted);
+}
 .shop-row-suggest .shop-row-swipe-bg-right {
     right: 0;
     background: rgba(45, 80, 22, 0.85);

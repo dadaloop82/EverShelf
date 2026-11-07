@@ -134,6 +134,7 @@
     }
     .shop-row-subtitle,
     .shop-row-reason,
+    .shop-row-waste-hint,
     .shop-row-sub {
         overflow-wrap: anywhere;
     }
