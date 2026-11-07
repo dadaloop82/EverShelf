@@ -13,6 +13,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [Kiosk 1.7.26] - 2026-11-07
+
+Kiosk APK only (the web app has its own version line). A new build is required: the tablet
+updates itself, or install `releases/evershelf-kiosk.apk`.
+
+### The tablet stops restarting the app on its own
+- **Every configuration change is declared and handled.** The manifest now lists **all** the
+  changes the Activity can handle (`screenLayout|smallestScreenSize|navigation|uiMode|density|
+  fontScale|layoutDirection|locale|colorMode|mcc|mnc|touchscreen`, on top of the four it had) and
+  `KioskActivity.onConfigurationChanged()` re-applies immersive mode instead of letting Android
+  **recreate** the Activity. A recreation builds a new WebView, which loads the URL again — on
+  the wall that is "the app restarted".
+- **`onResume` cannot reload the app for a difference that is not one.** `sameAppUrl()` treats
+  `/dispensa/`, `/dispensa/index.html` and a URL with a query string as the same page.
+- **The reload has a witness.** The APK reports `kiosk-create` (with `recreated` and
+  `changing_configurations`), `kiosk-config-change` (which change arrived) and
+  `kiosk-resume-reload` (both URLs) to `data/error_reports.log`, next to the existing
+  `renderer-crashed` / `renderer-killed-oom` / `page-watchdog-reload`.
+- **The update check is no longer six hours apart.** It was throttled to 6 h, so a release
+  published after the last check stayed invisible for the rest of the day; it is 30 minutes now
+  and it also runs on resume.
+- **`getAppVersion()` in the JS bridge**, so the web app can print the APK that is running it
+  next to its own version.
+- **«Mantieni le impostazioni» now really keeps them.** The wizard's keep answer applied four
+  switches and nothing else; the Gemini key and the Bring! account never travel to the device
+  (`get_settings` only says whether they exist), so both steps were asked again at every launch.
+  Their steps are skipped when the server already holds them, and «Riconfigura» clears those
+  flags.
+
 ## [1.16.16] - 2026-10-25
 
 ### The setup wizard obeys the server (not every new browser)

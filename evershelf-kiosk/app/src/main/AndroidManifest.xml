@@ -57,7 +57,7 @@
             android:name=".KioskActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|fontScale|layoutDirection|locale|colorMode|mcc|mnc|touchscreen"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.EverShelf.Kiosk">
             <intent-filter>
@@ -70,7 +70,7 @@
             android:name=".SetupActivity"
             android:exported="false"
             android:theme="@style/Theme.EverShelf.Kiosk"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|fontScale|layoutDirection|locale|colorMode|mcc|mnc|touchscreen"
             android:windowSoftInputMode="adjustResize" />
 
         <activity
