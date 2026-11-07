@@ -5,6 +5,30 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.11] - 2026-11-07
+
+### Fixed
+- **The wall's boot stopped asking for the same data eight times.** The Apache log of one boot on
+  the tablet is a loop: `inventory_list` (136 KB) requested **eight times in four seconds**,
+  `stats` four, `shopping_list` four, `smart_shopping` three, `products_list` (309 KB) — every
+  answer parsed again into a fresh graph of ~200 row objects on a pantry with 197 rows. That storm
+  is what makes the WebView renderer the biggest process in the system, and Android kills exactly
+  that process: `[kiosk] [renderer-killed-oom]` twice within seconds of a boot, once **two seconds
+  after the page appeared** (with `avail_mb=1268` of 2857 free and `priority=2`, i.e. the renderer
+  was IMPORTANT and still chosen). The heavy reads (`inventory_list`, `products_list`, `stats`,
+  `shopping_list`, `smart_shopping`, the dashboard summaries, …) now share the answer that is
+  already in flight or just arrived (`_API_READ_CACHEABLE`, 2 s, promise-shared inside `api()`);
+  any write drops the whole cache, and `refreshAppDataAfterMutation()` drops it too, so a mutation
+  is never read back stale.
+
+### Added
+- **A long list on the wall only renders what is on screen.** `content-visibility: auto` (+
+  `contain-intrinsic-size`) on `.inventory-item` / `.alert-item` / `.shop-row` **on the kiosk
+  only**: 197 rows no longer lay out, paint or decode their images all at once, while the phone and
+  the desktop keep the current rendering.
+- `[MEM] boot` / `boot+5s` / `boot+20s` on the wall: the JS heap and the device figures on the way
+  up, so the next restart is a number instead of a guess.
+
 ## [1.31.10] - 2026-11-07
 
 ### Fixed

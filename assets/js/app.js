@@ -633,6 +633,14 @@ function _logBootDiagnostics() {
     try { if (sessionStorage.getItem(SHELFY_OPEN_KEY) === '1') shelfy = 'open'; } catch (e) {}
     remoteLog('BOOT', `type=${navType} shelfy=${shelfy} page=${_currentPageId || '-'} v=${_loadedVersion || '-'}`);
     _shelfyMarkOpen(false);
+    // The wall's boot is where its renderer has died (twice at `renderer-killed-oom`, once two
+    // seconds in). Three numbers at +0 / +5 / +20 s say what the page weighed on the way up, so
+    // "the page grew too big" and "the tablet has nothing left" are told apart instead of guessed.
+    if (_isKioskDevice()) {
+        _logKioskMemory('boot');
+        setTimeout(() => _logKioskMemory('boot+5s'), 5000);
+        setTimeout(() => _logKioskMemory('boot+20s'), 20000);
+    }
 }
 
 /**
@@ -2025,7 +2033,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261107k'; // bump when translations change
+const _I18N_VERSION = '20261107l'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8488,7 +8496,68 @@ function togglePasswordVisibility(inputId) {
 }
 
 // ===== API HELPER =====
+/**
+ * The heavy READS, where asking twice inside two seconds is a real cost.
+ *
+ * The wall's boot asks eight loaders for the same 136 KB `inventory_list` inside four seconds
+ * (plus four `stats`, four `inventory_list`s again while the dashboard rebuilds): every answer is
+ * parsed into a fresh graph of ~200 row objects and, on a tablet with 197 pantry rows, that storm
+ * is what fills the renderer until Android kills it. A GET in this set is shared — the second
+ * caller gets the answer already in flight (or just arrived) instead of starting it again.
+ * Writes are never shared and drop everything: after a mutation the next read is fresh.
+ */
+const _API_READ_CACHEABLE = new Set([
+    'inventory_list', 'products_list', 'stats', 'inventory_summary', 'shopping_list',
+    'smart_shopping', 'monthly_stats', 'macro_stats', 'spend_stats', 'consumption_predictions',
+    'inventory_anomalies', 'inventory_finished_items', 'get_all_shopping_prices',
+    'stale_inventory_items', 'inventory_duplicate_loss_checks', 'med_status', 'get_settings',
+]);
+const _API_READ_TTL_MS = 2000;
+const _apiReadCache = new Map();   // key → { at, promise }
+
+/** Forget every stored read: any mutation, and any caller that must see fresh data. */
+function _apiDropReadCache() {
+    try { _apiReadCache.clear(); } catch (e) { /* nothing to drop */ }
+}
+
+function _apiReadKey(action, params) {
+    try { return `${action}|${JSON.stringify(params || {})}`; } catch (e) { return ''; }
+}
+
+/**
+ * Every HTTP action, with the heavy READ deduplicated (see `_API_READ_CACHEABLE`).
+ *
+ * The cache stores the *promise*, so two callers in the same burst resolve with the same object:
+ * the data is read-only for every consumer here (the pantry builds DOM from it), and sharing it is
+ * worth more than parsing 136 KB eight times on a 2.8 GB tablet.
+ */
 async function api(action, params = {}, method = 'GET', body = null, extraHeaders = {}, timeoutMs = 0) {
+    if (method !== 'GET') {
+        _apiDropReadCache();
+        return _apiFetchJson(action, params, method, body, extraHeaders, timeoutMs);
+    }
+    if (!_API_READ_CACHEABLE.has(action) || _offlineMode || _demoMode) {
+        return _apiFetchJson(action, params, method, body, extraHeaders, timeoutMs);
+    }
+    const key = _apiReadKey(action, params);
+    if (!key) return _apiFetchJson(action, params, method, body, extraHeaders, timeoutMs);
+    const now = Date.now();
+    const hit = _apiReadCache.get(key);
+    if (hit && (now - hit.at) < _API_READ_TTL_MS) return hit.promise;
+    const promise = _apiFetchJson(action, params, method, body, extraHeaders, timeoutMs);
+    _apiReadCache.set(key, { at: now, promise });
+    // A failed read is not an answer: drop it so the next caller really retries.
+    promise.catch(() => { _apiReadCache.delete(key); });
+    if (_apiReadCache.size > 32) {
+        for (const [k, v] of _apiReadCache) {
+            if (now - v.at >= _API_READ_TTL_MS) _apiReadCache.delete(k);
+        }
+        while (_apiReadCache.size > 32) _apiReadCache.delete(_apiReadCache.keys().next().value);
+    }
+    return promise;
+}
+
+async function _apiFetchJson(action, params = {}, method = 'GET', body = null, extraHeaders = {}, timeoutMs = 0) {
     // In demo mode, all shopping write operations are no-ops
     if (_demoMode) {
         const BRING_WRITE_ACTIONS = ['bring_add', 'bring_remove', 'bring_migrate_names', 'bring_set_spec',
@@ -8864,6 +8933,8 @@ function _dashboardLiveRefresh(inventoryId) {
 function refreshAppDataAfterMutation() {
     // The capture keeps its own short-lived copy of the rows: a write invalidates it.
     _captureInventoryCacheAt = 0;
+    // …and the shared READ cache, or the next load would answer with the rows just changed.
+    _apiDropReadCache();
     if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
     // One choke point: whatever mutated, the dashboard rebuilds itself if it is on screen.
     _dashboardLiveRefresh();
@@ -19764,7 +19835,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107k';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107l';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19774,7 +19845,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261107k';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261107l';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

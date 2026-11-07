@@ -309,3 +309,19 @@ html.is-kiosk .cooking-voice-hint {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
 }
+
+/* ── A long list on the wall only renders what is on screen ───────────────────
+ * The pantry has 197 rows and every dashboard/shopping list is one long page, so Chrome laid out,
+ * painted and decoded the images for all of them at once. On a 2.8 GB tablet that is what made
+ * the renderer the biggest process in the system — and the one Android kills
+ * (`renderer-killed-oom`, twice within seconds of a boot). `content-visibility: auto` lets the
+ * engine skip everything outside the viewport, and `contain-intrinsic-size` keeps the scrollbar
+ * honest about the height it has not measured yet. Kiosk only: the desktop and the phone have the
+ * memory to spare and must not lose any rendering nuance.
+ * ========================================================================= */
+html.is-kiosk .inventory-item,
+html.is-kiosk .alert-item,
+html.is-kiosk .shop-row {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 88px;
+}
