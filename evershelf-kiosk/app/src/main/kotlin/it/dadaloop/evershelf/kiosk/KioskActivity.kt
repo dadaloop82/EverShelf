@@ -636,6 +636,14 @@ class KioskActivity : AppCompatActivity() {
             }
         }, "_kioskBridge")
 
+        // A WebView has no download manager of its own: a link to an `.apk` (the manual fallback
+        // in Settings → Kiosk) would simply do nothing. Hand every download to OUR downloader,
+        // which reaches a self-signed LAN host — that is what makes the bootstrap possible when
+        // the installed APK is still the one whose own updater was broken.
+        webView.setDownloadListener { url, _, _, _, _ ->
+            runOnUiThread { triggerApkDownload(url) }
+        }
+
         val url = prefs.getString(KEY_URL, "http://evershelf.local") ?: "http://evershelf.local"
         webView.clearCache(true)
         webView.loadUrl(url)
