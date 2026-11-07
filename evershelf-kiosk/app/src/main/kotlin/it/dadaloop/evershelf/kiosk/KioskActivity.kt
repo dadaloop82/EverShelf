@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.app.PendingIntent
+import android.app.ActivityManager
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -162,6 +163,38 @@ class KioskActivity : AppCompatActivity() {
             }
     }
 
+    /** "1.7.30 (31)" — the same string the page prints under the kiosk controls. */
+    private fun appVersionName(): String = try {
+        val pi = packageManager.getPackageInfo(packageName, 0)
+        val vc = if (Build.VERSION.SDK_INT >= 28) pi.longVersionCode
+                 else @Suppress("DEPRECATION") pi.versionCode.toLong()
+        "${pi.versionName ?: "?"} ($vc)"
+    } catch (_: Exception) { "" }
+
+    /**
+     * What the DEVICE has left, not what we guess it has.
+     *
+     * Every report about a dead renderer used to carry one number — the renderer priority at
+     * exit — which says how it died but not whether the tablet was simply out of RAM. These are
+     * the numbers Android itself uses to decide who to kill, read at the moment it matters, so
+     * "the app restarted" stops being a guess: `avail_mb` near `threshold_mb` with
+     * `low_memory=true` is a device that has nothing left to give, whatever the page weighs.
+     */
+    private fun memorySnapshot(): Map<String, Any?> = try {
+        val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val mi = ActivityManager.MemoryInfo()
+        am.getMemoryInfo(mi)
+        mapOf(
+            "avail_mb"       to (mi.availMem / (1024L * 1024L)),
+            "total_mb"       to (mi.totalMem / (1024L * 1024L)),
+            "threshold_mb"   to (mi.threshold / (1024L * 1024L)),
+            "low_memory"     to mi.lowMemory,
+            "memory_class_mb" to am.memoryClass,
+        )
+    } catch (e: Exception) {
+        mapOf("mem_error" to (e.message ?: "unknown"))
+    }
+
     companion object {
         private const val FILE_CHOOSER_REQUEST    = 1002
         private const val PERMISSION_REQUEST_CODE = 1003
@@ -171,6 +204,7 @@ class KioskActivity : AppCompatActivity() {
         private const val SETUP_REQUEST           = 1007
         private const val PREFS_NAME = "evershelf_kiosk"
         private const val KEY_URL = "evershelf_url"
+        private const val KEY_CACHE_VERSION = "cache_version"
         private const val KEY_SETUP_COMPLETE = "setup_complete"
         private const val KEY_HAS_SCALE = "has_scale"
         private const val KEY_SCREENSAVER = "screensaver_enabled"
@@ -407,6 +441,16 @@ class KioskActivity : AppCompatActivity() {
         // already bust what changed.
         settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
 
+        // A kiosk renderer must never be WAIVED. The default policy demotes it the moment the
+        // window is not visible, and Android then treats it as the first thing it may kill under
+        // memory pressure. That is exactly what the wall recorded: `renderer-killed-oom` with
+        // `priority=2` (2 = RENDERER_PRIORITY_WAIVED) three minutes after a boot, while the
+        // household was opening SHELFY — the page came back by itself and read as "the app
+        // restarted". On a wall tablet the page IS the appliance: keep it important always.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
+        }
+
         webView.webViewClient = object : WebViewClient() {
             override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
                 handler?.proceed()
@@ -451,7 +495,7 @@ class KioskActivity : AppCompatActivity() {
                 ErrorReporter.reportMessage(
                     type    = if (crashed) "renderer-crashed" else "renderer-killed-oom",
                     message = "WebView renderer process ${if (crashed) "crashed" else "killed by system (OOM)"}",
-                    extra   = mapOf("priority" to priority),
+                    extra   = mapOf("priority" to priority) + memorySnapshot(),
                     forceReport = true
                 )
                 // Give the reporter 600 ms to queue the POST, then restart the Activity cleanly
@@ -622,18 +666,24 @@ class KioskActivity : AppCompatActivity() {
             fun getApiToken(): String = prefs.getString("api_token", "") ?: ""
 
             /**
+             * The device's own memory numbers, as JSON, for the page's own diagnostics.
+             *
+             * The page can see its JS heap but not whether the tablet has anything left; this is
+             * the other half, and both halves in one log line are what name a dead renderer.
+             */
+            @JavascriptInterface
+            fun mem(): String {
+                val obj = JSONObject()
+                memorySnapshot().forEach { (k, v) -> runCatching { obj.put(k, v) } }
+                return obj.toString()
+            }
+
+            /**
              * "1.7.26 (27)" — the page prints it under the kiosk controls, so the question
              * "did I install the right APK?" is answered on the wall, not in Android's app info.
              */
             @JavascriptInterface
-            fun getAppVersion(): String {
-                return try {
-                    val pi = packageManager.getPackageInfo(packageName, 0)
-                    val vc = if (Build.VERSION.SDK_INT >= 28) pi.longVersionCode
-                             else @Suppress("DEPRECATION") pi.versionCode.toLong()
-                    "${pi.versionName ?: "?"} ($vc)"
-                } catch (_: Exception) { "" }
-            }
+            fun getAppVersion(): String = appVersionName()
         }, "_kioskBridge")
 
         // A WebView has no download manager of its own: a link to an `.apk` (the manual fallback
@@ -645,8 +695,29 @@ class KioskActivity : AppCompatActivity() {
         }
 
         val url = prefs.getString(KEY_URL, "http://evershelf.local") ?: "http://evershelf.local"
-        webView.clearCache(true)
+        // Wipe the WebView cache only when the APK itself changed. Doing it on every start threw
+        // away app.js and the generated data files (megabytes) on every reload — i.e. exactly when
+        // the tablet is recovering from a dead renderer — for a staleness that only a new APK can
+        // cause. The ↻ of the kiosk controls still clears it on purpose.
+        val cacheFor = appVersionName()
+        if (prefs.getString(KEY_CACHE_VERSION, "") != cacheFor) {
+            webView.clearCache(true)
+            prefs.edit().putString(KEY_CACHE_VERSION, cacheFor).apply()
+        }
         webView.loadUrl(url)
+
+        // One line per boot saying what the tablet has left. The renderer died at a `priority=2`
+        // with no trim callback and no memory number, so this is the baseline the next report is
+        // read against.
+        ErrorReporter.reportMessage(
+            type    = "mem",
+            message = "Boot memory snapshot",
+            extra   = memorySnapshot() + mapOf(
+                "app_version"    to (appVersionName()),
+                "renderer_policy" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) "IMPORTANT/keep" else "default",
+            ),
+            forceReport = false
+        )
 
         applyScreensaverFlag()
     }
@@ -1214,16 +1285,31 @@ class KioskActivity : AppCompatActivity() {
      * trailing slash or fragment: a false negative here reloads the whole app on
      * every resume (white flash on the tablet).
      */
-    private fun sameAppUrl(current: String?, configured: String): Boolean {
+    /**
+     * Is the WebView still showing OUR app — anywhere inside it?
+     *
+     * The reload in `onResume` existed to recover from an error page, and a strict URL compare
+     * turned it into a false positive for every normalisation the WebView applies on its own
+     * (`host` → `host/`, `…/index.html`, a `?lang=` deep link, a `#page-…` deep link). Anything
+     * under the configured app path is the app: the SPA owns everything below it. Only a
+     * genuinely foreign document (`about:blank`, `data:`, an error page, another host) is a
+     * reason to reload.
+     */
+    private fun isOnAppPage(current: String?, configured: String): Boolean {
         if (current.isNullOrBlank()) return false
+        if (!current.startsWith("http", ignoreCase = true)) return false
         fun norm(u: String): String = u.trim()
             .substringBefore('#')
             .substringBefore('?')
-            .removeSuffix("/")
-            .removeSuffix("/index.html")
-            .removeSuffix("/index.htm")
             .replace(Regex("^https?://", RegexOption.IGNORE_CASE), "")
-        return norm(current) == norm(configured)
+            .removeSuffix("/source_offline.html")
+            .trimEnd('/')
+        val cur = norm(current)
+        var base = norm(configured)
+        base = base.removeSuffix("/index.html").removeSuffix("/index.htm").trimEnd('/')
+        if (base.isEmpty()) return false
+        // Same host (and port) and the app's own path, or anything below it.
+        return cur == base || cur.startsWith("$base/")
     }
 
     private fun buildDeviceLabel(): String {
@@ -1327,24 +1413,31 @@ class KioskActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         enterImmersiveMode()
+        // The lifecycle is the other half of "the app restarted on its own": a wall tablet that
+        // froze (screen off, ROM doze) comes back through here, and anything that reloads at this
+        // moment is indistinguishable from SHELFY doing it. Two lines per day, and the next
+        // restart finally has an author.
+        ErrorReporter.reportMessage(
+            type    = "lifecycle",
+            message = "onResume",
+            extra   = memorySnapshot(),
+            forceReport = false
+        )
         if (prefs.getBoolean(KEY_SETUP_COMPLETE, false) && webView.visibility == View.VISIBLE) {
             val url = prefs.getString(KEY_URL, "") ?: ""
-            // The WebView canonicalises the URL ("host:8080" → "host:8080/"), so a
-            // strict compare reloaded the whole app on every resume — a needless
-            // flash. Reload only when the WebView is not on the app any more.
-            if (url.isNotEmpty() && !sameAppUrl(webView.url, url)) {
-                // This reload is the other way the app can "restart" by itself: onResume used
-                // to compare the URLs strictly, so a WebView sitting on `…/index.html` (or on
-                // the same page with a query string) was reloaded on every resume. It is
-                // logged with both URLs, so a reload nobody asked for names itself.
+            // Reload ONLY when the WebView is not on our app any more (an error page, a
+            // `data:`/`about:blank` fallback, another host). A difference in path, query or hash
+            // is the app itself having moved inside its own SPA: reloading for that is what made
+            // the wall flash the splash for no reason.
+            if (url.isNotEmpty() && !isOnAppPage(webView.url, url)) {
                 ErrorReporter.reportMessage(
                     type = "kiosk-resume-reload",
-                    message = "onResume reloaded the page: the WebView was not on the app URL",
+                    message = "onResume reloaded the page: the WebView was not on the app any more",
                     extra = mapOf(
                         "webview_url" to (webView.url ?: ""),
                         "configured_url" to url,
-                    ),
-                    forceReport = false
+                    ) + memorySnapshot(),
+                    forceReport = true
                 )
                 webView.loadUrl(url)
             }
@@ -1363,6 +1456,12 @@ class KioskActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        ErrorReporter.reportMessage(
+            type    = "lifecycle",
+            message = "onPause",
+            extra   = memorySnapshot(),
+            forceReport = false
+        )
         watchdogHandler.removeCallbacks(watchdogRunnable)
         updateCheckHandler.removeCallbacks(updateCheckRunnable)
     }
@@ -1427,7 +1526,8 @@ class KioskActivity : AppCompatActivity() {
         super.onLowMemory()
         ErrorReporter.reportMessage(
             type    = "low-memory",
-            message = "Device reported onLowMemory — risk of OOM renderer kill"
+            message = "Device reported onLowMemory — risk of OOM renderer kill",
+            extra   = memorySnapshot()
         )
     }
 
@@ -1447,7 +1547,7 @@ class KioskActivity : AppCompatActivity() {
             ErrorReporter.reportMessage(
                 type    = "trim-memory",
                 message = "System memory trim: $label (level $level)",
-                extra   = mapOf("level" to level, "label" to label)
+                extra   = mapOf("level" to level, "label" to label) + memorySnapshot()
             )
         }
     }

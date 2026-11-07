@@ -13,6 +13,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [Kiosk 1.7.30] - 2026-11-07
+
+Kiosk APK only. **The build that stops the wall restarting itself.**
+
+### The renderer is never WAIVED
+- `[kiosk] [renderer-killed-oom]` reached the server with **`priority=2`** —
+  `RENDERER_PRIORITY_WAIVED`, the priority Android gives a WebView it considers *not visible* —
+  three minutes after a boot, while the household was opening SHELFY. A waived renderer is the
+  first thing the system kills under memory pressure, and the page then comes back by itself: on
+  the wall that reads as "the app restarted", and it looked like SHELFY doing it because that is
+  the first thing anyone touches.
+  `setRendererPriorityPolicy(RENDERER_PRIORITY_IMPORTANT, false)` keeps it important always — on a
+  wall tablet the page IS the appliance.
+
+### A resume never reloads the app for a URL the app itself changed
+- `onResume` compared the WebView URL strictly, so any normalisation (`host` → `host/`,
+  `…/index.html`, `?lang=`, `#page-…`) looked like "not on the app any more" and reloaded
+  everything on return from standby. It now reloads **only** when the WebView is genuinely off the
+  app (error page, `about:blank`, `data:`, another host), and it reports every such reload
+  (`forceReport = true`) instead of hiding it behind a duplicated fingerprint.
+
+### Measured, not guessed
+- The WebView cache is wiped only when the APK version changed: a recovery no longer re-downloads
+  megabytes of `app.js` and the generated data files.
+- `[kiosk] [mem]` at boot, memory numbers attached to `renderer-killed-oom`, `low-memory` and
+  `trim-memory`, and `[kiosk] [lifecycle] onPause/onResume`: the next restart has an author and a
+  device figure. The page can ask for the same numbers through the bridge (`_kioskBridge.mem()`).
+
 ## [Kiosk 1.7.29] - 2026-11-07
 
 Kiosk APK only. **This is the build that can be installed on a tablet still running 1.7.26.**
