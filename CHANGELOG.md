@@ -5,6 +5,33 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Kiosk 1.7.31] - 2026-11-07
+
+Kiosk APK only.
+
+### An install failure is never answered with "uninstall the app"
+- The wall asked to uninstall the app on an update, while **every published APK is signed with the
+  same key** — proved here without `apksigner`, by reading the APK Signing Block of 1.7.26 → 1.7.30
+  (SHA-256 `36:D8:4A:…:CB:25`, `CN=EverShelf`). "Signatures do not match" was our own misdiagnosis.
+- What really happened: `STATUS_PENDING_USER_ACTION` starts the **system installer**, and the app is
+  in **lock task mode** (screen pinning) — another app cannot be brought to the front, the launch
+  was swallowed, the result came back as *cancelled*, and `onActivityResult` popped the
+  "uninstall" dialog for an install that never ran.
+  Lock task is now suspended for the duration of the confirmation and re-entered afterwards.
+
+### Retry, not uninstall
+- The "uninstall" dialog appears **only** when the two signer fingerprints really differ. Any other
+  failure offers a **retry** that re-commits a session with the APK already on disk (no second
+  6 MB download), and a cancelled confirmation says "annullato" with the retry button — never
+  "uninstall the app".
+
+### Everything is logged
+- `install_start`, `install_session`, `install_pending_user_action`, `install_confirm_result` and
+  `install_result` (status **and** `statusMessage` and the result extras), each carrying the APK and
+  installed `versionCode`, **both signer SHA-256 fingerprints**, `signer_match`,
+  `can_install_unknown` and the lock-task state — so the next refusal explains itself instead of
+  asking the household to destroy the appliance.
+
 ## [1.31.11] - 2026-11-07
 
 ### Fixed
