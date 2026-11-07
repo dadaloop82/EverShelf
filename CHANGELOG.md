@@ -5,6 +5,23 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.7] - 2026-11-07
+
+### Changed
+- **The «dove l'hai messo?» countdown is the app's confidence, not a constant.** It used to be
+  10 s when there was a precedent and 20 s otherwise; now it is **dynamic between 2 and 20 s**
+  (`_movePromptSeconds()`), driven by `_moveHistoryConfidence()` — how much the last five choices
+  AGREE on a place (7 of 8 to the fridge) times how many times it was actually seen, with a genre
+  habit weighing 0.55 against the product's own history (1.0) and nothing known counting 0:
+  - four identical choices → **2 s** (the presumed answer is on screen; the only job is to stop it
+    in the rare wrong case),
+  - one sample → ~**9 s** (a single observation can only be so sure of itself),
+  - a genre-only habit → ~**10–13 s**,
+  - no history at all → **20 s**, and the pack stays where it was.
+  A single function maps 0..1 to the seconds and is clamped to `[_MOVE_PROMPT_MIN_S, _MOVE_PROMPT_MAX_S]`,
+  the printed seconds keep following the real countdown (`startMoveModalCountdown`), and any touch
+  still stops the clock.
+
 ## [1.31.6] - 2026-11-07
 
 ### Fixed

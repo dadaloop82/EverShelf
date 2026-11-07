@@ -2025,7 +2025,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261107g'; // bump when translations change
+const _I18N_VERSION = '20261107h'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19733,7 +19733,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107g';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107h';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19743,7 +19743,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261107g';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261107h';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -26746,14 +26746,64 @@ function _recordMoveLocChoice(productId, fromLoc, toLoc, category) {
  * What the prompt presumes and why: the product's own habit first, then its genre, and
  * nothing at all when the app has not seen this yet.
  *
- * @returns {{loc:string, source:'product'|'kind'}|null}
+ * The third field is the CONFIDENCE (0..1) behind that presumption, and it is what times the
+ * countdown (see `_movePromptSeconds`): a genre is weaker evidence than the product itself, and
+ * one sample is not a habit.
+ *
+ * @returns {{loc:string, source:'product'|'kind', confidence:number}|null}
  */
 function _preferredMoveChoice(productId, category, fromLoc) {
-    const byProduct = _topMoveLoc(_getMoveLocHistory(productId, fromLoc), _PREF_MOVE_NEEDED);
-    if (byProduct) return { loc: byProduct, source: 'product' };
-    const byKind = _topMoveLoc(_getKindMoveLocHistory(category, fromLoc), _PREF_MOVE_KIND_NEEDED);
-    if (byKind) return { loc: byKind, source: 'kind' };
+    const prodHist = _getMoveLocHistory(productId, fromLoc);
+    const byProduct = _topMoveLoc(prodHist, _PREF_MOVE_NEEDED);
+    if (byProduct) {
+        return { loc: byProduct, source: 'product', confidence: _moveHistoryConfidence(prodHist, 1) };
+    }
+    const kindHist = _getKindMoveLocHistory(category, fromLoc);
+    const byKind = _topMoveLoc(kindHist, _PREF_MOVE_KIND_NEEDED);
+    if (byKind) {
+        return { loc: byKind, source: 'kind', confidence: _moveHistoryConfidence(kindHist, 0.55) };
+    }
     return null;
+}
+
+/**
+ * How sure the app is about a place, from the last five choices made there.
+ *
+ * Two things make a habit: how much the household AGREES (7 of the last 8 went to the fridge) and
+ * how many times it was seen (one choice is a coincidence). `sourceWeight` discounts a genre
+ * habit — "all yoghurts go to the fridge" says less about THIS pack than its own history does.
+ *
+ * @returns {number} 0..1
+ */
+function _moveHistoryConfidence(hist, sourceWeight = 1) {
+    const recent = (hist || []).slice(-5);
+    if (!recent.length) return 0;
+    const counts = {};
+    for (const loc of recent) counts[loc] = (counts[loc] || 0) + 1;
+    const topCount = Math.max.apply(null, Object.values(counts));
+    const agreement = topCount / recent.length;            // 1.0 = always the same place
+    const maturity = Math.min(1, recent.length / 4);       // 1 choice → 0.25, 4+ → 1
+    // A single observation can only be so sure of itself (agreement is 1.0 by definition when
+    // there is one sample), so maturity starts the scale from 0.45, not from 0.6.
+    const conf = agreement * (0.45 + 0.55 * maturity) * sourceWeight;
+    return Math.max(0, Math.min(1, conf));
+}
+
+/** The clock the household asked for: 2 s when the app is sure, 20 s when it is guessing. */
+const _MOVE_PROMPT_MIN_S = 2;
+const _MOVE_PROMPT_MAX_S = 20;
+
+/**
+ * Confidence → seconds, linearly, clamped. Pure on purpose: the mapping is the whole rule.
+ *
+ * @param {number} confidence 0..1 (`_moveHistoryConfidence`, 0 when nothing is known)
+ * @returns {number} whole seconds in [_MOVE_PROMPT_MIN_S, _MOVE_PROMPT_MAX_S]
+ */
+function _movePromptSeconds(confidence) {
+    const c = Math.max(0, Math.min(1, Number(confidence) || 0));
+    const span = _MOVE_PROMPT_MAX_S - _MOVE_PROMPT_MIN_S;
+    const secs = Math.round(_MOVE_PROMPT_MAX_S - span * c);
+    return Math.max(_MOVE_PROMPT_MIN_S, Math.min(_MOVE_PROMPT_MAX_S, secs));
 }
 
 function _getPrefLocHistory(productId) {
@@ -27460,11 +27510,13 @@ function _showMovePrompt(cfg) {
     // A habit about a place that no longer exists (a deleted fridge) or about a place this
     // domain cannot offer is no habit at all: fall back to "it stays where it was".
     if (assumed && assumed.loc !== cfg.fromLoc && !locs.some(([k]) => k === assumed.loc)) assumed = null;
-    // With a precedent the app has "enough data": the presumed place is preselected and the
-    // household has 10 s to disagree. Otherwise it presumes "stays where it was" and gives
-    // 20 s — a guessed move is worse than no move.
+    // The clock is the confidence, not a constant (the household asked for exactly this): a
+    // place this product always goes to, seen often, gets 2 s — the presumed answer is on
+    // screen and the only job is to stop it in the rare wrong case. A genre habit is weaker
+    // evidence and gets more room, and "it stays where it was" (nothing known) keeps the full
+    // 20 s, because a guessed move is worse than no move.
     const presumedLoc = assumed ? assumed.loc : cfg.fromLoc;
-    const seconds = assumed ? 10 : 20;
+    const seconds = _movePromptSeconds(assumed ? assumed.confidence : 0);
     const presumedLabel = locMeta(presumedLoc).label;
 
     // Nowhere else to put it: say where it stays instead of asking a rhetorical question.

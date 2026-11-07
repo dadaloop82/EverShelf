@@ -95,9 +95,12 @@ runtime/binary files — if a task truly needs one, ask first.
 - **An opened pack has a place.** A partial use creates a pack of its own, so the sheet (and
   the legacy USE page, and the recipe flow) **always asks** where it went (`_showMovePrompt`):
   the presumed answer is the product's habit and then its **genre**
-  (`_preferredMoveChoice`, product key `id|from`, genre key `kind:cat|from`), the control
-  carrying it drains with the seconds printed — **10 s** with a precedent, **20 s** without
-  (then it stays where it was) — and any touch cancels the clock. Never apply a move in
+  (`_preferredMoveChoice`, product key `id|from`, genre key `kind:cat|from`), and the control
+  carrying it drains with the seconds printed — **the clock IS the confidence**
+  (`_moveHistoryConfidence` from the last five choices × the source: the product's own habit, the
+  genre at 0.55, nothing at 0 → `_movePromptSeconds` maps it linearly to **2…20 s**: 4× the same
+  place = 2 s, one sample ≈ 9 s, a genre ≈ 10-13 s, no history = 20 s and the pack stays where it
+  was) — and any touch cancels the clock. Never apply a move in
   silence: `showMoveAfterUseModal(..., { stayPut: true })` from the product sheet keeps the
   household on the pantry instead of jumping to the dashboard.
   **"Se è finito è finito":** the question belongs to a portion that really stays on the
