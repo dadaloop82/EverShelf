@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [Kiosk 1.7.29] - 2026-11-07
+
+Kiosk APK only. **This is the build that can be installed on a tablet still running 1.7.26.**
+
+### A WebView download link goes through our own downloader
+- The manual fallback in Settings («📥 Scarica APK da questo server») is a plain link to the
+  `.apk`, and a WebView has no download manager of its own: on the tablet that link did **nothing
+  at all**. `setDownloadListener` now hands every download to `triggerApkDownload()`, which
+  reaches the self-signed LAN host — so the bootstrap works even when the APK already installed is
+  the one whose own updater cannot download anything (1.7.26 → `DownloadManager` → `PENDING`
+  forever).
+- With 1.7.28's direct download plus this, **every** route in — the in-app button, the native
+  update banner and the Settings link — ends in the same trusted download.
+
 ## [Kiosk 1.7.28] - 2026-11-07
 
 Kiosk APK only (the web app has its own version line).
