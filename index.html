@@ -12,29 +12,29 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261107l">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261107l">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261107l">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261107m">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261107m">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261107m">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261107l">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261107m">
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
-    <link rel="stylesheet" href="assets/css/tablet.css?v=20261107l">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261107l">
+    <link rel="stylesheet" href="assets/css/tablet.css?v=20261107m">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261107m">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261107l"></script>
-    <script src="assets/js/core/auth.js?v=20261107l"></script>
-    <script src="assets/js/core/med.js?v=20261107l"></script>
+    <script src="assets/js/core/dom.js?v=20261107m"></script>
+    <script src="assets/js/core/auth.js?v=20261107m"></script>
+    <script src="assets/js/core/med.js?v=20261107m"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261107l"></script>
+    <script src="assets/js/med/italy.js?v=20261107m"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261107l"></script>
+    <script src="assets/js/core/support.js?v=20261107m"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -42,7 +42,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261107l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261107m';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -51,13 +51,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107l';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107m';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261107l"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261107m"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -122,7 +122,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.31.11</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.31.12</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -178,7 +178,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.31.11</span><span class="header-kiosk-version" id="header-kiosk-version" hidden></span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.31.12</span><span class="header-kiosk-version" id="header-kiosk-version" hidden></span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -3494,17 +3494,17 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261107l"></script>
-<script src="assets/js/food_facts.generated.js?v=20261107l"></script>
-<script src="assets/js/free_apis.generated.js?v=20261107l"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261107l"></script>
-<script src="assets/js/off_categories.generated.js?v=20261107l"></script>
-<script src="assets/js/core/vocab.js?v=20261107l"></script>
-<script src="assets/js/app.js?v=20261107l"></script>
-<script src="assets/js/audit.js?v=20261107l"></script>
-<script src="assets/js/receipt.js?v=20261107l"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261107l"></script>
-<script src="assets/js/settings_search.js?v=20261107l"></script>
+<script src="assets/js/vocab.generated.js?v=20261107m"></script>
+<script src="assets/js/food_facts.generated.js?v=20261107m"></script>
+<script src="assets/js/free_apis.generated.js?v=20261107m"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261107m"></script>
+<script src="assets/js/off_categories.generated.js?v=20261107m"></script>
+<script src="assets/js/core/vocab.js?v=20261107m"></script>
+<script src="assets/js/app.js?v=20261107m"></script>
+<script src="assets/js/audit.js?v=20261107m"></script>
+<script src="assets/js/receipt.js?v=20261107m"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261107m"></script>
+<script src="assets/js/settings_search.js?v=20261107m"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

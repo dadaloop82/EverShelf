@@ -3409,7 +3409,12 @@ body:has(#page-scan.active) .app-content {
     position: relative;
     width: 100%;
     flex: 1 1 0;
-    min-height: 120px;
+    /* The stream is the only thing that can give space back. It used to stop shrinking at
+       120 px, so the moment the controls moved UNDER the picture (the status + torch/flip row,
+       v1.31.4) the column no longer fit the one-screen height the page is locked to — and the
+       last row (Identifica AI · Cerca · Manuale) ended up half behind the bottom nav, where it
+       cannot be tapped. 72 px still shows a usable picture and keeps every control on screen. */
+    min-height: 72px;
     max-height: none;
     aspect-ratio: unset;
     background: #000;
@@ -3545,11 +3550,21 @@ dark gradient at the bottom). The stream now holds only the barcode box, and the
     gap: 8px;
     padding: 8px 2px 0;
     flex-wrap: wrap;
+    /* The controls under the picture never grow: the stream is what yields space, and the row
+       that follows (`Identifica AI · Cerca · Manuale`) must never be pushed behind the nav. */
+    flex: 0 0 auto;
 }
 .scan-viewport-left {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex: 0 0 auto;
+}
+/* The action row had NO base rule at all: as a flex item it defaulted to `flex-shrink: 1`, so on a
+   short screen the column compressed it below its own content and its three buttons were cut —
+   half behind the bottom nav, where they cannot be tapped. It never shrinks; the stream above is
+   the element that gives the space back. */
+.scan-action-bar {
     flex: 0 0 auto;
 }
 .scan-ctrl-btn {
@@ -3591,6 +3606,13 @@ dark gradient at the bottom). The stream now holds only the barcode box, and the
     color: var(--text-main);
     max-width: 100%;
     overflow-wrap: anywhere;
+    /* Two lines, never more: a long status ("Leggo i numeri sotto il codice…") used to wrap the
+       row taller and push the action bar out of the one-screen height — the buttons then sat
+       behind the bottom nav. The text is still complete, the layout is fixed. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 .scan-status-msg:empty { visibility: hidden; }
 .scan-status-msg.state-partial { color: #b45309; }

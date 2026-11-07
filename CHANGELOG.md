@@ -32,6 +32,23 @@ Kiosk APK only.
   `can_install_unknown` and the lock-task state — so the next refusal explains itself instead of
   asking the household to destroy the appliance.
 
+## [1.31.12] - 2026-11-07
+
+### Fixed
+- **The scanner's last row no longer hides behind the bottom nav.** The scan page is locked to one
+  screen (`height: calc(100dvh - header - nav)`, `overflow: hidden`), and the three buttons
+  `Identifica AI · Cerca · Manuale` sit at its bottom with **no CSS rule at all**: as flex items
+  they defaulted to `flex-shrink: 1`, so the column compressed them below their own content and the
+  buttons were cut in half under the nav — untappable. They are now `flex: 0 0 auto` (the stream
+  above is the element that gives space back, down to 72 px instead of 120), and the status line is
+  clamped to two lines so a long sentence can never push the row out again.
+- **«Leggo i numeri sotto il codice…» no longer stays on screen for ever.** The local digit OCR
+  sets that line and never cleared it: on a wall pointing at a shelf with no barcode in view, the
+  scanner looked stuck mid-read permanently. The line now belongs to the attempt that sets it (a
+  found code keeps whatever the confirmation says), and every fruitless attempt slows the next one
+  down (1.8 s → 3.6 → 5.4 → 7.2 s, reset by a new scan session): a kiosk was running Tesseract
+  every 1.8 seconds for hours on nothing.
+
 ## [1.31.11] - 2026-11-07
 
 ### Fixed

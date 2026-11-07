@@ -2033,7 +2033,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261107l'; // bump when translations change
+const _I18N_VERSION = '20261107m'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19835,7 +19835,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107l';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107m';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19845,7 +19845,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261107l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261107m';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -20291,6 +20291,9 @@ async function _tesseractConfigure(worker, mode) {
 }
 
 
+/** Fruitless digit-OCR attempts in a row: the loop slows down instead of grinding forever. */
+let _digitOcrMisses = 0;
+
 async function _tryLocalEanDigitOcr(videoEl) {
     if (_scannerPaused || !scannerStream) return false;
     const worker = await _ensureTesseractWorker();
@@ -20298,17 +20301,32 @@ async function _tryLocalEanDigitOcr(videoEl) {
     const canvas = _captureDigitStrip(videoEl);
     if (!canvas) return false;
     _setScanStatus(t('scan.status_digit_ocr'), 'retry', t('scan.method_local_ocr'));
+    let handled = false;
     try {
         const { data } = await worker.recognize(canvas);
         const candidates = _extractEanCandidates(data && data.text);
         if (candidates.length) {
+            handled = true;
+            _digitOcrMisses = 0;
             scanLog(`Local OCR: found ${candidates[0]} (from "${(data.text || '').trim()}")`);
             showToast(t('scan.local_ocr_found').replace('{code}', candidates[0]), 'success');
             return _tryConfirmBarcode(candidates[0], 'ean_13', 'OCR');
         }
+        _digitOcrMisses++;
         scanLog(`Local OCR: no valid EAN in "${(data && data.text) || ''}"`);
     } catch (e) {
+        _digitOcrMisses++;
         scanLog(`Local OCR error: ${e.message}`);
+    } finally {
+        // The line belongs to THIS attempt. It used to stay on screen for ever — "Leggo i numeri
+        // sotto il codice…" in orange on a wall where no barcode was in front of the camera, which
+        // reads as a scanner stuck mid-read. A found code keeps whatever the confirmation set.
+        if (!handled) {
+            const msgEl = document.getElementById('scan-status-msg');
+            if (msgEl && msgEl.textContent === t('scan.status_digit_ocr')) {
+                _setScanStatus(t('scan.status_scanning'), '', '');
+            }
+        }
     }
     return false;
 }
@@ -21960,6 +21978,8 @@ function startUnifiedScanner(videoEl) {
     quaggaRunning = true;
     _scanLastCode = '';
     _scanConsecCount = 0;
+    // A new session starts eager: the backoff only ever belongs to the points of view that failed.
+    _digitOcrMisses = 0;
     const startTime = Date.now();
     let frameCount = 0;
     let digitOcrBusy = false;
@@ -22102,9 +22122,12 @@ function startUnifiedScanner(videoEl) {
 
         // 4) Local digit OCR (numbers under an EAN) — FOOD panel only: in the medicine panel the
         // printed AIC is read by step 5, and hunting digits under the bars there is what put a
-        // pack serial into the form.
+        // pack serial into the form. Every fruitless attempt slows the next one down (1.8 s → 3.6
+        // → 5.4 → 7.2, capped): a wall pointing at a shelf used to run Tesseract every 1.8 s for
+        // hours, for a code nobody was showing it.
         const ocrDelay = _detectorNative ? _LOCAL_OCR_DELAY_NATIVE_MS : _LOCAL_OCR_DELAY_MS;
-        if (!_scanModeIsMedical() && elapsed > ocrDelay && !digitOcrBusy && (Date.now() - lastDigitOcrAt) > 1800) {
+        const ocrBackoff = 1800 * (1 + Math.min(_digitOcrMisses, 3));
+        if (!_scanModeIsMedical() && elapsed > ocrDelay && !digitOcrBusy && (Date.now() - lastDigitOcrAt) > ocrBackoff) {
             lastDigitOcrAt = Date.now();
             digitOcrBusy = true;
             _tryLocalEanDigitOcr(videoEl).finally(() => { digitOcrBusy = false; });
