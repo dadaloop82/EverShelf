@@ -13599,6 +13599,62 @@ body.offline-mode #smart-shopping {
     text-align: left;
 }
 .audit-scope:hover, .audit-done:hover { border-color: var(--brand-primary, #059669); }
+
+/* ── The two ways to run a stocktake ────────────────────────────────────────
+   "Uno alla volta" (the app proposes) | "Ti dico io" (the household names the product).
+   One segmented row of two, the chosen one emerald: it is a choice between two equal ways,
+   not a primary action, so neither of them wears the solid emerald of the confirm button. */
+.audit-modes {
+    display: flex;
+    gap: 8px;
+    margin: 12px 0 4px;
+}
+.audit-mode {
+    flex: 1 1 0;
+    min-height: 44px;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border, var(--border));
+    background: var(--surface-bg, #f8fafc);
+    color: var(--text-main, inherit);
+    cursor: pointer;
+}
+.audit-mode.is-active {
+    border-color: var(--brand-primary, #059669);
+    background: color-mix(in srgb, var(--brand-primary, #059669) 12%, transparent);
+    color: var(--brand-primary, #059669);
+}
+.audit-search-input { margin: 6px 0 10px; }
+.audit-search-results { display: flex; flex-direction: column; gap: 8px; }
+/* A hit is a row: the thumb, the name, where it is and how much. The catalogue hits (a product
+   the app knows with no stock anywhere) carry the "not in the pantry" line and an add mark. */
+.audit-hit {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    font: inherit;
+    text-align: left;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border, var(--border));
+    background: var(--surface-bg, #f8fafc);
+    color: var(--text-main, inherit);
+    cursor: pointer;
+}
+.audit-hit.is-missing { border-style: dashed; }
+.audit-hit-thumb { flex: 0 0 auto; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+.audit-hit-thumb img { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; }
+.audit-hit-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.audit-hit-name { font-size: 1rem; font-weight: 700; overflow-wrap: anywhere; }
+.audit-hit-brand { font-weight: 400; color: var(--text-muted, #64748b); }
+.audit-hit-meta { font-size: 0.82rem; color: var(--text-muted, #64748b); }
+.audit-hit-action { margin-left: auto; font-size: 1.1rem; color: var(--brand-primary, #059669); }
+.audit-search-create { border-style: dashed; }
+
 /* The ONE answer that writes the stock: full width, emerald, 56 px tall. */
 .audit-there {
     display: flex;

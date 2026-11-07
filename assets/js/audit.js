@@ -38,6 +38,50 @@ function _auditSetBatchSize(value) {
     _auditBatchSize = Math.max(1, Math.min(50, n));
 }
 
+/* ── Two ways to run a stocktake ─────────────────────────────────────────────
+ * The app can PROPOSE the products it knows (a card at a time — fast, and the only way to find
+ * drift on rows nobody looks at), or the household can NAME them (an input, a search, and the
+ * same card). The second is for what the first cannot see: a product that was never inventoried,
+ * or one the household is sure is on that shelf. Both land on the same card, so the answers, the
+ * batching and the undo are one implementation.
+ */
+let _auditMode = 'propose';          // 'propose' | 'search'
+let _auditSearchTerm = '';
+let _auditSearchTimer = 0;
+const AUDIT_MODE_KEY = 'evershelf_audit_mode';
+
+function _auditLoadMode() {
+    try {
+        const saved = localStorage.getItem(AUDIT_MODE_KEY);
+        if (saved === 'search' || saved === 'propose') _auditMode = saved;
+    } catch (_e) { /* private mode: the default stands */ }
+}
+
+/** Case- and accent-insensitive needle for the search (`Caffè` matches `caffe`). */
+function _auditFold(value) {
+    return String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+}
+
+/** The mode switch: two buttons, the chosen one emerald-filled. */
+function _auditModeSwitchHtml() {
+    const btn = (mode, icon, key) => {
+        const on = _auditMode === mode;
+        return `<button type="button" class="audit-mode${on ? ' is-active' : ''}" aria-pressed="${on}"
+            onclick="_auditSetMode('${mode}')"><span aria-hidden="true">${icon}</span> ${escapeHtml(t(key))}</button>`;
+    };
+    return `<div class="audit-modes">${btn('propose', '🃏', 'audit.mode_propose')}${btn('search', '🔎', 'audit.mode_search')}</div>`;
+}
+
+function _auditSetMode(mode) {
+    _auditMode = mode === 'search' ? 'search' : 'propose';
+    try { localStorage.setItem(AUDIT_MODE_KEY, _auditMode); } catch (_e) { /* ignore */ }
+    _auditStart();
+}
+
 /**
  * Remember the point reached. Closing the overlay by mistake (or switching away)
  * must not restart the stocktake: the run is resolved against the pantry as it is
@@ -45,6 +89,8 @@ function _auditSetBatchSize(value) {
  */
 function _auditPersist() {
     if (!_audit) return;
+    // A search card is one question about one product, not a run: nothing to resume.
+    if (_audit.mode === 'search') return;
     try {
         localStorage.setItem(AUDIT_RESUME_KEY, JSON.stringify({
             v: 1,
@@ -188,11 +234,37 @@ function _auditStartFromBanner() {
 /** Entry point: resume a paused run, or choose the scope of a new one. */
 function _auditStart() {
     const items = _auditItems();
-    if (!items.length) {
-        showToast(t('audit.empty'), 'info');
-        return;
-    }
     const saved = _auditSavedRun();
+    const el = document.getElementById('audit-overlay');
+    if (!el) return;
+    _auditLoadMode();
+    el.hidden = false;
+    el.innerHTML = `<div class="audit-panel">
+        <div class="audit-head">
+            <h3>${escapeHtml(t('audit.title'))}</h3>
+            <button type="button" class="audit-close" onclick="_auditStop()" aria-label="${escapeHtml(t('audit.close'))}">✕</button>
+        </div>
+        ${_auditModeSwitchHtml()}
+        ${_auditMode === 'search' ? _auditSearchBodyHtml() : _auditScopesBodyHtml(items, saved)}
+    </div>`;
+    if (_auditMode === 'search') {
+        const input = document.getElementById('audit-search-input');
+        if (input) {
+            input.value = _auditSearchTerm || '';
+            setTimeout(() => { try { input.focus(); } catch (_e) { /* kiosk: no keyboard */ } }, 60);
+        }
+        _auditRenderSearchResults();
+    }
+}
+
+/** Mode 1 — the products the app knows, one card at a time, scoped by place. */
+function _auditScopesBodyHtml(items, saved) {
+    // An empty pantry is a reason to stop proposing, not to stop a stocktake: the search mode
+    // exists exactly for the products the app cannot list.
+    if (!items.length) {
+        return `<p class="audit-hint">${escapeHtml(t('audit.empty'))}</p>
+            <button type="button" class="audit-scope" onclick="_auditSetMode('search')">🔎 ${escapeHtml(t('audit.mode_search'))}</button>`;
+    }
     const byLoc = {};
     items.forEach(it => { byLoc[it.location] = (byLoc[it.location] || 0) + 1; });
     const scopes = [];
@@ -205,18 +277,20 @@ function _auditStart() {
         const info = LOCATIONS[loc] || { icon: '📦', label: loc };
         scopes.push(`<button type="button" class="audit-scope" onclick="_auditBegin('${escapeHtml(loc)}')">${info.icon} ${escapeHtml(info.label || loc)} (${byLoc[loc]})</button>`);
     });
-    const el = document.getElementById('audit-overlay');
-    if (!el) return;
-    el.hidden = false;
-    el.innerHTML = `<div class="audit-panel">
-        <div class="audit-head">
-            <h3>${escapeHtml(t('audit.title'))}</h3>
-            <button type="button" class="audit-close" onclick="_auditStop()" aria-label="${escapeHtml(t('audit.close'))}">✕</button>
-        </div>
-        ${saved ? `<p class="audit-hint audit-resume-hint">${escapeHtml(t('audit.resume_hint'))}</p>` : ''}
+    return `${saved ? `<p class="audit-hint audit-resume-hint">${escapeHtml(t('audit.resume_hint'))}</p>` : ''}
         <p class="audit-hint">${escapeHtml(t('audit.scope_hint'))}</p>
-        <div class="audit-scopes">${scopes.join('')}</div>
-    </div>`;
+        <div class="audit-scopes">${scopes.join('')}</div>`;
+}
+
+/** Mode 2 — name the product: one field, the matches under it, the same card after a tap. */
+function _auditSearchBodyHtml() {
+    return `<p class="audit-hint">${escapeHtml(t('audit.search_hint'))}</p>
+        <input type="text" id="audit-search-input" class="form-input audit-search-input"
+               autocomplete="off" autocapitalize="sentences" spellcheck="false"
+               placeholder="${escapeAttr(t('audit.search_placeholder'))}"
+               oninput="_auditSearchInput(this.value)"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();_auditSearchPickFirst();}">
+        <div class="audit-search-results" id="audit-search-results"></div>`;
 }
 
 /** Continue the paused run (the picker already told the user how many are left). */
@@ -227,6 +301,148 @@ function _auditResume() {
         return;
     }
     _auditBegin(saved.scope, saved);
+}
+
+/* ── Mode 2: the household names the product ───────────────────────────────── */
+
+/** Type-as-you-search, debounced: the pantry is in memory, the catalogue in localStorage. */
+function _auditSearchInput(value) {
+    _auditSearchTerm = String(value || '');
+    clearTimeout(_auditSearchTimer);
+    _auditSearchTimer = setTimeout(_auditRenderSearchResults, 120);
+}
+
+/**
+ * What the typed name matches: the pantry ROWS first (they carry a place and a quantity, so they
+ * open the card), then the products the catalogue knows with no stock anywhere — the pack the
+ * household is looking at but the app has never seen on a shelf.
+ */
+function _auditSearchMatches(term) {
+    const q = _auditFold(term);
+    const hits = [];
+    const catalogue = [];
+    if (!q) return { hits, catalogue };
+    const rows = _auditItems();
+    for (const it of rows) {
+        const hay = _auditFold(`${it.display_name || ''} ${it.name || ''} ${it.brand || ''}`);
+        if (hay.includes(q)) hits.push(it);
+    }
+    const stocked = new Set(rows.map(r => String(r.product_id)));
+    if (typeof _offlineProductsGet === 'function') {
+        const products = _offlineProductsGet() || [];
+        for (const p of products) {
+            if (!p || stocked.has(String(p.id))) continue;
+            const hay = _auditFold(`${p.name || ''} ${p.brand || ''}`);
+            if (hay.includes(q)) catalogue.push(p);
+        }
+    }
+    return { hits: hits.slice(0, 8), catalogue: catalogue.slice(0, 5) };
+}
+
+function _auditRenderSearchResults() {
+    const box = document.getElementById('audit-search-results');
+    if (!box) return;
+    const term = String(_auditSearchTerm || '').trim();
+    if (!term) { box.innerHTML = ''; return; }
+    const { hits, catalogue } = _auditSearchMatches(term);
+    if (!hits.length && !catalogue.length) {
+        box.innerHTML = `<p class="audit-hint">${escapeHtml(t('audit.search_none', { term }))}</p>
+            <button type="button" class="audit-scope audit-search-create" onclick="_auditSearchCreate()">
+                <span aria-hidden="true">➕</span> ${escapeHtml(t('audit.search_create', { term }))}</button>`;
+        return;
+    }
+    const rowHtml = hits.map(it => {
+        const loc = (typeof LOCATIONS !== 'undefined' && LOCATIONS[normalizeLocationKey(it.location)])
+            || { icon: '📦', label: it.location || '' };
+        const qty = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
+            ? stripHtml(formatQuantity(it.quantity, it.unit, it.default_quantity, it.package_unit))
+            : `${it.quantity || ''} ${it.unit || ''}`.trim();
+        const thumb = (typeof _productThumbHtml === 'function') ? _productThumbHtml(it) : '';
+        return `<button type="button" class="audit-hit" onclick="_auditSearchPick(${Number(it.id)})">
+            <span class="audit-hit-thumb">${thumb}</span>
+            <span class="audit-hit-text">
+                <span class="audit-hit-name">${escapeHtml(it.display_name || it.name || '')}</span>
+                <span class="audit-hit-meta">${escapeHtml(loc.icon || '📍')} ${escapeHtml(loc.label || '')} · ${escapeHtml(qty)}</span>
+            </span>
+        </button>`;
+    }).join('');
+    const catHtml = catalogue.map(p => `<button type="button" class="audit-hit is-missing" onclick="_auditSearchAddProduct(${Number(p.id)})">
+            <span class="audit-hit-thumb">${escapeHtml((typeof CATEGORY_ICONS !== 'undefined' && CATEGORY_ICONS[mapToLocalCategory(p.category || '', p.name || '')]) || '📦')}</span>
+            <span class="audit-hit-text">
+                <span class="audit-hit-name">${escapeHtml(p.name || '')}${p.brand ? ` <span class="audit-hit-brand">${escapeHtml(p.brand)}</span>` : ''}</span>
+                <span class="audit-hit-meta">${escapeHtml(t('audit.search_not_stocked'))}</span>
+            </span>
+            <span class="audit-hit-action" aria-hidden="true">➕</span>
+        </button>`).join('');
+    box.innerHTML = rowHtml + catHtml;
+}
+
+/** Enter in the field: the first hit is the one you meant (rows come first). */
+function _auditSearchPickFirst() {
+    const { hits } = _auditSearchMatches(_auditSearchTerm);
+    if (hits.length) _auditSearchPick(hits[0].id);
+    else _auditRenderSearchResults();
+}
+
+/** Tap a pantry row → the same card as the other mode, for that one product. */
+function _auditSearchPick(invId) {
+    const it = _auditItems().find(r => Number(r.id) === Number(invId));
+    if (!it) return;
+    const term = String(_auditSearchTerm || '').trim();
+    _audit = {
+        items: [it],
+        index: 0,
+        queue: [],
+        errors: 0,
+        counts: _auditEmptyCounts(),
+        scope: null,
+        order: [it.id],
+        answered: {},
+        history: [],
+        startedAt: Date.now(),
+        finished: false,
+        flushPromise: null,
+        mode: 'search',
+        term,
+    };
+    _auditRender();
+}
+
+/** A catalogue product with no stock: stock it (the add sheet, prefilled) and leave the stocktake. */
+function _auditSearchAddProduct(productId) {
+    const products = (typeof _offlineProductsGet === 'function') ? (_offlineProductsGet() || []) : [];
+    const p = products.find(x => Number(x.id) === Number(productId));
+    if (!p) return;
+    _auditStop(false);
+    if (typeof showAddForm !== 'function') return;
+    currentProduct = p;
+    showAddForm();
+}
+
+/** Nothing matched at all: create it (the product form, with the typed name already in). */
+function _auditSearchCreate() {
+    const term = String(_auditSearchTerm || '').trim();
+    _auditStop(false);
+    if (typeof startManualEntry !== 'function') return;
+    startManualEntry();
+    const nameEl = document.getElementById('pf-name');
+    if (nameEl) nameEl.value = term;
+    if (typeof autoDetectCategory === 'function') { try { autoDetectCategory(); } catch (_e) { /* optional */ } }
+}
+
+/** Back to the search from a single-product card, with the term still there. */
+function _auditSearchBack() {
+    if (_audit && !_audit.finished) _auditFlush();
+    _audit = null;
+    _auditStart();
+}
+
+/** Mode 1's card offers the other way in without losing the run (closing keeps the point). */
+function _auditSwitchToSearch() {
+    if (_audit && !_audit.finished) _auditStop(false);
+    _auditMode = 'search';
+    try { localStorage.setItem(AUDIT_MODE_KEY, 'search'); } catch (_e) { /* ignore */ }
+    _auditStart();
 }
 
 function _auditBegin(location, saved = null) {
@@ -247,6 +463,7 @@ function _auditBegin(location, saved = null) {
         startedAt: saved && saved.startedAt ? saved.startedAt : Date.now(),
         finished: false,
         flushPromise: null,
+        mode: 'propose',
     };
     if (!_audit.items.length) {
         // Nothing matched the scope (a row moved between the banner and the tap): say it
@@ -290,6 +507,7 @@ function _auditRender() {
         _auditFinish();
         return;
     }
+    const isSearch = _audit.mode === 'search';
     const total = _audit.items.length;
     const done = _audit.index;
     const percent = Math.max(0, Math.min(100, Math.round(((done + 1) / total) * 100)));
@@ -320,14 +538,14 @@ function _auditRender() {
     const confirmShort = t('audit.confirm_yes_qty', { qty: qtyPlain });
     el.innerHTML = `<div class="audit-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(t('audit.title'))}">
         <div class="audit-top">
-            <div class="audit-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${total}"
+            ${isSearch ? '' : `<div class="audit-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${total}"
                  aria-valuenow="${done + 1}" aria-valuetext="${escapeHtml(countLabel)}">
                 <span style="width:${percent}%"></span>
             </div>
-            <p class="audit-count">${escapeHtml(countLabel)}</p>
+            <p class="audit-count">${escapeHtml(countLabel)}</p>`}
             <button type="button" class="audit-close" onclick="_auditStop()" aria-label="${escapeHtml(t('audit.close'))}">✕</button>
         </div>
-        <p class="audit-eyebrow">${escapeHtml(placeTitle)}</p>
+        <p class="audit-eyebrow">${escapeHtml(isSearch ? t('audit.search_badge', { term: _audit.term || '' }) : placeTitle)}</p>
         <div class="audit-product-row">
             <div class="audit-product-thumb">${thumb}</div>
             <div class="audit-product-main">
@@ -345,8 +563,12 @@ function _auditRender() {
         </div>
         ${_auditScaleReady(it) ? `<button type="button" class="audit-scale-pill" onclick="_auditScale()"><span aria-hidden="true">⚖️</span> ${escapeHtml(t('audit.read_scale'))}</button>` : ''}
         <div class="audit-foot">
-            ${_audit.history.length ? `<button type="button" class="audit-back" onclick="_auditUndo()">↩ ${escapeHtml(t('audit.undo_last'))}</button>` : '<span></span>'}
-            <button type="button" class="audit-skip" onclick="_auditAnswer('skip')">${escapeHtml(t('audit.skip'))} →</button>
+            ${_audit.history.length
+                ? `<button type="button" class="audit-back" onclick="_auditUndo()">↩ ${escapeHtml(t('audit.undo_last'))}</button>`
+                : (isSearch ? '' : `<button type="button" class="audit-back" onclick="_auditSwitchToSearch()">🔎 ${escapeHtml(t('audit.mode_search'))}</button>`)}
+            ${isSearch
+                ? `<button type="button" class="audit-skip" onclick="_auditSearchBack()">🔎 ${escapeHtml(t('audit.search_another'))}</button>`
+                : `<button type="button" class="audit-skip" onclick="_auditAnswer('skip')">${escapeHtml(t('audit.skip'))} →</button>`}
         </div>
     </div>`;
     // The full question is the default; on a narrow screen (or a long place name) it becomes
@@ -596,6 +818,18 @@ async function _auditFlush() {
 async function _auditFinish() {
     const state = _audit;
     await _auditFlush();
+    // A product found by name is ONE question: go back to the search (term still there) and say
+    // what was written, instead of a summary of a run of one.
+    if (state && state.mode === 'search') {
+        const name = (state.history[0] && (state.history[0].item.display_name || state.history[0].item.name)) || '';
+        const errors = state.errors;
+        _audit = null;
+        _auditClearPersist();
+        _auditStart();
+        if (errors) showToast(t('audit.summary_errors').replace('{n}', errors), 'warning');
+        else if (name) showToast(t('audit.search_saved', { name }), 'success');
+        return;
+    }
     // The run stays in memory (not on disk) so the summary can undo the last
     // answer; Done/Escape drops it.
     if (state) state.finished = true;

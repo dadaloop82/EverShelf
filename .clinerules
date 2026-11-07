@@ -144,6 +144,15 @@ runtime/binary files — if a task truly needs one, ask first.
   (`_auditFitConfirm()` measures it and falls back to `Confermi {qty}?`) — + a neutral 2×2 +
   «Salta», and the progress
   bar fills on the card you are LOOKING at: no sentence repeated, no purple, no alarm colours.
+  **Two ways, one card.** `_auditMode` (persisted under `evershelf_audit_mode`) switches between
+  «Uno alla volta» (the app proposes, `_auditScopesBodyHtml` + `_auditBegin`) and «Ti dico io»
+  (`_auditSearchBodyHtml`: a name in, `_auditSearchMatches` over the pantry ROWS then the
+  catalogue, `_auditSearchPick` opens the SAME card for that one product and `_auditFinish`
+  returns to the search with the term still in). The second mode exists for what the first
+  cannot see: a product with no stock anywhere shows as `audit.search_not_stocked` and leads to
+  the add sheet (`_auditSearchAddProduct`), an unknown name to the product form
+  (`_auditSearchCreate`). A search card never persists as a resumable run, and mode 1's card
+  carries a quiet «🔎 Ti dico io» link that keeps the run.
 - **A place is deletable only when empty — and the server decides.** `POST location_delete`
   (`locationDeleteAction`) removes a built-in too (`app_settings.deleted_locations`, subtracted by
   `validInventoryLocations()`), refuses a place with usable stock (`in_use`) and refuses to leave

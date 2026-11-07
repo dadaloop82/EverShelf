@@ -5,6 +5,31 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.8] - 2026-11-07
+
+### Added
+- **The quick stocktake has two ways, and both land on the same card.**
+  - **«Uno alla volta»** — as before: the app proposes the rows it knows, scoped by place.
+  - **«Ti dico io»** — a field where the household types the product name. `_auditSearchMatches()`
+    looks in the pantry ROWS first (name, brand, accent-insensitive: `Caffè` finds `caffe`) and
+    shows where it is and how much is on record; tapping one opens the **same** card (confirm /
+    finished / spoiled / edit / move), and `_auditFinish()` returns to the search with the term
+    still in the field and a `Fatto: {name}` toast. A search card is one question, never a
+    resumable run (`_auditPersist()` skips it).
+  - The second mode exists for what the first cannot see: a product the catalogue knows with **no
+    stock anywhere** is listed as `audit.search_not_stocked` and opens the add sheet
+    (`_auditSearchAddProduct()`), and a name that matches nothing offers `audit.search_create` →
+    the product form with the name already typed (`_auditSearchCreate()`).
+  - The chosen mode is remembered (`evershelf_audit_mode`), and mode 1's card carries a quiet
+    «🔎 Ti dico io» link that keeps the run (it is persisted, resumable as always).
+  - An empty pantry no longer closes the stocktake on a toast: it says there is nothing to propose
+    and offers the search.
+
+### Changed
+- `audit.mode_propose` / `audit.mode_search` and the search strings in the six locales
+  (`search_hint`, `search_placeholder`, `search_none`, `search_create`, `search_not_stocked`,
+  `search_badge`, `search_another`, `search_saved`).
+
 ## [1.31.7] - 2026-11-07
 
 ### Changed
