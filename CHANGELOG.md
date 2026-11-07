@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [Kiosk 1.7.28] - 2026-11-07
+
+Kiosk APK only (the web app has its own version line).
+
+### The in-app update no longer hangs on «scaricamento in corso»
+- **`DownloadManager` was the wrong tool here, twice.** It validates HTTPS against the **system**
+  trust store — a LAN install answers with a **self-signed certificate** — and it waits for a
+  network Android considers "internet", which a LAN-only tablet never has. The request sat
+  `PENDING` and **not one byte reached the server**: the Apache access log has the
+  `kiosk_update` JSON but no `GET /dispensa/releases/evershelf-kiosk.apk` at all.
+- **The app downloads it itself** (`triggerApkDownload()` → `openTrustedConnection()`, the same
+  trusted connection every other call uses) into the app's own folder, with the progress on the
+  same banner, and a failure is said out loud (`install_download_failed` + «Riprova») instead of an
+  endless wait. `installApk()`'s checks (PK magic, package name, versionCode, downgrade refusal)
+  still gate the installer, and `install_download_ok` / `install_download_failed` land in
+  `data/error_reports.log`.
+- Removed with it: the DownloadManager progress poll, `activeDownloadId`, `pollHandler` and the
+  import — dead once the download is the app's own.
+
 ## [Kiosk 1.7.27] - 2026-11-07
 
 Kiosk APK only (the web app has its own version line).
