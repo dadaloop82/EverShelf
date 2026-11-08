@@ -83,6 +83,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cache **survives** a shell update (the `activate` cleanup skips it). Opaque responses carry no CORS
   headers and `cache.put()` stores them all the same. The bleed experiment below keeps the same
   pictures, so a row now paints instantly the second time it is seen.
+- **The image-bleed experiment, eighth pass — the photo starts from its centre** (`?imgexp=1`). The
+  strip was showing the package's **left edge**: `object-fit: cover` never crops horizontally in a box
+  this wide (25% of a card is wider than a package photo's aspect), so the mask was eating the right
+  half of the picture and what survived was its left. Now the box is widened to 150% and pulled left
+  by the same 50%, which puts the photo's centre at 25% of the strip — inside the opaque zone — with
+  its right edge exactly at the boundary the mask has already faded to zero, so no hard edge appears.
+  Measured with a three-band test image (red left · green centre · blue right): the visible zone goes
+  from 32/32 red to 32/32 green. Tune the pair together — `margin-left = width − 100%`.
 - **The image-bleed experiment, seventh pass — one list style** (`?imgexp=1`). In the pantry a row *is*
   a card on the canvas (white, `--radius`, `--shadow`, 8 px apart); on the Home the same rows sat
   inside a tinted frame (`.urgency-hub` white, `.alert-section` amber) with hairlines between them, so

@@ -59,12 +59,20 @@ html.imgexp.is-touch-tablet .inventory-item .inv-card-bottom { padding-left: 0; 
 html.imgexp .inventory-item .inv-card-bottom { flex-wrap: wrap; row-gap: 6px; }
 html.imgexp .inventory-item .inv-card-bottom > * { white-space: nowrap; }
 
-/* ── 3. The photo: cover and a long dissolve that is gone before the text ──── */
+/* ── 3. The photo: cover, the CENTRE of the package in view, long dissolve ───
+   `cover` never crops horizontally in a strip this wide (the box is wider than the photo's
+   aspect), so the mask was eating the right half of the picture and what survived was the
+   package's LEFT edge. To show its middle instead, the box is widened and pulled left by
+   exactly the extra width: the photo's centre then sits at 25% of the strip — inside the
+   opaque zone — while its right edge stays at 100%, where the mask is already transparent,
+   so no hard edge appears. Tune the pair together: `margin-left = width − 100%`. */
 html.imgexp .inventory-item .inv-image img,
 html.imgexp .inventory-item .inv-image .product-thumb-img,
 html.imgexp .alert-item .product-thumb-img,
 html.imgexp .item-detail-header-row .item-detail-image img {
-    width: 100%;
+    width: 150%;
+    max-width: none;
+    margin-left: -50%;
     height: 100%;
     object-fit: cover;
     padding: 0;
