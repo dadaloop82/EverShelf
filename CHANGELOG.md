@@ -5,6 +5,346 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.23] - 2026-11-08
+
+### Fixed
+- **A recipe proposed products that were not in the pantry.** The AI writes `from_pantry: true` on
+  every ingredient it believes is on the shelf (the prompt tells it to), and
+  `enrichRecipeIngredientsStock()` is the only thing that checks it against the real inventory. When
+  that read failed (a heavy `inventory_list?for_recipe=1&include_depleted=1` on a 197-row pantry),
+  the `catch` swallowed the error and **the AI's claims stood**: rows rendered with ✅ and a working
+  **Usa** button for food that is not there, and the tap answered "non è in dispensa". A row we could
+  not verify is now a MISSING row — struck through, no button, no ✅ (`stock_missing = true` in the
+  `catch`), which is the same rule the successful pass already follows.
+
+
+### Fixed
+- **"Una confezione da 1000 g" was refused with «deve superare i 20 g».** The floor that exists to
+  stop "2 g typed instead of 2 pieces" (`inventoryMinAddQuantity`, `_ADD_MIN_QTY_FOR_UNIT`) was being
+  applied to a **number of packs** using the **package's** unit: one confezione is `1`, and 1 is not
+  "less than 20 g". Both sides now skip the floor when the quantity counts packs or pieces — the
+  product is sold in confezioni, or the unit being written IS `conf`/`pz` — because a pack is
+  measured by its own size (`default_quantity` + `package_unit`), never by the floor of the unit
+  printed on it. A bare weight/volume entry keeps the floor, which is the case it was written for.
+  The refusal is also traced (`ADD below floor unit=… qty=… min=… product_unit=… pkg=…`), so if it
+  ever happens again the exact numbers are in the log instead of a guess.
+- **"Prodotto non nell'inventario" about a product that was right there.** Every discard refreshes
+  the app in the background (`refreshAppDataAfterMutation`), and during that window
+  `currentInventory` can be empty or filtered to another place — so the *second* discard in a row
+  found nothing in the client caches and told the household their food did not exist. Both
+  `_submitWasteRecord()` and `deleteInventoryItem()` now ask the server once (`inventory_list`)
+  before giving that answer, exactly like the edit sheet already did.
+
+### Changed
+- **The quick stocktake has a THIRD way in — the barcode — on its OWN camera, and the three ways share
+  ONE inventory.** The wizard could propose the rows it knows or take a name; now «📷 Scansiona» opens
+  a **dedicated stream** (its own overlay, `#audit-scan-overlay`, started the moment you choose the
+  mode) and the first code read opens the same card the other two ways use. It is deliberately
+  **independent of the scanner the shopping trip and the medicine cabinet use**: no `showPage('scan')`,
+  no `_spesaMode`, no AI identification, no panels — a stocktake in front of a shelf is a different
+  procedure. Only the decoder (`_ensureBarcodeEngines()` + `_scanDetectFrame()`) and the catalogue
+  lookup (`_resolveBarcodeLookup()`) are shared, because a second copy of either would read the same
+  code differently. A product standing in two places answers with the row of the place you are
+  inventorying; an unreadable code or a box the ledger does not know keeps the stream running and says
+  why. Answering the card reopens the camera on the next box (the tally of the three ways is printed
+  under the viewfinder), ✕ or Esc goes back to the sheet, and a `visibilitychange` handler releases the
+  stream so a camera never outlives it. And it is not a separate session: `_auditSession` holds the
+  tally (`✓ confermati · 🏁 esauriti · 🗑️ deperiti · ⏭️ saltati`), the answers and the propose run's
+  point, every sheet prints it with «Riepilogo» and «↩ Torna alla card», and «Fatto» closes it — so a
+  fridge checked by hand, three products found by name and two scanned boxes are ONE stocktake with
+  one summary. Six locales.
+- **«Ti dico io» (the quick stocktake's search) now answers about the shelf you are inventorying.**
+  The list mixed rows that really exist with products the app merely knew (dashed "not in the
+  pantry" rows leading to the add form) and with rows already finished, and the place you had opened
+  lived only in the banner's title: searching "latte" in the fridge gave a list where the fridge's
+  own row sat somewhere in the middle. The search is now built from rows that hold **usable stock
+  only**, split into `here` (the place this stocktake is about — `_auditScopeKey()`: the run's
+  scope, otherwise the pantry's open place, otherwise the last one, kept in
+  `evershelf_audit_scope`) and `elsewhere`, and the first group is printed under its own heading.
+  Every hit opens with the place mark — **✓** it stands here, **✕** it does not — and the action on
+  the right answers the same question: the emerald **✓ C'è** confirms the row with one tap and no
+  card (`_auditSearchQuickThere`, the same "there" answer the card records), a neutral **Sposta qui**
+  (`_auditSearchMoveHere` → `inventory_update` with the new location, so the ledger keeps its
+  «Spostamento» trail) brings it where it belongs and the row flips to ✓ at once.
+- **«Butta» is «Butta/Elimina»** (`action.throw_btn`, `inventory.item_detail_throw_short`), and a
+  medicine's `medical.discard` says «Elimina»: the same button covers a discard and a row that
+  should not exist, and the label now says both. Six locales.
+- **A fifth waste reason: «🧾 Errore inventario».** The household kept improvising it with "Altro":
+  a duplicate row, a wrong quantity that made the app invent a product, a scan that landed on the
+  wrong article. It is still a discard — the stock leaves the shelf — but the reason says the row
+  was WRONG rather than that food was wasted, so a correction no longer counts as waste in the
+  statistics. `WASTE_REASON_KEYS` + the six locales.
+- **The splash had a SECOND progress line, and it was the stray line under the stage caption.**
+  In a `?debug=1` boot a 3 px track and its fill (`.preloader-bar-track` / `#preloader-bar`) sat
+  between the caption and the credits: it duplicated the boot rail's own connector
+  (`--preloader-progress`, which `_preloaderStage()` already raises) and it was still coloured for
+  the old **dark** splash, so on today's light canvas only the line survived — its status words
+  (pale green/amber) were invisible, and what a household saw was "a strange line that forms".
+  The bar is gone for good: the rail IS the progress, and a `?debug=1` boot keeps only the check's
+  name (`.preloader-status-text`, repainted in the slate family `#475569` / `#b45309` / `#b91c1c`
+  so it can be read at all). `setProgress()` lost its bar branch instead of keeping a reference to
+  an element that no longer exists. And the foot is now **one block**: the credit line, the project
+  chip and SHELFY live in `.preloader-foot` with an 8 px gap, so their spacing comes from one place
+  instead of three negative margins that cancelled the rail's 18–28 px gap. And **«Sistema OK» no
+  longer flashes** at the end of a clean boot: `_runStartupCheck()` un-hid the ticker for 220 ms even
+  outside debug mode, so a household saw a sentence appear and vanish on the way out. Nothing to
+  report means nothing is printed — the ✓ of the `ready` stage is the "all good" signal, and the line
+  stays where it belongs, in `?debug=1`.
+- **"E -": the app name was being CLIPPED, not dropped.** On a phone the header read like a broken
+  title (the name cut to a glyph) and no code looked wrong: `.header-title` is a flex item, so its
+  default `min-width: auto` pinned it to the width of the whole `nowrap` title. It never shrank — it
+  overflowed `.header-title-wrap`, which clips (`overflow: hidden`), so `scrollWidth === clientWidth`
+  at EVERY viewport and `_paintKioskVersion()` (the function whose only job is to drop what does not
+  fit) measured nothing and dropped nothing. Three fixes: the row can now shrink (`min-width: 0`,
+  with the logo `flex: 0 0 auto` so the mark is the last thing to give way); the fallback chain gained
+  its last step — after the kiosk label and the branch, **the NAME goes entirely** instead of being
+  clipped (`.header-title.is-name-hidden` → logo + app version, the version raised a notch because it
+  is then the only text up there); and the `hidden` flags are reset on every measurement, because a
+  branch hidden by a narrow measurement could never come back after a rotation. Measured on the real
+  header, with the two action buttons present: 320–340 px → logo + version, 360–400 px → logo + name
+  + version (branch gone), 430 px and up → the branch returns.
+
+  ads — in English, on purpose.** Under the open-data credit there is now one quiet chip — the
+  GitHub mark, «Free and open-source project», the address of the repository
+  (`github.com/dadaloop82/EverShelf`, a real link, the same one Settings → About already offers)
+  and **two standard badges instead of more prose**: the SPDX licence code `MIT` (read from the
+  repository's own `LICENSE`, never a badge the project does not own) and `No ads`, which is a
+  fact — the banner slots are commented out on purpose. The three strings are **not translated**:
+  the splash is painted before the language is known (translations land while it is already on
+  screen), so a translated line would flash in one language and settle in another, or print a
+  half-translated mix on a new device — `startup.powered_by_open_data` already worked that way. The
+  meaning is carried by the marks (`assets/img/icons/github.svg`, `license.svg`, `no-ads.svg`, all
+  in the service-worker shell, so an offline boot still shows them) and by a code that is the same
+  in six languages; they keep GitHub's slate instead of the app's emerald (the emerald on that
+  screen belongs to the stage that lights up), and the chip is `tabindex="-1"`: the splash is
+  `aria-hidden` and deletes itself ~1.7 s after boot, so a keyboard never lands in it. The same
+  facts, translated, are one tap away in Settings → About.
+
+
+### Fixed
+- **Two ways a best-before date could move on its own, and neither was the household.** Found by
+  auditing this install row by row (`expiry_user_set`, `added_at`, `updated_at` against the estimate):
+  nothing bulk-ran, no migration restarted (every flag in `app_settings` is present), no row carried
+  a date recomputed "from today" for all rows — but two defects did produce dates nobody typed:
+  1. **The backfill counted shelf life from the day it ran, not from the day the product entered the
+     pantry.** Four rows of *salt* added on **2026-03-10** were dated **2027-11-07** — the day the
+     pass ran, plus a year. The pass now anchors on `added_at` (`expiryDateFromDays($days, $added_at)`).
+  2. **The `9999` sentinel — "non-perishable" (salt, sugar, honey, vinegar, bicarbonate) — became a
+     real date**: `today + 9999 days` = **2054-03-13**. Two rows carried it (cider vinegar, muesli).
+     A pantry may say *"senza scadenza"*; it may not invent the year 2054. The sentinel now yields
+     **no date at all**, in the add path, the backfill, the fridge recalculation and the "opened"
+     path (`min(sealed, opened)` can still keep a real date, it just cannot invent one).
+  Dates set by hand (`expiry_user_set = 1`, 95 rows here) are never touched by any of this.
+- **`scripts/fix-expiry-anchors.php` repairs what already happened**, instead of re-entering it by
+  hand: it prints (dry run) the rows whose date is hung off `updated_at` and re-anchors them on
+  `added_at`, and clears any date in the year 2050+ — with a `VACUUM INTO` backup before writing and
+  a `--min-shift` (default 3 days) so a row bought the day before it was used is left alone.
+  On this install: 7 rows re-anchored, 2 cleared, 95 hand-set dates untouched.
+
+
+### Fixed
+- **The wall said "microphone not allowed — check the browser permissions", and the permissions were
+  fine.** That sentence is `capture.mic_denied`, and it was reached through the fallback card's
+  **"🔄 Riprova a voce"**: `_captureRetryVoice()` called `_captureStartVoice()` with **no guard**, so
+  on the tablet the session started, Android refused the microphone (a permission surface cannot
+  come to the front over a locked-task Activity) and the sheet blamed the household's permissions.
+  The tablet HAS a microphone; it is SHELFY that cannot listen in that WebView. Now:
+  - `_captureStartVoice()` refuses on a kiosk wherever it is called from (trace
+    `SHELFY startVoice refused on kiosk`) and says `capture.kiosk_no_voice`;
+  - `_captureRetryVoice()` does the same instead of arming a session it cannot run;
+  - the button is **hidden** on a kiosk (`html.is-kiosk #capture-fallback .capture-fallback-retry`)
+    so the card offers only what works: the chat, and the example phrases one tap each.
+  Same rule as v1.31.19: a wall never promises, nor blames, a voice it does not have.
+
+
+### Fixed
+- **"Questo tablet non ha il microfono" was a lie, and the tablet's owner called it.** The wall HAS a
+  microphone — what it cannot do is let SHELFY *listen* in that WebView without the Activity being
+  recreated. The sentence said the wrong thing about the hardware; it now says the truth, in all six
+  locales: *«Su questo tablet SHELFY non può ascoltare: tocca una delle frasi qui sotto (o apri la
+  chat).»* (`capture.kiosk_no_voice`). The presentation follows: on a kiosk `_shelfyOpenIntro()`
+  replaces the lead line ("ascolto, capisco…") with the same sentence — borrowing the key that
+  already exists, so no new translation — and carries `data-i18n` with it, so a language change
+  keeps it. The microphone button stays hidden there: offering a control that cannot work is the
+  other half of the same lie.
+
+
+### Fixed
+- **Tapping SHELFY no longer does its heaviest work while the app is still booting.** The wall's log
+  of v1.31.17 is one second long: `09:27:17 [BOOT] type=reload v=1.31.17` →
+  `09:27:18 [SHELFY] open` → **five `renderer-killed-oom` in the same second**, with no camera page
+  open and 1108 MB free. At that instant the page is still loading settings, stats, the dashboard and
+  its own inventory; SHELFY's open added a 136 KB `inventory_list` on top of that. The rows are
+  needed by the END of a turn, not by the open, so while `body.is-booting` is set the sheet no longer
+  fetches them (`_captureInventoryRows()` fetches on demand when a lookup needs them).
+- **A kiosk never probes the on-device speech stack.** `_captureProbeLocal()` called
+  `SpeechRecognition.available({ processLocally: true })` — an Android query for the on-device
+  recognition language pack — on **every** SHELFY open, on a device whose capture is by tap only
+  (`_openCaptureSheetInner()` refuses to arm a recogniser there). Waking the speech service inside
+  the renderer that is already the biggest process on the tablet buys nothing and costs everything.
+- **The next kill will name its step.** `_openCaptureSheetInner()` now writes `step=0 open …
+  booting=…`, `step=1 rows`, `step=2 probe`, `step=3 intro|sheet` to the server log through
+  `_kioskTrace()`, so a kill during that tap is no longer a guess about which line was running.
+
+
+### Fixed
+- **The scanner no longer decodes the RAW camera frame sixty times a second — this is what killed
+  the kiosk renderer.** Every pass called `detect(videoEl)` on the `<video>` itself: at 1080×1920
+  that is a ~8 MB bitmap allocated inside the WebView renderer, up to 60 times a second (≈500 MB/s
+  of churn) while the camera is live. The wall proved it: with **no wasm engine loaded at all**
+  (v1.31.16 skips ZBar and Tesseract on a kiosk — the log says `ZBar skipped on kiosk`,
+  `Engines ready — native: true, ZBar: false`) the renderer was still killed **three times in one
+  second**, 3–4 s after `Unified scanner started`, with the camera already running happily before.
+  Now:
+  - the frame is drawn into **one reused canvas, downscaled so its SHORT edge is 720 px** (a
+    portrait wall frame becomes 720×1280, a phone 1280×720) — capping the long edge would have left
+    405 px of width on a portrait video, too little for a dense EAN-13;
+  - the engine is asked at most **once every 150 ms on a kiosk / 80 ms elsewhere** (≈6–12/s);
+  - the boxes come back in canvas pixels and are mapped to video pixels
+    (`_codesToVideoSpace()`), so the lock rectangle, the AI crop and the confirmations keep working
+    on the coordinates everything else expects.
+  Measured: **6 detect/s on `CANVAS 1280×720`, zero JS errors** (was ~60/s on the raw 1080×1920
+  video) — the per-second allocation drops from ~500 MB to ~22 MB. Phones and desktops get the same
+  (cheaper) path, and a barcode held in front of the lens stays in frame for dozens of reads.
+
+
+### Fixed
+- **"All'avvio dice che non c'è la connessione" non è più un vicolo cieco.** `_runStartupCheck()`
+  asked for `health_check` **once**, and any failure — including the 12 s `AbortController` — landed
+  in a single catch that declared *"Cannot reach the server"* and parked the household on a Retry
+  screen. That is the report: the log of the wall (`[RELOAD] startup_retry`) is a boot that had to be
+  restarted by hand. Now the health check is asked up to **three times** (0 / 800 ms / 2 s) with the
+  attempts written to the client log (`[STARTUP_FAIL]` / `[TIMEOUT]` / `[STARTUP_RETRY]`), and a
+  **timeout is not "the server is not there"**: `AbortError` takes the same friendly exit the
+  rate-limited branch already had ("Server busy — continuing with cached data"), so a PHP side that
+  is momentarily busy (a backup, the cron holding the SQLite lock, an import) can no longer keep the
+  app from starting.
+- **A first load that dies in flight asks again instead of showing an empty pantry.** `loadInventory()`
+  has always kept the visible list when an answer is an error — but on the **first** load there is
+  nothing to keep, so the household saw an empty pantry that came back on the next reload ("sembra
+  che perda tutti i dati"). When the inventory is empty and the read failed, the page now retries
+  once after 1.5 s (logged as `[API_RETRY]`) before settling on an empty page.
+- **A kiosk no longer instantiates ZBar next to the native detector.** `_ensureBarcodeEngines()`
+  loaded the ZBar wasm (~2 MB, plus its own per-frame decode path) **even when `BarcodeDetector`
+  was present and working** — the wall's log line `Engines ready — native: true, ZBar: true` is the
+  fingerprint, and every `renderer-killed-oom` recorded there happened 5–15 s after the camera
+  started with both engines live. On a kiosk with a native detector ZBar is now skipped
+  (`ZBar skipped on kiosk — the native detector reads`, verified: **0** requests to
+  `assets/vendor/zbar`, `native: true, ZBar: false`); a kiosk *without* the native API still loads
+  it, because there it is the only engine. Phones and desktops are unchanged.
+
+
+### Logging
+- **Three levels, two rivers, and a device tag that stops lying.** The client had **no levels at
+  all**: the first argument of `remoteLog()` was a free-form TAG (`SCAN`, `JANK`, `API_ERROR`,
+  `CAM`…) and `clientLog()` filed every line under whatever the **User-Agent** said. An Android
+  WebView reports `Android` exactly like a phone, so the wall's own evidence was written as
+  `[phone]` — which is how one afternoon of kiosk logs got read as "the phone". Now:
+  - every line is `[timestamp] [INFO ] [WARN ] [ERROR] [device] tag text`;
+  - `data/logs/app-YYYY-MM-DD.log` and `data/logs/kiosk-YYYY-MM-DD.log` are **separate rivers**
+    (`source` + `device` are declared by the client: `kiosk|tablet|phone|desktop`);
+  - the kiosk's **native** reports (`report_error`, console tail, `renderer-killed-oom`) land in
+    the same `kiosk-*.log`, so rebuilding a wall timeline is one command, not two files;
+  - `LOG_LEVEL` in `.env` governs both the server and what clients may store (`EVERSHELF_LOG_KEEP_DAYS`
+    = 14 days of retention, `data/logs/` is git-ignored);
+  - one device can be raised alone for an afternoon: `?log=debug` (or
+    `localStorage.evershelf_log_level`, or `setLogLevel('debug')` from the console);
+  - `data/client_debug.log` stays as a compatibility mirror for `get_client_log`.
+- The existing call sites did not change: `_logLevelFromTag()` reads the level out of the tag
+  (`UNCAUGHT`/`API_ERROR` → error, `JANK`/`TIMEOUT`/`MEM` → warn, the rest → info), and new code can
+  pass it explicitly (`remoteLog('info', 'CAM', …)`). `scanLog()` is filed as `[INFO] [SCAN]`, or
+  `[ERROR]` when the line says `CAMERA ERROR`/`TIMEOUT`.
+- The kiosk APK carries the level with every report (`info` for a page trace, `warn` for a killed
+  renderer, `error` for a JS exception): `ErrorReporter.reportMessage(…, level = …)`.
+
+### Fixed
+- **A kiosk no longer runs the digit OCR, which is what killed its renderer.** The wall's own log
+  of one attempt is the whole diagnosis:
+  `08:46:36 [SCAN] Stream OK — camera 0` → `08:46:47 [SCAN] Local OCR engine ready` →
+  `08:47:01 [kiosk] renderer-killed-oom` → `08:47:10 [BOOT] type=navigate` (a new Activity, no
+  `PAGEHIDE`: the page never got to say goodbye). Loading the Tesseract worker and drawing
+  1080×1920 video frames into a canvas to hand them over is the heaviest thing the scan page can do,
+  and it happened while the camera was live — with `avail_mb` between 814 and 1121 of 2857, so it
+  was never a RAM shortage. A wall reads **barcodes**, and the native `BarcodeDetector` does that
+  without any wasm; the digits-under-a-damaged-barcode rescue (step 4 of the scanner loop) now stays
+  on phones and desktops, `_tryLocalEanDigitOcr()` refuses on a kiosk as well, and the medicine
+  panel keeps its own reader — which loads the engine when the household really asks for it.
+- **SHELFY never arms a recogniser on a kiosk.** `webkitSpeechRecognition` exists in some Android
+  WebViews and opens a **microphone** session through the `WebChromeClient`; a permission surface
+  cannot come to the front over a locked-task kiosk, the Activity is recreated, and the wall reads
+  that as "tapping SHELFY restarts the app" — the symptom that survived v1.31.1's keyboard fix.
+  `_openCaptureSheetInner()` and `_captureSyncMicAvailability()` now treat a kiosk as "no
+  recogniser": the mic is hidden, the sheet says `capture.kiosk_no_voice`, the example sentences
+  stay one tap away.
+- **A camera that never answers says so instead of leaving a grey box.** The wall reported "the
+  stream does not open, there is a grey box" with **nothing** in the log, because a `getUserMedia()`
+  whose request died with a previous renderer neither resolves nor throws — the promise simply stays
+  pending under the black cover `showPage('scan')` puts there. After 8 s the page now writes
+  `CAM getUserMedia timeout` to the server log and shows the camera error with one **Riprova**
+  (`_cameraRetry()`: `stopScanner()` releases whatever the old attempt left, then a fresh request).
+- **The page can now say what it was doing when the renderer died.** `_kioskTrace(tag, msg)` writes
+  to the server log immediately (`_remoteLogSync`, keepalive — it survives the death of the page)
+  and, when the APK exposes it, to the native report through `_kioskBridge.logEvent()`. It is called
+  at the decisive points: scanner init, stream OK, camera error, timeout, retry, SHELFY open (with
+  whether a recogniser exists at all). Every previous attempt left us guessing; this one will not.
+
+## [Kiosk 1.7.32] - 2026-11-08
+
+Kiosk APK only.
+
+### The wall's report carries the page's own last words
+- `onConsoleMessage` used to forward **only** ERROR lines. What the page is doing when a renderer
+  dies is an INFO line (`Stream OK`, `Local OCR engine ready`, a `[CAM]` trace) — so the console is
+  now kept in a bounded ring of the last 30 lines, **whatever the level**, and it rides along in
+  the `renderer-killed-oom` / `renderer-crashed` report, together with `camera_permission`,
+  `lock_task`, `restarts_10min` and `restart_delay_ms`.
+- New JS bridge `logEvent(tag, message)`: `app.js` reports the few facts that decide the wall's two
+  symptoms (camera asked/answered/failed/timed out, recogniser present or not) straight into the
+  server log. An older `app.js` that does not know the method checks `typeof` first, so the two
+  sides never depend on each other.
+- **The restart is not a loop any more**: three renderer kills inside ten minutes make the next
+  restart wait 20 s instead of 600 ms, and the console tail says what the page was doing. A wall
+  that restarts every few seconds is worse than a wall that waits.
+
+
+### Fixed
+- **Opening the scanner no longer downloads a 23 MB model.** `showPage('scan')` called
+  `_getCategoryPipeline()` on every device, which imports 0.9 MB of transformers, instantiates the
+  ONNX Runtime wasm and fetches `Xenova/all-MiniLM-L6-v2/onnx/model_quantized.onnx` — **22.9 MB** —
+  *while* `getUserMedia()` is starting. Reproduced here against this very server: opening the
+  scanner is what makes those five requests appear, and the `[LONGTASK] 6795 ms page=scan` line in
+  `data/client_debug.log` is that wasm compile blocking the main thread right before `Stream OK`.
+  On a 2.8 GB WebView renderer that is the largest spike the page can produce, at the worst
+  moment — the wall reported it as "the camera does not open any more" and, when the renderer was
+  killed, as "the app restarted". The classifier only ever feeds a *category guess* for a typed
+  name that names no genre (`classifyCategoryByEmbedding()`), so it now loads when that guess is
+  made and never on the scan page; and on a kiosk it is skipped altogether
+  (`_isKioskDevice()`), where the vocabulary (`guessCategoryFromName`) is the same dictionary that
+  classifies everything else. Verified: **0** requests to `vendor/transformers/**` on an open of the
+  scanner (was 5, model included), with the camera streaming 1920×1080 and the action bar on screen.
+- **A kiosk does not warm the OCR engine 400 ms after the camera starts.** `initScanner()` scheduled
+  `_ensureTesseractWorker()` unconditionally — a multi-megabyte wasm instantiation while the
+  household is still aiming, undoing the boot-time skip that v1.31.2 added for exactly this reason.
+  Every OCR path awaits the worker itself, so the engine still arrives when a pass really needs it
+  (the scanner's own digit read is one, a couple of seconds later): it simply no longer competes
+  with the camera's first frames.
+- **A long list is laid out for real, not estimated.** v1.31.11 put `content-visibility: auto` +
+  `contain-intrinsic-size: auto 88px` on `.inventory-item` / `.alert-item` / `.shop-row` on the
+  kiosk. Measured on these stylesheets at a tablet viewport: an off-screen row is laid out **90 px**
+  while the *same* row is **102 px** the instant it becomes relevant (the plain rule is 114 px), so
+  the list's height comes from numbers that are not the rows — the scrollbar lies, a
+  `scrollIntoView` lands elsewhere and every row resizes as it enters the screen (~2 400 px of
+  accumulated error over 197 rows). It looked like a rendering fault on the wall. Removed: the boot
+  storm it was written for is answered by the read cache in `api()` (`_API_READ_CACHEABLE`), which
+  is where the eight `inventory_list` calls of one boot came from in the first place.
+- **The stall detector stops reporting timers that were merely asleep.** `_watchMainThreadStalls()`
+  measured a `performance.now()` delta inside a 1 s interval and called any gap a block — but a
+  hidden page throttles timers to one per minute, so a background tab wrote
+  `[JANK] blocked ~59 000 ms` every minute for hours and one line claimed **3 021 357 ms** (50
+  minutes) while other lines kept arriving. That is the noise that made "the kiosk freezes" look
+  proved yesterday: the clock now runs only while `document.visibilityState === 'visible'` and
+  restarts on `visibilitychange` / `pageshow`.
+
 ## [Kiosk 1.7.31] - 2026-11-07
 
 Kiosk APK only.

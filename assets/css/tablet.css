@@ -310,18 +310,27 @@ html.is-kiosk .cooking-voice-hint {
     backdrop-filter: none !important;
 }
 
-/* ── A long list on the wall only renders what is on screen ───────────────────
- * The pantry has 197 rows and every dashboard/shopping list is one long page, so Chrome laid out,
- * painted and decoded the images for all of them at once. On a 2.8 GB tablet that is what made
- * the renderer the biggest process in the system — and the one Android kills
- * (`renderer-killed-oom`, twice within seconds of a boot). `content-visibility: auto` lets the
- * engine skip everything outside the viewport, and `contain-intrinsic-size` keeps the scrollbar
- * honest about the height it has not measured yet. Kiosk only: the desktop and the phone have the
- * memory to spare and must not lose any rendering nuance.
+/* ── A long list is laid out for real, not estimated ─────────────────────────
+ * v1.31.11 tried `content-visibility: auto` + `contain-intrinsic-size: auto 88px` here, to stop
+ * the engine laying out 197 rows at once. Measured on these very stylesheets at a tablet
+ * viewport, it does the opposite of what it promises: an off-screen row is laid out 90 px while
+ * the SAME row is 102 px the instant it becomes relevant (and the plain rule is 114 px), so the
+ * list's height is computed from numbers that are not the rows, the scrollbar lies, a
+ * `scrollIntoView` lands somewhere else, and every row resizes as it enters the screen — on a
+ * 197-row pantry that is ~2 400 px of accumulated error under the household's finger, and it
+ * looks like a rendering fault. The wall does not need it either: the boot storm it was written
+ * for is answered by the read cache in `api()` (`_API_READ_CACHEABLE`), which is where the eight
+ * `inventory_list` calls of one boot were actually coming from.
  * ========================================================================= */
-html.is-kiosk .inventory-item,
-html.is-kiosk .alert-item,
-html.is-kiosk .shop-row {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 88px;
-}
+
+/* ── A kiosk does not offer a voice it cannot use ────────────────────────────
+ * The fallback card's "🔄 Riprova a voce" called `_captureStartVoice()` with no guard: on the wall
+ * the recogniser started, Android refused the microphone (a permission surface cannot come to the
+ * front over a locked-task Activity) and the sheet printed `capture.mic_denied` — *"Microfono non
+ * consentito: controlla i permessi del browser"* — sending the household to check permissions that
+ * are perfectly fine. The tablet HAS a microphone; it is SHELFY that cannot listen there. The card
+ * keeps the chat (its other way forward, which always works) and the example phrases, one per tap.
+ * `_captureRetryVoice()` and `_captureStartVoice()` refuse on a kiosk as well, so the button being
+ * hidden is a courtesy and not the only defence.
+ * ========================================================================= */
+html.is-kiosk #capture-fallback .capture-fallback-retry { display: none; }

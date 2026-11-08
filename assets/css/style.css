@@ -224,8 +224,24 @@ body.is-booting.is-revealing .bottom-nav {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/* ── The foot of the splash: ONE signature ────────────────────────────────
+   Open-data credit + project chip + SHELFY are one block, so the space that
+   separates them is THIS gap (8 px), and the parent's own 18–28 px gap stays
+   what it was meant for: the distance between the boot rail and the foot.
+   Before, the three elements were siblings of the rail and every gap between
+   them had to be cancelled with a negative margin — the layout was correct by
+   subtraction, and the credit line floated away from the chip it explains. */
+.preloader-foot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
 .preloader-powered {
-    margin: 8px 0 0;
+    /* Margin lives in `.preloader-foot`'s gap: never both (that is how a 20 px
+       hole appeared between the credit and the chip). */
+    margin: 0;
     padding: 0 16px;
     font-size: 0.72rem;
     font-weight: 500;
@@ -235,9 +251,109 @@ body.is-booting.is-revealing .bottom-nav {
     max-width: 22rem;
     line-height: 1.35;
 }
+/* ── Who makes it, and that it costs nothing ─────────────────────────────
+   The line under the open-data credit: a free, open-source project and the
+   address of its source. ONE chip — a 16 px mark, two lines of text — never a
+   wall of prose: the splash is read in half a second, and this row only has to
+   answer "does this thing cost me something?" without competing with the boot
+   rail. Slate on purpose: the emerald on this screen belongs to the stage that
+   lights up, and nothing here writes stock. */
+.preloader-github {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 13px;
+    border: 1px solid rgba(148, 163, 184, 0.38);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.62);
+    text-decoration: none;
+    color: #475569;
+    max-width: min(23rem, 90vw);
+    transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.preloader-github:hover,
+.preloader-github:focus-visible {
+    border-color: rgba(100, 116, 139, 0.55);
+    background: #ffffff;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+.preloader-github-mark {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    opacity: 0.85;
+}
+.preloader-github-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;    /* lets the URL ellipsise instead of widening the chip */
+    text-align: left;
+}
+.preloader-github-title {
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: 0.01em;
+    color: #475569;
+}
+.preloader-github-url {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.66rem;
+    font-weight: 500;
+    line-height: 1.25;
+    color: #64748b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* The two facts under the address, as STANDARD codes rather than prose: the SPDX
+   licence identifier (`MIT`, never translated — a code that means the same thing in
+   six languages) and the absence of advertising, whose two words are the same English
+   in every locale (the splash is painted before the language is known) while its drawn
+   mark only says "no". Pills on a hairline, so they read as metadata and not as
+   buttons: nothing here is clickable on its own (the whole chip is the link). */
+.preloader-github-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 3px;
+}
+.preloader-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    background: rgba(255, 255, 255, 0.75);
+    font-size: 0.6rem;
+    font-weight: 600;
+    line-height: 1.45;
+    letter-spacing: 0.01em;
+    color: #475569;
+    white-space: nowrap;
+}
+.preloader-tag-mark {
+    width: 11px;
+    height: 11px;
+    flex: 0 0 11px;
+    opacity: 0.9;
+}
+/* A code, not a word: monospace + tracking so `MIT` reads as an identifier. */
+.preloader-tag-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+}
+@media (max-width: 400px) {
+    .preloader-github-title { font-size: 0.64rem; }
+    .preloader-github-url { font-size: 0.62rem; }
+}
 /* ── SHELFY at the foot of the splash ─────────────────────────────────────
    The assistant introduces itself later, in its own sheet; here it only waits,
-   small, under the open-data line. Same drawing, same breathing halo as the
+   small, under the credit and project lines. Same drawing, same breathing halo as the
    button in the bottom nav, so the face is already familiar when the app opens.
    The avatar is a transparent PNG: the soft ring and the drop shadow follow its
    alpha, never a rectangular box. */
@@ -248,8 +364,8 @@ body.is-booting.is-revealing .bottom-nav {
     justify-content: center;
     width: 68px;
     height: 68px;
-    /* The inner flex already spaces its children: pull it back under the line. */
-    margin-top: -8px;
+    /* The ring is drawn outside the avatar: the breathing halo needs the extra room,
+       not a negative margin (the foot's own gap sets the distance from the chip). */
     animation: preloader-shelfy-in 0.55s ease-out 0.15s both;
 }
 .preloader-shelfy-ring {
@@ -282,8 +398,11 @@ body.is-booting.is-revealing .bottom-nav {
 }
 /* Short viewports (a phone in landscape): the avatar gives way to the stages. */
 @media (max-height: 620px) {
-    .preloader-shelfy { width: 54px; height: 54px; margin-top: -4px; }
+    .preloader-shelfy { width: 54px; height: 54px; }
     .preloader-shelfy-avatar { width: 44px; height: 44px; }
+    /* The foot also gets tighter: on 620 px of height every row counts. */
+    .preloader-foot { gap: 6px; }
+    .preloader-github { padding: 5px 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
     .preloader-shelfy { animation: none; }
@@ -536,56 +655,51 @@ body.is-booting.is-revealing .bottom-nav {
         animation: none !important;
     }
 }
-/* ── Startup progress section ────────────────────────────────────────── */
+/* ── Boot diagnostic line (debug only) ─────────────────────────────────────
+   THERE IS NO SECOND PROGRESS LINE. The rail already draws one: the connector
+   behind the three dots fills left to right as `_preloaderStage()` raises
+   `--preloader-progress`, so the 3 px bar that used to sit here was a
+   duplicate — and, still coloured for the old DARK splash (a near-transparent
+   white track, pale-green digits), on today's light canvas it survived as a
+   stray line between the stage caption and the credits, with no readable words
+   next to it. What a developer needs from `?debug=1` is the name of the check,
+   so only the ticker is left, painted for a light background.
+   `#preloader-progress-wrap` stays because `_runStartupCheck()` owns the
+   visibility of that line (`display:none` unless `_bootDebug`). */
 .preloader-progress-wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 14px;
     width: min(92vw, 520px);
     animation: zwFadeIn 0.25s ease;
 }
-.preloader-bar-track {
-    width: 100%;
-    height: 3px;
-    background: rgba(255,255,255,0.08);
-    border-radius: 99px;
-    overflow: visible;
-}
-.preloader-bar {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, #4ade80, #22c55e);
-    border-radius: 99px;
-    transition: width 0.22s cubic-bezier(0.4,0,0.2,1), background 0.3s ease;
-    box-shadow: 0 0 8px rgba(74,222,128,0.55);
-}
-.preloader-bar.bar-error { background: linear-gradient(90deg,#f87171,#ef4444); box-shadow: 0 0 8px rgba(239,68,68,0.5); }
-.preloader-bar.bar-warn  { background: linear-gradient(90deg,#fbbf24,#f59e0b); box-shadow: 0 0 8px rgba(251,191,36,0.5); }
 .preloader-check-label { display: none; }
 
 /* ── Status line: single element, opacity crossfade via JS ─────────── */
 .check-ticker {
     width: 100%;
-    height: 1.5rem;
+    min-height: 1.15rem;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 .preloader-status-text {
-    font-size: clamp(0.78rem, 2vw, 0.9rem);
+    font-size: clamp(0.72rem, 1.9vw, 0.8rem);
     font-weight: 500;
-    letter-spacing: 0.03em;
-    color: rgba(255,255,255,0.45);
+    letter-spacing: 0.02em;
+    /* Slate family: this text lives on the LIGHT splash (#f4f7f5). The pale
+       green/amber/red it carried before belonged to the dark canvas and was
+       invisible here — a diagnostic nobody can read is not a diagnostic. */
+    color: #94a3b8;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
     padding: 0 12px;
 }
-.preloader-status-text.state-ok    { color: #86efac; }
-.preloader-status-text.state-warn  { color: #fde68a; }
-.preloader-status-text.state-error { color: #fca5a5; }
+.preloader-status-text.state-ok    { color: #475569; }
+.preloader-status-text.state-warn  { color: #b45309; }
+.preloader-status-text.state-error { color: #b91c1c; }
 .preloader-warnings {
     max-width: min(92vw, 600px);
     width: 100%;
@@ -718,6 +832,9 @@ body.is-booting.is-revealing .bottom-nav {
     vertical-align: middle;
     margin-right: 4px;
     filter: drop-shadow(0 1px 3px rgba(0,0,0,0.3));
+    /* The mark is the last thing that may give way: it is what still says which app
+       this is when the name and the branch are gone. */
+    flex: 0 0 auto;
 }
 
 .header-content {
@@ -773,6 +890,12 @@ body.is-booting.is-revealing .bottom-nav {
     text-overflow: ellipsis;
     pointer-events: auto;
     flex-shrink: 1;
+    /* WITHOUT THIS THE MEASUREMENT LIES. As a flex item the default `min-width: auto`
+       pins the row to its min-content width (the whole nowrap title), so it never
+       shrank: it simply overflowed `.header-title-wrap`, which clips it. `scrollWidth`
+       then equalled `clientWidth` at every viewport and `_paintKioskVersion()` had
+       nothing to measure — which is how a phone ended up showing "E…" forever. */
+    min-width: 0;
 }
 
 .header-version {
@@ -803,11 +926,21 @@ body.is-booting.is-revealing .bottom-nav {
 
 /* When the header runs out of room it is the TITLE that gives way, never the versions: the
    household asked to always see at least the app version, and an ellipsised "EverShelf" still
-   says which app this is. */
-.header-title > span[data-i18n="nav.title"] {
+   says which app this is. THE NAME GOES ENTIRELY, THOUGH, and only at the very end: an
+   ellipsis that leaves "E…" (a 360 px phone) is not a shorter title, it is a broken one. The
+   order is `_paintKioskVersion()`'s: kiosk label → branch → the name, and with the name gone
+   the logo and the app version carry the row (the version is raised a notch, because it is
+   then the only text up there). */
+.header-name {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+.header-title.is-name-hidden .header-name { display: none; }
+.header-title.is-name-hidden .header-version {
+    font-size: 0.72rem;
+    font-weight: 500;
+    opacity: 0.85;
 }
 .header-title .header-version,
 .header-title .header-kiosk-version,
@@ -13683,10 +13816,10 @@ body.offline-mode #smart-shopping {
 }
 .audit-scope:hover, .audit-done:hover { border-color: var(--brand-primary, #059669); }
 
-/* ── The two ways to run a stocktake ────────────────────────────────────────
-   "Uno alla volta" (the app proposes) | "Ti dico io" (the household names the product).
-   One segmented row of two, the chosen one emerald: it is a choice between two equal ways,
-   not a primary action, so neither of them wears the solid emerald of the confirm button. */
+/* ── The three ways to run a stocktake ──────────────────────────────────────
+   «Uno alla volta» (the app proposes) | «Ti dico io» (the household names it) | «Scansiona»
+   (the barcode). One segmented row of three, the chosen one emerald: it is a choice between
+   equal ways, not a primary action, so none of them wears the solid emerald of the confirm. */
 .audit-modes {
     display: flex;
     gap: 8px;
@@ -13694,8 +13827,9 @@ body.offline-mode #smart-shopping {
 }
 .audit-mode {
     flex: 1 1 0;
+    min-width: 0;
     min-height: 44px;
-    padding: 10px 12px;
+    padding: 10px 8px;
     font: inherit;
     font-size: 0.95rem;
     font-weight: 700;
@@ -13710,32 +13844,186 @@ body.offline-mode #smart-shopping {
     background: color-mix(in srgb, var(--brand-primary, #059669) 12%, transparent);
     color: var(--brand-primary, #059669);
 }
+/* The shared tally of the three ways: one stocktake, printed under the switch. */
+.audit-session-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 8px 0 4px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary, #059669) 28%, transparent);
+    background: color-mix(in srgb, var(--brand-primary, #059669) 8%, transparent);
+    font-size: 0.84rem;
+}
+.audit-session-line { min-width: 0; color: var(--text-main, inherit); }
+.audit-session-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.audit-session-btn {
+    min-height: 30px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border, var(--border));
+    background: var(--surface-bg, #fff);
+    color: var(--text-main, inherit);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.audit-session-btn:hover { border-color: var(--brand-primary, #059669); }
+/* The camera is the stocktake's third door: one emerald button that opens the app's scanner. */
+.audit-scan-open {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
+.audit-foot-links { display: flex; gap: 8px; flex-wrap: wrap; }
+/* ── The stocktake's OWN camera ─────────────────────────────────────────────
+   A stream of its own, on its own overlay: the shopping trip keeps its scanner (and its panels,
+   its AI and its session) because a stocktake in front of a shelf is a different procedure. The
+   viewfinder fills the screen, one calm frame says where to aim, the place and the running tally
+   sit underneath. No `backdrop-filter` here: this overlay covers everything on a wall tablet. */
+.audit-scan-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 240;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #000;
+}
+.audit-scan-overlay[hidden] { display: none !important; }
+#audit-scan-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #000;
+}
+/* WHERE to aim: one still frame (the shopping scanner's lock box lives on its own page). */
+.audit-scan-frame {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: min(78vw, 520px);
+    height: min(30vh, 200px);
+    transform: translate(-50%, -50%);
+    border: 2px solid rgba(255, 255, 255, 0.75);
+    border-radius: 16px;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+}
+.audit-scan-chrome {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    color: #fff;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
+}
+.audit-scan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.audit-scan-titles { min-width: 0; }
+.audit-scan-eyebrow {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+.audit-scan-title { margin: 2px 0 0; font-size: 1.05rem; font-weight: 700; }
+.audit-scan-status { margin: 0; min-height: 1.2em; font-size: 0.9rem; font-weight: 600; }
+.audit-scan-close {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font: inherit;
+    font-size: 1.1rem;
+    cursor: pointer;
+}
 .audit-search-input { margin: 6px 0 10px; }
 .audit-search-results { display: flex; flex-direction: column; gap: 8px; }
-/* A hit is a row: the thumb, the name, where it is and how much. The catalogue hits (a product
-   the app knows with no stock anywhere) carry the "not in the pantry" line and an add mark. */
+/* A hit is a row: the place mark, the thumb, the name and where it is, then ONE action. The mark is
+   the fact the stocktake is about — ✓ it stands in the place you are inventorying, ✕ it does not —
+   and the action answers the same question: «✓ C'è» (emerald: it confirms the shelf) or «Sposta
+   qui» (neutral: a correction). Both are small pills, so the name keeps the line on a phone. */
 .audit-hit {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
-    padding: 10px 12px;
-    font: inherit;
-    text-align: left;
+    padding: 8px 10px;
     border-radius: 12px;
     border: 1px solid var(--surface-border, var(--border));
     background: var(--surface-bg, #f8fafc);
     color: var(--text-main, inherit);
+}
+.audit-hit.is-elsewhere { background: var(--bg-app, #f8fafc); }
+.audit-hit-open {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 2px;
+    font: inherit;
+    text-align: left;
+    border: none;
+    background: none;
+    color: inherit;
     cursor: pointer;
 }
-.audit-hit.is-missing { border-style: dashed; }
+.audit-hit-mark { flex: 0 0 auto; font-size: 1.15rem; font-weight: 800; line-height: 1; }
+.audit-hit-mark.is-here { color: var(--brand-primary, #059669); }
+.audit-hit-mark.is-elsewhere { color: var(--tone-danger, #dc2626); }
+.audit-hit-quick,
+.audit-hit-move {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.audit-hit-quick {
+    border: 1px solid transparent;
+    background: var(--brand-primary, #059669);
+    color: #fff;
+}
+.audit-hit-quick:active { background: var(--brand-primary-hover, #047857); }
+.audit-hit-move {
+    border: 1px solid var(--surface-border, var(--border));
+    background: var(--surface-bg, #fff);
+    color: var(--text-main, inherit);
+}
+.audit-hit-move:hover { border-color: var(--brand-primary, #059669); }
+.audit-search-scope { margin: 10px 0 0; font-weight: 700; }
+.audit-search-scope-note { margin: 4px 0 8px; font-weight: 600; }
 .audit-hit-thumb { flex: 0 0 auto; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
 .audit-hit-thumb img { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; }
 .audit-hit-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .audit-hit-name { font-size: 1rem; font-weight: 700; overflow-wrap: anywhere; }
 .audit-hit-brand { font-weight: 400; color: var(--text-muted, #64748b); }
 .audit-hit-meta { font-size: 0.82rem; color: var(--text-muted, #64748b); }
-.audit-hit-action { margin-left: auto; font-size: 1.1rem; color: var(--brand-primary, #059669); }
 .audit-search-create { border-style: dashed; }
 
 /* The ONE answer that writes the stock: full width, emerald, 56 px tall. */

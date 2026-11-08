@@ -137,16 +137,20 @@ object ErrorReporter {
     /**
      * Report a non-exception message (e.g. WebView page error, network failure).
      * @param forceReport if true, bypasses the in-session dedup so retries are always sent.
+     * @param level `info` / `warn` / `error` — carried in the payload so the server files the line
+     *   in `data/logs/kiosk-YYYYMMDD.log` under the right severity. A renderer that was killed is a
+     *   `warn`; a JS exception is an `error`; a `[CAM]`/`[SHELFY]` trace from the page is `info`.
      */
     fun reportMessage(
         type: String,
         message: String,
         extra: Map<String, Any?> = emptyMap(),
-        forceReport: Boolean = false
+        forceReport: Boolean = false,
+        level: String = "info"
     ) {
         val ctx = mutableMapOf<String, Any?>("device" to deviceInfo)
         ctx.putAll(extra)
-        reportAsync(type = type, message = message, stack = "", context = ctx, force = forceReport)
+        reportAsync(type = type, message = message, stack = "", context = ctx, force = forceReport, level = level)
     }
 
     // ── Internal ─────────────────────────────────────────────────────────────
@@ -246,7 +250,7 @@ object ErrorReporter {
         return key.hashCode().toString(16)
     }
 
-    private fun reportAsync(type: String, message: String, stack: String, context: Map<String, Any?>, force: Boolean = false) {
+    private fun reportAsync(type: String, message: String, stack: String, context: Map<String, Any?>, force: Boolean = false, level: String = "error") {
         val fp = fingerprint(type, message)
         if (!force) {
             synchronized(sentFingerprints) {
@@ -255,14 +259,14 @@ object ErrorReporter {
         } else {
             synchronized(sentFingerprints) { sentFingerprints.add(fp) }
         }
-        executor.execute { doPost(type, message, stack, context) }
+        executor.execute { doPost(type, message, stack, context, level) }
     }
 
     /** Synchronous variant used only in the UncaughtExceptionHandler (already off main thread). */
-    private fun reportSync(type: String, message: String, stack: String, context: Map<String, Any?>) {
+    private fun reportSync(type: String, message: String, stack: String, context: Map<String, Any?>, level: String = "error") {
         val fp = fingerprint(type, message)
         synchronized(sentFingerprints) { sentFingerprints.add(fp) }
-        doPost(type, message, stack, context)
+        doPost(type, message, stack, context, level)
     }
 
     // ── Crash persistence helpers ─────────────────────────────────────────────
@@ -314,7 +318,7 @@ object ErrorReporter {
         }
     }
 
-    private fun doPost(type: String, message: String, stack: String, context: Map<String, Any?>) {
+    private fun doPost(type: String, message: String, stack: String, context: Map<String, Any?>, level: String = "error") {
         val url = serverBaseUrl.ifEmpty { return }
         val endpoint = "$url/api/?action=report_error"
         try {
@@ -324,6 +328,7 @@ object ErrorReporter {
             val payload = JSONObject().apply {
                 put("source",     "kiosk")
                 put("type",       type)
+                put("level",      level)   // info / warn / error → data/logs/kiosk-<day>.log
                 put("message",    message)
                 put("stack",      stack)
                 put("context",    ctxJson)

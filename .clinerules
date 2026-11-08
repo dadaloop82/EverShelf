@@ -38,6 +38,11 @@ runtime/binary files — if a task truly needs one, ask first.
   "error":"..."}` inside the existing global try/catch; never print HTML before
   JSON. Log with `EverLog::info/warn/error/debug/exception` and a
   `['event' => 'snake_case_key']` context — never `error_log`/`var_dump`.
+  **Client lines: three levels, two rivers.** `remoteLog()/scanLog()/_kioskTrace()` →
+  `[ts] [INFO |WARN |ERROR] [device] tag text` in `data/logs/<source>-YYYY-MM-DD.log`,
+  the source declared by the client (`app` | `kiosk`, WebView lines **and** native reports
+  together), because an Android WebView claims to be a phone in its User-Agent.
+  `LOG_LEVEL` filters, `EVERSHELF_LOG_KEEP_DAYS` (14) rotates, `?log=debug` raises one device.
 - **Security**: new action → add it to the right allow-list in
   `api/lib/security.php` only when intended. Never trust client headers
   (`Origin`, `Referer`, `Sec-Fetch-Site`).
@@ -144,15 +149,34 @@ runtime/binary files — if a task truly needs one, ask first.
   (`_auditFitConfirm()` measures it and falls back to `Confermi {qty}?`) — + a neutral 2×2 +
   «Salta», and the progress
   bar fills on the card you are LOOKING at: no sentence repeated, no purple, no alarm colours.
-  **Two ways, one card.** `_auditMode` (persisted under `evershelf_audit_mode`) switches between
-  «Uno alla volta» (the app proposes, `_auditScopesBodyHtml` + `_auditBegin`) and «Ti dico io»
-  (`_auditSearchBodyHtml`: a name in, `_auditSearchMatches` over the pantry ROWS then the
-  catalogue, `_auditSearchPick` opens the SAME card for that one product and `_auditFinish`
-  returns to the search with the term still in). The second mode exists for what the first
-  cannot see: a product with no stock anywhere shows as `audit.search_not_stocked` and leads to
-  the add sheet (`_auditSearchAddProduct`), an unknown name to the product form
-  (`_auditSearchCreate`). A search card never persists as a resumable run, and mode 1's card
-  carries a quiet «🔎 Ti dico io» link that keeps the run.
+  **Three ways, one card, one ledger.** `_auditMode` (persisted under `evershelf_audit_mode`) switches
+  between «Uno alla volta» (the app proposes, `_auditScopesBodyHtml` + `_auditBegin`), «Ti dico io»
+  (`_auditSearchBodyHtml`: a name in, `_auditSearchMatches` over the pantry ROWS — `here` first,
+  `elsewhere` after) and «Scansiona» (`_auditScanStart` opens the stocktake's OWN camera on its
+  own overlay: independent of the shopping scanner, sharing only the decoder and the catalogue
+  lookup). The three answer the SAME question about the same shelf, so they
+  share `_auditSession` (counts + answered + the propose run's `order`/`index`): a card opened by
+  name (`_auditSearchPick`) or by barcode (`_auditScanCard`) counts in the same tally, «Riepilogo»
+  (`_auditShowSummary` → `_auditRenderSummary`) reads that ledger from any sheet, «↩ Torna alla card»
+  (`_auditResumeCard` → `_auditSessionView`) resumes the run exactly where it stopped, and «Fatto»
+  ends it (`_auditEndSession`). `_auditFinish` returns to the sheet of the way the answer came in.
+  The camera hands over through `_auditScanHit(code)` → `_resolveBarcodeLookup()` and it takes ONLY
+  a product with usable stock (that row is the stocktake's question, preferring the row of the place
+  being inventoried, `_auditScanCard`); anything else keeps the stream running and says so
+  (`audit.scan_no_match` / `audit.scan_not_stocked`). The ✕ or Esc close it and
+  `visibilitychange` releases the stream, so it never outlives the sheet. The second mode is
+  about what is really on a
+  shelf: a depleted row and a product the app knows with no stock anywhere are **never listed**,
+  and the place the stocktake is about (`_auditScopeKey`: the run's scope → the pantry's open place
+  → the last one, kept in `evershelf_audit_scope`) comes FIRST under its own heading. Each hit
+  opens with the place mark — ✓ `audit.mark_here` / ✕ `audit.mark_elsewhere` — and the action on
+  the right answers the same question: the emerald **✓ C'è** (`_auditSearchQuickThere`, the "there"
+  answer with no card) for a row that belongs here, a neutral **Sposta qui**
+  (`_auditSearchMoveHere` → `inventory_update { location }`, then the live caches + `loadInventory`)
+  for one that does not. An unknown name still offers `audit.search_create`
+  (`_auditSearchCreate`). A one-question card is never a resumable run of its own — its answer
+  lands in the session, and what resumes is the propose run it belongs to — and mode 1's card
+  carries a quiet «🔎 Ti dico io» link and a «📷 Scansiona» one that keep the run.
 - **A place is deletable only when empty — and the server decides.** `POST location_delete`
   (`locationDeleteAction`) removes a built-in too (`app_settings.deleted_locations`, subtracted by
   `validInventoryLocations()`), refuses a place with usable stock (`in_use`) and refuses to leave
@@ -183,9 +207,11 @@ runtime/binary files — if a task truly needs one, ask first.
 - **Two versions in the header, one rule for space.** `.header-version` stays a **bare semver**
   (`reportError()` reads it as the app version); the kiosk APK version lives in
   `#header-kiosk-version` ("kiosk 1.7.26"), from `_kioskBridge.getAppVersion()`. `_paintKioskVersion()`
-  shows both only when the row fits, then drops the kiosk label, then `#header-branch`, and lets
-  the TITLE ellipsise — at least the app version is always readable. Re-measured on resize and
-  after the translations; never append anything to `.header-version`.
+  shows both only when the row fits, then drops the kiosk label, then `#header-branch`, then **the
+  name ENTIRELY** (`is-name-hidden`: logo + app version — never a clipped "E…", which is what a
+  phone showed while `.header-title` could not shrink for want of `min-width: 0`). At least the app
+  version is always readable. Re-measured on resize and after the translations; never append anything
+  to `.header-version`.
 - **A reload names its author.** Self-reloads go through `_reloadPage('why')` (logs `[RELOAD] …`
   first); a `pagehide` handler posts `[PAGEHIDE] reload:<why>` or `[PAGEHIDE] unload` with
   `fetch(…, {keepalive:true})`. `unload` with no `reload:` line means something OUTSIDE the page

@@ -318,7 +318,7 @@ function migrateDB(PDO $db): void {
     $expiryInferred = $db->query("SELECT value FROM app_settings WHERE key = 'migration_infer_missing_expiry_v1'")->fetchColumn();
     if (!$expiryInferred) {
         $rows = $db->query(
-            "SELECT i.id, i.location, p.name, p.category
+            "SELECT i.id, i.location, i.added_at, p.name, p.category
                FROM inventory i
                JOIN products p ON p.id = i.product_id
               WHERE i.expiry_date IS NULL
@@ -332,7 +332,13 @@ function migrateDB(PDO $db): void {
                 (string)($row['category'] ?? ''),
                 (string)($row['location'] ?? '')
             ));
-            $updExpiry->execute([date('Y-m-d', strtotime('+' . $days . ' days')), (int)$row['id']]);
+            // ANCHORED ON THE DAY THE ROW ENTERED THE PANTRY, and a non-perishable stays without a
+            // date. `today + days` dated four rows of salt added in March as "expires 2027-11-07"
+            // (the day this pass ran plus a year), which the household rightly read as "the dates
+            // changed by themselves"; and the 9999 sentinel became the year 2054.
+            $expiry = expiryDateFromDays($days, (string)($row['added_at'] ?? ''));
+            if ($expiry === null) continue;
+            $updExpiry->execute([$expiry, (int)$row['id']]);
             $dated++;
         }
         $db->exec("INSERT OR REPLACE INTO app_settings (key, value)
@@ -1321,6 +1327,34 @@ function estimateSealedExpiryDaysPHP(string $name, string $category, string $loc
 }
 
 /**
+ * Turn "days of shelf life" into a best-before DATE — or into nothing at all.
+ *
+ * Two things this function exists to stop:
+ *
+ * 1. **The 9999 sentinel is not a number of days.** `estimateSealedExpiryDaysPHP()` and
+ *    `estimateOpenedExpiryDaysPHP()` answer **9999** for a non-perishable (salt, sugar, honey,
+ *    vinegar, bicarbonate) and both call sites used to turn that into a date: `today + 9999 days`
+ *    is **2054-03-13**, and the pantry really did contain two rows like that. A pantry may say
+ *    "no expiry"; it may not invent the year 2054.
+ * 2. **Shelf life is counted from the day the product ENTERED the pantry, not from today.** The
+ *    backfill of rows stored without a date used `today + days`, so four rows of salt added on
+ *    2026-03-10 were dated `2027-11-07` — the day the backfill ran plus a year. When the anchor is
+ *    known, pass it: every estimate is then reproducible, and re-running a pass cannot drift a date.
+ *
+ * @param int|null    $days       shelf life in days (9999+ means "non-perishable")
+ * @param string|null $anchorDate the day the row entered the pantry (YYYY-MM-DD or a full timestamp);
+ *                                null = today, which is correct only for a brand-new purchase.
+ * @return string|null YYYY-MM-DD, or null when the honest answer is "no expiry".
+ */
+function expiryDateFromDays(?int $days, ?string $anchorDate = null): ?string {
+    if ($days === null || $days >= 9999) return null;   // sentinel: non-perishable, no date
+    $days = max(1, $days);
+    $anchor = ($anchorDate !== null && trim($anchorDate) !== '') ? strtotime($anchorDate) : time();
+    if ($anchor === false) $anchor = time();
+    return date('Y-m-d', strtotime('+' . $days . ' days', $anchor));
+}
+
+/**
  * Recalculate expiry for sealed (non-opened) fridge items with new fridge-aware logic.
  */
 function recalcSealedFridgeExpiry(PDO $db): void {
@@ -1336,7 +1370,9 @@ function recalcSealedFridgeExpiry(PDO $db): void {
     foreach ($rows as $row) {
         $days = estimateSealedExpiryDaysPHP($row['name'], $row['category'], 'frigo');
         if ($row['vacuum_sealed']) $days = getVacuumExpiryDaysPHP($days);
-        $newExpiry = date('Y-m-d', strtotime($row['added_at'] . " +{$days} days"));
+        // Anchored on the day the row entered the fridge, and never a date for the 9999 sentinel.
+        $newExpiry = expiryDateFromDays($days, $row['added_at']);
+        if ($newExpiry === null) continue;
         // Only extend expiry, never shorten it
         if ($row['expiry_date'] && $newExpiry <= $row['expiry_date']) continue;
         $upd = $db->prepare("UPDATE inventory SET expiry_date = ? WHERE id = ?");

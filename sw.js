@@ -6,7 +6,7 @@
  * pin a stale app.js indefinitely. The cache below is only a safety net when the
  * server cannot be reached.
  */
-const CACHE = 'evershelf-v1.31.13n';
+const CACHE = 'evershelf-v1.31.23s';
 const BASE = (() => {
     const p = self.location.pathname || '/';
     return p.endsWith('sw.js') ? p.slice(0, -'sw.js'.length) : '/';
@@ -27,6 +27,12 @@ const SHELL = [
     // The medicine mark (EverShelf Med): the row thumbnails, the cabinet pill and the pantry
     // tab draw it, so a medicine never reads as a broken image when the server is unreachable.
     BASE + 'assets/img/icons/medicine.svg',
+    // The GitHub mark on the splash: it says who makes the app and where its source lives,
+    // and that line has to survive an offline boot like the rest of the splash.
+    BASE + 'assets/img/icons/github.svg',
+    // The two badges of the same line: the licence (SPDX `MIT`) and "no ads".
+    BASE + 'assets/img/icons/license.svg',
+    BASE + 'assets/img/icons/no-ads.svg',
     // SHELFY's face: the centre of the bottom nav, its sheet and its 10 s confirmation card
     // all paint it, and the assistant must still have a face offline.
     BASE + 'assets/img/shelfy/shelfy-avatar-96.png',

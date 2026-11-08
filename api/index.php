@@ -4041,16 +4041,92 @@ function getExpiryHistory($db): void {
     ]);
 }
 
+/**
+ * The one sink behind every client line: `data/logs/<source>-YYYYMMDD.log`.
+ *
+ * Three operational levels and two separate rivers, because a wall that dies at 08:47 and a phone
+ * logging in from the kitchen were writing into the same file with the SAME `[phone]` tag — that
+ * tag came from the User-Agent, and an Android WebView says `Android` exactly like a phone does,
+ * which is how a whole afternoon of kiosk evidence was read as "the phone". The client now says
+ * who it is (`source`: `app`/`kiosk`, `device`: `kiosk|tablet|phone|desktop`) and every line
+ * carries its level, so `grep '\[ERROR\]' data/logs/kiosk-*.log` answers in one command.
+ *
+ * Rotation: one file per day, the last `EVERSHELF_LOG_KEEP_DAYS` (14) are kept.
+ */
+function _clientLogLevels(): array {
+    // DEBUG is opt-in (LOG_LEVEL=DEBUG in .env); the three operational levels are the default.
+    return ['debug' => 10, 'info' => 20, 'warn' => 30, 'error' => 40];
+}
+
+/** Normalise whatever a client sent into one of the four level names. */
+function _clientLogLevel(string $raw, string $haystack = ''): string {
+    $lvl = strtolower(trim($raw));
+    if (in_array($lvl, ['debug', 'info', 'warn', 'warning', 'error', 'err'], true)) {
+        return $lvl === 'warning' ? 'warn' : ($lvl === 'err' ? 'error' : $lvl);
+    }
+    // No level given (an older client): read it off the line, which carries `[TAG]` first.
+    $h = strtoupper($haystack);
+    if (preg_match('/UNCAUGHT|EXCEPTION|API_ERROR|API_FAIL|FAILED|CRASH/', $h)) return 'error';
+    if (preg_match('/JANK|LONGTASK|TIMEOUT|SLOW|STALL|LOW-MEMORY/', $h))     return 'warn';
+    return 'info';
+}
+
+/** True when a line at `$level` is worth storing under the server's own LOG_LEVEL. */
+function _clientLogWanted(string $level): bool {
+    $levels = _clientLogLevels();
+    $env    = strtoupper((string)(env('LOG_LEVEL') ?: 'INFO'));
+    $min    = $levels['info'];
+    if ($env === 'DEBUG')     $min = $levels['debug'];
+    elseif ($env === 'WARN')  $min = $levels['warn'];
+    elseif ($env === 'ERROR') $min = $levels['error'];
+    return ($levels[$level] ?? $levels['info']) >= $min;
+}
+
+/**
+ * Append lines to `data/logs/<source>-YYYYMMDD.log`, then prune the old days.
+ *
+ * `$source` is an allow-listed slug (`app`/`kiosk`), never a client string used as a path.
+ */
+function _clientLogWrite(string $source, string $level, array $lines, string $device = ''): void {
+    if (!$lines) return;
+    $dir = __DIR__ . '/../data/logs';
+    if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) return;
+    $file = $dir . '/' . $source . '-' . date('Y-m-d') . '.log';
+    $tag  = $device !== '' ? $device : $source;
+    $lvl  = str_pad(strtoupper($level), 5);   // [INFO ] [WARN ] [ERROR] [DEBUG] line up
+    $ts   = date('Y-m-d H:i:s');
+    $out  = '';
+    foreach ($lines as $l) $out .= "[$ts] [$lvl] [$tag] " . $l . "\n";
+    @file_put_contents($file, $out, FILE_APPEND | LOCK_EX);
+    $keep = (int)(env('EVERSHELF_LOG_KEEP_DAYS') ?: 14);
+    if ($keep < 1) $keep = 14;
+    foreach ((array)@glob($dir . '/' . $source . '-*.log') as $old) {
+        if (preg_match('/(\d{4}-\d{2}-\d{2})\.log$/', basename($old), $m)
+            && $m[1] < date('Y-m-d', strtotime('-' . $keep . ' days'))) {
+            @unlink($old);
+        }
+    }
+}
+
 function clientLog(): void {
     EverLog::debug('clientLog');
     $input = json_decode(file_get_contents('php://input'), true);
     $logFile = __DIR__ . '/../data/client_debug.log';
     $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
-    // Identify device from UA
+    // WHO is talking: the CLIENT knows (a kiosk WebView reports `Android` in its UA exactly like a
+    // phone, which is why every wall line used to be filed under `[phone]`). The UA is only the
+    // fallback, and the value is never used as a path.
     $device = 'unknown';
     if (preg_match('/tablet|ipad|playbook|silk/i', $ua)) $device = 'tablet';
     elseif (preg_match('/mobile|android|iphone/i', $ua)) $device = 'phone';
     else $device = 'desktop';
+    $deviceIn = is_array($input) ? preg_replace('/[^a-z\-]/', '', strtolower((string)($input['device'] ?? ''))) : '';
+    if (in_array($deviceIn, ['kiosk', 'tablet', 'phone', 'desktop'], true)) $device = $deviceIn;
+    $source = ($device === 'kiosk') ? 'kiosk' : 'app';
+    if (is_array($input) && in_array(($input['source'] ?? ''), ['app', 'kiosk'], true)) {
+        $source = (string)$input['source'];
+    }
+    $levelHint = is_array($input) ? (string)($input['level'] ?? '') : '';
     $ts = date('Y-m-d H:i:s');
     // A public sink: the lines are whatever the client sent, so they can carry the
     // client's own credentials (`?api_token=…`, an Authorization header) and can be
@@ -4059,9 +4135,25 @@ function clientLog(): void {
     $msgs = (is_array($input) && is_array($input['messages'] ?? null)) ? $input['messages'] : [];
     $msgs = array_slice($msgs, -100);
     $lines = [];
+    $kept = [];
     foreach ($msgs as $m) {
         if (!is_string($m) && !is_numeric($m)) continue;
-        $lines[] = "[$ts] [$device] " . evershelfTruncateUtf8(evershelfRedactSecrets((string)$m), 1000);
+        $raw = evershelfTruncateUtf8(evershelfRedactSecrets((string)$m), 1000);
+        // The client writes `[LEVEL] [TAG] text`; an older client writes `[TAG] text` and
+        // `_clientLogLevel()` reads the level out of it.
+        $level = _clientLogLevel($levelHint, $raw);
+        if (preg_match('/^\[(DEBUG|INFO|WARN|WARNING|ERROR|ERR)\]/i', $raw, $mm)) {
+            $level = _clientLogLevel($mm[1], $raw);
+        }
+        if (!_clientLogWanted($level)) continue;   // honours LOG_LEVEL in .env
+        // The level is written by the sink, so drop the copy the client put in the line
+        // (`[INFO] [CAM] …` → `[CAM] …`); the legacy mirror keeps the original text.
+        $kept[$level][] = preg_replace('/^\[(DEBUG|INFO|WARN|WARNING|ERROR|ERR)\]\s*/i', '', $raw);
+        $lines[] = "[$ts] [$device] $raw";          // the legacy mirror below
+    }
+    // One file per source (`app` / `kiosk`) and per day, leveled.
+    foreach ($kept as $level => $group) {
+        _clientLogWrite($source, $level, $group, $device);
     }
     if ($lines) {
         // Keep log under 100KB — truncate oldest if needed
@@ -4072,7 +4164,7 @@ function clientLog(): void {
         }
         file_put_contents($logFile, implode("\n", $lines) . "\n", FILE_APPEND | LOCK_EX);
     }
-    echo json_encode(['ok' => true]);
+    echo json_encode(['ok' => true, 'source' => $source, 'device' => $device, 'level' => $levelHint ?: 'auto']);
 }
 
 function getClientLog(): void {
@@ -5549,7 +5641,16 @@ function addToInventory(PDO $db): void {
     $minAdd = inventoryMinAddQuantity($effectiveUnit);
     // A medicine is measured by what its box HOLDS: 10 ml of eye drops or 5 ml of drops is real
     // stock, not the "2 g typed by mistake" the floor exists for.
-    if (!$isMedicalProduct && $quantity < $minAdd) {
+    //
+    // AND A PACK IS NEVER "TOO SMALL". A product sold in packs carries its size in
+    // `default_quantity` + `package_unit`; a quantity of 0.5 confezioni is half a pack, not half a
+    // gram, and one confezione is 1. Judging that number with the **g/ml floor** is what refused
+    // "una confezione da 1000 g" with «deve superare i 20 g»: the floor was reading the package's
+    // unit while the number counted packs. The floor stays for a bare weight/volume entry.
+    $floorApplies = !$isMedicalProduct
+        && $productUnit !== 'conf'
+        && !in_array(mb_strtolower($effectiveUnit), ['conf', 'pz'], true);
+    if ($floorApplies && $quantity < $minAdd) {
         EverLog::warn('addToInventory: quantity below the minimum (400)', [
             'event'      => 'api_inventory_add_below_minimum',
             'product_id' => $productId,
@@ -5775,7 +5876,9 @@ function inventoryInferExpiryDate(PDO $db, int $productId, string $location, boo
     if ($vacuumSealed) {
         $days = max(1, inventoryVacuumExpiryDays($days));
     }
-    return date('Y-m-d', strtotime('+' . $days . ' days'));
+    // A brand-new purchase is dated from TODAY (the anchor is unknown); a non-perishable gets no
+    // date at all instead of the 2054 the 9999 sentinel used to produce.
+    return expiryDateFromDays($days);
 }
 
 /** Waste transaction notes use format Buttato|reason_key (legacy: plain "Buttato"). */
@@ -6595,10 +6698,12 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
             $vacuum = (int)($existing['vacuum_sealed'] ?? 0);
             $openedDays = estimateOpenedExpiryDaysPHP($pName, $pCat, $location);
             if ($vacuum) $openedDays = (int)round($openedDays * 1.5);
-            $openedExpiry = date('Y-m-d', strtotime("+{$openedDays} days"));
-            // Respect original sealed expiry if it expires sooner
-            if (!empty($existing['expiry_date']) && strtotime($existing['expiry_date']) < strtotime($openedExpiry)) {
-                $openedExpiry = $existing['expiry_date'];
+            // A non-perishable (the 9999 sentinel) gets NO date instead of the year 2054, and the
+            // sealed date keeps winning when it is earlier — `min(sealed, opened)` never invents one.
+            $openedExpiry = expiryDateFromDays($openedDays);
+            $sealed = !empty($existing['expiry_date']) ? (string)$existing['expiry_date'] : null;
+            if ($sealed !== null && ($openedExpiry === null || strtotime($sealed) < strtotime($openedExpiry))) {
+                $openedExpiry = $sealed;
             }
 
             // Split opened portion from sealed packages into two separate rows:
@@ -22403,6 +22508,9 @@ function reportError(): void {
     // A client can send anything here (public action): keep it an array so the
     // redaction/cap helpers below always receive what they expect.
     $context   = is_array($input['context'] ?? null) ? $input['context'] : [];
+    // Severity travels WITH the report (a renderer that was killed is a warning, a JS exception is
+    // an error): the kiosk sends it, and an older APK simply sends none.
+    $level     = _clientLogLevel((string)($input['level'] ?? ''), $type . ' ' . $message);
 
     if (empty($message)) {
         echo json_encode(['ok' => false, 'error' => 'message required']);
@@ -22411,6 +22519,17 @@ function reportError(): void {
 
     // ── Write to local log regardless of GitHub availability ──────────────
     _appendErrorLog($source, $type, $message, $stack, $pageUrl, $ua, $context);
+    // …and the same line into the leveled per-source river (`data/logs/kiosk-YYYYMMDD.log`): a
+    // wall's own reports and its WebView's `[CAM]`/`[SHELFY]` lines belong in ONE place, filed by
+    // level, so nobody has to cross two files to rebuild a timeline again.
+    if (_clientLogWanted($level)) {
+        _clientLogWrite(
+            $source === 'kiosk' ? 'kiosk' : 'app',
+            $level,
+            ["$type: $message" . ($pageUrl ? " | url=$pageUrl" : '')],
+            $source
+        );
+    }
 
     // ── Publishing to GitHub is an explicit opt-in (REPORT_ENABLED) ───────
     // The local log above always ran, so nothing is lost by stopping here.

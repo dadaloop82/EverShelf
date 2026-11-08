@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="none">
+  <!-- "No ads" mark: the universal prohibition sign, drawn for the splash badge whose
+       label says what is prohibited (`startup.no_ads`). At the 11 px the badge gives it
+       only this thin circle survives, so the symbol carries the "no" and the word carries
+       the subject — a megaphone inside a 11 px circle is mush in every renderer.
+       EverShelf's banner slots are commented out on purpose (docs/wiki/Support-and-ads.md),
+       so this badge states a fact, not an intention. -->
+  <circle cx="8" cy="8" r="6.2" stroke="#475569" stroke-width="1.4"/>
+  <path d="M3.85 12.15 12.15 3.85" stroke="#475569" stroke-width="1.4" stroke-linecap="round"/>
+</svg>

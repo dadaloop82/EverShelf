@@ -23,6 +23,9 @@ data/shopping_total_cache.json
 data/ai_usage.json
 data/classify_daily.json
 data/client_debug.log
+# Client logs, split by source and day (`data/logs/app-YYYY-MM-DD.log`,
+# `data/logs/kiosk-YYYY-MM-DD.log`): runtime state, never committed.
+data/logs/
 data/rate_limits/
 data/mealie/
 data/mealie_cache.json

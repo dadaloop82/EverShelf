@@ -39,16 +39,89 @@ let _remoteLogTimer = null;
 const _origConsoleError = console.error.bind(console);
 const _origConsoleWarn = console.warn.bind(console);
 
+/**
+ * THREE LEVELS, and the one place that decides whether a line is worth sending.
+ *
+ * `info` / `warn` / `error` are the operational levels; `debug` exists but is off unless somebody
+ * asks for it (`?log=debug`, or `localStorage.evershelf_log_level = 'debug'`, or the server's
+ * `LOG_LEVEL`). The old code had no levels at all: the first argument of `remoteLog()` was a
+ * free-form TAG (`SCAN`, `JANK`, `API_ERROR`, `CAM`…) and the server filed everything as
+ * "whatever the User-Agent said", which is how the wall's lines ended up in a file attributed to
+ * *the phone*.
+ */
+const LOG_LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
+let _logThreshold = (() => {
+    let want = 'info';
+    try {
+        const qs = new URLSearchParams(location.search).get('log');
+        const stored = localStorage.getItem('evershelf_log_level');
+        if (qs) want = qs;
+        else if (stored) want = stored;
+    } catch (e) { /* no storage / no URLSearchParams: `info` */ }
+    want = String(want || 'info').toLowerCase();
+    return LOG_LEVELS[want] ? want : 'info';
+})();
+
+/** Who is talking: the page knows, the server does not (`Android` is both a phone and a wall). */
+function _logSource() {
+    try { return _isKioskDevice() ? 'kiosk' : 'app'; } catch (e) { return 'app'; }
+}
+
+/** A device tag the server can file under, without guessing from the User-Agent. */
+function _logDevice() {
+    try {
+        if (_isKioskDevice()) return 'kiosk';
+        if (document.documentElement.classList.contains('is-touch-tablet')) return 'tablet';
+        return /mobile|android|iphone/i.test(navigator.userAgent) ? 'phone' : 'desktop';
+    } catch (e) { return 'desktop'; }
+}
+
+/**
+ * The level of a line, when the caller only gave a TAG.
+ *
+ * Every existing call site says `remoteLog('SCAN', …)`, `remoteLog('UNCAUGHT', …)`: rather than
+ * rewrite hundreds of them, the tag is read as a level (`UNCAUGHT`/`API_ERROR` → error,
+ * `JANK`/`TIMEOUT` → warn, everything else → info). New code can pass the level explicitly:
+ * `remoteLog('info', 'CAM', 'stream ok')`.
+ */
+function _logLevelFromTag(tag) {
+    const t = String(tag || '').toUpperCase();
+    if (LOG_LEVELS[String(tag || '').toLowerCase()]) return String(tag).toLowerCase();
+    if (/UNCAUGHT|UNHANDLED|EXCEPTION|ERROR|FAIL|CRASH/.test(t)) return 'error';
+    if (/JANK|LONGTASK|TIMEOUT|SLOW|STALL|MEM|WARN/.test(t)) return 'warn';
+    return 'info';
+}
+
+/** Change the level at runtime (debugging on a wall, from the console). */
+function setLogLevel(level) {
+    const want = String(level || '').toLowerCase();
+    if (!LOG_LEVELS[want]) return _logThreshold;
+    _logThreshold = want;
+    try { localStorage.setItem('evershelf_log_level', want); } catch (e) { /* private mode */ }
+    return _logThreshold;
+}
+
+function _logWanted(level) {
+    return (LOG_LEVELS[level] || LOG_LEVELS.info) >= (LOG_LEVELS[_logThreshold] || LOG_LEVELS.info);
+}
+
+/** One line, formatted `[LEVEL] [TAG] text`, into the batch buffer. */
+function _logPush(level, tag, msg) {
+    if (!_logWanted(level)) return;
+    const lvl = String(level || 'info').toUpperCase();
+    _remoteLogBuffer.push(`[${lvl}] [${tag || 'LOG'}] ${msg}`);
+    if (!_remoteLogTimer) {
+        _remoteLogTimer = setTimeout(flushRemoteLog, 2000);
+    }
+}
+
 function remoteLog(level, ...args) {
     const msg = args.map(a => {
         if (a instanceof Error) return `${a.name}: ${a.message}`;
         if (typeof a === 'object') try { return JSON.stringify(a); } catch { return String(a); }
         return String(a);
     }).join(' ');
-    _remoteLogBuffer.push(`[${level}] ${msg}`);
-    if (!_remoteLogTimer) {
-        _remoteLogTimer = setTimeout(flushRemoteLog, 2000);
-    }
+    _logPush(_logLevelFromTag(level), level, msg);
 }
 
 function flushRemoteLog() {
@@ -63,7 +136,9 @@ function flushRemoteLog() {
     fetch(`api/index.php?action=client_log`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-EverShelf-Request': '1' },
-        body: JSON.stringify({ messages: msgs })
+        // `source`/`device` are what puts the line in `data/logs/<source>-<day>.log` instead of
+        // guessing from the User-Agent (a kiosk WebView claims to be a phone).
+        body: JSON.stringify({ messages: msgs, source: _logSource(), device: _logDevice() })
     }).catch(() => { _bufferOfflineLogs(msgs); }); // store if request itself fails
 }
 
@@ -655,15 +730,43 @@ function _logBootDiagnostics() {
  */
 function _remoteLogSync(level, msg) {
     try {
+        // Same three levels and the same `source`/`device` as the batched path: a line written by
+        // keepalive at the moment a page dies must land in the same river as the rest
+        // (`data/logs/kiosk-*.log` on a wall, `app-*.log` everywhere else).
+        const lvl = _logLevelFromTag(level);
+        if (!_logWanted(lvl)) return;
+        const line = `[${lvl.toUpperCase()}] [${level || 'LOG'}] ${msg}`;
         const token = (typeof getApiToken === 'function') ? getApiToken() : '';
         const qs = token ? `&api_token=${encodeURIComponent(token)}` : '';
         fetch(`api/index.php?action=client_log${qs}`, {
             method: 'POST',
             keepalive: true,
             headers: { 'Content-Type': 'application/json', 'X-EverShelf-Request': '1' },
-            body: JSON.stringify({ messages: [`[${level}] ${msg}`] }),
+            body: JSON.stringify({ messages: [line], source: _logSource(), device: _logDevice() }),
         }).catch(() => {});
     } catch (e) { /* logging must never throw */ }
+}
+
+/**
+ * Say what the page is doing, in the one place that survives a dead renderer.
+ *
+ * The wall's two symptoms — "the camera stays a grey box" and "tapping SHELFY restarts the app" —
+ * have no trace at all today: a `getUserMedia()` that never settles neither resolves nor throws,
+ * and a killed renderer takes its console with it. Every call here writes to the SERVER log right
+ * now (`_remoteLogSync`, keepalive), so the very next attempt explains itself with the APK that is
+ * already installed; when the kiosk exposes `logEvent` it also goes into the native report, which
+ * is the only copy that exists after the renderer is gone.
+ */
+function _kioskTrace(tag, msg) {
+    try {
+        _remoteLogSync(tag || 'TRACE', String(msg == null ? '' : msg));
+    } catch (e) { /* logging never breaks a flow */ }
+    try {
+        if (typeof _kioskBridge !== 'undefined' && _kioskBridge
+            && typeof _kioskBridge.logEvent === 'function') {
+            _kioskBridge.logEvent(String(tag || 'trace'), String(msg == null ? '' : msg));
+        }
+    } catch (e) { /* an older APK has no logEvent(): the server line above still exists */ }
 }
 
 /** Why the page is about to reload itself (empty when something outside does it). */
@@ -693,7 +796,16 @@ window.addEventListener('pagehide', () => {
  */
 (function _watchMainThreadStalls() {
     let last = performance.now();
+    // A HIDDEN page throttles timers to one per minute, so a background tab reported
+    // `blocked ~59 000 ms` once a minute for hours and one line even claimed 3 021 357 ms (50
+    // minutes) while other lines kept arriving — impossible, and it is what made "the kiosk
+    // freezes" look proven yesterday. The clock only runs while somebody is looking, and a return
+    // to the foreground restarts it instead of billing the time the page was away.
+    const resetClock = () => { last = performance.now(); };
+    document.addEventListener('visibilitychange', resetClock);
+    window.addEventListener('pageshow', resetClock);
     setInterval(() => {
+        if (document.visibilityState !== 'visible') { last = performance.now(); return; }
         const now = performance.now();
         const gap = now - last - 1000;   // the interval's own period is not a stall
         last = now;
@@ -2033,7 +2145,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261107n'; // bump when translations change
+const _I18N_VERSION = '20261108j'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -3651,6 +3763,12 @@ function _meanPool(tensor) {
  */
 async function classifyCategoryByEmbedding(productName) {
     if (!productName) return null;
+    // A wall tablet never pays ~24 MB of model + ONNX WASM for a category guess: the two callers
+    // both fall back to the vocabulary (`guessCategoryFromName`), which is the same dictionary
+    // that classifies every other name, and instantiating that runtime on the main thread is one
+    // of the ways a low-RAM WebView renderer dies mid-sentence (the kiosk then recreates the
+    // Activity, which the household sees as "the app restarted").
+    if (_isKioskDevice()) return null;
     const key = productName.toLowerCase().trim();
     if (_embeddingCache.has(key)) return _embeddingCache.get(key);
 
@@ -4267,6 +4385,8 @@ let _locationDomain = 'food';
 let _locCounts = {};
 let _locAlerts = {};
 let scannerStream = null;
+/** Watchdog of ONE `getUserMedia()` call: a request that never settles leaves a grey box. */
+let _camWatchdogTimer = null;
 let quaggaRunning = false;
 let aiStream = null;
 let _scanZoomLevel = 2; // always 2x
@@ -7401,44 +7521,58 @@ function _kioskVersionLabel() {
  * The two versions were being flattened into one string ("v1.31.4 · kiosk 1.7.26 (27)"), which
  * is both wide and wrong: `reportError()` reads `.header-version` as the app version. They are
  * two elements now: `.header-version` (the app, always) and `#header-kiosk-version` (the APK,
- * `kiosk 1.7.26`, distinguished by its own dimmer style). The kiosk label is hidden first when
- * the row does not fit, then the branch — a phone keeps the app version and nothing else, a
- * tablet on the wall shows both.
+ * `kiosk 1.7.26`, distinguished by its own dimmer style). The order in which the row gives way:
+ * the kiosk label first, then the branch, and **last the app NAME — but completely**:
+ * an ellipsised "E…" is not a name (on a 360 px phone the row had room for one glyph and a
+ * dash, which reads as a broken title). When the name cannot be read whole, the header shows
+ * the logo and the app version, which is what tells a household which app this is anyway.
  */
 function _paintKioskVersion() {
     const head = document.querySelector('.header-title');
+    if (!head) return;
     const kioskEl = document.getElementById('header-kiosk-version');
     const branchEl = document.getElementById('header-branch');
-    if (!head) return;
+    const nameEl = head.querySelector('.header-name');
 
     const isKiosk = _isKioskDevice();
     const apk = _kioskAppVersion();
     const showKiosk = !!(isKiosk && apk);
 
-    // Start from "everything on", then take away what does not fit.
+    // Start from "everything on", then take away what does not fit. BOTH the classes and the
+    // `hidden` flags are reset: the first version of this function only reset the classes, so
+    // once a measurement had hidden the branch it could never come back — a landscape trip
+    // (or the kiosk label arriving late) left the header permanently poorer than it needed.
     if (kioskEl) {
         kioskEl.hidden = !showKiosk;
         kioskEl.textContent = showKiosk ? `kiosk ${apk}` : '';
         kioskEl.title = showKiosk ? `kiosk ${apk}` : '';
     }
-    head.classList.remove('is-version-compact', 'is-version-tight');
+    if (branchEl) branchEl.hidden = false;
+    head.classList.remove('is-version-compact', 'is-version-tight', 'is-name-hidden');
 
     // `.header-title` is `white-space: nowrap`, so a row that does not fit OVERFLOWS
     // (scrollWidth > clientWidth) instead of wrapping: that is the honest measurement.
+    // The NAME is measured on its own too, because it is the element that ellipsises
+    // first: the row can "fit" while the name inside it has been cut to two letters.
     const fits = () => head.scrollWidth <= head.clientWidth + 1;
-    if (fits()) return;
+    const nameFits = () => !nameEl || nameEl.scrollWidth <= nameEl.clientWidth + 1;
+    if (fits() && nameFits()) return;
 
     // No room for the kiosk version: keep the app version (and the branch, if it fits).
     if (kioskEl && !kioskEl.hidden) {
         kioskEl.hidden = true;
         head.classList.add('is-version-compact');
-        if (fits()) return;
+        if (fits() && nameFits()) return;
     }
     // Still no room: the branch label goes too, the app version never does.
     if (branchEl && !branchEl.hidden) {
         branchEl.hidden = true;
         head.classList.add('is-version-tight');
+        if (fits() && nameFits()) return;
     }
+    // Still no room for the whole name: drop it entirely. The logo (`header-logo-icon`)
+    // and `.header-version` stay — never a clipped "E…".
+    if (nameEl) head.classList.add('is-name-hidden');
 }
 
 /** Re-fit the header on rotation/resize and after the translations arrive. */
@@ -9024,9 +9158,15 @@ function showPage(pageId, param = null, options = {}) {
             _applySpesaScanUI();
             _setScanHudState('idle');
             _blurActiveTextInput();
-            if (typeof window._getCategoryPipeline === 'function' && !window._categoryPipelineReady) {
-                window._getCategoryPipeline();
-            }
+            // The scanner NEVER warms the category classifier. Opening this page used to call
+            // `_getCategoryPipeline()`, which imports 0.9 MB of transformers, instantiates the ONNX
+            // Runtime WASM and fetches `model_quantized.onnx` — 22.9 MB — WHILE `getUserMedia()` is
+            // starting. Measured on the wall's own server log: those five requests are exactly what
+            // an open of the scanner produces, and on a 2.8 GB WebView that WASM compile is the
+            // multi-second main-thread block the `[LONGTASK] … page=scan` lines record — the
+            // biggest spike the page can produce, at the moment the renderer is already working.
+            // The model only ever feeds a CATEGORY GUESS when a typed name names no genre
+            // (`classifyCategoryByEmbedding()`), so it loads when that guess is made, never here.
             break;
         case 'products': loadAllProducts(); break;
         case 'shopping':
@@ -10294,6 +10434,9 @@ function _openCaptureSheet() {
 function _openCaptureSheetInner() {
     const sheet = document.getElementById('capture-sheet');
     if (!sheet) return;
+    // What the wall can and cannot do, in one line, before anything else happens: if the app
+    // restarts on this tap, this is the only record of what the page believed.
+    _kioskTrace('SHELFY', `step=0 open speech=${!!(window.SpeechRecognition || window.webkitSpeechRecognition)} kiosk=${_isKioskDevice()} booting=${document.body.classList.contains('is-booting')}`);
     // The boot diagnostic reads this after a reload: the assistant was open when it happened.
     _shelfyMarkOpen(true);
     // A new sentence replaces a pending confirmation: never two writable actions at once.
@@ -10301,11 +10444,24 @@ function _openCaptureSheetInner() {
     // The sentence is parsed locally, but the rows it is matched against may cost one round
     // trip: warm them NOW — while the household reads the intro or speaks — so the lookup at
     // the end of the turn finds them in memory (`_captureInventoryRows`).
-    _captureInventoryRows().catch(() => {});
-    // And ask once whether this device can listen without the network at all.
+    //
+    // …but NOT while the app is still booting. The wall's renderer died FIVE times in one second
+    // when SHELFY was tapped one second after a boot (`[SHELFY] open` → five `renderer-killed-oom`):
+    // at that instant the page is still loading settings, stats, the dashboard and its own
+    // inventory, and one more 136 KB read on top is what the renderer cannot pay for. The rows are
+    // needed by the END of a voice turn, not by the open, and `_captureInventoryRows()` fetches
+    // them itself when the lookup asks.
+    if (!document.body.classList.contains('is-booting')) {
+        _kioskTrace('SHELFY', 'step=1 rows');
+        _captureInventoryRows().catch(() => {});
+    }
+    // And ask once whether this device can listen without the network at all — never on a kiosk
+    // (see `_captureProbeLocal`, which returns immediately there).
+    _kioskTrace('SHELFY', 'step=2 probe');
     _captureProbeLocal(_captureSpeechLang());
     // First run: SHELFY introduces itself before it starts listening.
-    if (!_shelfyIntroSeen()) { _shelfyOpenIntro(); return; }
+    if (!_shelfyIntroSeen()) { _kioskTrace('SHELFY', 'step=3 intro'); _shelfyOpenIntro(); return; }
+    _kioskTrace('SHELFY', 'step=3 sheet');
     sheet.style.display = '';
     _logKioskMemory('shelfy-open');
     const input = document.getElementById('capture-input');
@@ -10331,7 +10487,13 @@ function _openCaptureSheetInner() {
     // microphone denied) the text field takes over — and only then it gets focus,
     // because focusing it under voice would open the keyboard over the sheet.
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (Ctor) {
+    // A KIOSK never arms a recogniser, even when its WebView exposes one. Android's
+    // `webkitSpeechRecognition` opens a MICROPHONE session through the WebChromeClient, and a
+    // permission/dialog surface cannot come to the front over a locked-task kiosk: the Activity is
+    // recreated and the wall reads it as "tapping SHELFY restarts the app" — which is exactly what
+    // it kept reporting after the keyboard path was closed in v1.31.1. The sheet says
+    // `capture.kiosk_no_voice` and the example sentences stay one tap away.
+    if (Ctor && !_isKioskDevice()) {
         _captureStartVoice();
         // First run: the browser is showing (or about to show) the microphone prompt.
         // Say it, or "Ti ascolto…" looks stuck while the user has not answered yet.
@@ -10499,12 +10661,16 @@ function _captureSyncMicAvailability() {
     const mic = document.getElementById('capture-mic');
     if (!mic) return;
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    mic.hidden = !Ctor;
+    // A kiosk is "no recogniser" even when its WebView exposes one: see
+    // `_openCaptureSheetInner` — the mic session behind it is what a locked-task Activity
+    // cannot survive.
+    const canListen = !!Ctor && !_isKioskDevice();
+    mic.hidden = !canListen;
     // The animated border lives on the wrapper: hiding only the button would leave a
     // ring spinning around nothing.
     const wrap = document.getElementById('capture-mic-wrap');
-    if (wrap) wrap.hidden = !Ctor;
-    if (!Ctor) {
+    if (wrap) wrap.hidden = !canListen;
+    if (!canListen) {
         // No recogniser. A PHONE gets the text field, because typing is the only way in.
         // A KIOSK does not: the soft keyboard relayouts the whole page and Android may answer
         // a configuration change by recreating the Activity, which reloads the WebView — the
@@ -10702,6 +10868,12 @@ function _captureRetryVoice() {
     _captureShowTranscript('', false);
     _captureShowChoices(null);
     _captureSetState('idle');
+    // On a kiosk "riprova a voce" has nothing to retry with: say the honest line and leave the
+    // example phrases (one tap each) and the chat as the two ways forward.
+    if (_isKioskDevice()) {
+        _captureStatus('capture.kiosk_no_voice');
+        return;
+    }
     _captureStartVoice();
 }
 
@@ -10980,6 +11152,15 @@ function _shelfyOpenIntro() {
     if (list) {
         list.innerHTML = _SHELFY_EXAMPLES
             .map(k => `<span class="capture-hint">${escapeHtml(t(k))}</span>`).join('');
+    }
+    // A KIOSK DOES NOT PROMISE A VOICE IT CANNOT USE. The tablet HAS a microphone — what it cannot
+    // do is let SHELFY listen in this WebView without the Activity being recreated — so the lead
+    // line borrows `capture.kiosk_no_voice` (already translated six ways) instead of saying
+    // "ascolto, capisco…". `data-i18n` moves with it, so a language change keeps the same sentence.
+    const lead = box.querySelector('.shelfy-lead');
+    if (lead && _isKioskDevice()) {
+        lead.setAttribute('data-i18n', 'capture.kiosk_no_voice');
+        lead.textContent = t('capture.kiosk_no_voice');
     }
     box.style.display = 'flex';
 }
@@ -11342,6 +11523,13 @@ let _captureLocalOk = false;
 
 async function _captureProbeLocal(lang) {
     if (!lang || lang === _captureLocalLang) return;
+    // A KIOSK NEVER PROBES THE SPEECH STACK. `SpeechRecognition.available({ processLocally: true })`
+    // asks Android for the ON-DEVICE recognition language pack; the wall has no voice at all (its
+    // whole capture is by tap — `_openCaptureSheetInner` refuses to arm a recogniser on a kiosk), so
+    // the only thing that probe can do is wake the speech service inside the same renderer that is
+    // already the biggest process on the tablet. Every `[SHELFY] open` used to fire it, and every
+    // recorded renderer kill on the wall sits one second after such an open.
+    if (_isKioskDevice()) return;
     _captureLocalLang = lang;      // one probe per language, whatever the answer
     _captureLocalOk = false;
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -11458,6 +11646,18 @@ const _CAPTURE_HANDOVER_GUARD_MS = 700;
 async function _captureStartVoice() {
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Ctor) { _captureStatus('capture.unsupported'); return; }
+    // A KIOSK NEVER ARMS THE RECOGNISER, whoever asks. `_captureRetryVoice()` (the fallback card's
+    // "🔄 Riprova a voce") used to call this without a guard: on the wall the session started, Android
+    // refused the microphone — the permission surface cannot come to the front over a locked-task
+    // Activity — and the sheet printed `capture.mic_denied`: *"Microfono non consentito: controlla i
+    // permessi del browser e apri l'app in HTTPS"*. The tablet HAS a microphone; it is SHELFY that
+    // cannot listen there, and the household was being sent to check permissions that are fine.
+    if (_isKioskDevice()) {
+        _kioskTrace('SHELFY', 'startVoice refused on kiosk');
+        _captureStatus('capture.kiosk_no_voice');
+        _captureSetState('idle');
+        return;
+    }
     _captureVoiceStop();          // a tap restarts the sentence, it does not stack sessions
     _captureShowChoices(null);
     const tr = document.getElementById('capture-transcript');
@@ -14922,6 +15122,16 @@ async function loadInventory() {
         _syncInventoryAuditBanner();
     } catch (err) {
         console.error('Inventory load error:', err);
+        // An empty pantry because a SINGLE read died in flight is not "the pantry is gone": when
+        // nothing is on screen yet (first load after a boot, a wake-up, a reload) ask once more
+        // before leaving an empty page — `loadInventory()` keeps the old list when there IS one.
+        if (!currentInventory || currentInventory.length === 0) {
+            if (!loadInventory._retried) {
+                loadInventory._retried = true;
+                _remoteLogSync('API_RETRY', `inventory_list retry after: ${err && err.message}`);
+                setTimeout(() => { loadInventory._retried = false; loadInventory(); }, 1500);
+            }
+        }
     }
 }
 
@@ -18768,7 +18978,13 @@ function throwWasteForProduct(product) {
 }
 
 /** Four macro-reasons shown in the unified waste sheet (legacy keys still accepted by the API). */
-const WASTE_REASON_KEYS = ['spoiled', 'forgotten', 'bought_too_much', 'bad_quality'];
+// "Errore inventario" is the reason for the fifth case the household kept improvising with
+// "Altro": a row that should not be there at all — a double, a wrong quantity that made the app
+// invent a product, a scan that landed on the wrong article. It is still a discard (the stock
+// leaves the shelf), but the reason says the row was WRONG, not that food was wasted, so the
+// waste statistics stop counting a correction as waste.
+const WASTE_REASON_KEYS = ['spoiled', 'forgotten', 'bought_too_much', 'bad_quality', 'inventory_error'];
+
 
 function _wasteNotesForReason(reason) {
     const key = String(reason || 'other').replace(/[^a-z_]/g, '') || 'other';
@@ -18782,6 +18998,7 @@ function _wasteReasonGridHtml() {
     t('waste.reason_forgotten');
     t('waste.reason_bought_too_much');
     t('waste.reason_bad_quality');
+    t('waste.reason_inventory_error');
     t('waste.reason_skip');
     const cells = WASTE_REASON_KEYS.map(r =>
         `<button type="button" class="waste-reason-btn" data-waste-reason="${r}">
@@ -18857,9 +19074,24 @@ async function _submitWasteRecord(inventoryId, reason, mode, knownRow) {
     // The row can live outside the current place filter (banner, action page): ask both
     // pools and fall back to the row the caller already had, or a banner would answer
     // "nothing happened" after the reason was picked.
-    const item = _findInventoryItem(inventoryId)
+    const pick = () => _findInventoryItem(inventoryId)
         || (knownRow && Number(knownRow.id) === Number(inventoryId) ? knownRow : null);
-    if (!item) return;
+    let item = pick();
+    // …AND IF NEITHER HAS IT, ASK THE SERVER. Every discard refreshes the app in the background
+    // (`refreshAppDataAfterMutation`), and during that window `currentInventory` can be empty or
+    // filtered to another place — which is exactly when the wall printed "Prodotto non
+    // nell'inventario" for a product that was sitting right there, one discard after the previous
+    // one. One read costs nothing; telling the household their food does not exist costs trust.
+    if (!item) {
+        try {
+            const data = await api('inventory_list', {}, 'GET', null, {}, 8000);
+            const rows = Array.isArray(data?.inventory) ? data.inventory : [];
+            currentInventory = _inventoryVisibleItems(rows);
+            _allInventoryCache = currentInventory;
+            item = pick();
+        } catch (_) { /* offline: fall through to the message */ }
+    }
+    if (!item) { showToast(t('error.not_in_inventory'), 'error'); return; }
     const useOne = mode === 'one'
         && (item.unit === 'pz' || item.unit === 'conf')
         && (parseFloat(item.quantity) || 0) > 1;
@@ -18886,9 +19118,21 @@ async function _submitWasteRecord(inventoryId, reason, mode, knownRow) {
 async function deleteInventoryItem(id, knownRow) {
     // `knownRow` is the banner/action-page row: the pantry list may be filtered to another
     // place, and losing the row here would delete nothing without saying so.
-    const item = _findInventoryItem(id)
+    const pickDel = () => _findInventoryItem(id)
         || (knownRow && Number(knownRow.id) === Number(id) ? knownRow : null);
-    if (!item) return;
+    let item = pickDel();
+    // Same rule as `_submitWasteRecord`: a refresh in flight empties the caches for a moment, and
+    // "Prodotto non nell'inventario" about a row that exists is the worst possible answer.
+    if (!item) {
+        try {
+            const data = await api('inventory_list', {}, 'GET', null, {}, 8000);
+            const rows = Array.isArray(data?.inventory) ? data.inventory : [];
+            currentInventory = _inventoryVisibleItems(rows);
+            _allInventoryCache = currentInventory;
+            item = pickDel();
+        } catch (_) { /* offline */ }
+    }
+    if (!item) { showToast(t('error.not_in_inventory'), 'error'); return; }
     const isMed = _isMedicalRow(item);
 
     if (isMed) {
@@ -19662,11 +19906,12 @@ function scanLog(msg) {
 function flushScanLog() {
     _scanLogTimer = null;
     if (_scanLogBuffer.length === 0) return;
-    const msgs = _scanLogBuffer.splice(0).map(m => `[SCAN] ${m}`);
-    _remoteLogBuffer.push(...msgs);
-    if (!_remoteLogTimer) {
-        _remoteLogTimer = setTimeout(flushRemoteLog, 2000);
-    }
+    // Through the leveled formatter, so a scan line is `[INFO] [SCAN] …` like everything else
+    // (and a `CAMERA ERROR:` line is filed as an error, not as noise).
+    _scanLogBuffer.splice(0).forEach(m => {
+        const lvl = /ERROR|FAIL|TIMEOUT/i.test(m) ? 'error' : 'info';
+        _logPush(lvl, 'SCAN', m);
+    });
 }
 
 function toggleScanDebug() {
@@ -19707,11 +19952,27 @@ function resumeScanner() {
     _updateScanAiButton();
 }
 
+/**
+ * Ask the camera again, from a clean state.
+ *
+ * The one recovery that works when `getUserMedia()` came back empty after the renderer was
+ * killed with the stream live: stop everything (which stops the tracks the old attempt left
+ * behind), hide the error sheet, and start a brand new request. Referenced by the timeout card's
+ * button, so it has to stay a top-level function.
+ */
+function _cameraRetry() {
+    _kioskTrace('CAM', 'retry');
+    try { _dismissAiMatchPanel(); } catch (e) { /* the sheet may not be open */ }
+    stopScanner();
+    setTimeout(() => { initScanner(); }, 300);
+}
+
 async function initScanner() {
     const video = document.getElementById('scanner-video');
     const viewport = document.getElementById('scanner-viewport');
     const logEl = document.getElementById('scan-debug-log');
     if (logEl) logEl.textContent = '';
+    _kioskTrace('CAM', 'init start page=' + (_currentPageId || '-'));
     
     const constraints = getCameraConstraints();
     scanLog(`Camera mode: ${getSettings().camera_facing || 'environment'}`);
@@ -19725,12 +19986,42 @@ async function initScanner() {
         stopScanner();
         _resetAiFallbackForNewScan();
         _clearAiMatchPanel();
+        // A camera that never answers must not leave a grey box for ever. The wall reported
+        // exactly that — "the stream does not open, there is a grey box" — and the log said
+        // NOTHING, because a `getUserMedia()` whose request died with a previous renderer
+        // neither resolves nor throws: the promise simply stays pending and the black/grey
+        // cover added by `showPage('scan')` stays on top of it. After 8 s the page says so, in
+        // the server log and on screen, and offers the one action that helps: stop everything and
+        // ask again (a fresh `stopScanner()` releases the tracks the old attempt may have left).
+        clearTimeout(_camWatchdogTimer);
+        _camWatchdogTimer = setTimeout(() => {
+            if (scannerStream) return;
+            scanLog('CAMERA TIMEOUT: no stream after 8 s');
+            _kioskTrace('CAM', 'getUserMedia timeout after 8 s');
+            if (viewport) viewport.classList.add('scanner-off');
+            _setScanStatus(t('error.camera'), 'invalid', '');
+            const box = document.getElementById('scan-result');
+            if (box) {
+                box.innerHTML = `
+                    <div class="scan-result-sheet-head">
+                        <span class="scan-result-sheet-title">${escapeHtml(t('error.camera'))}</span>
+                        <button type="button" class="scan-result-sheet-close" onclick="_dismissAiMatchPanel()" aria-label="${escapeAttr(t('btn.close') || 'Close')}">✕</button>
+                    </div>
+                    <p>${escapeHtml(t('error.camera'))}</p>
+                    <button type="button" class="btn btn-primary btn-small" onclick="_cameraRetry()">${escapeHtml(t('btn.retry') || 'Riprova')}</button>
+                `;
+                box.style.display = 'block';
+            }
+        }, 8000);
         
+
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        clearTimeout(_camWatchdogTimer);
         const track = stream.getVideoTracks()[0];
         const caps = track.getSettings ? track.getSettings() : {};
         scanLog(`Stream OK — track: ${track.label}`);
         scanLog(`Resolution: ${caps.width||'?'}x${caps.height||'?'}, facing: ${caps.facingMode||'N/A'}`);
+        _kioskTrace('CAM', `stream ok ${caps.width||'?'}x${caps.height||'?'} ${track.label}`);
         
         scannerStream = stream;
         video.muted = true;
@@ -19756,11 +20047,17 @@ async function initScanner() {
         } else {
             _setScanStatus(t('scan.status_ready'), '', '');
         }
-        if (!_tesseractWorker) setTimeout(() => _ensureTesseractWorker().catch(() => {}), 400);
+        // The local OCR engine is a multi-megabyte WASM module and every OCR path awaits it itself
+        // (`_ensureTesseractWorker()` at the top of each pass): warming it 400 ms after the camera
+        // starts is a spike while the household is still aiming. A kiosk loads it when a pass
+        // really needs it — the same rule the boot preload already follows.
+        if (!_tesseractWorker && !_isKioskDevice()) setTimeout(() => _ensureTesseractWorker().catch(() => {}), 400);
         _updateScanAiButton();
         
     } catch (err) {
+        clearTimeout(_camWatchdogTimer);
         scanLog(`CAMERA ERROR: ${err.name}: ${err.message}`);
+        _kioskTrace('CAM', `error ${err.name}: ${err.message}`);
         console.error('Camera error:', err);
         if (viewport) viewport.classList.add('scanner-off');
         const result = document.getElementById('scan-result');
@@ -19835,7 +20132,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261107n';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261108j';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19845,7 +20142,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261107n';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261108j';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -19896,12 +20193,20 @@ function _ensureBarcodeEngines() {
                 scanLog(`Native BarcodeDetector init failed: ${e.message}`);
             }
         }
-        if (typeof barcodeDetectorPolyfill === 'undefined') {
+        // A KIOSK READS WITH THE NATIVE DETECTOR AND NOTHING ELSE. ZBar is ~2 MB of wasm
+        // instantiating inside the same renderer, for a fallback the wall never needs: its
+        // `BarcodeDetector` is present and it is the engine that actually decodes. Every renderer
+        // kill recorded on the wall (`renderer-killed-oom`, 5-15 s after the camera starts) happened
+        // with BOTH engines live — `native: true, ZBar: true` in the same log line.
+        const zbarSkippedOnKiosk = !!_detectorNative && _isKioskDevice();
+        if (zbarSkippedOnKiosk) {
+            scanLog('ZBar skipped on kiosk — the native detector reads');
+        } else if (typeof barcodeDetectorPolyfill === 'undefined') {
             try { await _loadZbarVendor(); } catch (e) {
                 scanLog(`ZBar vendor load failed: ${e.message}`);
             }
         }
-        if (typeof barcodeDetectorPolyfill !== 'undefined') {
+        if (!zbarSkippedOnKiosk && typeof barcodeDetectorPolyfill !== 'undefined') {
             try {
                 _detectorZbar = new barcodeDetectorPolyfill.BarcodeDetectorPolyfill({ formats: _SCAN_FORMATS });
             } catch (e) {
@@ -20296,6 +20601,8 @@ let _digitOcrMisses = 0;
 
 async function _tryLocalEanDigitOcr(videoEl) {
     if (_scannerPaused || !scannerStream) return false;
+    // Belt and braces with the caller: on a kiosk this engine is never pulled into a renderer.
+    if (_isKioskDevice()) return false;
     const worker = await _ensureTesseractWorker();
     if (!worker) return false;
     const canvas = _captureDigitStrip(videoEl);
@@ -21973,6 +22280,65 @@ function _renderMedDataset() {
 }
 
 // ===== UNIFIED SCANNER (Native + ZBar + local digit OCR) =====
+/**
+ * The frame handed to a barcode engine — and how often.
+ *
+ * Every pass used to call `detect(videoEl)` on the RAW `<video>`: at 1080×1920 that is a ~8 MB
+ * bitmap allocated inside the WebView renderer, up to **sixty times a second**. A phone absorbs it;
+ * the wall dies of it — three consecutive `renderer-killed-oom` were recorded within one second of
+ * `Unified scanner started`, with NO wasm engine loaded at all (native detector only), and the
+ * camera had been running happily for seconds before. A barcode decodes with a long edge of ~700 px,
+ * and a code held in front of the camera stays there for dozens of frames, so:
+ *   - the frame is drawn into ONE reused canvas, downscaled to `_SCAN_DETECT_SHORT_PX` on its short edge;
+ *   - the engine is asked at most once every `_scanDetectGapMs()` (≈7/s on a wall, 12/s elsewhere).
+ * The box comes back in canvas pixels and is mapped to video pixels before anybody uses it, so the
+ * lock rectangle, the AI crop and the confirmations all keep working on video coordinates.
+ */
+let _scanDetectCanvas = null;
+let _scanLastDetectAt = 0;
+const _SCAN_DETECT_SHORT_PX = 720;   // the SHORT edge: a portrait wall frame stays 720×1280
+
+function _scanDetectGapMs() {
+    try { return _isKioskDevice() ? 150 : 80; } catch (e) { return 80; }
+}
+
+/** The video, downscaled into a reused canvas. Null before the first real frame. */
+function _scanDetectFrame(videoEl) {
+    try {
+        const vw = videoEl.videoWidth | 0, vh = videoEl.videoHeight | 0;
+        if (!vw || !vh) return null;
+        // The SHORT edge is what decides whether a barcode is still readable: capping the LONG one
+        // turned a 1080×1920 wall frame into 405 px of width, which is too little for a dense
+        // EAN-13 seen across a shelf.
+        const short = Math.min(vw, vh);
+        const k = short > _SCAN_DETECT_SHORT_PX ? (_SCAN_DETECT_SHORT_PX / short) : 1;
+        const cw = Math.max(16, Math.round(vw * k)), ch = Math.max(16, Math.round(vh * k));
+        if (!_scanDetectCanvas) _scanDetectCanvas = document.createElement('canvas');
+        const cv = _scanDetectCanvas;
+        if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; }
+        const ctx = cv.getContext('2d');
+        if (!ctx) return null;
+        ctx.drawImage(videoEl, 0, 0, cw, ch);
+        return { canvas: cv, scaleX: vw / cw, scaleY: vh / ch };
+    } catch (e) { return null; }
+}
+
+/** Boxes measured on the canvas → the video's own pixels (`_barcodeBoxToViewport` wants those). */
+function _codesToVideoSpace(codes, frame) {
+    if (!codes || !codes.length || !frame) return codes;
+    if (Math.abs(frame.scaleX - 1) < 0.01 && Math.abs(frame.scaleY - 1) < 0.01) return codes;
+    return codes.map(c => {
+        const b = c && c.boundingBox;
+        if (!b) return c;
+        return Object.assign({}, c, { boundingBox: {
+            x: (b.x || 0) * frame.scaleX,
+            y: (b.y || 0) * frame.scaleY,
+            width:  (b.width  || 0) * frame.scaleX,
+            height: (b.height || 0) * frame.scaleY,
+        }});
+    });
+}
+
 function startUnifiedScanner(videoEl) {
     const gen = ++_scannerGen;
     quaggaRunning = true;
@@ -22062,25 +22428,32 @@ function startUnifiedScanner(videoEl) {
             }
         }
 
-        // 1) Native BarcodeDetector — every frame (fastest when available)
+        // 1) Native BarcodeDetector — throttled, on a DOWNSCALED frame (see `_scanDetectFrame`)
         if (decodeBarcodes && _detectorNative) {
-            try {
-                const codes = await _detectorNative.detect(videoEl);
-                if (codes && codes.length > 0) {
-                    foundThisFrame = true;
-                    // Soft seek: move the cloud even before confirm, so the user
-                    // sees the "AI" lock onto the bars — wherever they are in frame.
-                    if (codes[0].boundingBox) {
-                        const rect = _barcodeBoxToViewport(videoEl, codes[0].boundingBox);
-                        if (rect) {
-                            _scanDetectorHitUntil = Date.now() + 900;
-                            _setScanTrackTarget(rect, 'seek');
+            const _nowDetect = Date.now();
+            if ((_nowDetect - _scanLastDetectAt) >= _scanDetectGapMs()) {
+                _scanLastDetectAt = _nowDetect;
+                const frame = _scanDetectFrame(videoEl);
+                if (frame) {
+                    try {
+                        const codes = _codesToVideoSpace(await _detectorNative.detect(frame.canvas), frame);
+                        if (codes && codes.length > 0) {
+                            foundThisFrame = true;
+                            // Soft seek: move the cloud even before confirm, so the user
+                            // sees the "AI" lock onto the bars — wherever they are in frame.
+                            if (codes[0].boundingBox) {
+                                const rect = _barcodeBoxToViewport(videoEl, codes[0].boundingBox);
+                                if (rect) {
+                                    _scanDetectorHitUntil = Date.now() + 900;
+                                    _setScanTrackTarget(rect, 'seek');
+                                }
+                            }
+                            if (handleCodes(codes, 'Native')) return;
                         }
+                    } catch (e) {
+                        if (frameCount === 1) scanLog(`Native detect error: ${e.message}`);
                     }
-                    if (handleCodes(codes, 'Native')) return;
                 }
-            } catch (e) {
-                if (frameCount === 1) scanLog(`Native detect error: ${e.message}`);
             }
         }
 
@@ -22088,21 +22461,24 @@ function startUnifiedScanner(videoEl) {
         const useZbar = decodeBarcodes && (!_detectorNative || elapsed >= _ZBAR_FALLBACK_DELAY_MS);
         const zbarEvery = (_offlineMode || !navigator.onLine) ? 1 : 2;
         if (useZbar && _detectorZbar && frameCount % zbarEvery === 0) {
-            try {
-                const codes = await _detectorZbar.detect(videoEl);
-                if (codes && codes.length > 0) {
-                    foundThisFrame = true;
-                    if (codes[0].boundingBox) {
-                        const rect = _barcodeBoxToViewport(videoEl, codes[0].boundingBox);
-                        if (rect) {
-                            _scanDetectorHitUntil = Date.now() + 900;
-                            _setScanTrackTarget(rect, 'seek');
+            const frameZ = _scanDetectFrame(videoEl);
+            if (frameZ) {
+                try {
+                    const codes = _codesToVideoSpace(await _detectorZbar.detect(frameZ.canvas), frameZ);
+                    if (codes && codes.length > 0) {
+                        foundThisFrame = true;
+                        if (codes[0].boundingBox) {
+                            const rect = _barcodeBoxToViewport(videoEl, codes[0].boundingBox);
+                            if (rect) {
+                                _scanDetectorHitUntil = Date.now() + 900;
+                                _setScanTrackTarget(rect, 'seek');
+                            }
                         }
+                        if (handleCodes(codes, 'ZBar')) return;
                     }
-                    if (handleCodes(codes, 'ZBar')) return;
+                } catch (e) {
+                    if (frameCount <= 2) scanLog(`ZBar video detect error: ${e.message}`);
                 }
-            } catch (e) {
-                if (frameCount <= 2) scanLog(`ZBar video detect error: ${e.message}`);
             }
         }
 
@@ -22125,9 +22501,19 @@ function startUnifiedScanner(videoEl) {
         // pack serial into the form. Every fruitless attempt slows the next one down (1.8 s → 3.6
         // → 5.4 → 7.2, capped): a wall pointing at a shelf used to run Tesseract every 1.8 s for
         // hours, for a code nobody was showing it.
+        //
+        // NOT ON A KIOSK. This is the pass that kills the wall: the log of one session is
+        // `[SCAN] Stream OK` → `[SCAN] Local OCR engine ready` → `[kiosk] renderer-killed-oom`
+        // fourteen seconds later, with 814 MB free (twice, on two different days). Loading the
+        // Tesseract worker and drawing 1080×1920 video frames into a canvas to hand them over is
+        // the heaviest thing this page can do — and a wall reads BARCODES, which the native
+        // `BarcodeDetector` does in step 3 without any wasm at all. The digits-under-a-damaged-
+        // barcode rescue stays on the phone and the desktop, where a renderer has room; the
+        // medicine panel keeps its own reader (step 5), which loads the engine when the household
+        // actually asks to read a label.
         const ocrDelay = _detectorNative ? _LOCAL_OCR_DELAY_NATIVE_MS : _LOCAL_OCR_DELAY_MS;
         const ocrBackoff = 1800 * (1 + Math.min(_digitOcrMisses, 3));
-        if (!_scanModeIsMedical() && elapsed > ocrDelay && !digitOcrBusy && (Date.now() - lastDigitOcrAt) > ocrBackoff) {
+        if (!_isKioskDevice() && !_scanModeIsMedical() && elapsed > ocrDelay && !digitOcrBusy && (Date.now() - lastDigitOcrAt) > ocrBackoff) {
             lastDigitOcrAt = Date.now();
             digitOcrBusy = true;
             _tryLocalEanDigitOcr(videoEl).finally(() => { digitOcrBusy = false; });
@@ -22404,6 +22790,8 @@ function enhanceCanvasForBarcode(ctx, w, h) {
 
 function stopScanner() {
     _scannerPaused = false;
+    // The watchdog belongs to a call that is still in flight: stopping the scanner answers it.
+    clearTimeout(_camWatchdogTimer);
     quaggaRunning = false;
     _scanZoomLevel = 2; // always 2x on next start
     _torchActive = false;
@@ -26040,7 +26428,19 @@ async function submitAdd(e) {
     const minAdd = _addMinQtyForUnit(unitForAdd);
     // A box is measured by what it holds: 10 ml of eye drops is stock, not a typo (the API skips
     // the floor for a medicine too).
-    if (!_isMedicalRow(currentProduct) && addQty < minAdd) {
+    //
+    // A PACK IS NEVER "TOO SMALL": one confezione is 1, and a product sold in g/ml is measured by
+    // its own package (`default_quantity` + `package_unit`). Applying the **g/ml floor** to a pack
+    // count is what refused "una confezione da 1000 g" with «deve superare i 20 g» — the floor was
+    // reading the package's unit while the number was a number of packs. The floor stays for a bare
+    // weight/volume entry, which is the case it was written for ("2 g instead of 2 pieces").
+    const _packSold = !!(currentProduct && (currentProduct.unit === 'conf'));
+    const _floorApplies = !_isMedicalRow(currentProduct)
+        && !_packSold
+        && unitForAdd !== 'conf'
+        && unitForAdd !== 'pz';
+    if (_floorApplies && addQty < minAdd) {
+        _kioskTrace('ADD', `below floor unit=${unitForAdd} qty=${addQty} min=${minAdd} product_unit=${currentProduct?.unit} pkg=${currentProduct?.package_unit || '-'}/${currentProduct?.default_quantity || '-'}`);
         showToast(t('error.quantity_below_min', { min: minAdd, unit: _addUnitLabel(unitForAdd) }), 'error');
         document.getElementById('add-quantity')?.focus();
         startAddFormIdleCountdown();
@@ -35014,6 +35414,21 @@ async function enrichRecipeIngredientsStock(recipe) {
         }
     } catch (e) {
         console.warn('enrichRecipeIngredientsStock:', e);
+        // THE SHELF COULD NOT BE READ, SO NOTHING IS "AVAILABLE". The AI writes `from_pantry: true`
+        // on every ingredient it believes is in the pantry (the prompt tells it to), and this
+        // function is the only thing that checks. When the read fails the loop above never runs, so
+        // those claims stood and the recipe offered a "Usa" button for food that is not there —
+        // "mi proponeva prodotti che non ho". A row we could not verify is a MISSING row: struck
+        // through, no button, no ✅.
+        try {
+            (recipe.ingredients || []).forEach(ing => {
+                if (ing && (ing.from_pantry || ing.product_id)) {
+                    ing.stock_missing = true;
+                    delete ing.stock_have;
+                    delete ing.stock_remain;
+                }
+            });
+        } catch (_) { /* the recipe itself is malformed: the render copes */ }
     }
     return recipe;
 }
@@ -43605,10 +44020,12 @@ async function _runStartupCheck() {
     let _curPct = 0;
     function setProgress(pct, label, state) {
         _curPct = pct;
-        if (barEl) {
-            barEl.style.width = pct + '%';
-            barEl.className = 'preloader-bar' + (state === 'error' ? ' bar-error' : state === 'warn' ? ' bar-warn' : '');
-        }
+        // No bar to fill: the boot rail's OWN connector is the progress line
+        // (`--preloader-progress`, raised by `_preloaderStage()`). The splash used to
+        // carry a second 3 px track here, left over from the dark theme: on the light
+        // canvas it survived as a stray line under the stage caption while its status
+        // words (pale green/amber) were invisible. `pct` is still tracked because the
+        // fetch animation below advances it, and `state` colours the ticker text.
         if (!label) return;
         const ticker = document.getElementById('check-ticker');
         if (!ticker) return;
@@ -43627,7 +44044,6 @@ async function _runStartupCheck() {
     }
 
     const wrapEl     = document.getElementById('preloader-progress-wrap');
-    const barEl      = document.getElementById('preloader-bar');
     const labelEl    = document.getElementById('preloader-check-label');
     const warningsEl = document.getElementById('preloader-warnings');
     const errorEl    = document.getElementById('preloader-error-msg');
@@ -43658,7 +44074,6 @@ async function _runStartupCheck() {
     const slowAnim = setInterval(() => {
         if (!_fetchDone && _curPct < 13) {
             _curPct++;
-            if (barEl) barEl.style.width = _curPct + '%';
         }
     }, 100);
 
@@ -43680,7 +44095,31 @@ async function _runStartupCheck() {
                 clearTimeout(tid);
             }
         };
-        let { resp, data } = await _fetchHealth();
+        let { resp, data } = await (async () => {
+            // THE BOOT ASKS MORE THAN ONCE. A tablet that has just woken up answers "cannot reach
+            // the server" for the half second its Wi-Fi needs to re-associate, and the household is
+            // then parked on a Retry screen with an apparently empty pantry — which is exactly the
+            // report "spesso all'avvio dice che non c'è la connessione e sembra che perda i dati,
+            // poi ricaricando tornano". Three attempts (0 / 800 ms / 2 s) cost nothing when the
+            // server is there, and they turn a transient blip into a boot that just works.
+            let lastErr = null;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    const got = await _fetchHealth();
+                    if (attempt > 1) _remoteLogSync('STARTUP_RETRY', `health_check ok on attempt ${attempt}/3`);
+                    return got;
+                } catch (err) {
+                    lastErr = err;
+                    _remoteLogSync(err && err.name === 'AbortError' ? 'TIMEOUT' : 'STARTUP_FAIL',
+                        `health_check attempt ${attempt}/3: ${err && err.name}: ${err && err.message}`);
+                    if (attempt < 3) {
+                        setProgress(6, tl('connecting', 'Connecting to server...'), 'warn');
+                        await new Promise(r => setTimeout(r, attempt === 1 ? 800 : 2000));
+                    }
+                }
+            }
+            throw lastErr || new Error('health_check unreachable');
+        })();
         if (resp.status === 429 || data?.error_key === 'error.rate_limited') {
             const waitMs = Math.min(5000, Math.max(800, Number(data?.retry_after || 2) * 400));
             setProgress(8, tl('rate_limited_retry', 'Too many requests — retrying…'), 'warn');
@@ -43721,6 +44160,20 @@ async function _runStartupCheck() {
         }
     } catch(e) {
         clearInterval(slowAnim);
+        // A TIMEOUT IS NOT "THE SERVER IS NOT THERE", and it must never park the wall on an error
+        // screen: `AbortController` fires after 12 s, and a PHP side that is busy (a backup, a
+        // cron holding the SQLite lock, a big import) answers slower than that with the network in
+        // perfect health. Same friendly exit as the rate-limited branch above: boot with what the
+        // cache holds and let the individual reads retry.
+        if (e && e.name === 'AbortError') {
+            _remoteLogSync('TIMEOUT', 'health_check gave up — booting with cached data');
+            _preloaderStage('system', 'warn');
+            _fetchDone = true;
+            setProgress(100, tl('rate_limited_continue', 'Server busy — continuing with cached data'), 'warn');
+            wrapEl.style.display = 'none';
+            return true;
+        }
+        _remoteLogSync('STARTUP_FAIL', `startup check failed: ${e && e.name}: ${e && e.message}`);
         _preloaderStage('system', 'error');
         _showStartupErrorPopup(
             tl('error_network', 'Cannot reach the server.'),
@@ -43859,11 +44312,15 @@ async function _runStartupCheck() {
 
         // Hide warning popup
         warningsEl.style.display = 'none';
-    } else {
-        // One clean beat and the app: the checkmark the audit asks for, not a 600 ms wait.
+    } else if (_bootDebug) {
+        // NOTHING TO SAY, SO NOTHING IS SAID. The rail's own ✓ (the `ready` stage, painted
+        // by `_initApp` with its own dwell) is the "all good" signal; a "Sistema OK" that
+        // lived 220 ms was a flicker, not information — the household read it as noise on
+        // the way out. Only `?debug=1` keeps the line, because there it is the end of the
+        // list a developer is reading.
         wrapEl.style.display = '';
         setProgress(100, tl('all_ok', 'System OK'), 'ok');
-        await new Promise(r => setTimeout(r, _bootDebug ? 600 : 220));
+        await new Promise(r => setTimeout(r, 600));
     }
 
     // ── Final step: sync local offline cache (inventory + settings) ──────────
