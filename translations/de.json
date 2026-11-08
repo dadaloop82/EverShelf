@@ -1995,6 +1995,7 @@
       "saved": "Gesundheitsprofil gespeichert",
       "bridge_hint": "1) APK laden & installieren. 2) Hier den QR erzeugen. 3) In der App den QR scannen — Server-URL + Token zusammen.",
       "qr_scan_now": "Diesen QR in der Health-Bridge-App scannen",
+      "qr_unavailable": "Dieser Server konnte den QR nicht zeichnen. Erneut unter Einstellungen → Gesundheit versuchen.",
       "bridge_create": "📷 Pairing-QR erzeugen",
       "bridge_created": "QR bereit — mit dem Handy scannen",
       "bridge_unlink": "Entkoppeln / Tokens widerrufen",

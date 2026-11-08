@@ -108,6 +108,27 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   the one-time pairing code (`api/lib/pairing.php`) is presented; a paired device
   shows the live code under Settings → System → Security (`pairing_code` action);
   see `SECURITY.md`.
+- **A public action authenticates itself, or it does not exist.** `gemini_usage` answered
+  *before* the router and therefore forgot the token: a pre-router `if ($_GET['action'] === …)`
+  must call `evershelfRequireAuthForSensitive()` itself. The two public endpoints that cannot
+  present a token carry their own proof: the Telegram webhook compares the
+  `X-Telegram-Bot-Api-Secret-Token` Telegram echoes back against `TELEGRAM_WEBHOOK_SECRET`
+  (`telegramWebhookAuthVerdict()`) and **refuses to answer when there is neither a secret nor
+  an allowlist** — an empty `TELEGRAM_ALLOWED_CHAT_IDS` used to accept any chat id — and the
+  Drive callback consumes the OAuth `state` we issued (`api/lib/gdrive_state.php`: 32 random
+  bytes, only the SHA-256 on disk, 10 minutes, single use, one outstanding flow, and a wrong
+  value never cancels the pending one) *before* it contacts Google, because it overwrites
+  `GDRIVE_REFRESH_TOKEN`. `ALLOWED_HOSTS` (opt-in, `*.example.lan` allowed,
+  `evershelfHostAllowed()`) is the DNS-rebinding guard: a browser cannot see it, only the
+  server knows which names it answers to. An install with no `API_TOKEN` **mints one** on its
+  first request (`evershelfEnsureApiToken()`, `ALLOW_OPEN_LAN=true` opts out, the
+  `data/api_token_autogen.json` marker stops a second mint) and prints the pairing code next
+  to it in the log. A bearer token only ever follows a **same-origin** check
+  (`evershelfSameOrigin()`, not `str_starts_with`) and is never handed to a third party: the
+  Health Bridge pairing QR is drawn by `action health_bridge_qr` → `api/lib/qr.php`, not by a
+  public QR service. `escapeHtml()` does not escape quotes, so an attribute value is
+  `escapeAttr()` — `src="${escapeAttr(url)}"` — while product titles and text stay
+  `escapeHtml()`.
 - **Auth overlays are drawn during startup, above everything.** Pairing is requested
   while `_initApp()` is still running, and `_initApp()` returns early when it cannot
   authenticate — so `#app-preloader` (z-index 200000) is never removed. The auth

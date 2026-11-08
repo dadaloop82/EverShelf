@@ -32,6 +32,12 @@ data/mealie_cache.json
 data/cron_health.json
 data/*.db.bak*
 
+# Runtime secrets written by the app itself: the Google Drive OAuth state (its hash) and
+# the marker that says an API_TOKEN was already generated for this install.
+data/gdrive_oauth_state.json
+data/api_token_autogen.json
+data/med_debug/
+
 # SSL certificates (local only)
 data/*.crt
 data/*.pem

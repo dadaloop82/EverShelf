@@ -1429,6 +1429,7 @@
       "today": "Oggi",
       "qr_hint": "Il QR contiene URL del server + token. Non condividere.",
       "qr_scan_now": "Scansiona questo QR dall’app Health Bridge",
+      "qr_unavailable": "Non riesco a disegnare il QR su questo server. Riprova dalla pagina Impostazioni → Salute.",
       "sex": "Sesso",
       "sex_m": "M",
       "sex_f": "F",

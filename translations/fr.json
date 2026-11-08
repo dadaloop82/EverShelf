@@ -1931,6 +1931,7 @@
       "saved": "Profil santé enregistré",
       "bridge_hint": "1) Téléchargez & installez l’APK. 2) Générez le QR ici. 3) Dans l’app, scannez le QR — URL + jeton ensemble.",
       "qr_scan_now": "Scannez ce QR depuis l’app Health Bridge",
+      "qr_unavailable": "Ce serveur n’a pas pu dessiner le QR. Réessayez depuis Réglages → Santé.",
       "bridge_create": "📷 Générer le QR d’appairage",
       "bridge_created": "QR prêt — scannez avec le téléphone",
       "bridge_unlink": "Dissocier / révoquer les jetons",

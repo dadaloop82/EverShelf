@@ -64,6 +64,10 @@ evershelf-kiosk/
 screenshots/
 todo/
 
+# Standalone test scripts (test_*.php) answer from the command line only and must not
+# travel inside the image: one of them printed part of GEMINI_API_KEY to anonymous callers.
+test_*.php
+
 # The MiniLM weights are gitignored: the Dockerfile fetches them itself, so the
 # published image and a locally built one finally contain the same files.
 assets/vendor/transformers/Xenova/

@@ -5,6 +5,14 @@
  * Run: php test_recipe_stream.php
  */
 
+// A test script is not an endpoint. It used to answer an unauthenticated GET and print the
+// first characters of GEMINI_API_KEY; the Docker image copies the tree, so it shipped with
+// the app. It now refuses anything but the command line (the image also excludes test_*.php).
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 define('CRON_MODE', true); // skip HTTP routing
 require_once __DIR__ . '/api/database.php';
 require_once __DIR__ . '/api/index.php';
@@ -17,7 +25,7 @@ function info(string $msg): void { echo "\033[33m→\033[0m $msg\n"; }
 // ── TEST 1: API key present ───────────────────────────────────────────────────
 $apiKey = env('GEMINI_API_KEY');
 if (!empty($apiKey)) {
-    pass("API key set (" . substr($apiKey, 0, 8) . "...)");
+    pass("API key set");
 } else {
     fail("API key missing in .env");
     exit(1);

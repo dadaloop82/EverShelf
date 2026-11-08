@@ -1931,6 +1931,7 @@
       "saved": "Perfil de salud guardado",
       "bridge_hint": "1) Descarga e instala el APK. 2) Genera el QR aquí. 3) En la app, escanea el QR — URL + token juntos.",
       "qr_scan_now": "Escanea este QR desde la app Health Bridge",
+      "qr_unavailable": "Este servidor no pudo dibujar el QR. Inténtalo de nuevo desde Ajustes → Salud.",
       "bridge_create": "📷 Generar QR de emparejamiento",
       "bridge_created": "QR listo — escanea con el móvil",
       "bridge_unlink": "Desvincular / revocar tokens",

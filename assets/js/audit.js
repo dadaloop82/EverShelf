@@ -394,7 +394,7 @@ function _auditStart() {
     el.innerHTML = `<div class="audit-panel">
         <div class="audit-head">
             <h3>${escapeHtml(t('audit.title'))}</h3>
-            <button type="button" class="audit-close" onclick="_auditStop()" aria-label="${escapeHtml(t('audit.close'))}">✕</button>
+            <button type="button" class="audit-close" onclick="_auditStop()" aria-label="${escapeAttr(t('audit.close'))}">✕</button>
         </div>
         ${_auditModeSwitchHtml()}
         ${_auditSessionBarHtml()}
@@ -1157,14 +1157,14 @@ function _auditRender() {
             { qty: qtyPlain, place: placeLabel, date: expiryDate })
         : t('audit.confirm_sentence_no_expiry', { qty: qtyPlain, place: placeLabel });
     const confirmShort = t('audit.confirm_yes_qty', { qty: qtyPlain });
-    el.innerHTML = `<div class="audit-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(t('audit.title'))}">
+    el.innerHTML = `<div class="audit-panel" role="dialog" aria-modal="true" aria-label="${escapeAttr(t('audit.title'))}">
         <div class="audit-top">
             ${isOne ? '' : `<div class="audit-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${total}"
-                 aria-valuenow="${done + 1}" aria-valuetext="${escapeHtml(countLabel)}">
+                 aria-valuenow="${done + 1}" aria-valuetext="${escapeAttr(countLabel)}">
                 <span style="width:${percent}%"></span>
             </div>
             <p class="audit-count">${escapeHtml(countLabel)}</p>`}
-            <button type="button" class="audit-close" onclick="_auditStop()" aria-label="${escapeHtml(t('audit.close'))}">✕</button>
+            <button type="button" class="audit-close" onclick="_auditStop()" aria-label="${escapeAttr(t('audit.close'))}">✕</button>
         </div>
         <p class="audit-eyebrow">${escapeHtml(isSearch
             ? t('audit.search_badge', { term: _audit.term || '' })
@@ -1500,7 +1500,7 @@ function _auditRenderSummary({ counts, errors = 0, canUndo = false }) {
                 <p class="audit-eyebrow">${escapeHtml(t('audit.title'))}</p>
                 <h3>${escapeHtml(t('audit.summary_title'))}</h3>
             </div>
-            <button type="button" class="audit-close" onclick="_auditEndSession(true)" aria-label="${escapeHtml(t('audit.close'))}">✕</button>
+            <button type="button" class="audit-close" onclick="_auditEndSession(true)" aria-label="${escapeAttr(t('audit.close'))}">✕</button>
         </div>
         <p class="audit-summary">${t('audit.summary_line')
             .replace('{there}', c.there)

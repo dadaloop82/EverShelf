@@ -49,3 +49,15 @@ require_once __DIR__ . '/lib/open_prices.php';
 require_once __DIR__ . '/lib/webpush.php';
 // Support layer: the optional donation/banner question (see api/lib/support.php).
 require_once __DIR__ . '/lib/support.php';
+
+// ── HTTP-only hardening ───────────────────────────────────────────────────────
+// Neither of these means anything to a cron job or a script: they judge a REQUEST.
+if (!defined('CRON_MODE') && PHP_SAPI !== 'cli') {
+    // 1. The DNS-rebinding guard: a Host we do not answer to is refused (opt-in — the names
+    //    an installation uses are not knowable from the code, see ALLOWED_HOSTS).
+    evershelfEnforceAllowedHosts();
+    // 2. An install with no API_TOKEN used to answer the whole LAN, unauthenticated. Mint one
+    //    on the first request and enforce it from here on (ALLOW_OPEN_LAN=true opts out), so
+    //    the household that never read SECURITY.md is not the one running an open pantry.
+    evershelfEnsureApiToken();
+}

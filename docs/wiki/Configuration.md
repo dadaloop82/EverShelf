@@ -47,7 +47,24 @@ TTS_ENABLED=false
 # `?api_token=` for Home Assistant. The web UI gets it once per browser through
 # the pairing code (Settings → Security on a paired device, or server log — see below).
 # Compared with hash_equals() to prevent timing attacks.
+#
+# LEAVE IT EMPTY and EverShelf generates one for you on the first request: the value is
+# written here (or to the app_settings fallback when .env is read-only), enforced from
+# that same request, and the pairing code that lets a device in is printed in the log
+# right after it. The marker data/api_token_autogen.json makes sure a token is never
+# minted twice — a rotating token would lock every device out.
 API_TOKEN=
+
+# true = keep the old behaviour and do NOT generate a token (a fully trusted LAN, or a
+# reverse proxy that authenticates for you). Everyone who can reach the port then reads
+# and writes the pantry.
+ALLOW_OPEN_LAN=false
+
+# The names this server answers to — the DNS-rebinding guard. Comma list, *.example.lan
+# allowed, empty = off. A browser cannot protect a LAN install here: a page on evil.example
+# can point its own DNS at your address and CORS / Sec-Fetch-Site are then satisfied.
+# ALLOWED_HOSTS=evershelf.local,192.168.1.10
+ALLOWED_HOSTS=
 
 # Legacy alias, still honoured when API_TOKEN is empty. Use API_TOKEN for new installs.
 SETTINGS_TOKEN=
@@ -288,7 +305,10 @@ never put into an error message.
 
 ## Protecting the API with a token
 
-If your EverShelf instance is reachable from an untrusted network, set `API_TOKEN` to a strong random string:
+`API_TOKEN` is what stands between your pantry and anyone else on the network, so
+EverShelf no longer relies on you remembering to set it: **an install with no token mints
+one on the first request it answers.** You can also set it yourself, which is the better
+answer when you already have a secret store:
 
 ```bash
 # Generate a strong token
@@ -299,7 +319,11 @@ openssl rand -hex 32
 API_TOKEN=a3f9b2c1d4e5...
 ```
 
-From then on every API action requires it — the web UI sends `X-API-Token`, Home Assistant can use `?api_token=`. A missing or wrong token is rejected with HTTP 403.
+From then on every API action requires it — the web UI sends `X-API-Token`, Home Assistant can use `?api_token=`. A missing or wrong token is rejected with HTTP 401.
+
+`ALLOW_OPEN_LAN=true` keeps an unauthenticated install on purpose (a fully trusted LAN, or
+a reverse proxy that authenticates for you). `ALLOWED_HOSTS` is the companion guard for the
+other direction — DNS rebinding, which no browser check can see (see `SECURITY.md`).
 
 ### First run: the pairing code
 

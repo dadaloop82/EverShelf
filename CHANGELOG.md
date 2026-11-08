@@ -5,6 +5,80 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.24] - 2026-11-08
+
+### Security
+A security report from **Thomas Lempa** (thank you) walked the server side of the app, the
+`ha-evershelf` integration and the PWA. Everything it found is fixed here; nothing was
+exploited, and the two items that change a default are called out as such.
+
+- **`gemini_usage` answered without the API token.** The action is handled *before* the
+  router (`if ($_GET['action'] === 'gemini_usage')`) and that branch never asked for
+  authentication: anyone who could reach the port read the AI usage history, the inventory
+  counts, the DB size and the backup timestamps. The branch now calls
+  `evershelfRequireAuthForSensitive()` itself.
+- **The Telegram webhook accepted anyone, and could send the list to anyone.** It is public by
+  design (Telegram cannot present `X-API-Token`) and its only gate was
+  `TELEGRAM_ALLOWED_CHAT_IDS` — with an **empty** allowlist every chat id in the body was
+  accepted. It now verifies the value Telegram echoes back
+  (`setWebhook(..., secret_token: …)` → `X-Telegram-Bot-Api-Secret-Token`, `hash_equals`
+  against the new `TELEGRAM_WEBHOOK_SECRET`) and, with no secret **and** no allowlist, refuses
+  to answer at all (`telegramWebhookAuthVerdict()`, 403 `webhook_not_configured`). Existing
+  installs that use the allowlist keep working; a secret is what new ones should set.
+- **The Google Drive callback accepted a code it never asked for.** `gdrive_oauth_callback` is
+  public and it overwrites `GDRIVE_REFRESH_TOKEN`, so a third party could hand the server an
+  authorization code of *their* account (login CSRF) and from then on the nightly backup went
+  to their Drive. The consent URL now carries a single-use `state`
+  (`api/lib/gdrive_state.php`): 32 random bytes, only the SHA-256 on disk (`data/`, 0600),
+  ten minutes, one outstanding flow at a time, and a wrong value is refused **before** Google
+  is contacted. A value that does not match never cancels the pending flow (any anonymous
+  request could otherwise interrupt the consent the household is doing).
+- **`test_recipe_stream.php` was a web endpoint that printed part of `GEMINI_API_KEY`.** It is
+  a CLI test, so it now answers 404 to anything that is not the command line
+  (`PHP_SAPI !== 'cli'`) and `test_*.php` no longer travels inside the Docker image
+  (`.dockerignore`). The key is no longer printed at all, not even its first characters.
+- **The Health Bridge pairing QR was drawn by `api.qrserver.com`.** The payload carries the
+  bridge token in clear, so the household's token ended up in a third party's access log. The
+  picture is now rendered by this server (`action health_bridge_qr` → `api/lib/qr.php`, the
+  same encoder that already draws the donation QR, authenticated) and returned as a PNG data
+  URL with an SVG fallback; the client shows a hint instead of silently failing when no
+  picture can be drawn (`settings.health.qr_unavailable`, six locales).
+- **`HA_TOKEN` / `TTS_TOKEN` followed a string prefix, not an origin.** The TTS proxy attached
+  the bearer token when `str_starts_with($url, HA_URL)` — and `http://ha.local.evil.example`
+  starts with `http://ha.local`. `evershelfSameOrigin()` compares scheme + host + port
+  (normalised defaults) and is the only gate now.
+- **An attribute value is escaped with `escapeAttr()`, not `escapeHtml()`.** `escapeHtml()` only
+  covers `& < >`, so a product image URL carrying `"` could close the attribute. Every
+  `src="${…}"` / `href="${…}"` of the frontend (`app.js`, `audit.js`, `receipt.js`,
+  `settings_search.js`, `core/support.js`) now uses the quote-safe escaper; text and titles
+  keep `escapeHtml()`.
+- **DNS rebinding has a guard: `ALLOWED_HOSTS`** (opt-in, comma list, `*.example.lan`
+  allowed). The browser cannot protect a LAN install here — a page on `evil.example` can point
+  its own DNS at your address, and CORS / `Sec-Fetch-Site` are then satisfied because the
+  request really is on `evil.example`. Only the server knows which names it answers to.
+  Empty means off, because those names are not knowable from the code.
+- **An install with no `API_TOKEN` now mints one** (`evershelfEnsureApiToken()`, called from
+  the HTTP bootstrap). `API_TOKEN=` empty is not "some protection", it is *no* authentication:
+  every action answered the whole LAN. The token is written to `.env` (or to the
+  `app_settings.env_overrides` fallback when that file is read-only), enforced from that same
+  request on, and the one-time pairing code that lets a phone in is printed in the log right
+  after it — `Settings → System → Security` shows it on a paired device. Two escape hatches,
+  both explicit: `ALLOW_OPEN_LAN=true` keeps the old behaviour, and the
+  `data/api_token_autogen.json` marker means a token is never minted twice (a rotating token
+  would lock every device out). **This is the one change a household will notice**: an
+  existing install that never set a token has to pair once after updating.
+
+### Verified
+The four server fixes and the two guards were exercised against a running `php -S`: `gemini_usage`
+401 without / 200 with the token; `gdrive_oauth_callback` 403 with no state, 403 with a bogus
+one; `telegram_webhook` 403 `webhook_not_configured`, 403 `forbidden` for a missing or wrong
+header, `{"ok":true}` with the right one; `test_recipe_stream.php` 404 over HTTP; an unlisted
+`Host` 403 while a listed one answers 200; and a fresh install with an empty `.env` minting its
+token, writing it, and answering 401 on the next request — while `ALLOW_OPEN_LAN=true` minted
+nothing. The pure rules (`evershelfHostAllowed`, `evershelfSameOrigin`,
+`telegramWebhookAuthVerdict`, the OAuth state issue/consume cycle) are covered by a 32-case CLI
+harness run against the real library files.
+
 ## [1.31.23] - 2026-11-08
 
 ### Fixed

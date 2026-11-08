@@ -46,6 +46,17 @@ runtime/binary files — if a task truly needs one, ask first.
 - **Security**: new action → add it to the right allow-list in
   `api/lib/security.php` only when intended. Never trust client headers
   (`Origin`, `Referer`, `Sec-Fetch-Site`).
+  **A public action authenticates itself, or it does not exist.** `gemini_usage` answered
+  before the router and forgot the token (`evershelfRequireAuthForSensitive`) — check a
+  pre-router branch the moment you add one. The Telegram webhook verifies the
+  `X-Telegram-Bot-Api-Secret-Token` Telegram echoes back (`TELEGRAM_WEBHOOK_SECRET`) and
+  **refuses to answer with no secret and no allowlist**; the Drive callback requires the
+  OAuth `state` we issued (`api/lib/gdrive_state.php`: 32 random bytes, only the SHA-256 on
+  disk, 10 min, single use, one flow at a time) *before* it talks to Google; `ALLOWED_HOSTS`
+  is the DNS-rebinding guard (opt-in) and an install with no `API_TOKEN` now *mints* one on
+  its first request (`evershelfEnsureApiToken`, `ALLOW_OPEN_LAN=true` opts out) — never let
+  a token point at a URL matched by prefix (`evershelfSameOrigin`), and never hand one to a
+  third party (the pairing QR is drawn by `api/lib/qr.php`, not by a public service).
 - **Frontend**: plain JS, `escapeHtml()` before any `innerHTML`; no inline
   `onclick` with unescaped data; use the `api(action, payload)` wrapper (app.js
   ~line 5384).

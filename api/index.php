@@ -13,6 +13,8 @@ require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/lib/tags.php';
 require_once __DIR__ . '/lib/product_family.php';
 require_once __DIR__ . '/lib/receipt_ocr.php';
+// The Google Drive OAuth `state`: the callback is public and overwrites the refresh token.
+require_once __DIR__ . '/lib/gdrive_state.php';
 
 const RECIPE_PANTRY_MIN_MATCH_SCORE = 80;
 const RECENTLY_EXHAUSTED_DAYS = 30;
@@ -382,6 +384,10 @@ if (($_GET['action'] ?? '') === 'get_logs') {
 
 // ── Gemini token usage + cost estimate ────────────────────────────────────────
 if (($_GET['action'] ?? '') === 'gemini_usage') {
+    // This branch answers BEFORE the router's evershelfRequireApiAuth(), so it has to ask for
+    // the token itself: it returns usage and cost history, inventory counts, DB size and the
+    // backup timestamps — nothing secret, but not the open internet's business either.
+    evershelfRequireAuthForSensitive('gemini_usage');
     checkRateLimit('gemini_usage');
     header('Content-Type: application/json; charset=utf-8');
 
@@ -1145,6 +1151,11 @@ try {
         case 'health_bridge_token_create':
             healthBridgeTokenCreateAction($db);
             break;
+        case 'health_bridge_qr':
+            // The pairing QR, drawn by this server (api/lib/qr.php): the payload carries the
+            // bridge token, so it is never handed to a public QR service.
+            healthBridgeQrAction();
+            break;
         case 'health_unlink':
             healthUnlinkAction($db);
             break;
@@ -1568,6 +1579,9 @@ try {
                     'response_type' => 'code',
                     'access_type'   => 'offline',
                     'prompt'        => 'consent',
+                    // Single-use, 10 minutes: the callback is public and it overwrites the
+                    // refresh token, so a code that did not come from this server is refused.
+                    'state'         => evershelfGdriveStateIssue(),
                 ]);
                 echo json_encode(['success' => true, 'url' => $url, 'redirect_uri' => $redirectUri]);
             }
@@ -2777,7 +2791,7 @@ function ttsProxy() {
     }, ARRAY_FILTER_USE_KEY);
 
     $haBase = rtrim(env('HA_URL', ''), '/');
-    if ($haBase !== '' && str_starts_with($url, $haBase)) {
+    if ($haBase !== '' && evershelfSameOrigin($url, $haBase)) {
         $haTok = env('HA_TOKEN');
         if ($haTok !== '') {
             $headers['Authorization'] = 'Bearer ' . $haTok;
@@ -13908,6 +13922,38 @@ function healthBridgeTokenCreateAction(PDO $db): void {
     echo json_encode(['success' => true, 'token' => $created]);
 }
 
+/**
+ * Render the Health Bridge pairing QR LOCALLY (api/lib/qr.php).
+ *
+ * The payload carries the bridge token in clear, and it used to be drawn by
+ * api.qrserver.com: a third party received the household's token in a GET whose URL any
+ * proxy or access log keeps. Same picture, one request, no network.
+ */
+function healthBridgeQrAction(): void {
+    require_once __DIR__ . '/lib/qr.php';
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $data  = trim((string)($input['data'] ?? ''));
+    $obj   = json_decode($data, true);
+    if ($data === '' || strlen($data) > 1200 || !is_array($obj) || ($obj['service'] ?? '') !== 'evershelf_health') {
+        echo json_encode(['success' => false, 'error' => 'invalid_payload', 'error_key' => 'error.generic']);
+        return;
+    }
+    try {
+        $svg = evershelfQrSvg($data, 6, 4, 'M');
+        $png = evershelfQrPng($data, 8, 4, 'M');
+    } catch (Throwable $e) {
+        EverLog::warn('Health Bridge QR could not be rendered', ['event' => 'health_bridge_qr_failed', 'message' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'qr_failed', 'error_key' => 'error.generic']);
+        return;
+    }
+    EverLog::debug('Health Bridge QR rendered locally', ['event' => 'health_bridge_qr', 'png' => $png !== null]);
+    echo json_encode([
+        'success' => true,
+        'svg'     => 'data:image/svg+xml;base64,' . base64_encode($svg),
+        'png'     => $png !== null ? 'data:image/png;base64,' . base64_encode($png) : null,
+    ]);
+}
+
 function healthUnlinkAction(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
     $tokenId = isset($input['token_id']) ? (int)$input['token_id'] : null;
@@ -16264,8 +16310,24 @@ function _gdriveGetTokenOAuth(): array {
 /**
  * Handle the OAuth 2.0 callback: exchange the code for tokens, store refresh_token.
  * Returns HTML (not JSON) — must be called before Content-Type header is sent.
+ *
+ * The `state` rule itself lives in api/lib/gdrive_state.php (public endpoint, single use).
  */
 function _gdriveHandleOAuthCallback(): void {
+    // The `state` check comes FIRST: this endpoint is public and it overwrites the refresh
+    // token, so an unverified code must never reach Google (see evershelfGdriveStateIssue()).
+    $state = (string)($_GET['state'] ?? '');
+    if (!evershelfGdriveStateConsume($state)) {
+        EverLog::warn('Google Drive OAuth callback rejected: missing, expired or reused state', [
+            'event' => 'gdrive_oauth_bad_state',
+        ]);
+        http_response_code(403);
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<html><body style="font-family:sans-serif;padding:2rem"><h2>&#10060; Authorisation rejected</h2>'
+           . '<p>This link is not valid any more. Start the Google Drive connection again from Settings &rarr; Backup.</p>'
+           . '</body></html>';
+        return;
+    }
     $code = $_GET['code'] ?? '';
     if (empty($code)) {
         http_response_code(400);

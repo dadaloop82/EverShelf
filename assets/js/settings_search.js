@@ -42,7 +42,7 @@ function _settingsSearchInit() {
                    placeholder="${placeholder}" aria-label="${placeholder}"
                    aria-describedby="settings-search-hint" autocomplete="off">
             <button type="button" id="settings-search-clear" class="search-clear-btn" hidden
-                    aria-label="${escapeHtml(t('settings_search.clear'))}">×</button>
+                    aria-label="${escapeAttr(t('settings_search.clear'))}">×</button>
         </div>
         <p class="settings-hint" id="settings-search-hint">${escapeHtml(t('settings_search.hint'))}</p>
         <div id="settings-search-results" class="settings-search-results" hidden></div>`;

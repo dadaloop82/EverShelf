@@ -18,6 +18,136 @@ function evershelfApiTokenRequired(): bool {
     return evershelfEffectiveApiToken() !== '';
 }
 
+/** Where the "a token was already generated for this install" marker lives. */
+function evershelfApiTokenMarker(): string {
+    return dirname(__DIR__, 2) . '/data/api_token_autogen.json';
+}
+
+/**
+ * Refuse a request whose `Host` is not in `ALLOWED_HOSTS` — the DNS-rebinding guard.
+ *
+ * A container published on the LAN can be reached by a page the household merely *visits*:
+ * the attacker's DNS answers `evil.example → 192.168.1.10`, the browser therefore sends
+ * `Host: evil.example`, and every same-origin decision the browser makes — CORS, cookies,
+ * `Sec-Fetch-Site` — is satisfied, because from the browser's point of view the request IS
+ * on evil.example. Only the server can tell, because it knows which names it answers to.
+ * OPT-IN (`ALLOWED_HOSTS` empty = no enforcement): the set of names a household uses is not
+ * knowable from the code — a bare IP, `.local`, a reverse proxy's domain, a tunnel. Set it
+ * as a comma list; `*.example.lan` matches every subdomain.
+ */
+function evershelfEnforceAllowedHosts(): void {
+    $raw = trim((string)env('ALLOWED_HOSTS', ''));
+    if ($raw === '' || PHP_SAPI === 'cli') {
+        return;
+    }
+    $host = strtolower((string)parse_url('http://' . (string)($_SERVER['HTTP_HOST'] ?? ''), PHP_URL_HOST));
+    if (evershelfHostAllowed($host, $raw)) {
+        return;
+    }
+    EverLog::warn('Request rejected: Host not in ALLOWED_HOSTS', [
+        'event' => 'host_not_allowed',
+        'host'  => $host,
+    ]);
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => false, 'error' => 'host_not_allowed']);
+    exit;
+}
+
+/**
+ * The rule of evershelfEnforceAllowedHosts(), on its own: is $host one of the names in the
+ * comma list? An exact match, or a `*.suffix` entry (which never matches the bare suffix).
+ * An empty host never matches; an empty list is handled by the caller (it means "off").
+ */
+function evershelfHostAllowed(string $host, string $rawList): bool {
+    $host = strtolower(trim($host));
+    if ($host === '') {
+        return false;
+    }
+    $list = array_values(array_filter(array_map(
+        static fn($v) => strtolower(trim((string)$v)),
+        explode(',', $rawList)
+    )));
+    if (in_array($host, $list, true)) {
+        return true;
+    }
+    foreach ($list as $entry) {
+        if (!str_starts_with($entry, '*.')) {
+            continue;
+        }
+        $suffix = substr($entry, 1); // ".example.lan"
+        if (strlen($host) > strlen($suffix) + 1 && str_ends_with($host, $suffix)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Mint an API token on the first start of an install that has none.
+ *
+ * `API_TOKEN=` empty was the documented default and it means "no authentication at all":
+ * every action, `inventory_list` included, answered anyone who could reach the port. The
+ * README says to set it, and the household that never read the README is exactly the one
+ * running an open pantry on the LAN. So the token is generated here, written to `.env`
+ * (or to the `app_settings.env_overrides` fallback when the file is read-only) and enforced
+ * from this same request on; the one-time pairing code that lets a phone in is printed in
+ * the log next to it and is shown under Settings → System → Security on a paired device.
+ *
+ * Two escape hatches, both explicit: `ALLOW_OPEN_LAN=true` keeps the old behaviour, and the
+ * `data/api_token_autogen.json` marker means this never mints a *second* token — a rotating
+ * token would lock every device out on every request.
+ */
+function evershelfEnsureApiToken(): void {
+    if (PHP_SAPI === 'cli') {
+        return; // cron and the CLI scripts have no HTTP surface to protect
+    }
+    if (evershelfEffectiveApiToken() !== '') {
+        return;
+    }
+    if (in_array(strtolower(trim((string)env('ALLOW_OPEN_LAN', ''))), ['1', 'true', 'yes', 'on'], true)) {
+        return;
+    }
+    $marker = evershelfApiTokenMarker();
+    if (is_file($marker)) {
+        return; // generated once already: the operator removed it on purpose
+    }
+
+    $token = bin2hex(random_bytes(32));
+    clearEnvOverrides(['API_TOKEN']);
+    $via = 'env';
+    $stored = evershelfWriteEnvFile(evershelfEnvFile(), ['API_TOKEN' => $token], dirname(__DIR__, 2) . '/.env.example');
+    if ($stored) {
+        loadEnv(true);
+    } else {
+        // Read-only .env (a mounted secret, a container layer): keep the value in the DB
+        // override table, the same fallback save_settings() already uses.
+        $via = 'override';
+        $stored = saveEnvOverrides(['API_TOKEN' => $token]);
+        loadEnvOverrides(true);
+    }
+    if (!$stored || evershelfEffectiveApiToken() === '') {
+        // Never leave a half-configured install rotating a token: log and stay as we were.
+        EverLog::error('API token autogeneration failed — set API_TOKEN by hand in .env', [
+            'event'    => 'api_token_autogen_failed',
+            'env_file' => evershelfEnvFile(),
+        ]);
+        return;
+    }
+    @file_put_contents($marker, json_encode([
+        'created' => date('c'),
+        'storage' => $via,
+    ], JSON_PRETTY_PRINT));
+    EverLog::warn('API token generated on first start (set ALLOW_OPEN_LAN=true to keep an open LAN install)', [
+        'event' => 'api_token_autogenerated',
+        'hint'  => 'pairing code below; Settings → System → Security on a paired device',
+    ]);
+    // Mint the code now so the pairing code lands in the log right after this line.
+    if (function_exists('evershelfPairingEnsure')) {
+        evershelfPairingEnsure();
+    }
+}
+
 function evershelfGetProvidedApiToken(): string {
     if (!empty($_SERVER['HTTP_X_API_TOKEN'])) {
         return (string)$_SERVER['HTTP_X_API_TOKEN'];
@@ -192,6 +322,34 @@ function evershelfRequireApiAuth(string $action, string $method): void {
         'api_token_required' => true,
     ]);
     exit;
+}
+
+/**
+ * True when two URLs point at the same ORIGIN (scheme + host + port), not merely at a
+ * string that starts the same way.
+ *
+ * `str_starts_with($url, 'http://ha.local')` also accepts `http://ha.local.evil.example/x`,
+ * and the caller of this rule (the TTS proxy) is about to attach the Home Assistant or the
+ * TTS bearer token to that request: a prefix match hands the household's token to any host
+ * whose name begins with the configured one. Ports are normalised (80/443 are default), the
+ * host must be present and case-insensitive, and a relative/invalid URL never matches.
+ */
+function evershelfSameOrigin(string $a, string $b): bool {
+    $origin = static function (string $url): ?string {
+        $p = parse_url(trim($url));
+        if (!is_array($p) || empty($p['host']) || empty($p['scheme'])) {
+            return null;
+        }
+        $scheme = strtolower($p['scheme']);
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return null;
+        }
+        $port = isset($p['port']) ? (int)$p['port'] : ($scheme === 'https' ? 443 : 80);
+        return $scheme . '://' . strtolower($p['host']) . ':' . $port;
+    };
+    $oa = $origin($a);
+    $ob = $origin($b);
+    return $oa !== null && $ob !== null && hash_equals($ob, $oa);
 }
 
 function evershelfRequireAuthForSensitive(string $action): void {

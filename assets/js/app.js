@@ -423,7 +423,7 @@ function _locIconMarkup(locKey, meta) {
 function _invImageHtml(imageUrl, catIcon) {
     if (!_validProductImageUrl(imageUrl)) return catIcon || '';
     const fallback = String(catIcon || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    return `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.textContent='${fallback}'">`;
+    return `<img src="${escapeAttr(imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.textContent='${fallback}'">`;
 }
 
 /**
@@ -2145,7 +2145,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261108j'; // bump when translations change
+const _I18N_VERSION = '20261108u'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -5154,7 +5154,7 @@ function _dismissAiMatchPanel() {
 function _renderAiCandidateThumb(item) {
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
     if (item.image_url) {
-        return `<img src="${escapeHtml(item.image_url)}" alt="" class="scan-ai-candidate-img" onerror="this.outerHTML='<span class=\\'scan-ai-candidate-icon\\'>${catIcon}</span>'">`;
+        return `<img src="${escapeAttr(item.image_url)}" alt="" class="scan-ai-candidate-img" onerror="this.outerHTML='<span class=\\'scan-ai-candidate-icon\\'>${catIcon}</span>'">`;
     }
     return `<span class="scan-ai-candidate-icon">${catIcon}</span>`;
 }
@@ -5220,12 +5220,12 @@ function _showAiMatchChoices(aiProduct) {
                 <div class="scan-ai-hero-icon">${catIcon}</div>
                 <div class="scan-ai-hero-text">
                     <div class="scan-ai-hero-name">
-                        <button type="button" id="scan-ai-title-display" class="edit-title-tap" onclick="startEditScanAiTitle()" title="${escapeHtml(t('product.edit_name_brand') || '')}">${escapeHtml(aiName)}</button>
-                        <input type="text" id="scan-ai-product-name" class="form-input edit-title-input" value="${escapeHtml(aiName)}" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('edit.label_name') || 'Name')}">
+                        <button type="button" id="scan-ai-title-display" class="edit-title-tap" onclick="startEditScanAiTitle()" title="${escapeAttr(t('product.edit_name_brand') || '')}">${escapeHtml(aiName)}</button>
+                        <input type="text" id="scan-ai-product-name" class="form-input edit-title-input" value="${escapeAttr(aiName)}" autocomplete="off" style="display:none" aria-label="${escapeAttr(t('edit.label_name') || 'Name')}">
                     </div>
                     <div class="scan-ai-hero-brand">
-                        <button type="button" id="scan-ai-brand-display" class="edit-subtitle-tap${aiBrand ? '' : ' edit-subtitle-empty'}" onclick="startEditScanAiBrand()" title="${escapeHtml(t('product.edit_name_brand') || '')}">${aiBrand ? escapeHtml(aiBrand) : escapeHtml(t('product.brand_label') || 'Brand')}</button>
-                        <input type="text" id="scan-ai-product-brand" class="form-input edit-title-input edit-brand-input" value="${escapeHtml(aiBrand)}" placeholder="${escapeHtml(t('product.brand_placeholder') || '')}" list="common-brands" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('product.brand_label') || 'Brand')}">
+                        <button type="button" id="scan-ai-brand-display" class="edit-subtitle-tap${aiBrand ? '' : ' edit-subtitle-empty'}" onclick="startEditScanAiBrand()" title="${escapeAttr(t('product.edit_name_brand') || '')}">${aiBrand ? escapeHtml(aiBrand) : escapeHtml(t('product.brand_label') || 'Brand')}</button>
+                        <input type="text" id="scan-ai-product-brand" class="form-input edit-title-input edit-brand-input" value="${escapeAttr(aiBrand)}" placeholder="${escapeAttr(t('product.brand_placeholder') || '')}" list="common-brands" autocomplete="off" style="display:none" aria-label="${escapeAttr(t('product.brand_label') || 'Brand')}">
                     </div>
                 </div>
             </div>
@@ -11027,7 +11027,7 @@ function _captureShowChoices(rows) {
             const loc = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location || '' };
             const cat = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
             const media = _validProductImageUrl(item.image_url)
-                ? `<img src="${escapeHtml(item.image_url)}" alt="" loading="lazy">`
+                ? `<img src="${escapeAttr(item.image_url)}" alt="" loading="lazy">`
                 : `<span class="shelfy-pick-emoji">${cat}</span>`;
             const meta = [item.brand, `${loc.icon} ${loc.label}`, _formatQtyPlain(item.quantity, item.unit, item.default_quantity, item.package_unit)]
                 .filter(Boolean).map(x => escapeHtml(String(x))).join(' · ');
@@ -14746,7 +14746,7 @@ async function _loadKnownTags() {
         if (tagsGroup) tagsGroup.hidden = !_tagsEnabled;
         _knownTags = (data?.tags || []).map(x => x.name);
         const dl = document.getElementById('product-tags-datalist');
-        if (dl) dl.innerHTML = _knownTags.map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
+        if (dl) dl.innerHTML = _knownTags.map(n => `<option value="${escapeAttr(n)}"></option>`).join('');
     } catch (_e) { /* tags are optional: never block the boot */ }
 }
 
@@ -14773,7 +14773,7 @@ async function _loadFamilies() {
         const group = document.getElementById('pf-family-group');
         if (group) group.hidden = !_familiesEnabled;
         const dl = document.getElementById('product-families-datalist');
-        if (dl) dl.innerHTML = (data?.families || []).map(f => `<option value="${escapeHtml(f.name)}"></option>`).join('');
+        if (dl) dl.innerHTML = (data?.families || []).map(f => `<option value="${escapeAttr(f.name)}"></option>`).join('');
     } catch (_e) { /* families are optional */ }
 }
 
@@ -15284,7 +15284,7 @@ function renderInventoryItem(item, opts = {}) {
         : `<div class="inv-name">${escapeHtml(item.display_name || item.name)}${item.brand ? ` <span class="inv-brand-inline">(${escapeHtml(item.brand)})</span>` : ''}</div>`;
 
     return `
-    <div class="inventory-item${medRow ? ' is-medical-row' : ''}${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}">
+    <div class="inventory-item${medRow ? ' is-medical-row' : ''}${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeAttr(item.location)}">
         <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
         <div class="inv-row-content inv-card">
             <div class="inv-card-top">
@@ -15292,7 +15292,7 @@ function renderInventoryItem(item, opts = {}) {
                 <div class="inv-info">
                     <div class="inv-name-row">
                         <div class="inv-name-block">${nameBlock}</div>
-                        <button type="button" class="btn-inv-fav${isFav ? ' active' : ''}" onclick="toggleInventoryFavorite(event, ${item.product_id})" title="${escapeHtml(favTitle)}" aria-label="${escapeHtml(favTitle)}">${isFav ? '★' : '☆'}</button>
+                        <button type="button" class="btn-inv-fav${isFav ? ' active' : ''}" onclick="toggleInventoryFavorite(event, ${item.product_id})" title="${escapeAttr(favTitle)}" aria-label="${escapeAttr(favTitle)}">${isFav ? '★' : '☆'}</button>
                     </div>
                     ${metaBits.length ? `<div class="inv-meta-line">${metaBits.join(' · ')}</div>` : ''}
                 </div>
@@ -16160,7 +16160,7 @@ function renderQuickAccessBtn(product) {
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(product.category, product.name)] || '📦';
     const exhausted = parseFloat(product.stock_qty ?? 1) <= 0.001;
     const imgHtml = product.image_url
-        ? `<img src="${escapeHtml(product.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">`
+        ? `<img src="${escapeAttr(product.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">`
         : catIcon;
     const brandHtml = product.brand ? `<span class="qa-brand">(${escapeHtml(product.brand)})</span>` : '';
     const exhaustedBadge = exhausted ? `<span class="qa-exhausted">${t('use.exhausted_badge')}</span>` : '';
@@ -16411,7 +16411,7 @@ function showItemDetail(inventoryId, productId, presetQty) {
                     </div>
                 </div>
                 <div class="item-detail-header-actions">
-                    <button type="button" class="btn-icon-round" title="${escapeHtml(t('inventory.item_detail_edit'))}" onclick="editInventoryItem(${inventoryId})">✏️</button>
+                    <button type="button" class="btn-icon-round" title="${escapeAttr(t('inventory.item_detail_edit'))}" onclick="editInventoryItem(${inventoryId})">✏️</button>
                     <button type="button" class="modal-close" onclick="closeModal()">✕</button>
                 </div>
             </div>
@@ -19310,7 +19310,7 @@ function editInventoryItem(id, _retried) {
                 <div class="item-detail-header-row">
                     <div class="item-detail-image edit-thumb">
                         ${_validProductImageUrl(item.image_url)
-                            ? `<img src="${escapeHtml(item.image_url)}" alt="">`
+                            ? `<img src="${escapeAttr(item.image_url)}" alt="">`
                             : `<span class="item-detail-emoji">${_productCatIconHtml(item)}</span>`}
                     </div>
                     <div class="item-detail-header-text">
@@ -19320,7 +19320,7 @@ function editInventoryItem(id, _retried) {
                                 title="${escapeAttr(t('product.edit_name_brand') || '')}">${titleName}</button>
                         </h3>
                         <input type="text" id="edit-product-name" class="form-input edit-title-input"
-                            value="${escapeHtml(item.name || '')}" autocomplete="off"
+                            value="${escapeAttr(item.name || '')}" autocomplete="off"
                             style="display:none" aria-label="${escapeAttr(t('edit.label_name') || 'Name')}">
                         <p class="item-detail-loc-line">${escapeHtml(t('inventory.edit_sheet_subtitle'))}</p>
                     </div>
@@ -19333,7 +19333,7 @@ function editInventoryItem(id, _retried) {
                 <div class="edit-meta-grid">
                     <div class="form-group edit-meta-brand">
                         <label class="edit-section-label" for="edit-product-brand">${escapeHtml(t('product.brand_label'))}</label>
-                        <input type="text" id="edit-product-brand" class="form-input" value="${escapeHtml(item.brand || '')}"
+                        <input type="text" id="edit-product-brand" class="form-input" value="${escapeAttr(item.brand || '')}"
                             placeholder="${escapeAttr(t('product.brand_placeholder'))}" autocomplete="organization">
                     </div>
                     <div class="form-group edit-meta-cat">
@@ -19542,7 +19542,7 @@ function _editMedicalInventoryItem(item) {
             <h3 class="edit-modal-heading">
                 <span class="edit-modal-prefix">${escapeHtml(t('medical.edit_title'))}</span>
                 <span id="edit-title-display">${escapeHtml(item.name)}</span>
-                <input type="hidden" id="edit-product-name" value="${escapeHtml(item.name || '')}">
+                <input type="hidden" id="edit-product-name" value="${escapeAttr(item.name || '')}">
             </h3>
             <button class="modal-close" onclick="closeModal()">✕</button>
         </div>
@@ -19590,7 +19590,7 @@ function _editMedicalInventoryItem(item) {
             </div>
             <div class="form-group">
                 <label>${escapeHtml(t('medical.detail_ingredient'))}</label>
-                <input type="text" id="edit-med-ingredient" class="form-input" value="${escapeHtml(item.med_ingredient || '')}" placeholder="${escapeAttr(t('medical.ingredient_placeholder'))}">
+                <input type="text" id="edit-med-ingredient" class="form-input" value="${escapeAttr(item.med_ingredient || '')}" placeholder="${escapeAttr(t('medical.ingredient_placeholder'))}">
             </div>
             <div class="form-group">
                 <label>${escapeHtml(t('medical.pao_label'))}</label>
@@ -20132,7 +20132,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261108j';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261108u';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20142,7 +20142,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261108j';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261108u';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -24610,7 +24610,7 @@ function showProductAction() {
     // Hero card preview (matches page-use style)
     document.getElementById('action-product-preview').innerHTML = `
         ${currentProduct.image_url ?
-            `<img src="${escapeHtml(currentProduct.image_url)}" alt="">` :
+            `<img src="${escapeAttr(currentProduct.image_url)}" alt="">` :
             `<span class="use-hero-icon">${_productCatIconHtml(currentProduct)}</span>`
         }
         <div class="use-hero-body">
@@ -24650,11 +24650,11 @@ function showProductAction() {
             <div class="edit-unknown-form">
                 <div class="form-group">
                     <label>${t('edit.label_name')}</label>
-                    <input type="text" id="edit-action-name" class="form-input" value="${escapeHtml(isUnknown ? '' : currentProduct.name)}" placeholder="${escapeAttr(t('product.name_placeholder'))}" required>
+                    <input type="text" id="edit-action-name" class="form-input" value="${escapeAttr(isUnknown ? '' : currentProduct.name)}" placeholder="${escapeAttr(t('product.name_placeholder'))}" required>
                 </div>
                 <div class="form-group">
                     <label>${t('product.brand_label')}</label>
-                    <input type="text" id="edit-action-brand" class="form-input" value="${escapeHtml(currentProduct.brand || '')}" placeholder="${escapeAttr(t('product.brand_placeholder'))}">
+                    <input type="text" id="edit-action-brand" class="form-input" value="${escapeAttr(currentProduct.brand || '')}" placeholder="${escapeAttr(t('product.brand_placeholder'))}">
                 </div>
                 <div class="form-group">
                     <label>${t('product.category_label')}</label>
@@ -24665,7 +24665,7 @@ function showProductAction() {
                 </div>
                 <div class="form-group">
                     <label>${t('product.notes_label')}</label>
-                    <textarea id="edit-action-notes" class="form-input" rows="2" placeholder="${escapeHtml(t('product.notes_placeholder') || '')}">${escapeHtml(currentProduct.notes || '')}</textarea>
+                    <textarea id="edit-action-notes" class="form-input" rows="2" placeholder="${escapeAttr(t('product.notes_placeholder') || '')}">${escapeHtml(currentProduct.notes || '')}</textarea>
                 </div>
                 <button type="button" class="btn btn-primary full-width" onclick="saveEditedProductInfo()">${t('btn.save_info')}</button>
             </div>
@@ -24763,7 +24763,7 @@ function showProductAction() {
                     <span class="btn-icon">✏️</span>
                     <span class="btn-text">${t('product.modify_details')}<br><small>${t('action.edit_sub')}</small></span>
                 </button>
-                ${actionIsMedical ? '' : `<button class="btn btn-recipe-from-ingredient" data-name="${escapeHtml(currentProduct.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
+                ${actionIsMedical ? '' : `<button class="btn btn-recipe-from-ingredient" data-name="${escapeAttr(currentProduct.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
                     👨‍🍳 ${t('action.create_recipe_btn')}
                 </button>`}
             `;
@@ -25271,17 +25271,17 @@ function _renderAddProductPreview() {
     const brand = currentProduct.brand || '';
     host.innerHTML = `
         ${currentProduct.image_url ?
-            `<img src="${escapeHtml(currentProduct.image_url)}" alt="">` :
+            `<img src="${escapeAttr(currentProduct.image_url)}" alt="">` :
             `<span style="font-size:2rem">${_productCatIconHtml(currentProduct)}</span>`
         }
         <div class="product-preview-info">
             <h3>
-                <button type="button" id="add-title-display" class="edit-title-tap" onclick="startEditAddTitle()" title="${escapeHtml(t('product.edit_name_brand') || '')}">${escapeHtml(name)}</button>
-                <input type="text" id="add-product-name" class="form-input edit-title-input" value="${escapeHtml(name)}" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('edit.label_name') || 'Name')}">
+                <button type="button" id="add-title-display" class="edit-title-tap" onclick="startEditAddTitle()" title="${escapeAttr(t('product.edit_name_brand') || '')}">${escapeHtml(name)}</button>
+                <input type="text" id="add-product-name" class="form-input edit-title-input" value="${escapeAttr(name)}" autocomplete="off" style="display:none" aria-label="${escapeAttr(t('edit.label_name') || 'Name')}">
             </h3>
             <p>
-                <button type="button" id="add-brand-display" class="edit-subtitle-tap${brand ? '' : ' edit-subtitle-empty'}" onclick="startEditAddBrand()" title="${escapeHtml(t('product.edit_name_brand') || '')}">${brand ? escapeHtml(brand) : escapeHtml(t('product.brand_label') || 'Brand')}</button>
-                <input type="text" id="add-product-brand" class="form-input edit-title-input edit-brand-input" value="${escapeHtml(brand)}" placeholder="${escapeHtml(t('product.brand_placeholder') || '')}" list="common-brands" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('product.brand_label') || 'Brand')}">
+                <button type="button" id="add-brand-display" class="edit-subtitle-tap${brand ? '' : ' edit-subtitle-empty'}" onclick="startEditAddBrand()" title="${escapeAttr(t('product.edit_name_brand') || '')}">${brand ? escapeHtml(brand) : escapeHtml(t('product.brand_label') || 'Brand')}</button>
+                <input type="text" id="add-product-brand" class="form-input edit-title-input edit-brand-input" value="${escapeAttr(brand)}" placeholder="${escapeAttr(t('product.brand_placeholder') || '')}" list="common-brands" autocomplete="off" style="display:none" aria-label="${escapeAttr(t('product.brand_label') || 'Brand')}">
             </p>
             ${currentProduct.weight_info ? `<p style="font-size:0.8rem;color:var(--text-light)">${escapeHtml(currentProduct.weight_info)}</p>` : ''}
         </div>
@@ -25856,9 +25856,9 @@ async function _fetchExpiryHistoryAndUpdate(productId) {
                 const newDate = addDays(days);
                 const newLabel = formatEstimatedExpiry(days);
                 const learnedTip = t('add.history_badge_tip').replace('{n}', String(data.count));
-                const suffix = ` <span class="history-badge" title="${escapeHtml(learnedTip)}">${t('product.history_badge')}</span>`;
+                const suffix = ` <span class="history-badge" title="${escapeAttr(learnedTip)}">${t('product.history_badge')}</span>`;
                 const soonerNote = (data.alert_days_sooner > 0)
-                    ? ` <span class="history-badge" title="${escapeHtml(t('add.learned_sooner_tip') || '')}">−${data.alert_days_sooner}d</span>`
+                    ? ` <span class="history-badge" title="${escapeAttr(t('add.learned_sooner_tip') || '')}">−${data.alert_days_sooner}d</span>`
                     : '';
                 const expiryInput = document.getElementById('add-expiry');
                 const estimateEl = document.querySelector('.expiry-estimate-label');
@@ -25880,7 +25880,7 @@ async function _fetchExpiryHistoryAndUpdate(productId) {
             const dateEl = document.querySelector('.expiry-estimate-date');
             if (expiryInput) expiryInput.value = addDays(days);
             if (estimateEl) {
-                const soonerNote = ` <span class="history-badge" title="${escapeHtml(t('add.learned_sooner_tip') || '')}">−${window._learnedAlertSooner}d</span>`;
+                const soonerNote = ` <span class="history-badge" title="${escapeAttr(t('add.learned_sooner_tip') || '')}">−${window._learnedAlertSooner}d</span>`;
                 estimateEl.innerHTML = `${t('add.estimated_expiry')} <strong>${formatEstimatedExpiry(days)}${soonerNote}</strong>`;
             }
             if (dateEl) dateEl.textContent = formatDate(addDays(days));
@@ -25950,7 +25950,7 @@ async function _applyAIProductHint() {
             const dateEl      = document.querySelector('.expiry-estimate-date');
             if (expiryInput) expiryInput.value = newDate;
             if (dateEl) dateEl.textContent = formatDate(newDate);
-            const aiSuffix = ` <span class="history-badge" style="background:rgba(99,102,241,0.15);color:#6366f1" title="${escapeHtml(data.reason || '')}">🤖 AI</span>`;
+            const aiSuffix = ` <span class="history-badge" style="background:rgba(99,102,241,0.15);color:#6366f1" title="${escapeAttr(data.reason || '')}">🤖 AI</span>`;
             if (estimateEl) estimateEl.innerHTML = `${t('add.estimated_expiry')} <strong>${newLabel}</strong>${aiSuffix}`;
         } else if (estimateEl && estimateEl.dataset.aiOriginal) {
             // Restore original if history already set
@@ -26701,7 +26701,7 @@ function showUseForm() {
 
 function renderUsePreview() {
     const imgHtml = currentProduct?.image_url
-        ? `<img src="${escapeHtml(currentProduct.image_url)}" alt="">`
+        ? `<img src="${escapeAttr(currentProduct.image_url)}" alt="">`
         : `<span class="use-hero-icon">${_productCatIconHtml(currentProduct)}</span>`;
     document.getElementById('use-product-preview').innerHTML = `
         ${imgHtml}
@@ -26710,7 +26710,7 @@ function renderUsePreview() {
             ${currentProduct?.brand ? `<div class="use-hero-brand">${escapeHtml(currentProduct.brand)}</div>` : ''}
             <div class="use-hero-meta" id="use-hero-meta"></div>
         </div>
-        <button type="button" class="btn-edit-inline" onclick="openUseInventoryEdit()" title="${escapeHtml(t('inventory.item_detail_edit'))}">✏️</button>
+        <button type="button" class="btn-edit-inline" onclick="openUseInventoryEdit()" title="${escapeAttr(t('inventory.item_detail_edit'))}">✏️</button>
     `;
 }
 
@@ -28802,7 +28802,7 @@ async function analyzeWithAI() {
             localMatches.forEach((p, idx) => {
                 html += `<div class="ai-match-item" onclick="selectLocalMatch(${p.id})">`;
                 if (p.image_url) {
-                    html += `<img src="${escapeHtml(p.image_url)}" alt="" class="ai-match-img" onerror="this.style.display='none'">`;
+                    html += `<img src="${escapeAttr(p.image_url)}" alt="" class="ai-match-img" onerror="this.style.display='none'">`;
                 }
                 html += `<div class="ai-match-info">`;
                 html += `<strong>${escapeHtml(p.name)}</strong>`;
@@ -29142,7 +29142,7 @@ async function _pfAiAnalyze(base64) {
             html += `<div class="ai-matches-list" style="max-height:160px;overflow-y:auto;margin-bottom:10px">`;
             matches.forEach((m, idx) => {
                 html += `<div class="ai-match-item" onclick="_pfAiFillFromMatch(${idx})">`;
-                if (m.image_url) html += `<img src="${escapeHtml(m.image_url)}" alt="" class="ai-match-img" onerror="this.style.display='none'">`;
+                if (m.image_url) html += `<img src="${escapeAttr(m.image_url)}" alt="" class="ai-match-img" onerror="this.style.display='none'">`;
                 html += `<div class="ai-match-info"><strong>${escapeHtml(m.name)}</strong>`;
                 if (m.brand) html += `<br><small>${escapeHtml(m.brand)}</small>`;
                 if (m.quantity_info) html += `<br><small style="color:var(--text-muted)">${escapeHtml(m.quantity_info)}</small>`;
@@ -29257,7 +29257,7 @@ function renderProductsList(products) {
             <div class="inv-image">
                 ${medRow
                     ? _productThumbHtml(p)
-                    : (p.image_url ? `<img src="${escapeHtml(p.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">` : catIcon)}
+                    : (p.image_url ? `<img src="${escapeAttr(p.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">` : catIcon)}
             </div>
             <div class="inv-info">
                 <div class="inv-name">${escapeHtml(p.name)}</div>
@@ -30343,7 +30343,7 @@ function _buildPriceSparklineSVG(history) {
         const d = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts);
         if (!isNaN(d.getTime())) tooltip = t('shopping.price_sparkline_updated').replace('{date}', d.toLocaleDateString());
     }
-    return `<svg class="price-sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"${tooltip ? ` title="${escapeHtml(tooltip)}"` : ''}><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    return `<svg class="price-sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"${tooltip ? ` title="${escapeAttr(tooltip)}"` : ''}><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
 function _buildPriceBadgeHTML(entry, sym) {
@@ -30360,7 +30360,7 @@ function _buildPriceBadgeHTML(entry, sym) {
     const title = entry.source_note || '';
     const approxClass = isApprox ? ' price-col-approx' : '';
     const spark = _buildPriceSparklineSVG(entry.history);
-    return `<div class="price-col-main${approxClass}" title="${escapeHtml(title)}">${mainLabel}${spark ? `<span class="price-spark-wrap">${spark}</span>` : ''}</div>`
+    return `<div class="price-col-main${approxClass}" title="${escapeAttr(title)}">${mainLabel}${spark ? `<span class="price-spark-wrap">${spark}</span>` : ''}</div>`
          + (unitLine ? `<div class="price-col-unit">${unitLine}</div>` : '');
 }
 
@@ -30505,7 +30505,7 @@ async function fetchAllPrices(forceRefresh = false) {
                     if (badge) badge.innerHTML = _buildPriceBadgeHTML(entry, sym);
                 } else {
                     // No price is a FACT, not an empty cell: say it once, with the reason.
-                    if (badge) badge.innerHTML = `<span class="price-col-error" title="${escapeHtml(t('shopping.price_unavailable'))}">${escapeHtml(t('shopping.price_nd'))}</span>`;
+                    if (badge) badge.innerHTML = `<span class="price-col-error" title="${escapeAttr(t('shopping.price_unavailable'))}">${escapeHtml(t('shopping.price_nd'))}</span>`;
                 }
             });
 
@@ -30933,7 +30933,7 @@ function _shopRowVisualHtml(item, smartData) {
     if (imageUrl) {
         return `<div class="shop-row-visual" aria-hidden="true">`
             + `<div class="shop-row-visual-bg" style="background-image:url('${escapeHtml(imageUrl)}')"></div>`
-            + `<img class="shop-row-visual-img" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+            + `<img class="shop-row-visual-img" src="${escapeAttr(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`
             + `</div>`;
     }
     // No photo: a pastel square reads as a broken image. The aisle's own emoji, drawn
@@ -30952,7 +30952,7 @@ function _shopRowVisualHtmlFromSmart(item) {
         return `<div class="shop-row-visual shop-row-visual--emoji cat-${catKey}" aria-hidden="true"><span>${emoji}</span></div>`;
     }
     const bg = `<div class="shop-row-visual-bg" style="background-image:url('${escapeHtml(imageUrl)}')"></div>`;
-    const img = `<img class="shop-row-visual-img" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`;
+    const img = `<img class="shop-row-visual-img" src="${escapeAttr(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`;
     return `<div class="shop-row-visual" aria-hidden="true">${bg}${img}</div>`;
 }
 
@@ -31082,7 +31082,7 @@ function _renderShoppingDismissed(items) {
     list.innerHTML = rows.map((row) => {
         const until = row.until ? formatDate(row.until) : '';
         const meta = until ? t('shopping.dismissed_until', { date: until }) : '';
-        return `<div class="shopping-dismissed-row" data-key="${escapeHtml(row.key || '')}">`
+        return `<div class="shopping-dismissed-row" data-key="${escapeAttr(row.key || '')}">`
             + `<span class="shopping-dismissed-name">${escapeHtml(row.name || row.key || '')}`
             + `${meta ? `<small class="shopping-dismissed-until">${escapeHtml(meta)}</small>` : ''}</span>`
             + `<button type="button" class="btn btn-secondary btn-small" onclick="restoreShoppingDismissed('${escapeHtml((row.key || '').replace(/'/g, "\\'"))}')">${escapeHtml(t('shopping.dismissed_restore'))}</button>`
@@ -31230,7 +31230,7 @@ function _renderSmartSuggestedStrip() {
         // The anti-waste advice travels with the suggestion: adding it to the list is the
         // moment the amount is decided, so it is the moment the smaller number matters.
         const waste = _shopWasteChipHtml(it);
-        return `<button type="button" class="smart-suggested-chip" data-suggested="${escapeHtml(name)}">
+        return `<button type="button" class="smart-suggested-chip" data-suggested="${escapeAttr(name)}">
             <span class="smart-suggested-name">${escapeHtml(name)}</span>
             ${qty ? `<span class="smart-suggested-qty">${escapeHtml(qty)}</span>` : ''}
             ${waste}
@@ -31328,14 +31328,14 @@ function renderSmartItem(item) {
         // this all the time", a battery says how much is left before it runs out.
         let freqBadge = '';
         const usesMonth = Math.round(parseFloat(item.uses_per_month) || 0);
-        if (usesMonth >= 4) freqBadge = `<span class="smart-freq-badge freq-high" title="${escapeHtml(t('shopping.freq_daily'))}">🔥 ${escapeHtml(t('shopping.freq_daily'))}</span>`;
-        else if (usesMonth >= 2) freqBadge = `<span class="smart-freq-badge freq-med" title="${escapeHtml(t('shopping.freq_habit'))}">⚡ ${escapeHtml(t('shopping.freq_habit'))}</span>`;
-        else if (usesMonth >= 1) freqBadge = `<span class="smart-freq-badge freq-low" title="${escapeHtml(t('shopping.freq_occasional'))}">☕ ${escapeHtml(t('shopping.freq_occasional'))}</span>`;
+        if (usesMonth >= 4) freqBadge = `<span class="smart-freq-badge freq-high" title="${escapeAttr(t('shopping.freq_daily'))}">🔥 ${escapeHtml(t('shopping.freq_daily'))}</span>`;
+        else if (usesMonth >= 2) freqBadge = `<span class="smart-freq-badge freq-med" title="${escapeAttr(t('shopping.freq_habit'))}">⚡ ${escapeHtml(t('shopping.freq_habit'))}</span>`;
+        else if (usesMonth >= 1) freqBadge = `<span class="smart-freq-badge freq-low" title="${escapeAttr(t('shopping.freq_occasional'))}">☕ ${escapeHtml(t('shopping.freq_occasional'))}</span>`;
         // Battery: the stock level as a picture (🪫 empty, 🟨 half, 🟩 full).
         let batteryBadge = '';
         if (item.current_qty > 0 || item.family_qty > 0) {
             const batt = pct <= 15 ? '🪫' : pct <= 50 ? '🟨' : '🟩';
-            batteryBadge = `<span class="smart-battery-badge" title="${escapeHtml(t('shopping.stock_left').replace('{qty}', qtyText))}">${batt}</span>`;
+            batteryBadge = `<span class="smart-battery-badge" title="${escapeAttr(t('shopping.stock_left').replace('{qty}', qtyText))}">${batt}</span>`;
         }
 
         // Suggested purchase quantity badge
@@ -32215,7 +32215,7 @@ function _shopRowQtyHtml(smartData) {
     const horizon = smartData ? _purchaseHorizonDays(smartData, getShoppingPlanDays()) : null;
     if (horizon?.capped) {
         const tip = t('shopping.anti_waste_shelf').replace('{days}', String(horizon.shelfDays || horizon.days));
-        anti = ` <span class="shop-row-qty-antiwaste" title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}">♻️</span>`;
+        anti = ` <span class="shop-row-qty-antiwaste" title="${escapeAttr(tip)}" aria-label="${escapeAttr(tip)}">♻️</span>`;
     }
     return `<span class="shop-row-qty">${escapeHtml(buyQty.label)}${anti}</span>`;
 }
@@ -32342,7 +32342,7 @@ function _shopWasteChipHtml(smartData) {
     // (a cold boot that renders the list before `get_settings` answers) the chip just says
     // the number.
     const titleAttr = (title && title !== 'shopping.waste_chip_title')
-        ? ` title="${escapeHtml(title)}"`
+        ? ` title="${escapeAttr(title)}"`
         : '';
     return `<span class="shop-row-waste-chip"${titleAttr}>🍃 (${escapeHtml(keep)})</span>`;
 }
@@ -32400,7 +32400,7 @@ function _shopRowInnerHtml({
     // is a page nobody scrolls to the end of. Tap the number → a micro-popover.
     const qtyHtml = buyQty
         ? `<button type="button" class="shop-row-qty-tap" data-qty-open="${idx}"
-                   aria-label="${escapeHtml(t('shopping.qty_edit'))}">${escapeHtml(buyQty)}</button>`
+                   aria-label="${escapeAttr(t('shopping.qty_edit'))}">${escapeHtml(buyQty)}</button>`
         : '';
     return `
     <!-- Two gestures, two meanings, nothing else. Swiping LEFT is "comprato" (it writes
@@ -32427,9 +32427,9 @@ function _shopRowInnerHtml({
             </div>
             <div class="shop-row-quick" aria-hidden="false">
                 <button type="button" class="shop-quick-btn shop-quick-btn--dismiss" data-act="dismiss" data-idx="${idx}"
-                        title="${escapeHtml(t('shopping.btn_dismiss'))}" aria-label="${escapeHtml(t('shopping.btn_dismiss'))}">✕</button>
+                        title="${escapeAttr(t('shopping.btn_dismiss'))}" aria-label="${escapeAttr(t('shopping.btn_dismiss'))}">✕</button>
                 <button type="button" class="shop-quick-btn shop-quick-btn--bought" data-act="bought" data-idx="${idx}"
-                        title="${escapeHtml(t('shopping.btn_bought'))}" aria-label="${escapeHtml(t('shopping.btn_bought'))}">✓</button>
+                        title="${escapeAttr(t('shopping.btn_bought'))}" aria-label="${escapeAttr(t('shopping.btn_bought'))}">✓</button>
             </div>
         </div>
     </div>`;
@@ -33020,13 +33020,13 @@ function openTemplateEditor(id) {
         </div>
         <div class="form-group">
             <label>${escapeHtml(t('templates.name_label'))}</label>
-            <input type="text" id="template-name-input" class="form-input" value="${escapeHtml(existing?.name || '')}">
+            <input type="text" id="template-name-input" class="form-input" value="${escapeAttr(existing?.name || '')}">
         </div>
         <div class="form-group">
             <label>${escapeHtml(t('templates.add_from_inventory'))}</label>
             <select id="template-product-pick" class="form-input">
                 <option value="">${escapeHtml(t('form.select_placeholder'))}</option>
-                ${invOpts.map(p => `<option value="${p.product_id}" data-name="${escapeHtml(p.name)}" data-unit="${escapeHtml(p.unit)}">${escapeHtml(p.name)}</option>`).join('')}
+                ${invOpts.map(p => `<option value="${p.product_id}" data-name="${escapeAttr(p.name)}" data-unit="${escapeAttr(p.unit)}">${escapeHtml(p.name)}</option>`).join('')}
             </select>
             <div class="barcode-input-row" style="margin-top:8px">
                 <input type="number" id="template-qty-input" class="form-input" value="1" min="0.1" step="any" style="max-width:100px">
@@ -33036,7 +33036,7 @@ function openTemplateEditor(id) {
         <div class="form-group">
             <label>${escapeHtml(t('templates.add_manual'))}</label>
             <div class="barcode-input-row">
-                <input type="text" id="template-manual-name" class="form-input" placeholder="${escapeHtml(t('templates.manual_placeholder'))}">
+                <input type="text" id="template-manual-name" class="form-input" placeholder="${escapeAttr(t('templates.manual_placeholder'))}">
                 <button class="btn btn-secondary" type="button" onclick="templateDraftAddManual()">➕</button>
             </div>
         </div>
@@ -33190,7 +33190,7 @@ function renderSuggestions() {
         const aiBadge = isAi ? `<span class="priority-badge priority-ai">🤖 AI</span>` : '';
         
         return `
-        <div class="suggestion-item ${item.selected ? 'selected' : ''}" onclick="toggleSuggestion(${idx})" data-suggestion-name="${escapeHtml(item.name)}">
+        <div class="suggestion-item ${item.selected ? 'selected' : ''}" onclick="toggleSuggestion(${idx})" data-suggestion-name="${escapeAttr(item.name)}">
             <div class="suggestion-check">${item.selected ? '☑️' : '⬜'}</div>
             <span class="shopping-item-icon">${catIcon}</span>
             <div class="suggestion-info">
@@ -34162,7 +34162,7 @@ function _renderRecipeFilterBar() {
     bar.innerHTML = filters.map(f => {
         const on = f.id === _recipeArchiveFilter ? ' is-active' : '';
         const label = `${f.icon ? f.icon + ' ' : ''}${f.label}`;
-        return `<button type="button" class="recipe-filter-chip${on}" data-recipe-filter="${escapeHtml(f.id)}"`
+        return `<button type="button" class="recipe-filter-chip${on}" data-recipe-filter="${escapeAttr(f.id)}"`
             + ` aria-pressed="${f.id === _recipeArchiveFilter ? 'true' : 'false'}"`
             + ` onclick="_setRecipeArchiveFilter('${escapeHtml(f.id)}')">${escapeHtml(label)}</button>`;
     }).join('') + mealieChip;
@@ -34196,7 +34196,7 @@ async function _mealieOpen() {
     el.setAttribute('onclick', '_mealieClose()');
     el.innerHTML = `
         <div class="modal-content mealie-card" role="dialog" aria-modal="true" aria-labelledby="mealie-title" onclick="event.stopPropagation()">
-            <button type="button" class="recipe-dialog-close" onclick="_mealieClose()" aria-label="${escapeHtml(t('btn.close'))}" title="${escapeHtml(t('btn.close'))}">✕</button>
+            <button type="button" class="recipe-dialog-close" onclick="_mealieClose()" aria-label="${escapeAttr(t('btn.close'))}" title="${escapeAttr(t('btn.close'))}">✕</button>
             <h3 id="mealie-title">📚 ${escapeHtml(t('recipes.mealie_title'))}</h3>
             <p class="settings-hint">${escapeHtml(t('recipes.mealie_intro'))}</p>
             <div class="mealie-list" id="mealie-list"><p class="settings-hint">…</p></div>
@@ -34524,7 +34524,7 @@ function _recipeArchiveCardHtml(entry, archive, archiveIdx) {
     if (isHistory) {
         html += `<button type="button" class="recipe-archive-repeat"`
             + ` onclick="event.stopPropagation();_recipeRepeatMeal(${archiveIdx})"`
-            + ` title="${escapeHtml(t('recipes.repeat_meal'))}" aria-label="${escapeHtml(t('recipes.repeat_meal'))}">`
+            + ` title="${escapeAttr(t('recipes.repeat_meal'))}" aria-label="${escapeAttr(t('recipes.repeat_meal'))}">`
             + `🔄 <span>${escapeHtml(t('recipes.repeat_meal'))}</span></button>`;
     }
     html += `</div>`;
@@ -34534,14 +34534,14 @@ function _recipeArchiveCardHtml(entry, archive, archiveIdx) {
             ? t('recipes.missing_chip_none')
             : (missingInfo.missing === 1 ? t('recipes.missing_chip_one') : t('recipes.missing_chip_many', { n: String(missingInfo.missing) }));
         html += `<button type="button" class="recipe-missing-chip" onclick="event.stopPropagation();_recipeMissingPopover(event, ${archiveIdx})"`
-            + ` title="${escapeHtml(t('recipes.missing_badge_title', { n: String(missingInfo.missing) }))}">${escapeHtml(chipText)}</button>`;
+            + ` title="${escapeAttr(t('recipes.missing_badge_title', { n: String(missingInfo.missing) }))}">${escapeHtml(chipText)}</button>`;
     }
     if (savedTime) html += `<span class="recipe-archive-badge">🕐 ${escapeHtml(savedTime)}</span>`;
     // The vote, right on the card: it is what the book is filtered by, so it has to be visible
     // before opening the recipe — including when it is still zero (the empty stars are the
     // invitation to rate it).
     const cardRating = Math.max(0, Math.min(5, Math.round(Number(entry.rating) || 0)));
-    html += `<span class="recipe-archive-rating" title="${escapeHtml(t('recipes.rating_value', { n: String(cardRating) }))}">`
+    html += `<span class="recipe-archive-rating" title="${escapeAttr(t('recipes.rating_value', { n: String(cardRating) }))}">`
         + '★'.repeat(cardRating) + `<span class="recipe-archive-rating-off">${'☆'.repeat(5 - cardRating)}</span></span>`;
     if (r.prep_time) html += `<span class="recipe-archive-badge">⏱️ ${escapeHtml(String(r.prep_time))}</span>`;
     if (r.cook_time) html += `<span class="recipe-archive-badge">🔥 ${escapeHtml(String(r.cook_time))}</span>`;
@@ -35046,11 +35046,23 @@ async function createHealthBridgeToken() {
             }
             if (qrBox) {
                 qrBox.style.display = '';
-                const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=' + encodeURIComponent(pairing);
+                // Our own server draws the picture (action health_bridge_qr → api/lib/qr.php):
+                // the payload carries the bridge token in clear, and it used to travel to
+                // api.qrserver.com — i.e. the household's token in a third party's access log.
+                let qrSrc = '';
+                try {
+                    const qr = await api('health_bridge_qr', {}, 'POST', { data: pairing });
+                    qrSrc = (qr && qr.success && (qr.png || qr.svg)) || '';
+                } catch (e) {
+                    qrSrc = '';
+                }
                 qrBox.innerHTML =
                     '<p class="settings-hint" style="font-weight:600;margin-bottom:8px">' +
                     t('settings.health.qr_scan_now') +
-                    '</p><img alt="QR pairing" width="240" height="240" src="' + qrUrl + '" style="background:#fff;border-radius:12px;padding:8px">' +
+                    '</p>' +
+                    (qrSrc
+                        ? '<img alt="QR pairing" width="240" height="240" src="' + escapeAttr(qrSrc) + '" style="background:#fff;border-radius:12px;padding:8px">'
+                        : '<p class="settings-hint">' + t('settings.health.qr_unavailable') + '</p>') +
                     '<p class="settings-hint" style="margin-top:8px">' +
                     t('settings.health.qr_hint') +
                     '</p>';
@@ -35591,7 +35603,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
                     </div>
                     <span id="ruse-scale-live-status" class="ruse-scale-status"></span>
                 </div>
-                <div class="ruse-scale-target-track" title="${escapeHtml(t('recipes.need_for_recipe'))}">
+                <div class="ruse-scale-target-track" title="${escapeAttr(t('recipes.need_for_recipe'))}">
                     <div id="ruse-scale-target-bar" class="ruse-scale-target-bar"></div>
                 </div>
                 <div class="ruse-scale-stability-track">
@@ -36154,12 +36166,12 @@ let _recipeCurrentPersons = 1;
 function _recipeRatingStarsHtml(rating) {
     const n = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
     const groupLabel = n > 0 ? t('recipes.rating_value', { n: String(n) }) : t('recipes.rate_aria');
-    let out = `<span class="recipe-rating" role="group" aria-label="${escapeHtml(groupLabel)}" title="${escapeHtml(groupLabel)}">`;
+    let out = `<span class="recipe-rating" role="group" aria-label="${escapeAttr(groupLabel)}" title="${escapeAttr(groupLabel)}">`;
     for (let i = 1; i <= 5; i++) {
         const on = i <= n;
         out += `<button type="button" class="recipe-rating-star${on ? ' is-on' : ''}"`
             + ` onclick="rateRecipe(${i})"`
-            + ` aria-label="${escapeHtml(t('recipes.rate_star', { n: String(i) }))}"`
+            + ` aria-label="${escapeAttr(t('recipes.rate_star', { n: String(i) }))}"`
             + ` aria-pressed="${on ? 'true' : 'false'}">${on ? '★' : '☆'}</button>`;
     }
     return out + '</span>';
@@ -36697,8 +36709,8 @@ async function renderRecipe(r) {
     let html = `<div class="recipe-title-row">
         <h2>${escapeHtml(r.title)}</h2>
         <span class="recipe-title-actions">
-        <button type="button" class="btn-recipe-share-icon" onclick="doRegenerateReplace()" title="${escapeHtml(t('recipes.reroll'))}" aria-label="${escapeHtml(t('recipes.reroll'))}">🎲</button>
-        <button type="button" class="btn-recipe-share-icon" onclick="shareRecipe()" title="${escapeHtml(t('recipes.share_title') || t('recipes.share_btn'))}" aria-label="${escapeHtml(t('recipes.share_title') || t('recipes.share_btn'))}">
+        <button type="button" class="btn-recipe-share-icon" onclick="doRegenerateReplace()" title="${escapeAttr(t('recipes.reroll'))}" aria-label="${escapeAttr(t('recipes.reroll'))}">🎲</button>
+        <button type="button" class="btn-recipe-share-icon" onclick="shareRecipe()" title="${escapeAttr(t('recipes.share_title') || t('recipes.share_btn'))}" aria-label="${escapeAttr(t('recipes.share_title') || t('recipes.share_btn'))}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         </button>
         </span>
@@ -36777,16 +36789,16 @@ async function renderRecipe(r) {
             const alreadyUsed = ing.used === true;
             const missing = !!ing.stock_missing;
             const qtyNum = Math.round((ing.qty_number || 0) * 10) / 10;
-            html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}${missing ? ' recipe-ing-missing' : ''}" id="recipe-ing-${idx}" data-ing-idx="${idx}" data-product-id="${ing.product_id}" data-location="${escapeHtml(loc)}" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${escapeHtml(ing.qty || '')}">`;
+            html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}${missing ? ' recipe-ing-missing' : ''}" id="recipe-ing-${idx}" data-ing-idx="${idx}" data-product-id="${ing.product_id}" data-location="${escapeAttr(loc)}" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${escapeAttr(ing.qty || '')}">`;
             if (!alreadyUsed && !missing) {
-                html += `<label class="recipe-ing-include" title="${escapeHtml(t('recipes.cook_include'))}">`
+                html += `<label class="recipe-ing-include" title="${escapeAttr(t('recipes.cook_include'))}">`
                     + `<input type="checkbox" class="recipe-ing-check" checked data-ing-idx="${idx}">`
                     + `</label>`;
             }
             // A missing row is not a control: no tap-to-use, no ✅ — it is a fact.
             const textCls = missing ? 'recipe-ing-text' : 'recipe-ing-text recipe-ing-open-use';
             const textTitle = missing ? t('recipes.ing_missing_tag') : t('cooking.ingredient_open_use');
-            html += `<span class="${textCls}" title="${escapeHtml(textTitle)}"${missing ? '' : ' role="button" tabindex="0"'}>`;
+            html += `<span class="${textCls}" title="${escapeAttr(textTitle)}"${missing ? '' : ' role="button" tabindex="0"'}>`;
             html += `<strong class="recipe-ing-name">${escapeHtml(ing.name)}</strong>${ing.brand ? ' <em>(' + escapeHtml(ing.brand) + ')</em>' : ''}: <span class="recipe-ing-qty">${escapeHtml(ing.qty)}</span>${ing.use_all_suggested ? ' ♻️' : ''}${missing ? ' ❌' : ' ✅'}`;
             // Detail line: location + expiry
             let details = [];
@@ -37442,7 +37454,7 @@ function _cookingVoiceHint(force) {
         <div class="cvh-head">
             <img src="assets/img/shelfy/shelfy-avatar-96.png" alt="" aria-hidden="true">
             <strong>${escapeHtml(t('cooking.voice_hint_title'))}</strong>
-            <button type="button" class="cvh-close" onclick="_cookingVoiceHintHide()" aria-label="${escapeHtml(t('btn.close'))}">✕</button>
+            <button type="button" class="cvh-close" onclick="_cookingVoiceHintHide()" aria-label="${escapeAttr(t('btn.close'))}">✕</button>
         </div>
         <p class="cvh-intro">${escapeHtml(t('cooking.voice_hint_intro'))}</p>
         <div class="cvh-chips">
@@ -37859,7 +37871,7 @@ function _renderCookingStepText(text) {
     const label = t('cooking.timer_chip');
     el.innerHTML = _cookingHighlightText(clean.slice(0, first.start))
         + `<button type="button" class="cooking-step-timer" onclick="addSuggestedCookingTimer()"`
-        + ` title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">`
+        + ` title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}">`
         + `⏱️ ${escapeHtml(clean.slice(first.start, first.end).trim())}</button>`
         + _cookingHighlightText(clean.slice(first.end));
 }
@@ -42433,18 +42445,18 @@ function _renderSpesaSessionList() {
         const qtyVal = item.qty != null && item.qty !== '' ? item.qty : '';
         const unit = item.unit ? ` ${escapeHtml(String(item.unit))}` : '';
         return `<div class="spesa-session-item" data-idx="${idx}">
-            <input type="text" class="spesa-session-name" value="${escapeHtml(item.name || '')}"
-                   placeholder="${escapeHtml(t('scan.spesa_session_name'))}"
+            <input type="text" class="spesa-session-name" value="${escapeAttr(item.name || '')}"
+                   placeholder="${escapeAttr(t('scan.spesa_session_name'))}"
                    onchange="_spesaSessionFieldChange(${idx}, 'name', this.value)"
-                   aria-label="${escapeHtml(t('scan.spesa_session_name'))}">
-            <input type="text" class="spesa-session-brand" value="${escapeHtml(item.brand || '')}"
-                   placeholder="${escapeHtml(t('scan.spesa_session_brand'))}"
+                   aria-label="${escapeAttr(t('scan.spesa_session_name'))}">
+            <input type="text" class="spesa-session-brand" value="${escapeAttr(item.brand || '')}"
+                   placeholder="${escapeAttr(t('scan.spesa_session_brand'))}"
                    onchange="_spesaSessionFieldChange(${idx}, 'brand', this.value)"
-                   aria-label="${escapeHtml(t('scan.spesa_session_brand'))}">
-            <input type="number" class="spesa-session-qty" step="any" min="0" value="${escapeHtml(String(qtyVal))}"
+                   aria-label="${escapeAttr(t('scan.spesa_session_brand'))}">
+            <input type="number" class="spesa-session-qty" step="any" min="0" value="${escapeAttr(String(qtyVal))}"
                    placeholder="qty"
                    onchange="_spesaSessionFieldChange(${idx}, 'qty', this.value)"
-                   aria-label="${escapeHtml(t('scan.spesa_session_qty'))}${unit}">
+                   aria-label="${escapeAttr(t('scan.spesa_session_qty'))}${unit}">
         </div>`;
     }).join('');
     el.innerHTML = `<div class="spesa-session-list-title">${escapeHtml(t('scan.spesa_session_title'))} (${_spesaSession.length})</div>${rows}`;
@@ -42742,7 +42754,7 @@ function _showFamilySiblingSuggest(productId, location) {
             purchaseDate ? purchaseDate : '',
         ].filter(Boolean);
         const thumbHtml = s.image_url
-            ? `<img src="${escapeHtml(s.image_url)}" alt="" class="family-sibling-prompt-img" onerror="this.outerHTML='<span class=\\'family-sibling-prompt-icon\\'>${catIcon}</span>'">`
+            ? `<img src="${escapeAttr(s.image_url)}" alt="" class="family-sibling-prompt-img" onerror="this.outerHTML='<span class=\\'family-sibling-prompt-icon\\'>${catIcon}</span>'">`
             : `<span class="family-sibling-prompt-icon">${catIcon}</span>`;
 
         const bar = document.createElement('div');
@@ -43367,7 +43379,7 @@ function _setupSteps() {
                 <div class="form-group">
                     <label>${t('settings.notify.ntfy_topic_label')}</label>
                     <div style="display:flex;gap:8px;align-items:center">
-                        <input type="text" id="setup-notify-topic" class="form-input" style="flex:1" placeholder="${t('settings.notify.ntfy_topic_placeholder')}" autocomplete="off" spellcheck="false" value="${escapeHtml(_setupData.notify_topic)}">
+                        <input type="text" id="setup-notify-topic" class="form-input" style="flex:1" placeholder="${t('settings.notify.ntfy_topic_placeholder')}" autocomplete="off" spellcheck="false" value="${escapeAttr(_setupData.notify_topic)}">
                         <button type="button" class="btn btn-secondary" style="flex-shrink:0" onclick="_setupGenerateTopic()">${iconLabel('🎲', 'settings.notify.ntfy_topic_generate')}</button>
                     </div>
                     <p style="color:#999;font-size:0.8rem;margin-top:8px">${t('settings.notify.ntfy_topic_hint')}</p>
@@ -43385,7 +43397,7 @@ function _setupSteps() {
             render: () => `
                 <div class="form-group">
                     <label>${t('settings.notify.healthcheck_label')}</label>
-                    <input type="text" id="setup-healthcheck-url" class="form-input" placeholder="${t('settings.notify.healthcheck_placeholder')}" autocomplete="off" spellcheck="false" value="${escapeHtml(_setupData.healthcheck_url)}">
+                    <input type="text" id="setup-healthcheck-url" class="form-input" placeholder="${t('settings.notify.healthcheck_placeholder')}" autocomplete="off" spellcheck="false" value="${escapeAttr(_setupData.healthcheck_url)}">
                     <p style="color:#999;font-size:0.8rem;margin-top:8px">${t('settings.notify.healthcheck_jobs_title')}</p>
                 </div>
                 <div class="form-group">
@@ -43419,11 +43431,11 @@ function _setupSteps() {
             render: () => `
                 <div class="form-group">
                     <label>${t('settings.telegram.token_label')}</label>
-                    <input type="password" id="setup-telegram-token" class="form-input" placeholder="123456:ABC…" value="${escapeHtml(_setupData.telegram_token)}">
+                    <input type="password" id="setup-telegram-token" class="form-input" placeholder="123456:ABC…" value="${escapeAttr(_setupData.telegram_token)}">
                 </div>
                 <div class="form-group">
                     <label>${t('settings.telegram.chats_label')}</label>
-                    <input type="text" id="setup-telegram-chats" class="form-input" placeholder="123456789" value="${escapeHtml(_setupData.telegram_chats)}">
+                    <input type="text" id="setup-telegram-chats" class="form-input" placeholder="123456789" value="${escapeAttr(_setupData.telegram_chats)}">
                     <p style="color:#999;font-size:0.8rem;margin-top:8px">${t('settings.telegram.chats_hint')}</p>
                 </div>
                 <span class="setup-skip-link" onclick="_setupSkipStep()">${t('setup.configure_later')}</span>

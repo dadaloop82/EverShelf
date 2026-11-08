@@ -1449,6 +1449,7 @@
       "saved": "健康档案已保存",
       "bridge_hint": "1）下载并安装 APK；2）在此生成二维码；3）在应用中扫描二维码，同时获取服务器 URL 和令牌。",
       "qr_scan_now": "请使用 Health Bridge 应用扫描此二维码",
+      "qr_unavailable": "此服务器无法绘制二维码。请从 设置 → 健康 重试。",
       "bridge_create": "📷 生成配对二维码",
       "bridge_created": "二维码已生成——请使用手机扫描",
       "bridge_unlink": "取消关联 / 撤销令牌",

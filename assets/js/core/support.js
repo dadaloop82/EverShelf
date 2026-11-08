@@ -516,8 +516,8 @@ function _renderAdSlots() {
  *             return;
  *         }
  *         _loadAdsenseScript(client);
- *         el.innerHTML = `<ins class="adsbygoogle" style="display:block" data-ad-client="${escapeHtml(client)}"`
- *             + ` data-ad-slot="${escapeHtml(slot)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+ *         el.innerHTML = `<ins class="adsbygoogle" style="display:block" data-ad-client="${escapeAttr(client)}"`
+ *             + ` data-ad-slot="${escapeAttr(slot)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
  *         el.style.display = 'block';
  *         try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) { /* an ad blocker is not an error *\/ }
  *         return;
