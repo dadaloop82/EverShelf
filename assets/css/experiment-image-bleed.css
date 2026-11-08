@@ -19,23 +19,42 @@
      row would be a mascot, not information.
    - `pointer-events: none` on the layer: the row's tap/swipe grammar must not change. */
 
-/* ── Scope: the PANTRY ROW and the PRODUCT SHEET only ─────────────────────────
-   The dashboard's notice rows (`#expiring-list .alert-item`) are left out on purpose:
-   they already carry a name + brand + place line on the left AND a badge, a `✓ Usa` and
-   a ⋮ on the right, so a 26% gutter on a 360 px phone squeezes the title into three
-   words per line — the notice is there to be read at a glance, not to be a hero image.
-   (Widening that row is a markup change, not a stylesheet one: the badges would have to
-   wrap under the meta line first.) */
+/* ── Scope: the PANTRY ROW, the PRODUCT SHEET and — since the second look — the
+   dashboard's notice rows, which STACK instead of squeezing the title. ─────────────
+   `#expiring-list .alert-item` carries name + brand + place on the left AND a badge, a
+   `✓ Usa` and a `⋮` on the right: with the photo in the left quarter the title had
+   ~120 px and wrapped every three words. Stacking gives the title the full width and
+   moves that action strip to its own line, padded like everything else, so no text is
+   ever printed on the photo. */
 
 html.imgexp .inventory-item .inv-card-top,
+html.imgexp .alert-item,
 html.imgexp .item-detail-header-row { position: relative; }
+/* The row stacks: title line first, action strip under it — both padded, so the title
+   gets the whole width and the buttons never squeeze it (at 360 px the name was breaking
+   into "Pa / n / Ba / ul"). */
+html.imgexp .alert-item { flex-wrap: wrap; row-gap: 6px; overflow: hidden; }
+html.imgexp .alert-item .alert-item-info { flex: 1 1 100%; }
+html.imgexp .alert-item .alert-item-badges {
+    /* Its own line, and a row: the badges are inline elements with no base rule, so
+       without an explicit flex row they fall one under the other in the narrower
+       padded column. */
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    margin-left: 0;
+}
 
-/* One layer, two surfaces: the slot BECOMES the photo, 25% of the card, full height.
+/* One layer, three surfaces: the slot BECOMES the photo, 25% of the card, full height.
    In the pantry the anchor is the TOP BLOCK (title + place/genre), not the whole card:
    the bottom line (quantity · expiry · `✓ Usa`) keeps the full width, or on a 360 px
    phone the date broke in two ("12/03/20 / 27") — an action strip pushed into a corner
    is worse than a photo that stops at the block it belongs to. */
 html.imgexp .inventory-item .inv-image,
+html.imgexp .alert-item .product-thumb,
 html.imgexp .item-detail-header-row .item-detail-image {
     position: absolute;
     left: 0;
@@ -74,6 +93,7 @@ html.imgexp .item-detail-header-row .item-detail-image .product-thumb {
    mint, an expiring one amber) and a painted gradient would show as a band on them. */
 html.imgexp .inventory-item .inv-image img,
 html.imgexp .inventory-item .inv-image .product-thumb-img,
+html.imgexp .alert-item .product-thumb-img,
 html.imgexp .item-detail-header-row .item-detail-image img {
     width: 100%;
     height: 100%;
@@ -92,15 +112,25 @@ html.imgexp .item-detail-header-row .item-detail-image img {
    without a picture lines up with the ones that have it, and no text ever sits ON the
    photo. Below 420 px the photo narrows to 22% and the gutter with it. */
 html.imgexp .inventory-item .inv-card-top,
+html.imgexp .alert-item .alert-item-info,
+html.imgexp .alert-item .alert-item-badges,
 html.imgexp .item-detail-header-row .item-detail-header-text { padding-left: 26%; }
 @media (max-width: 420px) {
     html.imgexp .inventory-item .inv-image,
+    html.imgexp .alert-item .product-thumb,
     html.imgexp .item-detail-header-row .item-detail-image { width: 22%; }
     html.imgexp .inventory-item .inv-card-top,
+    html.imgexp .alert-item .alert-item-info,
+    html.imgexp .alert-item .alert-item-badges,
     html.imgexp .item-detail-header-row .item-detail-header-text { padding-left: 23%; }
+    /* On a phone the wrapped flex row kept the action strip as a narrow second item, so
+       «2 gg fa», «✓ Usa» and «⋮» fell one under the other: a column says what is meant. */
+    html.imgexp .alert-item { display: flex; flex-direction: column; align-items: stretch; }
+    html.imgexp .alert-item .alert-item-badges { justify-content: flex-start; }
 }
 
 /* No photo → no layer to paint (an emoji blown up to a quarter of the row would be a
    mascot, not information), but the gutter above stays empty, exactly as it would be. */
 html.imgexp .inventory-item:not(:has(.inv-image img)) .inv-image,
+html.imgexp .alert-item:not(:has(.product-thumb-img)) .product-thumb,
 html.imgexp .item-detail-header-row:not(:has(.item-detail-image img)) .item-detail-image { display: none; }
