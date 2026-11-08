@@ -74,6 +74,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wrong article. It is still a discard — the stock leaves the shelf — but the reason says the row
   was WRONG rather than that food was wasted, so a correction no longer counts as waste in the
   statistics. `WASTE_REASON_KEYS` + the six locales.
+- **A product photo is cached where it is used, not where it lives.** `products.image_url` is a remote
+  Open Food Facts URL and the fetch handler ignored every other origin, so each render asked the
+  network again — and offline the picture never appeared at all, which is what a household reads as
+  "le foto ci mettono una vita". `sw.js` keeps them in their own `IMG_CACHE`
+  (`evershelf-images-v1`): cache-first over the `images.*` / `static.*` fact hosts only (never the API
+  host, where cache-first would freeze a search), `IMG_MAX` 400 photos pruned oldest-first, and the
+  cache **survives** a shell update (the `activate` cleanup skips it). Opaque responses carry no CORS
+  headers and `cache.put()` stores them all the same. The bleed experiment below keeps the same
+  pictures, so a row now paints instantly the second time it is seen.
+- **The image-bleed experiment, second pass** (`?imgexp=1`, `assets/css/experiment-image-bleed.css`):
+  the left gutter is `26%` **always** — with or without a photo, so a row without a picture still
+  lines up with the ones that have it — every line of the card starts after it (the bottom
+  quantity/expiry/`Usa` line and the alert row's badges, which wrap under the title), and the
+  dissolve is a long ramp that is fully gone before the first letter, so **no text is ever printed
+  on the photo**.
 - **Nothing scrolls visibly under the bottom bar.** The bar is a floating pill (`elegant.css`:
   rounded, 10 px from the bottom and from each side), so the pantry rows travelled across its
   margins and through the notches of its rounded corners while a household was reading them — the

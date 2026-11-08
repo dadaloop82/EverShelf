@@ -6,7 +6,7 @@
  * pin a stale app.js indefinitely. The cache below is only a safety net when the
  * server cannot be reached.
  */
-const CACHE = 'evershelf-v1.31.23u';
+const CACHE = 'evershelf-v1.31.23v';
 const BASE = (() => {
     const p = self.location.pathname || '/';
     return p.endsWith('sw.js') ? p.slice(0, -'sw.js'.length) : '/';
@@ -78,11 +78,46 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) =>
-            Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+            // `IMG_CACHE` survives a shell update: it holds product photos, not code.
+            Promise.all(keys.filter((k) => k !== CACHE && k !== IMG_CACHE).map((k) => caches.delete(k)))
         )
     );
     self.clients.claim();
 });
+
+/* ── Product photos: their own runtime cache ──────────────────────────────────
+ * `products.image_url` is a REMOTE Open Food Facts URL, and the fetch handler below
+ * deliberately ignores other origins — so every row asked the network again, and offline
+ * the photo simply never arrived. A package picture is immutable content: cache-first,
+ * in its own cache (`IMG_CACHE`), pruned by count so a pantry of 2 000 rows cannot fill
+ * the disk. The image host sends no CORS headers, so the response is opaque (status 0):
+ * `cache.put()` still stores it and an `<img>` renders it fine.
+ */
+const IMG_CACHE = 'evershelf-images-v1';
+// IMAGE hosts only, never the API host: cache-first on `world.openfoodfacts.org` would
+// serve a stale search for ever.
+const IMG_HOST_RE = /^(images|static)\.(openfoodfacts|openbeautyfacts|openproductsfacts|openpetfoodfacts)\.org$/;
+const IMG_MAX = 400;
+
+async function pruneImageCache() {
+    const cache = await caches.open(IMG_CACHE);
+    const keys = await cache.keys();
+    if (keys.length <= IMG_MAX) return;
+    // `keys()` is in insertion order: the oldest leaves first.
+    await Promise.all(keys.slice(0, keys.length - IMG_MAX).map((k) => cache.delete(k)));
+}
+
+async function imageCacheFirst(request) {
+    const cache = await caches.open(IMG_CACHE);
+    const hit = await cache.match(request, { ignoreVary: true });
+    if (hit) return hit;
+    const res = await fetch(request);
+    if (res && (res.ok || res.type === 'opaque')) {
+        const clone = res.clone();
+        cache.put(request, clone).then(pruneImageCache).catch(() => {});
+    }
+    return res;
+}
 
 async function networkFirst(request) {
     try {
@@ -107,6 +142,13 @@ async function networkFirst(request) {
 
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
+    // Product photos first: they are remote and immutable, and the branch below would
+    // ignore them (another origin). Cached here, a row paints instantly the second time
+    // and still paints with the network down.
+    if (event.request.method === 'GET' && IMG_HOST_RE.test(url.hostname)) {
+        event.respondWith(imageCacheFirst(event.request));
+        return;
+    }
     if (url.origin !== self.location.origin) return;
     if (url.pathname.includes('/api/')) return;
     if (event.request.method !== 'GET') return;

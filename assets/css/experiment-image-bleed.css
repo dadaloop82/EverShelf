@@ -60,6 +60,10 @@ html.imgexp .item-detail-header-row .item-detail-image .product-thumb {
    Masked rather than covered by a gradient of the card colour, because the card has
    tints of its own (an opened row is mint, an expiring one amber) and a painted
    gradient would show as a band on them. */
+/* The dissolve: a LONG ramp, so the package has no visible edge at all, and it is gone
+   before the first letter (the facts start at 26%). Masked rather than covered by a
+   gradient of the card colour, because the card has tints of its own (an opened row is
+   mint, an expiring one amber) and a painted gradient would show as a band on them. */
 html.imgexp .inventory-item .inv-image img,
 html.imgexp .inventory-item .inv-image .product-thumb-img,
 html.imgexp .alert-item .product-thumb-img,
@@ -69,16 +73,26 @@ html.imgexp .item-detail-header-row .item-detail-image img {
     object-fit: cover;
     padding: 0;
     border-radius: 0;
-    -webkit-mask-image: linear-gradient(to right, #000 0 38%, rgba(0, 0, 0, 0.4) 68%, transparent 96%);
-            mask-image: linear-gradient(to right, #000 0 38%, rgba(0, 0, 0, 0.4) 68%, transparent 96%);
+    -webkit-mask-image: linear-gradient(to right,
+        #000 0 14%, rgba(0, 0, 0, 0.82) 34%, rgba(0, 0, 0, 0.5) 56%,
+        rgba(0, 0, 0, 0.18) 78%, transparent 100%);
+            mask-image: linear-gradient(to right,
+        #000 0 14%, rgba(0, 0, 0, 0.82) 34%, rgba(0, 0, 0, 0.5) 56%,
+        rgba(0, 0, 0, 0.18) 78%, transparent 100%);
 }
 
-/* The facts start where the photo stops being readable. */
-html.imgexp .inventory-item:has(.inv-image img) .inv-card-top { padding-left: 24%; }
-html.imgexp .alert-item:has(.product-thumb-img) .alert-item-info { padding-left: 24%; }
-html.imgexp .item-detail-header-row:has(.item-detail-image img) .item-detail-header-text { padding-left: 24%; }
+/* THE GUTTER IS ALWAYS THERE — 26%, i.e. the 25% of the photo plus a hair — so a row
+   without a picture lines up with the ones that have it, and no text ever sits ON the
+   photo: every line of the card starts after the dissolve ends, including the bottom one
+   (quantity · expiry · Usa) and the alert row's badges, which wrap under the title. */
+html.imgexp .inventory-item .inv-card-top,
+html.imgexp .inventory-item .inv-card-bottom,
+html.imgexp .alert-item .alert-item-info,
+html.imgexp .alert-item .alert-item-badges,
+html.imgexp .item-detail-header-row .item-detail-header-text { padding-left: 26%; }
 
-/* No photo → no layer, and the facts keep the whole card. */
+/* No photo → no layer to paint (an emoji blown up to a quarter of the row would be a
+   mascot, not information), but the gutter above stays empty, exactly as it would be. */
 html.imgexp .inventory-item:not(:has(.inv-image img)) .inv-image,
 html.imgexp .alert-item:not(:has(.product-thumb-img)) .product-thumb,
 html.imgexp .item-detail-header-row:not(:has(.item-detail-image img)) .item-detail-image { display: none; }
