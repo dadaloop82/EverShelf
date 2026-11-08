@@ -83,16 +83,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cache **survives** a shell update (the `activate` cleanup skips it). Opaque responses carry no CORS
   headers and `cache.put()` stores them all the same. The bleed experiment below keeps the same
   pictures, so a row now paints instantly the second time it is seen.
-- **The image-bleed experiment, third pass** (`?imgexp=1`, kept in `sessionStorage` so a reload does
-  not lose it; `?imgexp=0` turns it off). The dashboard's notice rows are BACK IN, but they **stack**:
-  with the photo in the left quarter and the badge/`✓ Usa`/`⋮` strip on the same line, the title had
-  ~120 px and wrapped every three words ("Pan Bauletto al / Grano Duro") — the strip now takes its own
-  line (a flex row that becomes a column under 420 px, where a wrapped flex row dropped the three
-  controls one under the other). In the pantry the photo anchors on `.inv-card-top`, not on the whole
-  card, so the bottom line (quantity · expiry · `✓ Usa`) keeps its width: on a 360 px phone padding it
-  as well broke the date into "12/03/20 / 27". The gutter is `26%` — `22%` under 420 px — **always**,
-  photo or not, the dissolve is a long ramp that is gone before the first letter, and **no text is
-  ever printed on the photo**.
+- **The image-bleed experiment, fourth pass** (`?imgexp=1`, kept in `sessionStorage` so a reload does
+  not lose it; `?imgexp=0` turns it off). The layout is now **untouched**: name and brand on one line,
+  the place/genre line under it, the `2 gg fa` · `✓ Usa` · `⋮` strip on the right of the same row —
+  the photo simply takes the left quarter of the card. My previous pass had *stacked* that row, which
+  was me moving furniture nobody asked to move. The photo is **full height** in every list (pantry and
+  dashboard draw the same object), the card clips it so the corners stay rounded, and **a row with no
+  photo keeps the old 44/50 px frame with the category emoji, in flow**: the bleed exists only where
+  there is something to bleed (`:has(img)`), so nothing else moved. On a phone `mobile.css` already
+  moves the badge strip to its own line — it now takes the same gutter, or `2 gg fa` printed itself on
+  the photo.
 - **Nothing scrolls visibly under the bottom bar.** The bar is a floating pill (`elegant.css`:
   rounded, 10 px from the bottom and from each side), so the pantry rows travelled across its
   margins and through the notches of its rounded corners while a household was reading them — the

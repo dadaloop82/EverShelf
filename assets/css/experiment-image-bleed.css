@@ -1,61 +1,24 @@
 /* ══ EXPERIMENT — the package photo bleeds into the card ═════════════════════════
-   TEMPORARY, off by default. It exists only to LOOK at an idea: instead of a 44 px
-   square beside the text, the product's photo fills the LEFT QUARTER of the card that
-   holds its facts and dissolves before it ends, so a row reads as one object instead
-   of a picture plus a paragraph.
+   TEMPORARY, off by default. Enable it with `?imgexp=1` in the URL (the one-line script
+   in index.html adds `html.imgexp`; `?imgexp=0` turns it off). Remove this file, its
+   <link> and that script when the experiment is decided.
 
-   Enable it with `?imgexp=1` in the URL (the one-line script in index.html adds
-   `html.imgexp`; nothing else reads that class). Remove this file, its <link> and that
-   script when the experiment is decided.
+   RULES, learned the hard way on a real phone:
+   1. THE LAYOUT DOES NOT MOVE. The original arrangement stays exactly as it was — name
+      and brand on one line, the place/genre line under it, the badge + `✓ Usa` + `⋮`
+      strip on the right of the same row. The photo takes the LEFT QUARTER of the card
+      (full height) and everything else starts after it.
+   2. THE PHOTO IS FULL HEIGHT, in every list, so the pantry and the dashboard draw the
+      same object: `.inventory-item` shows it behind the title block AND the action line.
+   3. THE CARD STAYS ROUNDED: the row clips the photo (`overflow: hidden`), so the card's
+      corners are the photo's corners too.
+   4. NO PHOTO → NOTHING CHANGES: the frame keeps its 44/50 px square with the category
+      emoji, in flow, and the text keeps the width it always had. The bleed only exists
+      where there is something to bleed. */
 
-   Notes from building it:
-   - The three surfaces that own "a box with all the facts" are the pantry row
-     (`.inventory-item`), the alert/dashboard row (`.alert-item`) and the product sheet
-     head (`.item-detail-header-row`). Their image slots have three different names
-     (`.inv-image`, `.product-thumb`, `.item-detail-image`), so the layer is declared
-     once per surface rather than fought with a single generic selector.
-   - `:has()` decides whether there is a photo at all: without one the slot is removed
-     entirely and the facts keep the whole card — an emoji blown up to a quarter of the
-     row would be a mascot, not information.
-   - `pointer-events: none` on the layer: the row's tap/swipe grammar must not change. */
-
-/* ── Scope: the PANTRY ROW, the PRODUCT SHEET and — since the second look — the
-   dashboard's notice rows, which STACK instead of squeezing the title. ─────────────
-   `#expiring-list .alert-item` carries name + brand + place on the left AND a badge, a
-   `✓ Usa` and a `⋮` on the right: with the photo in the left quarter the title had
-   ~120 px and wrapped every three words. Stacking gives the title the full width and
-   moves that action strip to its own line, padded like everything else, so no text is
-   ever printed on the photo. */
-
-html.imgexp .inventory-item .inv-card-top,
-html.imgexp .alert-item,
-html.imgexp .item-detail-header-row { position: relative; }
-/* The row stacks: title line first, action strip under it — both padded, so the title
-   gets the whole width and the buttons never squeeze it (at 360 px the name was breaking
-   into "Pa / n / Ba / ul"). */
-html.imgexp .alert-item { flex-wrap: wrap; row-gap: 6px; overflow: hidden; }
-html.imgexp .alert-item .alert-item-info { flex: 1 1 100%; }
-html.imgexp .alert-item .alert-item-badges {
-    /* Its own line, and a row: the badges are inline elements with no base rule, so
-       without an explicit flex row they fall one under the other in the narrower
-       padded column. */
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    flex: 1 1 100%;
-    justify-content: flex-end;
-    margin-left: 0;
-}
-
-/* One layer, three surfaces: the slot BECOMES the photo, 25% of the card, full height.
-   In the pantry the anchor is the TOP BLOCK (title + place/genre), not the whole card:
-   the bottom line (quantity · expiry · `✓ Usa`) keeps the full width, or on a 360 px
-   phone the date broke in two ("12/03/20 / 27") — an action strip pushed into a corner
-   is worse than a photo that stops at the block it belongs to. */
-html.imgexp .inventory-item .inv-image,
-html.imgexp .alert-item .product-thumb,
-html.imgexp .item-detail-header-row .item-detail-image {
+/* ── The pantry row: photo over the whole card, text beside it ─────────────── */
+html.imgexp .inventory-item { position: relative; }
+html.imgexp .inventory-item:has(.inv-image img) .inv-image {
     position: absolute;
     left: 0;
     top: 0;
@@ -71,26 +34,68 @@ html.imgexp .item-detail-header-row .item-detail-image {
     pointer-events: none;
     z-index: 0;
 }
-/* The sheet keeps its photo one level deeper (`.item-detail-image > .product-thumb`): the
-   inner frame must join the layer instead of staying a 44 px square inside it. */
-html.imgexp .item-detail-header-row .item-detail-image .product-thumb {
+html.imgexp .inventory-item:has(.inv-image img) .inv-card-top,
+html.imgexp .inventory-item:has(.inv-image img) .inv-card-bottom { padding-left: 26%; }
+/* The action line may wrap, but its pieces never break in half: at 360 px the date used
+   to split into "12/03/20 / 27". */
+html.imgexp .inventory-item:has(.inv-image img) .inv-card-bottom { flex-wrap: wrap; row-gap: 6px; }
+html.imgexp .inventory-item:has(.inv-image img) .inv-card-bottom > * { white-space: nowrap; }
+
+/* ── The dashboard notice row: photo behind, everything where it always was ── */
+html.imgexp .alert-item { position: relative; overflow: hidden; }
+html.imgexp .alert-item:has(.product-thumb-img) .product-thumb {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 25%;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+html.imgexp .alert-item:has(.product-thumb-img) .alert-item-info { padding-left: 26%; }
+/* `mobile.css` (≤640 px) already moves the badge strip to its own line: without the same
+   gutter it started at the left edge, i.e. printed ON the photo. On a wide screen the
+   strip is right-aligned, so this padding changes nothing visible there. */
+html.imgexp .alert-item:has(.product-thumb-img) .alert-item-badges { padding-left: 26%; }
+
+/* ── The product sheet head: same grammar ─────────────────────────────────── */
+html.imgexp .item-detail-header-row { position: relative; }
+html.imgexp .item-detail-header-row:has(.item-detail-image img) .item-detail-image {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 25%;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+/* The sheet keeps its photo one level deeper: the inner frame joins the layer instead of
+   staying a 44 px square inside it. */
+html.imgexp .item-detail-header-row:has(.item-detail-image img) .item-detail-image .product-thumb {
     position: static;
     width: 100%;
     height: 100%;
     border: 0;
     border-radius: 0;
     background: transparent;
-    overflow: hidden;
 }
+html.imgexp .item-detail-header-row:has(.item-detail-image img) .item-detail-header-text { padding-left: 26%; }
 
-/* The dissolve: opaque where the package is readable, gone before the facts begin.
-   Masked rather than covered by a gradient of the card colour, because the card has
-   tints of its own (an opened row is mint, an expiring one amber) and a painted
-   gradient would show as a band on them. */
-/* The dissolve: a LONG ramp, so the package has no visible edge at all, and it is gone
-   before the first letter (the facts start at 26%). Masked rather than covered by a
-   gradient of the card colour, because the card has tints of its own (an opened row is
-   mint, an expiring one amber) and a painted gradient would show as a band on them. */
+/* ── The photo itself: cover + a long dissolve that is gone before the text ── */
 html.imgexp .inventory-item .inv-image img,
 html.imgexp .inventory-item .inv-image .product-thumb-img,
 html.imgexp .alert-item .product-thumb-img,
@@ -108,29 +113,14 @@ html.imgexp .item-detail-header-row .item-detail-image img {
         rgba(0, 0, 0, 0.18) 78%, transparent 100%);
 }
 
-/* THE GUTTER IS ALWAYS THERE — 26%, i.e. the 25% of the photo plus a hair — so a row
-   without a picture lines up with the ones that have it, and no text ever sits ON the
-   photo. Below 420 px the photo narrows to 22% and the gutter with it. */
-html.imgexp .inventory-item .inv-card-top,
-html.imgexp .alert-item .alert-item-info,
-html.imgexp .alert-item .alert-item-badges,
-html.imgexp .item-detail-header-row .item-detail-header-text { padding-left: 26%; }
+/* Narrow phones: a quarter is too much of a 360 px row, and the action line needs room. */
 @media (max-width: 420px) {
-    html.imgexp .inventory-item .inv-image,
-    html.imgexp .alert-item .product-thumb,
-    html.imgexp .item-detail-header-row .item-detail-image { width: 22%; }
-    html.imgexp .inventory-item .inv-card-top,
-    html.imgexp .alert-item .alert-item-info,
-    html.imgexp .alert-item .alert-item-badges,
-    html.imgexp .item-detail-header-row .item-detail-header-text { padding-left: 23%; }
-    /* On a phone the wrapped flex row kept the action strip as a narrow second item, so
-       «2 gg fa», «✓ Usa» and «⋮» fell one under the other: a column says what is meant. */
-    html.imgexp .alert-item { display: flex; flex-direction: column; align-items: stretch; }
-    html.imgexp .alert-item .alert-item-badges { justify-content: flex-start; }
+    html.imgexp .inventory-item:has(.inv-image img) .inv-image,
+    html.imgexp .alert-item:has(.product-thumb-img) .product-thumb,
+    html.imgexp .item-detail-header-row:has(.item-detail-image img) .item-detail-image { width: 22%; }
+    html.imgexp .inventory-item:has(.inv-image img) .inv-card-top,
+    html.imgexp .inventory-item:has(.inv-image img) .inv-card-bottom,
+    html.imgexp .alert-item:has(.product-thumb-img) .alert-item-info,
+    html.imgexp .item-detail-header-row:has(.item-detail-image img) .item-detail-header-text { padding-left: 23%; }
 }
 
-/* No photo → no layer to paint (an emoji blown up to a quarter of the row would be a
-   mascot, not information), but the gutter above stays empty, exactly as it would be. */
-html.imgexp .inventory-item:not(:has(.inv-image img)) .inv-image,
-html.imgexp .alert-item:not(:has(.product-thumb-img)) .product-thumb,
-html.imgexp .item-detail-header-row:not(:has(.item-detail-image img)) .item-detail-image { display: none; }
