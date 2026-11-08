@@ -21,6 +21,14 @@
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
     <link rel="stylesheet" href="assets/css/tablet.css?v=20261108j">
     <link rel="stylesheet" href="assets/css/mobile.css?v=20261108j">
+    <!-- EXPERIMENT (temporary): the product photo bleeding into the card, off unless
+         `?imgexp=1`. One file + one line of script, both removable without a trace. -->
+    <link rel="stylesheet" href="assets/css/experiment-image-bleed.css?v=20261108a">
+    <script>/* EXPERIMENT: activates the photo-bleed stylesheet for a look. */
+        if (/[?&]imgexp=1(?:&|$)/.test(String(location.search || ''))) {
+            document.documentElement.classList.add('imgexp');
+        }
+    </script>
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
     <script src="assets/js/core/dom.js?v=20261108j"></script>
     <script src="assets/js/core/auth.js?v=20261108j"></script>

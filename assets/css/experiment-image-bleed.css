@@ -1,0 +1,84 @@
+/* ══ EXPERIMENT — the package photo bleeds into the card ═════════════════════════
+   TEMPORARY, off by default. It exists only to LOOK at an idea: instead of a 44 px
+   square beside the text, the product's photo fills the LEFT QUARTER of the card that
+   holds its facts and dissolves before it ends, so a row reads as one object instead
+   of a picture plus a paragraph.
+
+   Enable it with `?imgexp=1` in the URL (the one-line script in index.html adds
+   `html.imgexp`; nothing else reads that class). Remove this file, its <link> and that
+   script when the experiment is decided.
+
+   Notes from building it:
+   - The three surfaces that own "a box with all the facts" are the pantry row
+     (`.inventory-item`), the alert/dashboard row (`.alert-item`) and the product sheet
+     head (`.item-detail-header-row`). Their image slots have three different names
+     (`.inv-image`, `.product-thumb`, `.item-detail-image`), so the layer is declared
+     once per surface rather than fought with a single generic selector.
+   - `:has()` decides whether there is a photo at all: without one the slot is removed
+     entirely and the facts keep the whole card — an emoji blown up to a quarter of the
+     row would be a mascot, not information.
+   - `pointer-events: none` on the layer: the row's tap/swipe grammar must not change. */
+
+html.imgexp .inventory-item,
+html.imgexp .alert-item,
+html.imgexp .item-detail-header-row { position: relative; }
+/* The photo must be cut by the card it identifies, not stick out of its rounded corners. */
+html.imgexp .alert-item { overflow: hidden; }
+
+/* One layer, three surfaces: the slot BECOMES the photo, 25% of the card, full height. */
+html.imgexp .inventory-item .inv-image,
+html.imgexp .alert-item .product-thumb,
+html.imgexp .item-detail-header-row .item-detail-image {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 25%;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+/* The sheet keeps its photo one level deeper (`.item-detail-image > .product-thumb`): the
+   inner frame must join the layer instead of staying a 44 px square inside it. */
+html.imgexp .item-detail-header-row .item-detail-image .product-thumb {
+    position: static;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: hidden;
+}
+
+/* The dissolve: opaque where the package is readable, gone before the facts begin.
+   Masked rather than covered by a gradient of the card colour, because the card has
+   tints of its own (an opened row is mint, an expiring one amber) and a painted
+   gradient would show as a band on them. */
+html.imgexp .inventory-item .inv-image img,
+html.imgexp .inventory-item .inv-image .product-thumb-img,
+html.imgexp .alert-item .product-thumb-img,
+html.imgexp .item-detail-header-row .item-detail-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    padding: 0;
+    border-radius: 0;
+    -webkit-mask-image: linear-gradient(to right, #000 0 38%, rgba(0, 0, 0, 0.4) 68%, transparent 96%);
+            mask-image: linear-gradient(to right, #000 0 38%, rgba(0, 0, 0, 0.4) 68%, transparent 96%);
+}
+
+/* The facts start where the photo stops being readable. */
+html.imgexp .inventory-item:has(.inv-image img) .inv-card-top { padding-left: 24%; }
+html.imgexp .alert-item:has(.product-thumb-img) .alert-item-info { padding-left: 24%; }
+html.imgexp .item-detail-header-row:has(.item-detail-image img) .item-detail-header-text { padding-left: 24%; }
+
+/* No photo → no layer, and the facts keep the whole card. */
+html.imgexp .inventory-item:not(:has(.inv-image img)) .inv-image,
+html.imgexp .alert-item:not(:has(.product-thumb-img)) .product-thumb,
+html.imgexp .item-detail-header-row:not(:has(.item-detail-image img)) .item-detail-image { display: none; }
