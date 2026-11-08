@@ -87,7 +87,8 @@ exploited, and the two items that change a default are called out as such.
   retired `altro` place, transactions, shopping list, recipes, settings, tags, health data —
   then opens that same file with the **new** code, which runs `initializeDB()`/`migrateDB()`
   exactly like the first request after the update. It then compares every table row by row
-  (46 checks): no table, column, row or value may disappear, the new columns and tables must be
+  (46 checks) plus the idempotency of the second and third boot (2 more): no table, column,
+  row or value may disappear, the new columns and tables must be
   added to the *existing* database and not only to fresh installs, every legacy setting must
   keep its value, `integrity_check`/`foreign_key_check` must pass — and a second and third boot
   must change nothing. The repairs a release applies on purpose (entity-decoded titles,
