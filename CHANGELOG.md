@@ -83,6 +83,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cache **survives** a shell update (the `activate` cleanup skips it). Opaque responses carry no CORS
   headers and `cache.put()` stores them all the same. The bleed experiment below keeps the same
   pictures, so a row now paints instantly the second time it is seen.
+- **The image-bleed experiment, sixth pass — the shadow** (`?imgexp=1`). A soft shadow now sits on
+  the CARD immediately right of the photo and fades out over 16 px, so the package reads as laid on
+  the card instead of printed in it. It is `::after` on the strip, not `drop-shadow` on the image: a
+  filter is applied **before** the mask, so a drop-shadow faded away with the photo and was invisible
+  — which is exactly what the first attempt looked like.
 - **The image-bleed experiment, fifth pass** (`?imgexp=1`, `?imgexp=0` off). Three things were still
   wrong, and the first one had a cause I had not seen: on a **touch tablet / kiosk** `tablet.css` turns
   the pantry card into a horizontal band (text left, quantity/expiry/`✓ Usa` right), so the gutter I

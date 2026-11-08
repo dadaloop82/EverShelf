@@ -59,7 +59,29 @@ html.imgexp.is-touch-tablet .inventory-item .inv-card-bottom { padding-left: 0; 
 html.imgexp .inventory-item .inv-card-bottom { flex-wrap: wrap; row-gap: 6px; }
 html.imgexp .inventory-item .inv-card-bottom > * { white-space: nowrap; }
 
-/* ── 3. The photo: cover, and a long dissolve that is gone before the text ─── */
+/* ── 3b. The cast shadow ───────────────────────────────────────────────────────
+   A `drop-shadow` on the photo is erased where the photo fades — the mask is applied
+   AFTER the filter, so the shadow disappeared with it and nothing showed. What reads as
+   a shadow is a soft band painted on the CARD, immediately right of the strip, fading to
+   nothing: the photo looks laid on the card instead of printed in it. */
+html.imgexp .inventory-item .inv-image,
+html.imgexp .alert-item .product-thumb,
+html.imgexp .item-detail-header-row .item-detail-image { overflow: visible; }
+html.imgexp .inventory-item .inv-image::after,
+html.imgexp .alert-item .product-thumb::after,
+html.imgexp .item-detail-header-row .item-detail-image::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 100%;
+    width: 16px;
+    background: linear-gradient(to right,
+        rgba(15, 23, 42, 0.13), rgba(15, 23, 42, 0.05) 45%, transparent 100%);
+    pointer-events: none;
+}
+
+/* ── 3. The photo: cover and a long dissolve that is gone before the text ──── */
 html.imgexp .inventory-item .inv-image img,
 html.imgexp .inventory-item .inv-image .product-thumb-img,
 html.imgexp .alert-item .product-thumb-img,
