@@ -485,7 +485,16 @@ function _auditSearchMatches(term) {
     const elsewhere = [];
     if (!q) return { here, elsewhere };
     const scope = _auditScopeKey();
+    // A row this stocktake ALREADY answered — by hand, by name or by barcode — is not a question
+    // any more, and mode 1 filters it out for the same reason (`_auditBegin`).
+    //
+    // Here it was not filtered, and «✓ C'è» writes nothing (the shelf is right, that is the whole
+    // point): nothing changed, so the row stayed in the list and every press counted another
+    // confirmation in the session. One row could be confirmed five times.
+    const session = (_auditSession && (_auditSession.scope || '') === (scope || '')) ? _auditSession : null;
+    const answered = (session && session.answered) || (_audit && _audit.answered) || {};
     for (const it of _auditItems()) {
+        if (answered[String(it.id)]) continue;
         if (typeof isInventoryDepleted === 'function' && isInventoryDepleted(it)) continue;
         const hay = _auditFold(`${it.display_name || ''} ${it.name || ''} ${it.brand || ''}`);
         if (!hay.includes(q)) continue;
@@ -578,6 +587,15 @@ function _auditSearchPickFirst() {
  * same one-item run, so the toast and the return to the search stay one implementation.
  */
 function _auditSearchQuickThere(invId) {
+    // Pressed twice on the same product (a slow phone, a double tap, or the row still on screen):
+    // the second press answers nothing, it only redraws. The session is the source of truth.
+    const scope = _auditScopeKey();
+    const session = (_auditSession && (_auditSession.scope || '') === (scope || '')) ? _auditSession : null;
+    const answered = (session && session.answered) || (_audit && _audit.answered) || {};
+    if (answered[String(invId)]) {
+        _auditRenderSearchResults();
+        return;
+    }
     _auditSearchPick(invId);
     if (!_audit || _audit.finished) return;
     _auditAnswer('there');
@@ -1279,6 +1297,15 @@ function _auditAnswer(kind) {
     if (!_audit || _audit.finished) return;
     const it = _audit.items[_audit.index];
     if (!it) return;
+    // ONE answer per row per stocktake. The same product can reach a card twice — the barcode of a
+    // box already answered, a row reopened from the queue — and a second answer would count twice in
+    // the tally (and, for «finisce»/«butta», queue a second write). The session's `answered` map is
+    // the ledger; `_auditUndo()` deletes the entry, so a real correction still goes through.
+    if (_audit.answered && _audit.answered[String(it.id)]) {
+        _audit.index++;
+        _auditRender();
+        return;
+    }
     const label = it.display_name || it.name;
     const entry = {
         item: { ...it },

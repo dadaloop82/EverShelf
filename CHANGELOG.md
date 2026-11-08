@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.31.23] - 2026-11-08
 
 ### Fixed
+- **«✓ C'è» could be pressed twice on the same row and counted twice.** In the quick stocktake's
+  «🔎 Ti dico io» the answer writes nothing (the shelf is right — that is the whole point), so
+  nothing changed and the row stayed in the list: every press added another confirmation to the
+  session. Mode 1 already filtered answered rows out (`_auditBegin`), the search did not. Three
+  fixes, in depth:
+  - `_auditSearchMatches()` skips a row this stocktake already answered — by hand, by name or by
+    barcode — so the row **disappears** from the results the moment you confirm it (and the same
+    filter feeds `_auditSearchPickFirst`, i.e. Enter cannot re-answer it either);
+  - `_auditSearchQuickThere()` reads the session before answering: a double tap (or a slow phone)
+    now only redraws the list;
+  - `_auditAnswer()` refuses a second answer for the same row, which is what could also have queued
+    a second `inventory_use` for «🏁 Finito» / «🗑️ Andato a male» when the same product reached a
+    card twice (a barcode of a box already answered, a row reopened from the queue).
+  `_auditUndo()` deletes the entry, so a real correction still goes through — verified with a vm
+  test that runs the real `audit.js`: answered row excluded, double tap counts 0, new row counts 1,
+  list empty after the answer, and the row back in the list after an undo.
 - **A recipe proposed products that were not in the pantry.** The AI writes `from_pantry: true` on
   every ingredient it believes is on the shelf (the prompt tells it to), and
   `enrichRecipeIngredientsStock()` is the only thing that checks it against the real inventory. When
