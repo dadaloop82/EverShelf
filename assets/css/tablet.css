@@ -30,6 +30,50 @@ html.is-touch-tablet .inv-row-content.inv-card {
     padding: 8px 10px;
 }
 
+/* ── The Home's notice rows are the SAME band ─────────────────────────────────
+   On a tablet the pantry row is a horizontal band — photo, text, and the action
+   strip (`qty · time · ✓ Usa · ⋮`) on the RIGHT — while the same information on the
+   Home sat under the text, so the two lists read as two different layouts side by
+   side. Same geometry here: the strip goes beside the text, the info takes the room,
+   and the card keeps the band's 8/10 px padding instead of the stacked 12. */
+html.is-kiosk .alert-item,
+html.is-touch-tablet .alert-item {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+}
+html.is-kiosk .alert-item .alert-item-info,
+html.is-touch-tablet .alert-item .alert-item-info {
+    flex: 1 1 auto;
+    min-width: 0;
+    /* The band's height comes from the content, never from the stacked card's floor. */
+    min-height: 0;
+}
+html.is-kiosk .alert-item .alert-item-badges,
+html.is-touch-tablet .alert-item .alert-item-badges {
+    /* `0 0 auto`: the strip keeps its content width instead of being squeezed by the text
+       beside it — a squeezed strip wraps into two lines and makes the card taller than the
+       row next to it, which is exactly what the two lists were doing to each other. */
+    flex: 0 0 auto;
+    margin-left: auto;
+    justify-content: flex-end;
+    /* Nothing to dodge: this strip is nowhere near the photo. */
+    padding-left: 0;
+}
+/* The pantry strip obeys the same rule (it was `0 1 auto`, i.e. shrinkable). */
+html.is-kiosk .inv-row-content .inv-card-bottom,
+html.is-touch-tablet .inv-row-content .inv-card-bottom { flex: 0 0 auto; }
+
+/* Both text blocks get the same floor, so the two cards measure the same. The pantry's is
+   taller on its own only because of the star button beside the name — a control the Home
+   does not have, and which nobody measures with the eye, so the block sets the height of
+   both. 53 px is that block's natural height. */
+html.is-kiosk .inv-row-content .inv-card-top,
+html.is-touch-tablet .inv-row-content .inv-card-top,
+html.is-kiosk .alert-item .alert-item-info,
+html.is-touch-tablet .alert-item .alert-item-info { min-height: 53px; }
+
 html.is-kiosk .inv-card-top,
 html.is-touch-tablet .inv-card-top {
     flex: 1 1 auto;

@@ -128,6 +128,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   1 px `--surface-border` hairline (which is 2 px of the height), `12 px` padding, `10 px` between
   the text block and the action line, the same 62 px floor on the text block and the same 34 px
   action line. Measured: **132 px, both lists, at 360 / 460 / 500 / 892 px**.
+- **On a tablet the two lists were two different layouts.** `tablet.css` turns the pantry row into a
+  horizontal band — photo, text, then `quantity · expiry · ✓ Usa · ⋮` on the right — while the same
+  Home row kept its action strip under the text, so side by side on the same screen the lists
+  disagreed about where the buttons live. `.alert-item` follows the same band now (same `8px 10px`
+  padding, the strip on the right and `flex: 0 0 auto` so it cannot be squeezed into two lines by the
+  text beside it — the pantry strip had the same squeeze), and the two text blocks share a 53 px
+  floor: the pantry's is taller only because of the star button next to the name, a control the Home
+  does not have. The **typography is one** as well — title `1rem/700/1.3`, secondary line
+  `0.8rem/1.35`, `4 px` between them — and the star is set to `line-height: 1` so an icon cannot set
+  the height of a line of text. Measured: **71 px both lists** at 900 px; **132 px both** stacked at
+  460 px (the only differences left are content: a longer title wraps, a longer time string).
 - **The elements of a row are the same, in the same order.** The badge strip always takes its own
   line — to the right of the text it left a hole between the name and the brand and made both wrap
   for no reason at ~890 px — and the row ends with `[expiry] [✓ Usa] [⋮]` in both lists: the pantry's

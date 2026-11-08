@@ -330,6 +330,23 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     -webkit-line-clamp: 2;
     overflow: hidden;
 }
+/* ── The same two lines, at the same size ────────────────────────────────────
+   The title is 1rem/700 and the secondary line 0.8rem in both lists, with the same 4 px
+   between them: identical text must occupy an identical height, or two rows that are
+   "the same" end up 9 px apart for no reason the household can see. */
+.alert-item .alert-item-name {
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+.alert-item .alert-item-main { gap: 4px; }
+.alert-item .alert-item-qty {
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+/* The fav star is an icon, not a line of text: without this it sets the height of the name
+   row in the pantry and nowhere else. */
+.inventory-item .inv-row-content .btn-inv-fav { line-height: 1; }
 .alert-item .alert-item-qty {
     white-space: nowrap;
     overflow: hidden;
