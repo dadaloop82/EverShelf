@@ -84,11 +84,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   headers and `cache.put()` stores them all the same. The bleed experiment below keeps the same
   pictures, so a row now paints instantly the second time it is seen.
 - **The image-bleed experiment, second pass** (`?imgexp=1`, `assets/css/experiment-image-bleed.css`):
-  the left gutter is `26%` **always** — with or without a photo, so a row without a picture still
-  lines up with the ones that have it — every line of the card starts after it (the bottom
-  quantity/expiry/`Usa` line and the alert row's badges, which wrap under the title), and the
-  dissolve is a long ramp that is fully gone before the first letter, so **no text is ever printed
-  on the photo**.
+  a live screenshot at 734 px showed the first version was wrong in two places. **The dashboard's
+  notice rows are out of scope** — `#expiring-list .alert-item` already carries name + brand + place
+  on the left and a badge, a `✓ Usa` and a `⋮` on the right, so a 26% gutter squeezed the title into
+  three words per line; the bleed lives in the pantry row and in the product sheet, the two surfaces
+  that really are "a box with all the facts". And in the pantry the layer anchors on the TOP BLOCK
+  (`.inv-card-top`) instead of the whole card: padding the action line too broke the date into
+  "12/03/20 / 27" at 360 px. The gutter is `26%` — `22%` below 420 px — **always**, with or without
+  a photo (so rows line up), the dissolve is a long ramp that is gone before the first letter, and
+  **no text is ever printed on the photo**.
 - **Nothing scrolls visibly under the bottom bar.** The bar is a floating pill (`elegant.css`:
   rounded, 10 px from the bottom and from each side), so the pantry rows travelled across its
   margins and through the notches of its rounded corners while a household was reading them — the
