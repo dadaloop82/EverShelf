@@ -83,16 +83,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cache **survives** a shell update (the `activate` cleanup skips it). Opaque responses carry no CORS
   headers and `cache.put()` stores them all the same. The bleed experiment below keeps the same
   pictures, so a row now paints instantly the second time it is seen.
-- **The image-bleed experiment, fourth pass** (`?imgexp=1`, kept in `sessionStorage` so a reload does
-  not lose it; `?imgexp=0` turns it off). The layout is now **untouched**: name and brand on one line,
-  the place/genre line under it, the `2 gg fa` · `✓ Usa` · `⋮` strip on the right of the same row —
-  the photo simply takes the left quarter of the card. My previous pass had *stacked* that row, which
-  was me moving furniture nobody asked to move. The photo is **full height** in every list (pantry and
-  dashboard draw the same object), the card clips it so the corners stay rounded, and **a row with no
-  photo keeps the old 44/50 px frame with the category emoji, in flow**: the bleed exists only where
-  there is something to bleed (`:has(img)`), so nothing else moved. On a phone `mobile.css` already
-  moves the badge strip to its own line — it now takes the same gutter, or `2 gg fa` printed itself on
-  the photo.
+- **The image-bleed experiment, fifth pass** (`?imgexp=1`, `?imgexp=0` off). Three things were still
+  wrong, and the first one had a cause I had not seen: on a **touch tablet / kiosk** `tablet.css` turns
+  the pantry card into a horizontal band (text left, quantity/expiry/`✓ Usa` right), so the gutter I
+  applied to *both* blocks was squeezing that right-hand strip into three broken lines
+  (`840ml / Aperto da 0 giorni / ✓ Usa`) — the strip is nowhere near the photo there and keeps its
+  width. Then: **every card is the same height** (the name stops at two lines, the top block has a
+  62 px floor, so a short name and a long one give the same row), and **a row with no photo is drawn
+  exactly like one with a photo**: the category emoji takes the photo's strip — same size, same full
+  height, same dissolve — instead of the little 44 px square, because a list must not change shape
+  depending on whether Open Food Facts had a picture.
 - **Nothing scrolls visibly under the bottom bar.** The bar is a floating pill (`elegant.css`:
   rounded, 10 px from the bottom and from each side), so the pantry rows travelled across its
   margins and through the notches of its rounded corners while a household was reading them — the
