@@ -74,6 +74,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wrong article. It is still a discard — the stock leaves the shelf — but the reason says the row
   was WRONG rather than that food was wasted, so a correction no longer counts as waste in the
   statistics. `WASTE_REASON_KEYS` + the six locales.
+- **Nothing scrolls visibly under the bottom bar.** The bar is a floating pill (`elegant.css`:
+  rounded, 10 px from the bottom and from each side), so the pantry rows travelled across its
+  margins and through the notches of its rounded corners while a household was reading them — the
+  one thing on the screen that moves where the eye lands last. `body::after` now paints the canvas
+  over that whole band: one step under the bar (`z-index: 90`, the bar is 100), `pointer-events:
+  none`, opaque from 10 px down — in PIXELS, not percentages, because the pill rises
+  `--es-nav-height + --es-nav-gap` (72 px) inside a band of `--nav-height + 14px` — and dissolving
+  in the 10 px above it, so a row fades out instead of being sliced. No `backdrop-filter` on
+  purpose: a blur over a scrolling list repaints every frame, and the opaque part already hides
+  everything. Measured with a magenta slab filling the band: the side gaps and the corner notch go
+  from `rgb(252,1,253)` to the canvas colour while the pill's own paint is untouched.
 - **The splash had a SECOND progress line, and it was the stray line under the stage caption.**
   In a `?debug=1` boot a 3 px track and its fill (`.preloader-bar-track` / `#preloader-bar`) sat
   between the caption and the credits: it duplicated the boot rail's own connector

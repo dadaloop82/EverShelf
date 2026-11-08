@@ -6154,6 +6154,43 @@ dark gradient at the bottom). The stream now holds only the barcode box, and the
     padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+/* ── The band behind the bottom navigation ─────────────────────────────────
+   A page that scrolls VISIBLY under the bar reads as unfinished, and here the bar
+   is a floating pill (`elegant.css`: rounded, `bottom: 10px`, `width: 100% - 20px`),
+   so the rows travelled across the 10 px gaps and through its rounded corners —
+   the one thing a household notices first, because it moves while they read.
+   This band is what the page must NOT be seen through: the pill paints at
+   `z-index: 100`, so anything below it is what its translucency and its margins
+   reveal — this layer, not the content. It is opaque by the time it reaches the
+   bar and dissolves over the last ~12 px above it, so a row is never sliced: it
+   fades out before the navigation starts.
+   No `backdrop-filter` on purpose: a blur over a scrolling list repaints every
+   frame, and the opaque part of the gradient already hides everything — the wall
+   tablet pays for what it can see, not for a filter.
+   `pointer-events: none` keeps every tap for the bar and for the page below it,
+   and `z-index: 90` is deliberately just under the bar: modals, toasts, the
+   capture sheet, the screensaver and the auth overlays all live far above. */
+body::after {
+    content: '';
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--nav-height) + 14px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(
+        to bottom,
+        transparent 0,
+        /* The dissolve is PIXELS, not a percentage: the floating pill rises
+           `--es-nav-height + --es-nav-gap` (72 px) from the bottom edge, and the band
+           is `--nav-height + 14px` (84 px), so everything from 10 px down is opaque
+           — including the notch of its rounded corners, where a row used to peek. */
+        color-mix(in srgb, var(--bg) 55%, transparent) 5px,
+        var(--bg) 10px
+    );
+    pointer-events: none;
+    z-index: 90;
+}
+
 .nav-btn {
     display: flex;
     flex-direction: column;
