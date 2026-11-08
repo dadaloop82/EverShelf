@@ -181,6 +181,152 @@ body {
 .product-thumb.is-icon .product-thumb-emoji { display: block; }
 .product-thumb.is-icon .product-thumb-img { display: none; }
 
+/* ── The package photo leads the row — as a LAYER, not a box ──────────────────
+   A 44×44 frame costs a whole column and hides most of the packaging, so the photo now
+   takes the LEFT QUARTER of the card, full height, dissolving into the text: a row reads
+   as one object (the package and its facts) instead of a picture plus a paragraph.
+   - the strip is `absolute` and the card clips it, so the card's corners are the photo's;
+   - it is scaled to 150% and pulled 50% left, putting the picture's CENTRE inside the
+     opaque zone (`object-fit: cover` never crops horizontally in a strip this wide, so
+     without that the visible part would be the package's left edge) and its right edge
+     exactly where the dissolve has already reached zero — no hard edge;
+   - no photo → the category emoji takes the SAME strip, same size, same dissolve, so a
+     list never changes shape depending on whether Open Food Facts had a picture;
+   - every text line keeps a 26% gutter, so nothing is ever printed on the photo;
+   - `pointer-events: none`: the row's tap/hold/swipe grammar is untouched. */
+.inventory-item .inv-row-content .inv-image,
+.alert-item .product-thumb,
+.item-detail-header-row .item-detail-image {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 25%;
+    height: auto;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+.alert-item { position: relative; overflow: hidden; }
+.item-detail-header-row { position: relative; }
+/* The sheet keeps its photo one level deeper: the inner frame joins the layer instead of
+   staying a 44 px square inside it. */
+.item-detail-header-row .item-detail-image .product-thumb,
+.inventory-item .inv-image .product-thumb {
+    position: static;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+/* The gutter: the 25% of the strip plus a hair, on every line of the card. */
+.inventory-item .inv-row-content .inv-card-top,
+.inventory-item .inv-row-content .inv-card-bottom,
+.alert-item .alert-item-info,
+.alert-item .alert-item-badges,
+.item-detail-header-row .item-detail-header-text { padding-left: 26%; }
+/* The touch-tablet/kiosk band puts the quantity/expiry/`✓ Usa` strip on the RIGHT of the
+   row, nowhere near the photo: padding it there squeezed it into three broken lines. */
+html.is-kiosk .inventory-item .inv-row-content .inv-card-bottom,
+html.is-touch-tablet .inventory-item .inv-row-content .inv-card-bottom { padding-left: 0; }
+/* A phone's action line may wrap, but its pieces never break in half (the date used to
+   split into "12/03/20 / 27"). */
+.inventory-item .inv-row-content .inv-card-bottom { flex-wrap: wrap; row-gap: 6px; }
+.inventory-item .inv-row-content .inv-card-bottom > * { white-space: nowrap; }
+
+/* ── Every card is the same height ────────────────────────────────────────────
+   The name stops at two lines and the meta line at one, and the top block carries a floor
+   of two lines + its meta, so a row called "Fagioli" is exactly as tall as one called
+   "Latte Intero (Milbona, Pilos)". The floor is skipped on the horizontal band, whose
+   height comes from the action strip. */
+html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-card-top { min-height: 62px; }
+.inventory-item .inv-row-content .inv-name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+.inventory-item .inv-row-content .inv-meta-line {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── The Home lists and the pantry lists are ONE list ─────────────────────────
+   In the pantry a row IS a card on the canvas; on the Home the same rows sat inside a
+   tinted frame (`.urgency-hub` white, `.alert-section` amber) with hairlines between
+   them, so the two lists read as two different products. The container becomes a plain
+   section — its title, then the cards — and a notice row gets the pantry card's chrome. */
+.alert-item {
+    background: var(--bg-card);
+    border: 0;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 8px;
+}
+/* The base sheet draws a hairline between consecutive notices and squares the pair: two
+   separate cards cannot share a rule. */
+.alert-item + .alert-item { border-top: 0; border-radius: var(--radius); }
+.alert-item:last-child { margin-bottom: 0; }
+/* The meta line ("📦 Dispensa · ne hai ancora 7 pz") was a white chip because it sat on a
+   TINTED row: on a card the same chip is invisible on white and a grey pill in the dark
+   theme. It is a secondary line, so it says it with the colour. */
+.alert-item .alert-item-qty {
+    background: transparent;
+    padding: 0;
+}
+.alert-section {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+}
+
+/* The photo (and the emoji) dissolve: a long ramp, gone before the first letter. */
+.inventory-item .inv-image img,
+.alert-item .product-thumb-img,
+.item-detail-header-row .item-detail-image img {
+    width: 150%;
+    max-width: none;
+    margin-left: -50%;
+    height: 100%;
+    object-fit: cover;
+    padding: 0;
+    border-radius: 0;
+    -webkit-mask-image: linear-gradient(to right,
+        #000 0 14%, rgba(0, 0, 0, 0.82) 34%, rgba(0, 0, 0, 0.5) 56%,
+        rgba(0, 0, 0, 0.18) 78%, transparent 100%);
+            mask-image: linear-gradient(to right,
+        #000 0 14%, rgba(0, 0, 0, 0.82) 34%, rgba(0, 0, 0, 0.5) 56%,
+        rgba(0, 0, 0, 0.18) 78%, transparent 100%);
+}
+.inventory-item .inv-image:not(:has(img)),
+.item-detail-header-row .item-detail-image:not(:has(img)),
+.alert-item .product-thumb.is-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(24px, 6.4vw, 40px);
+    line-height: 1;
+    -webkit-mask-image: linear-gradient(to right,
+        #000 0 22%, rgba(0, 0, 0, 0.7) 46%, rgba(0, 0, 0, 0.3) 72%, transparent 100%);
+            mask-image: linear-gradient(to right,
+        #000 0 22%, rgba(0, 0, 0, 0.7) 46%, rgba(0, 0, 0, 0.3) 72%, transparent 100%);
+}
+.inventory-item .inv-image .product-thumb-emoji,
+.alert-item .product-thumb-emoji,
+.item-detail-header-row .item-detail-image .product-thumb-emoji { font-size: inherit; }
+
 /* ── The medicine mark ───────────────────────────────────────────────────────
    EverShelf Med owns a drawn icon (`assets/img/icons/medicine.svg`): a medicine is not a
    category of food, so it never wears the category emoji (📦 on "altro", a 🥛 on a mis-saved
@@ -4622,3 +4768,17 @@ button.scan-med-name-hit:focus-visible {
     line-height: 1.25;
     padding: 10px 12px;
 }
+
+/* ── The "Salva lo spreco" hub is a SECTION, not a card ───────────────────────
+   It framed its own rows — a white card with a danger border — while every row inside it
+   is now a card of its own (see the photo section at the top of this file), and a card
+   inside a card is not a hierarchy, it is a box in a box. Its title and its recipe button
+   stay exactly where they were, on the canvas. */
+.urgency-hub {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+}
+.urgency-head { margin-bottom: 10px; }

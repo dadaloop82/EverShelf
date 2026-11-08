@@ -83,30 +83,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cache **survives** a shell update (the `activate` cleanup skips it). Opaque responses carry no CORS
   headers and `cache.put()` stores them all the same. The bleed experiment below keeps the same
   pictures, so a row now paints instantly the second time it is seen.
-- **The image-bleed experiment, eighth pass — the photo starts from its centre** (`?imgexp=1`). The
-  strip was showing the package's **left edge**: `object-fit: cover` never crops horizontally in a box
-  this wide (25% of a card is wider than a package photo's aspect), so the mask was eating the right
-  half of the picture and what survived was its left. Now the box is widened to 150% and pulled left
-  by the same 50%, which puts the photo's centre at 25% of the strip — inside the opaque zone — with
-  its right edge exactly at the boundary the mask has already faded to zero, so no hard edge appears.
-  Measured with a three-band test image (red left · green centre · blue right): the visible zone goes
-  from 32/32 red to 32/32 green. Tune the pair together — `margin-left = width − 100%`.
-- **The image-bleed experiment, seventh pass — one list style** (`?imgexp=1`). In the pantry a row *is*
-  a card on the canvas (white, `--radius`, `--shadow`, 8 px apart); on the Home the same rows sat
-  inside a tinted frame (`.urgency-hub` white, `.alert-section` amber) with hairlines between them, so
-  the two lists read as two different products. Now the container is a plain section — its title, then
-  the rows — and every notice row is a card with the pantry's chrome. `.stock-hub` needed nothing: it
-  was never a card.
-- **The image-bleed experiment, fifth pass** (`?imgexp=1`, `?imgexp=0` off). Three things were still
-  wrong, and the first one had a cause I had not seen: on a **touch tablet / kiosk** `tablet.css` turns
-  the pantry card into a horizontal band (text left, quantity/expiry/`✓ Usa` right), so the gutter I
-  applied to *both* blocks was squeezing that right-hand strip into three broken lines
-  (`840ml / Aperto da 0 giorni / ✓ Usa`) — the strip is nowhere near the photo there and keeps its
-  width. Then: **every card is the same height** (the name stops at two lines, the top block has a
-  62 px floor, so a short name and a long one give the same row), and **a row with no photo is drawn
-  exactly like one with a photo**: the category emoji takes the photo's strip — same size, same full
-  height, same dissolve — instead of the little 44 px square, because a list must not change shape
-  depending on whether Open Food Facts had a picture.
+- **The package photo leads the row — as a LAYER, not a box.** A 44×44 frame cost a whole column of
+  every row and hid most of the packaging. The photo now takes the LEFT QUARTER of the card, full
+  height, dissolving into the text, so a row reads as one object (the package and its facts) instead
+  of a picture plus a paragraph. It is the same grammar in all three places that carry facts — the
+  pantry row, the Home's notice row and the product sheet head — and the rules live in
+  `assets/css/surfaces.css`, next to `.product-thumb`, which is the component they extend:
+  - the strip is `absolute` and the card clips it, so the card's corners are the photo's corners;
+  - the picture is scaled to 150% and pulled 50% left: `object-fit: cover` never crops horizontally
+    in a strip this wide, so without that the visible part was the package's LEFT edge; now its
+    CENTRE sits in the opaque zone and the right edge lands exactly where the dissolve has reached
+    zero (measured with a three-band test image: the visible zone went from 32/32 red to 32/32
+    green). The pair is tuned together — `margin-left = width − 100%`;
+  - no photo → the category emoji takes the SAME strip, same size, same dissolve, so a list never
+    changes shape depending on whether Open Food Facts had a picture;
+  - every line of the card keeps a 26% gutter (26/22% below 420 px), so nothing is ever printed on
+    the photo, and the layer is `pointer-events: none`: tap, hold and swipe are untouched;
+  - every card is the same height: the name stops at two lines, the meta line at one, and the top
+    block carries a 62 px floor — a row called "Fagioli" is as tall as "Latte Intero (Milbona,
+    Pilos)". The floor is skipped on the touch-tablet/kiosk band, whose height comes from the
+    action strip on the right (which also keeps its full width there — padding it squeezed
+    `840ml · Aperto da 0 giorni · ✓ Usa` into three broken lines).
+- **One list grammar: the Home and the pantry draw the same list.** In the pantry a row *is* a card
+  on the canvas; on the Home the same rows sat inside a tinted frame (`.urgency-hub` white,
+  `.alert-section` amber) with hairlines between them, so the two lists read as two different
+  products. The containers are plain sections now — their title, then the cards — every notice row
+  carries the pantry card's chrome (`--bg-card`, `--radius`, `--shadow`, 8 px apart, no hairline),
+  and its meta line stopped being a white chip now that it sits on a card (`background: transparent`:
+  the chip was invisible on white and a grey pill in the dark theme).
 - **Nothing scrolls visibly under the bottom bar.** The bar is a floating pill (`elegant.css`:
   rounded, 10 px from the bottom and from each side), so the pantry rows travelled across its
   margins and through the notches of its rounded corners while a household was reading them — the

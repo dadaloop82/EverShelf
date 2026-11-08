@@ -52,8 +52,19 @@ runtime/binary files — if a task truly needs one, ask first.
 - **UI grammar**: one emerald (`--brand-primary`) per action strip for the action
   that writes the outcome, neutral secondaries for the rest, no pastel per-button
   colours; every banner action stays inline (never behind a ⋮). A product row opens
-  with `_productThumbHtml()` (44×44, neutral frame, category emoji fallback — never
-  a broken image or an empty square) — and a **medicine** opens with its own drawn
+  with `_productThumbHtml()` — whose 44×44 frame (category emoji under the picture, never
+  a broken image, never an empty square) becomes the **left quarter of the card**: full
+  height, clipped by the card (so the card's corners are the photo's), the picture scaled
+  150% and pulled 50% left so its **centre** lands in the opaque zone (`margin-left = width
+  − 100%`) and a long `mask-image` dissolving it before the first letter. Every line keeps
+  a 26% gutter, so no text is ever printed on the photo; **no photo → the category emoji
+  takes the same strip**, same size and dissolve, so a list never changes shape; all cards
+  are the same height (name clamped to two lines, meta to one, 62 px floor on the top
+  block — skipped on the touch-tablet/kiosk band, where the action strip stays on the right
+  at full width). The rules live in `assets/css/surfaces.css` next to `.product-thumb`, and
+  Home and pantry share **one list grammar**: `.urgency-hub` / `.alert-section` are plain
+  sections, every `.alert-item` is a card with the pantry's chrome. A **medicine** opens
+  with its own drawn
   mark (`_medIconMarkup()`, `assets/img/icons/medicine.svg`), never a food emoji:
   same for the plain emoji slots (`_productCatIconHtml()`), the `badge-medical`
   badge and the place icons (`_locIconMarkup()`), where the cabinet is the pill.

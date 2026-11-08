@@ -17,26 +17,10 @@
     <link rel="stylesheet" href="assets/css/elegant.css?v=20261108j">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261108j">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261108k">
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
     <link rel="stylesheet" href="assets/css/tablet.css?v=20261108j">
     <link rel="stylesheet" href="assets/css/mobile.css?v=20261108j">
-    <!-- EXPERIMENT (temporary): the product photo bleeding into the card, off unless
-         `?imgexp=1`. One file + one line of script, both removable without a trace. -->
-    <link rel="stylesheet" href="assets/css/experiment-image-bleed.css?v=20261108j">
-    <script>/* EXPERIMENT: activates the photo-bleed stylesheet for a look. The flag is kept in
-        `sessionStorage`, so a reload (the app reloads itself for a language or a restore)
-        does not lose it; `?imgexp=0` turns it off again. */
-        (function () {
-            try {
-                var q = /[?&]imgexp=([01])(?:&|$)/.exec(String(location.search || ''));
-                if (q) sessionStorage.setItem('evershelf_imgexp', q[1]);
-                if (sessionStorage.getItem('evershelf_imgexp') === '1') {
-                    document.documentElement.classList.add('imgexp');
-                }
-            } catch (e) { /* private mode: no storage, no experiment */ }
-        })();
-    </script>
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
     <script src="assets/js/core/dom.js?v=20261108j"></script>
     <script src="assets/js/core/auth.js?v=20261108j"></script>
