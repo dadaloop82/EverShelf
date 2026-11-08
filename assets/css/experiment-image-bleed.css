@@ -146,7 +146,47 @@ html.imgexp .inventory-item .inv-meta-line {
     text-overflow: ellipsis;
 }
 
-/* ── Narrow phones: a quarter is a lot of a 360 px row ─────────────────────── */
+/* ── 6. THE HOME LISTS AND THE PANTRY LISTS ARE THE SAME LIST ─────────────────
+   In the pantry a row IS a card on the canvas (`.inventory-item`: white, 16 px radius,
+   `--shadow`, 8 px apart). On the Home the same rows sat inside a tinted frame
+   (`.urgency-hub` is a white card, `.alert-section` an amber one) with hairlines between
+   them, so the two lists read as two different products.
+   One grammar instead: the container becomes a plain section (its title, then the rows)
+   and every notice row becomes a card exactly like a pantry row. `.stock-hub` needs no
+   flattening — it was never a card. */
+html.imgexp .urgency-hub,
+html.imgexp .alert-section {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+    margin-bottom: 12px;
+}
+html.imgexp .urgency-head { margin-bottom: 10px; }
+
+html.imgexp .alert-item {
+    background: var(--bg-card);
+    border: 0;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 12px;
+    margin-bottom: 8px;
+}
+/* The base sheet draws a hairline between consecutive notices and squares the pair: with
+   two separate cards that line is in the wrong place entirely. */
+html.imgexp .alert-item + .alert-item {
+    border-top: 0;
+    border-radius: var(--radius);
+}
+html.imgexp .alert-item:active { background: var(--bg-card); }
+html.imgexp .alert-item:last-child { margin-bottom: 0; }
+
+/* Inside `.alert-section` the rows used to lose their frame (`background: transparent`):
+   that rule lives in surfaces.css with `margin: 0; border: 0` for `.urgency-hub` children,
+   so the card chrome is restored here with the same specificity game. */
+html.imgexp .urgency-hub .alert-item { background: var(--bg-card); }
+
 @media (max-width: 420px) {
     html.imgexp .inventory-item .inv-image,
     html.imgexp .alert-item .product-thumb,

@@ -83,6 +83,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cache **survives** a shell update (the `activate` cleanup skips it). Opaque responses carry no CORS
   headers and `cache.put()` stores them all the same. The bleed experiment below keeps the same
   pictures, so a row now paints instantly the second time it is seen.
+- **The image-bleed experiment, seventh pass — one list style** (`?imgexp=1`). In the pantry a row *is*
+  a card on the canvas (white, `--radius`, `--shadow`, 8 px apart); on the Home the same rows sat
+  inside a tinted frame (`.urgency-hub` white, `.alert-section` amber) with hairlines between them, so
+  the two lists read as two different products. Now the container is a plain section — its title, then
+  the rows — and every notice row is a card with the pantry's chrome. `.stock-hub` needed nothing: it
+  was never a card.
 - **The image-bleed experiment, sixth pass — the shadow** (`?imgexp=1`). A soft shadow now sits on
   the CARD immediately right of the photo and fades out over 16 px, so the package reads as laid on
   the card instead of printed in it. It is `::after` on the strip, not `drop-shadow` on the image: a
