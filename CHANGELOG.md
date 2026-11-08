@@ -68,6 +68,33 @@ exploited, and the two items that change a default are called out as such.
   would lock every device out). **This is the one change a household will notice**: an
   existing install that never set a token has to pair once after updating.
 
+### Fixed
+- **The first boot after an update could die with `no such column: p.is_medical`.** `migrateDB()`
+  dates the stock rows that arrived without a best-before date, and that pass filters on
+  `COALESCE(p.is_medical, 0) = 0` — while the `ALTER TABLE` that creates `is_medical` sat three
+  hundred lines further down in the same function. An installation coming from a version without
+  the medical module (no column, and no `migration_infer_missing_expiry_v1` flag) reached that
+  SELECT with the column still missing: every request answered 500 and the app looked dead, with
+  no data lost but no way in. The medical columns are now created at the top of the migration,
+  before anything reads them (idempotent, so it is a no-op on an installation that already has
+  them). Found by the new upgrade check below, not by reading the diff.
+
+### Upgrade check
+- **`php scripts/check-upgrade-migration.php`** answers "will this release eat the household's
+  data?" with evidence instead of optimism: it builds a database with the **old** code (a
+  `git worktree` of `--from`, default `origin/main`), fills it with realistic content — 1 000+
+  rows across products, stock with hand-typed dates, rows with no date at all, stock in the
+  retired `altro` place, transactions, shopping list, recipes, settings, tags, health data —
+  then opens that same file with the **new** code, which runs `initializeDB()`/`migrateDB()`
+  exactly like the first request after the update. It then compares every table row by row
+  (46 checks): no table, column, row or value may disappear, the new columns and tables must be
+  added to the *existing* database and not only to fresh installs, every legacy setting must
+  keep its value, `integrity_check`/`foreign_key_check` must pass — and a second and third boot
+  must change nothing. The repairs a release applies on purpose (entity-decoded titles,
+  inferred expiry dates, `altro` → `dispensa`, recomputed derived columns) are counted and
+  printed, and a derived value that ends up **empty** fails the run. `--json` for CI, `--keep`
+  to inspect the two temporary trees. Exit code 1 is a merge blocker.
+
 ### Verified
 The four server fixes and the two guards were exercised against a running `php -S`: `gemini_usage`
 401 without / 200 with the token; `gdrive_oauth_callback` 403 with no state, 403 with a bogus

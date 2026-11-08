@@ -234,6 +234,13 @@ python3 scripts/i18n-value-audit.py
 # Shell scripts
 shellcheck -S warning backup.sh scripts/*.sh
 
+# Upgrade check — run it BEFORE merging a long-lived branch into main: it builds a database
+# with the OLD code (a git worktree of --from), fills it with realistic content, opens it with
+# the NEW code (initializeDB + migrateDB, like the first request after the update) and proves
+# row by row that nothing was lost. Exit code 1 = merge blocker.
+php scripts/check-upgrade-migration.php                        # origin/main → this tree
+php scripts/check-upgrade-migration.php --from=v1.31.0 --to=HEAD --json
+
 # Import the Italian medicine catalogue (AIFA open data; the scan never calls a medicine API).
 # Optional: fill the gaps from an ONLINE provider, off unless MED_LOOKUP_PROVIDER is set.
 # It is consulted only for a code nothing local knows, and the answer is cached in the table.

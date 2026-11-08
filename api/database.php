@@ -308,6 +308,33 @@ function migrateDB(PDO $db): void {
         }
     }
 
+    // The medical columns must exist BEFORE the migrations below read them.
+    // The expiry pass (a few lines down) filters on `COALESCE(p.is_medical, 0) = 0`, and its
+    // ALTER used to live further down in this same function: an installation arriving from a
+    // version without the medical module (no flag `migration_infer_missing_expiry_v1`, no
+    // column) reached that SELECT with the column still missing and died with
+    // "no such column: p.is_medical" — a boot that fails on every request, not a data problem
+    // but indistinguishable from one for the household. Cheap and idempotent, so it runs here.
+    $prodColsMedical = array_column($db->query('PRAGMA table_info(products)')->fetchAll(), 'name');
+    foreach ([
+        'is_medical'     => 'INTEGER NOT NULL DEFAULT 0',
+        'med_atc'        => "TEXT DEFAULT ''",
+        'med_ingredient' => "TEXT DEFAULT ''",
+        'med_pao_days'   => 'INTEGER DEFAULT NULL',
+        'med_tags'       => "TEXT DEFAULT ''",
+    ] as $medCol => $medType) {
+        if (in_array($medCol, $prodColsMedical, true)) {
+            continue;
+        }
+        try {
+            $db->exec("ALTER TABLE products ADD COLUMN {$medCol} {$medType}");
+        } catch (PDOException $e) {
+            if (strpos($e->getMessage(), 'duplicate column') === false) {
+                throw $e;
+            }
+        }
+    }
+
     // Migration: rows that arrived with NO best-before date at all ("senza scadenza").
     // A row without a date never enters "in scadenza" and the pantry can never warn about
     // it, so a whole shopping trip could sit on the shelf unmonitored. Every new write is

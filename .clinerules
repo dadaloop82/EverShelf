@@ -302,6 +302,9 @@ find api -name '*.php' -exec php -l {} \;
 node -c assets/js/app.js && node -c sw.js
 for f in mcp-server/src/*.js; do node --check "$f"; done
 
+# upgrade safety (before merging into main): old DB → new code, row by row
+php scripts/check-upgrade-migration.php
+
 # i18n
 python3 -c "import json,glob; [json.load(open(f)) for f in glob.glob('translations/*.json')]"
 python3 scripts/i18n-audit.py
