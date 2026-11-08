@@ -15293,8 +15293,6 @@ function renderInventoryItem(item, opts = {}) {
                     <div class="inv-name-row">
                         <div class="inv-name-block">${nameBlock}</div>
                         <button type="button" class="btn-inv-fav${isFav ? ' active' : ''}" onclick="toggleInventoryFavorite(event, ${item.product_id})" title="${escapeHtml(favTitle)}" aria-label="${escapeHtml(favTitle)}">${isFav ? '★' : '☆'}</button>
-                        <button type="button" class="inv-card-menu" title="${escapeAttr(menuKey)}" aria-label="${escapeAttr(menuKey)}"
-                            onclick="event.stopPropagation(); showItemDetail(${item.id}, ${item.product_id})">⋮</button>
                     </div>
                     ${metaBits.length ? `<div class="inv-meta-line">${metaBits.join(' · ')}</div>` : ''}
                 </div>
@@ -15304,6 +15302,8 @@ function renderInventoryItem(item, opts = {}) {
                 ${_inventoryExpiryBadgeHtml(item)}
                 <button type="button" class="inv-quick-use" title="${escapeAttr(useKey)}" aria-label="${escapeAttr(useKey)}"
                     onclick="event.stopPropagation(); quickUse(${item.product_id}, '${locJs}')">✓ <span class="inv-quick-use-label">${escapeHtml(useKey)}</span></button>
+                <button type="button" class="inv-card-menu" title="${escapeAttr(menuKey)}" aria-label="${escapeAttr(menuKey)}"
+                    onclick="event.stopPropagation(); showItemDetail(${item.id}, ${item.product_id})">⋮</button>
             </div>
         </div>
     </div>`;

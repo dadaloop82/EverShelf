@@ -107,10 +107,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **One list grammar: the Home and the pantry draw the same list.** In the pantry a row *is* a card
   on the canvas; on the Home the same rows sat inside a tinted frame (`.urgency-hub` white,
   `.alert-section` amber) with hairlines between them, so the two lists read as two different
-  products. The containers are plain sections now — their title, then the cards — every notice row
-  carries the pantry card's chrome (`--bg-card`, `--radius`, `--shadow`, 8 px apart, no hairline),
-  and its meta line stopped being a white chip now that it sits on a card (`background: transparent`:
-  the chip was invisible on white and a grey pill in the dark theme).
+  products. The containers are plain sections now — their title, then the cards — and a notice row
+  carries the pantry card's chrome *down to the pixel*: `--bg-card`, `--radius`, `--shadow`, the same
+  1 px `--surface-border` hairline (which is 2 px of the height), `12 px` padding, `10 px` between
+  the text block and the action line, the same 62 px floor on the text block and the same 34 px
+  action line. Measured: **132 px, both lists, at 360 / 460 / 500 / 892 px**.
+- **The elements of a row are the same, in the same order.** The badge strip always takes its own
+  line — to the right of the text it left a hole between the name and the brand and made both wrap
+  for no reason at ~890 px — and the row ends with `[expiry] [✓ Usa] [⋮]` in both lists: the pantry's
+  ⋮ moved from the name line into the action line, and it is the same quiet 34 px glyph the Home
+  used to draw as a bordered 40 px chip (which alone made its action line 6 px taller). The brand
+  sits beside the name in both, never pushed to the far right. And `✓ Usa` collapses to a bare check
+  below 520 px **in both lists** — before, the pantry kept the word and the Home did not.
 - **Nothing scrolls visibly under the bottom bar.** The bar is a floating pill (`elegant.css`:
   rounded, 10 px from the bottom and from each side), so the pantry rows travelled across its
   margins and through the notches of its rounded corners while a household was reading them — the
