@@ -79,6 +79,40 @@ exploited, and the two items that change a default are called out as such.
   before anything reads them (idempotent, so it is a no-op on an installation that already has
   them). Found by the new upgrade check below, not by reading the diff.
 
+### Fixed
+- **A Home row was not the same row as a pantry row — and the four Home lists were not the same
+  either.** Measured in a headless browser with the real stylesheets, not by eye:
+
+  | | before | after |
+  |---|---|---|
+  | pantry | 132 px, radius 18 px | 132 px, radius 18 px |
+  | Home · expiring (with a brand) | **149.86 px** | 132 px |
+  | Home · expiring (rows after the first) | **131 px** | 132 px |
+  | Home · expired | 132.86 px | 132 px |
+  | Home · opened | **120.8 px** | 132 px |
+  | Home · forgotten | **190.8 px** | 132 px |
+  | corner / shadow | 24 px + `--shadow` | 18 px + `--es-shadow-card` |
+  | row spacing | 8 px | 10 px |
+
+  Six distinct causes, all in the "two lists that are the same" block of `surfaces.css`:
+  - **the brand was a flex sibling of the name**, so beside a two-line title it could not fit
+    and dropped onto a third line — `_alertItemHead()` now puts it inside the name, exactly like
+    the pantry's `.inv-brand-inline` (the same markup, so the same height);
+  - **`.alert-item + .alert-item { border-top: 0 }`** (a leftover from when notices were joined
+    by a hairline) made **every row after the first** 1 px shorter than the first;
+  - **the corner and the shadow came from the wrong token** (`--radius` / `--shadow`, 24 px)
+    while `elegant.css` re-skins the pantry card with `--es-radius-card` (18 px) and
+    `--es-shadow-card`: the "slightly different shape";
+  - **the title was `1rem` against the pantry's `0.95rem`** — the same product name at two
+    sizes, which is why the expired row came out 0.86 px taller;
+  - **the action line had no floor**, so a row whose badges are only small text (the "opened"
+    list, no `✓` / `⋮`) was 23 px against the pantry's 34 → the row 11 px shorter;
+  - **the "forgotten" row carried two badges plus two buttons**, which wrapped onto a second
+    line at phone width. It now shows the expiry date (the relative distance stays in the
+    tooltip) and the opened age stays in the meta line and in the sheet.
+  Height, radius, shadow, border and the 10 px rhythm are now identical in all five lists at
+  every width — re-measured after the fix: **132.00 px × 5**.
+
 ### Upgrade check
 - **`php scripts/check-upgrade-migration.php`** answers "will this release eat the household's
   data?" with evidence instead of optimism: it builds a database with the **old** code (a

@@ -271,18 +271,27 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     /* The pantry card carries a 1 px hairline, and that border is 2 px of its height: same
        edge, same measure, or two "identical" lists differ by a hair nobody can name. */
     border: 1px solid var(--surface-border, var(--border));
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    margin-bottom: 8px;
+    /* The corner and the shadow come from the SAME tokens as the pantry row: `elegant.css`
+       re-skins `.inventory-item` with `--es-radius-card` (18 px) and `--es-shadow-card`, so
+       `var(--radius)` here drew 24 px corners next to 18 px ones — the "slightly different
+       shape" a household notices before it can name it. The fallback keeps a theme that
+       defines only the base token working. */
+    border-radius: var(--es-radius-card, var(--radius));
+    box-shadow: var(--es-shadow-card, var(--shadow));
+    /* The pantry stacks its rows 10 px apart (`gap` on the list): a Home row with `8px` was
+       a rhythm of its own. */
+    margin-bottom: 10px;
 }
 /* The card's inside must measure the pantry's: `12px` padding and a `10px` gap between the
    text block and the action line are what make a Home row 132 px tall exactly like a list
    row. The doubled class is deliberate — `mobile.css` sets its own density (10 px) later in
    the cascade, and two lists that are "the same" but 4 px apart are not the same. */
 .alert-item.alert-item { padding: 12px; row-gap: 10px; }
-/* The base sheet draws a hairline between consecutive notices and squares the pair: two
-   separate cards cannot share a rule. */
-.alert-item + .alert-item { border-top: 0; border-radius: var(--radius); }
+/* Two separate cards cannot share a rule — and they must not lose a border either: this rule
+   used to zero the top hairline of every row after the first, which made each of them exactly
+   1 px shorter than the first (132 px, then 131, 131…). With a 10 px gap between cards the
+   hairline is part of the card, so it stays. */
+.alert-item + .alert-item { border-radius: var(--es-radius-card, var(--radius)); }
 .alert-item:last-child { margin-bottom: 0; }
 /* The meta line ("📦 Dispensa · ne hai ancora 7 pz") was a white chip because it sat on a
    TINTED row: on a card the same chip is invisible on white and a grey pill in the dark
@@ -312,6 +321,9 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     flex: 1 1 100%;
     margin-left: 0;
     max-width: none;
+    /* The pantry's action line is 34 px because it ends with a button; a Home row whose
+       badges are only small text (the "opened" list) was 23 px and the row 11 px shorter. */
+    min-height: 34px;
 }
 /* The brand sits beside the name, never pushed to the far right. */
 .alert-item-head { justify-content: flex-start; }
@@ -331,11 +343,13 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     overflow: hidden;
 }
 /* ── The same two lines, at the same size ────────────────────────────────────
-   The title is 1rem/700 and the secondary line 0.8rem in both lists, with the same 4 px
+   The title is 0.95rem/700 and the secondary line 0.8rem in BOTH lists, with the same 4 px
    between them: identical text must occupy an identical height, or two rows that are
-   "the same" end up 9 px apart for no reason the household can see. */
+   "the same" end up 9 px apart for no reason the household can see. The Home title was
+   `1rem` against the pantry's `0.95rem` — the same product name drawn at two sizes, which is
+   the "slightly different shape" you notice before you can name it. */
 .alert-item .alert-item-name {
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 700;
     line-height: 1.3;
 }

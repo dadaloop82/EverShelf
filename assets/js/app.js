@@ -2145,7 +2145,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261108u'; // bump when translations change
+const _I18N_VERSION = '20261109a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -12388,8 +12388,11 @@ function _relativeDaysAgo(days) {
 
 function _alertItemHead(item) {
     if (!item) return '';
-    const brand = item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : '';
-    return `<div class="alert-item-head"><span class="alert-item-name">${escapeHtml(item.name)}</span>${brand}</div>`;
+    // The brand lives INSIDE the name, exactly like a pantry row (`.inv-brand-inline`). As a
+    // sibling flex item it could not fit beside a two-line name, so it dropped to a third line
+    // and made that row 18 px taller than the pantry's row — the same card, a different height.
+    const brand = item.brand ? ` <span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : '';
+    return `<div class="alert-item-head"><span class="alert-item-name">${escapeHtml(item.name)}${brand}</span></div>`;
 }
 
 /**
@@ -12747,12 +12750,12 @@ async function loadStaleDashboardItems() {
             const unusedLabel = item.never_used
                 ? t('dashboard.stale_never_used')
                 : _relativeDaysAgo(days);
-            const openedBadge = item.is_opened
-                ? `<span class="alert-item-badge opened">${escapeHtml(t('dashboard.stale_opened'))}</span>`
-                : '';
-            // The expiry date itself, plus how close it is: that is why the row is here.
+            // ONE badge, not two: "aperto da N gg" + "📅 data · tra N giorni" + ✓ + ⋮ needed a
+            // second line at phone width, and a Home row may not be taller than a pantry row.
+            // The opened age is still in the meta line ("non usato da N giorni") and in the sheet,
+            // and the relative distance stays in the tooltip.
             const expiryBadge = item.expiry_date
-                ? `<span class="alert-item-badge stale-expiry" title="${escapeAttr(formatDate(item.expiry_date))}">📅 ${escapeHtml(formatDate(item.expiry_date))} · ${escapeHtml(_relativeDaysAhead(item.days_to_expiry))}</span>`
+                ? `<span class="alert-item-badge stale-expiry" title="${escapeAttr(formatDate(item.expiry_date) + ' · ' + _relativeDaysAhead(item.days_to_expiry))}">📅 ${escapeHtml(formatDate(item.expiry_date))}</span>`
                 : '';
             const pid = item.product_id;
             const iid = item.inventory_id;
@@ -12768,7 +12771,6 @@ async function loadStaleDashboardItems() {
                     </div>
                 </div>
                 <div class="alert-item-badges stale-actions">
-                    ${openedBadge}
                     ${expiryBadge}
                     <button type="button" class="row-use-btn" onclick="quickUse(${pid}, '${loc}')">✓<span class="row-use-label">${t('dashboard.stale_use')}</span></button>
                     <button type="button" class="alert-item-menu" title="${escapeAttr(t('dashboard.row_actions'))}" aria-label="${escapeAttr(t('dashboard.row_actions'))}" onclick="event.stopPropagation(); showAlertItemDetail(${iid}, ${pid})">⋮</button>
@@ -20132,7 +20134,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261108u';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261109a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20142,7 +20144,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261108u';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261109a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

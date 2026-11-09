@@ -74,7 +74,14 @@ runtime/binary files — if a task truly needs one, ask first.
   block — skipped on the touch-tablet/kiosk band, where the action strip stays on the right
   at full width). The rules live in `assets/css/surfaces.css` next to `.product-thumb`, and
   Home and pantry share **one list grammar**: `.urgency-hub` / `.alert-section` are plain
-  sections, every `.alert-item` is a card with the pantry's chrome. A **medicine** opens
+  sections, every `.alert-item` is a card with the pantry's chrome — and the chrome is
+  **tokens**: `--es-radius-card` / `--es-shadow-card` (18 px, what `elegant.css` gives
+  `.inventory-item`), never `--radius` / `--shadow` (24 px); title `0.95rem` and meta
+  `0.8rem` in both; `.alert-item-badges` has a **34 px floor**; `.alert-item + .alert-item`
+  must not zero `border-top` (1 px shorter every row); the brand lives **inside** the name
+  (`_alertItemHead()`), never as a flex sibling (a third line, +18 px). Every one of these
+  was wrong once: the Home lists measured 149.86 / 131 / 132.86 / 120.8 / 190.8 px against
+  the pantry's 132, now 132.00 × 5. A **medicine** opens
   with its own drawn
   mark (`_medIconMarkup()`, `assets/img/icons/medicine.svg`), never a food emoji:
   same for the plain emoji slots (`_productCatIconHtml()`), the `badge-medical`
