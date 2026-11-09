@@ -33,6 +33,17 @@ runtime/binary files — if a task truly needs one, ask first.
   added to **all six** locales (it, en, de, fr, es, zh). Optional UI text coming
   from PHP returns a `hint_key` (+ `hint_args`) / `tip_key` / `reasons[]`, never a
   literal string.
+- **The state of the HOUSE lives on the SERVER, never in `localStorage`.** A phone, a
+  tablet in the kitchen and a kiosk on the wall are one household: the stocktake you left
+  half-done at the fridge, the setup ledger (`setup_done` / `setup_seen`), the deleted
+  places (`app_settings.deleted_locations`), a dismissed shopping row — all of it is read
+  from the server, or the second device starts from scratch and the user is asked to do
+  again what he already did (`evershelf_audit_resume` was the last one: a run of 195 rows
+  began on the phone and a fresh browser answered «Riprendi l'inventario (195 rimasti)»
+  only after the blob moved into `app_settings.audit_state`, with `GET audit_state` /
+  `POST audit_state_save` / `audit_state_clear` and the TTL owned by the server).
+  `localStorage` is allowed as an **offline mirror** (and for what is genuinely of that
+  device: the chosen mode, a UI preference) — never as the truth.
 - **Backend**: every HTTP action is one `case` in `switch ($action)` in
   `api/index.php` (+ its handler function below). Errors → `{"success":false,
   "error":"..."}` inside the existing global try/catch; never print HTML before
@@ -67,9 +78,14 @@ runtime/binary files — if a task truly needs one, ask first.
   a broken image, never an empty square) becomes the **left quarter of the card**: full
   height, clipped by the card (so the card's corners are the photo's), the picture scaled
   150% and pulled 50% left so its **centre** lands in the opaque zone (`margin-left = width
-  − 100%`) and a long `mask-image` dissolving it before the first letter. Every line keeps
-  a 26% gutter, so no text is ever printed on the photo; **no photo → the category emoji
-  takes the same strip**, same size and dissolve, so a list never changes shape; all cards
+  − 100%`) and a long `mask-image` dissolving it before the first letter. The strip and the
+  text gutter read **one** custom property (`--row-photo-w`), so they can never drift: shrinking
+  only the padding is how the first letter ended up printed 62 px INSIDE the picture on a phone.
+  Every text line reads that same gutter (`calc(--row-photo-w + 1%)`), the strip walks a
+  **ladder** as the card narrows (18% → 14% → 10% → **5%**, its floor) and the kiosk band's
+  40 px tile is the same variable — the sheet keeps its own 74 px (its 64 px photo is the
+  lightbox target); **no photo → the category emoji takes the same strip**, same size and
+  dissolve, so a list never changes shape; all cards
   are the same height (name clamped to two lines, meta to one, 62 px floor on the top
   block — skipped on the touch-tablet/kiosk band, where the action strip stays on the right
   at full width). The rules live in `assets/css/surfaces.css` next to `.product-thumb`, and
@@ -77,16 +93,18 @@ runtime/binary files — if a task truly needs one, ask first.
   sections, every `.alert-item` is a card with the pantry's chrome — and the chrome is
   **tokens**: `--es-radius-card` / `--es-shadow-card` (18 px, what `elegant.css` gives
   `.inventory-item`), never `--radius` / `--shadow` (24 px); title `0.95rem` and meta
-  `0.8rem` in both; `.alert-item-badges` has a **34 px floor**; `.alert-item + .alert-item`
+  `0.84rem` in both; `.alert-item-badges` has a **34 px floor**; `.alert-item + .alert-item`
   must not zero `border-top` (1 px shorter every row); the brand lives **inside** the name
   (`_alertItemHead()`), never as a flex sibling (a third line, +18 px). Every one of these
   was wrong once: the Home lists measured 149.86 / 131 / 132.86 / 120.8 / 190.8 px against
   the pantry's 132, now 132.00 × 5. **When the card is too narrow it sheds, never wraps**:
-  below 480 px of viewport the brand goes, the text gutter drops to its 5% minimum and the long
-  labels switch to their compact form (`_dualLabelHtml()`: "🕓 4gg", "🗄️ 2 pz",
-  `dashboard.days_short`) — the product name is never sacrificed. That is a **media query** on
-  purpose: `container-type: inline-size` on the row collapsed the pantry rows in the
-  touch-tablet band (296 px instead of 600) because that band sizes its columns by content.
+  the long labels are compact **by construction** (not by a media query) — "🕓 4gg" for the
+  opened age and "📦 2 pz" for the stock, unit abbreviated per language
+  (`dashboard.days_short`), the full sentence in the `title` — the strip walks its ladder and
+  only below 480 px does the brand go: the product name is never sacrificed. That is a
+  **media query** on purpose: `container-type: inline-size` on the row collapsed the pantry rows
+  in the touch-tablet band (296 px instead of 600) because that band sizes its columns by
+  content.
   A **medicine** opens
   with its own drawn
   mark (`_medIconMarkup()`, `assets/img/icons/medicine.svg`), never a food emoji:

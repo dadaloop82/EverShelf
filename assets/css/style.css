@@ -4917,20 +4917,25 @@ dark gradient at the bottom). The stream now holds only the barcode box, and the
 }
 
 /* ── The list's waiting state ───────────────────────────────────────────────────────
- * SHELFY on the same breathing ring as the splash, over four skeleton rows that already
+ * SHELFY on the same breathing ring as the splash, over skeleton rows that already
  * have the shape of the list. A bare spinner in a status line left the page looking
  * empty; this says "the list is coming, and it will look like this".
+ * The same component serves every list (`_listSkeletonHtml()`): the shopping list kept the
+ * `shop-*` names, the pantry and the Home use `list-*` — one set of rules, two aliases.
  */
-.shop-loading {
+.shop-loading,
+.list-loading {
     padding: 18px 6px 10px;
 }
-.shop-loading-head {
+.shop-loading-head,
+.list-loading-head {
     display: flex;
     align-items: center;
     gap: 12px;
     margin-bottom: 16px;
 }
-.shop-loading-avatar-wrap {
+.shop-loading-avatar-wrap,
+.list-loading-avatar-wrap {
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -4939,14 +4944,16 @@ dark gradient at the bottom). The stream now holds only the barcode box, and the
     height: 52px;
     flex: 0 0 auto;
 }
-.shop-loading-avatar {
+.shop-loading-avatar,
+.list-loading-avatar {
     width: 44px;
     height: 44px;
     object-fit: contain;
     filter: drop-shadow(0 4px 10px rgba(5, 150, 105, 0.22));
     animation: preloader-shelfy-float 3.4s ease-in-out infinite;
 }
-.shop-loading-ring {
+.shop-loading-ring,
+.list-loading-ring {
     position: absolute;
     inset: 0;
     border-radius: 50%;
@@ -4954,13 +4961,16 @@ dark gradient at the bottom). The stream now holds only the barcode box, and the
     animation: preloader-shelfy-ring 2.6s ease-out infinite;
     pointer-events: none;
 }
-.shop-loading-text {
+.shop-loading-text,
+.list-loading-text {
     font-size: 0.95rem;
     font-weight: 650;
     color: var(--text-muted, #475569);
 }
-.shop-loading-rows { display: flex; flex-direction: column; gap: 8px; }
-.shop-skel-row {
+.shop-loading-rows,
+.list-loading-rows { display: flex; flex-direction: column; gap: 8px; }
+.shop-skel-row,
+.list-skel-row {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -4970,7 +4980,9 @@ dark gradient at the bottom). The stream now holds only the barcode box, and the
     border: 1px solid var(--surface-border, #e2e8f0);
 }
 .shop-skel-thumb,
-.shop-skel-lines i {
+.shop-skel-lines i,
+.list-skel-thumb,
+.list-skel-lines i {
     display: block;
     border-radius: 8px;
     background: linear-gradient(90deg,
@@ -4980,14 +4992,33 @@ dark gradient at the bottom). The stream now holds only the barcode box, and the
     background-size: 220% 100%;
     animation: shopSkelShimmer 1.4s ease-in-out infinite;
 }
-.shop-skel-thumb { width: 40px; height: 40px; flex: 0 0 auto; }
-.shop-skel-lines { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; }
-.shop-skel-lines i { height: 11px; }
-.shop-skel-lines i.w70 { width: 70%; }
-.shop-skel-lines i.w45 { width: 45%; }
+.shop-skel-thumb,
+.list-skel-thumb { width: 40px; height: 40px; flex: 0 0 auto; }
+.shop-skel-lines,
+.list-skel-lines { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; }
+.shop-skel-lines i,
+.list-skel-lines i { height: 11px; }
+.shop-skel-lines i.w70,
+.list-skel-lines i.w70 { width: 70%; }
+.shop-skel-lines i.w45,
+.list-skel-lines i.w45 { width: 45%; }
 @keyframes shopSkelShimmer {
     0%   { background-position: 120% 0; }
     100% { background-position: -120% 0; }
+}
+/* A remote picture takes a moment (and Open Food Facts is a foreign host): the frame shimmers
+   while it travels, so a row never shows an empty square that looks like a missing product.
+   `is-loading` is removed by the image's own `onload`/`onerror`. */
+.product-thumb.is-loading,
+.inv-image.is-loading,
+.item-detail-image.is-loading {
+    background-image: linear-gradient(90deg,
+        rgba(148, 163, 184, 0.16) 0%,
+        rgba(148, 163, 184, 0.30) 40%,
+        rgba(148, 163, 184, 0.16) 80%);
+    background-size: 220% 100%;
+    background-color: var(--bg-app, #f8fafc);
+    animation: shopSkelShimmer 1.4s ease-in-out infinite;
 }
 /* While the prices are being recomputed the figure breathes instead of freezing on "…". */
 #shopping-price-bar.is-computing .price-total-value {
@@ -5003,6 +5034,13 @@ dark gradient at the bottom). The stream now holds only the barcode box, and the
     .shop-loading-ring,
     .shop-skel-thumb,
     .shop-skel-lines i,
+    .list-loading-avatar,
+    .list-loading-ring,
+    .list-skel-thumb,
+    .list-skel-lines i,
+    .product-thumb.is-loading,
+    .inv-image.is-loading,
+    .item-detail-image.is-loading,
     #shopping-price-bar.is-computing .price-total-value { animation: none; }
 }
 
@@ -13833,10 +13871,18 @@ body.offline-mode #smart-shopping {
     color: var(--text-muted);
 }
 .audit-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+/* The stocktake panel has NO title: "Verifica la dispensa" said nothing a household did not
+   already know (the mode switch and «Inventario di …» below say it), and it stole the first line
+   of a phone screen. The head exists only to hold the ✕, which stays top-right where a thumb
+   looks for it. */
+.audit-head--bare { justify-content: flex-end; margin-bottom: 2px; }
 .audit-head h3 { margin: 0; font-size: 1.35rem; line-height: 1.25; }
 .audit-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted, #666); }
 .audit-meta { margin: 6px 0 0; color: var(--text-muted, #666); font-size: 0.9rem; }
 .audit-hint { margin: 12px 0; font-size: 0.95rem; }
+/* The note under the "which product is this?" hint: a product standing in several places is one
+   line per place, and that needs saying — otherwise three identical names look like a bug. */
+.audit-hint.audit-assign-note { margin-top: -6px; font-size: 0.82rem; opacity: 0.85; }
 .audit-scopes { display: flex; flex-direction: column; gap: 10px; }
 .audit-scope, .audit-done {
     width: 100%;
@@ -13852,6 +13898,21 @@ body.offline-mode #smart-shopping {
     text-align: left;
 }
 .audit-scope:hover, .audit-done:hover { border-color: var(--brand-primary, #059669); }
+/* A place with nothing left to check is NOT a button: it is a line that says "done". A control
+   that opens an empty run is worse than a label, and the count is the proof the stocktake moved. */
+.audit-scope.is-done,
+.audit-scope.is-done:hover {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: default;
+    color: var(--text-muted, #64748b);
+    background: transparent;
+    border-style: dashed;
+    border-color: var(--surface-border, var(--border));
+    font-weight: 500;
+}
+.audit-scope.is-done span[aria-hidden] { color: var(--brand-primary, #059669); font-weight: 700; }
 
 /* ── The three ways to run a stocktake ──────────────────────────────────────
    «Uno alla volta» (the app proposes) | «Ti dico io» (the household names it) | «Scansiona»

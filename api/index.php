@@ -970,6 +970,9 @@ try {
         case 'product_save':
             saveProduct($db);
             break;
+        case 'product_barcode_set':
+            setProductBarcode($db);
+            break;
         case 'products_toggle_favorite':
             productToggleFavorite($db);
             break;
@@ -1361,6 +1364,15 @@ try {
             break;
         case 'app_settings_save':
             appSettingsSave($db);
+            break;
+        case 'audit_state':
+            auditStateGet($db);
+            break;
+        case 'audit_state_save':
+            auditStateSave($db);
+            break;
+        case 'audit_state_clear':
+            auditStateClearAction($db);
             break;
         case 'recipes_list':
             recipesList($db);
@@ -4847,6 +4859,75 @@ function _barcodeLookupGemini(string $barcode, string $apiKey): ?array {
         'labels'        => '',
         'stores'        => '',
     ];
+}
+
+/**
+ * POST product_barcode_set { id, barcode }
+ *
+ * The stocktake's "which product is this?" panel: the household scanned a box no catalogue knows,
+ * searched the pantry and named it. The association is ONE field, so it must not travel through
+ * `product_save` — that is the catalogue's merge point (it re-derives name, unit, pack and kind,
+ * and can merge two articles). A hand association sent through it once came back with the pack
+ * reset (`default_quantity` 2 → 1, `package_unit` g → '') because the payload only carried what a
+ * pantry row knows. This writes `products.barcode` and nothing else, and REFUSES a code another
+ * product already owns (`barcode_already_used`) instead of merging two articles behind a tap.
+ */
+function setProductBarcode(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $id = (int)($input['id'] ?? 0);
+    $barcode = barcodeNormalizeDigits((string)($input['barcode'] ?? ''));
+    if ($id <= 0 || $barcode === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'id_and_barcode_required']);
+        return;
+    }
+    $stmt = $db->prepare('SELECT id, name, barcode FROM products WHERE id = ?');
+    $stmt->execute([$id]);
+    $product = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$product) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Product not found']);
+        return;
+    }
+    $owner = barcodeFindLocalProduct($db, $barcode);
+    if ($owner && (int)$owner['id'] !== $id) {
+        EverLog::warn('Product barcode belongs to another product', [
+            'event'      => 'api_product_barcode_taken',
+            'product_id' => $id,
+            'owner_id'   => (int)$owner['id'],
+            'barcode'    => $barcode,
+        ]);
+        http_response_code(409);
+        echo json_encode([
+            'success'       => false,
+            'error'         => 'barcode_already_used',
+            'error_key'     => 'audit.assign_taken',
+            'existing_id'   => (int)$owner['id'],
+            'existing_name' => (string)($owner['name'] ?? ''),
+        ]);
+        return;
+    }
+    try {
+        $db->prepare('UPDATE products SET barcode = ? WHERE id = ?')->execute([$barcode, $id]);
+    } catch (PDOException $e) {
+        // The UNIQUE index is the last word: another row owns this code (an alias form of it).
+        EverLog::warn('Product barcode refused by the unique index', [
+            'event'      => 'api_product_barcode_taken',
+            'product_id' => $id,
+            'barcode'    => $barcode,
+        ]);
+        http_response_code(409);
+        echo json_encode(['success' => false, 'error' => 'barcode_already_used', 'error_key' => 'audit.assign_taken']);
+        return;
+    }
+    EverLog::info('Product barcode set by hand', [
+        'event'      => 'api_product_barcode_set',
+        'product_id' => $id,
+        'name'       => (string)($product['name'] ?? ''),
+        'barcode'    => $barcode,
+        'previous'   => (string)($product['barcode'] ?? ''),
+    ]);
+    echo json_encode(['success' => true, 'id' => $id, 'barcode' => $barcode]);
 }
 
 function saveProduct(PDO $db): void {
@@ -22210,6 +22291,167 @@ function appSettingsGet(PDO $db): void {
         'hidden' => $hidden,
     ]);
     echo json_encode(['success' => true, 'settings' => $settings]);
+}
+
+/**
+ * The household's stocktake state: `GET audit_state`, `POST audit_state_save|audit_state_clear`.
+ *
+ * A stocktake is a procedure of the HOUSE, not of a browser. A run started in front of the fridge
+ * and left half-done has to be resumable from the phone in the kitchen, and the tally of the
+ * answers ("3 there, 1 finished") is the same fact on every device. It used to live in
+ * `localStorage` (`evershelf_audit_resume`), which is exactly why a second device started from
+ * scratch — the client kept the truth and the server knew nothing.
+ *
+ * Now the blob lives in `app_settings` under `audit_state` (the shelf the project already uses for
+ * instance-level state: `setup_done`, `deleted_locations`, …) and the SERVER owns its expiry: a run
+ * nobody touched for an hour is dropped on read, so no device can offer a stale resume.
+ */
+function auditStateKey(): string {
+    return 'audit_state';
+}
+
+/** One hour, the same window the household sees ("riprendi da dove eri rimasto"). */
+function auditStateTtlSeconds(): int {
+    return 3600;
+}
+
+/** Drop the stored run (expired, finished, or ended by the household). */
+function auditStateClear(PDO $db): void {
+    $db->prepare('DELETE FROM app_settings WHERE key = ?')->execute([auditStateKey()]);
+}
+
+/** The stored run, or null when there is none / it expired. */
+function auditStateRead(PDO $db): ?array {
+    $stmt = $db->prepare('SELECT value, updated_at FROM app_settings WHERE key = ?');
+    $stmt->execute([auditStateKey()]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+    $state = json_decode((string)$row['value'], true);
+    if (!is_array($state)) {
+        auditStateClear($db);
+        return null;
+    }
+    $stamp = (int)($state['updatedAt'] ?? 0);
+    if ($stamp <= 0) {
+        $rowTs = strtotime((string)$row['updated_at']);
+        $stamp = $rowTs ? $rowTs * 1000 : 0;
+    }
+    $ageMs = (int)round(microtime(true) * 1000) - $stamp;
+    if ($stamp <= 0 || $ageMs > auditStateTtlSeconds() * 1000) {
+        auditStateClear($db);
+        EverLog::info('Stocktake state expired', [
+            'event' => 'api_audit_state_expired',
+            'age_s' => (int)round($ageMs / 1000),
+            'ttl_s' => auditStateTtlSeconds(),
+        ]);
+        return null;
+    }
+    $state['age_s'] = (int)round($ageMs / 1000);
+    return $state;
+}
+
+/**
+ * Only the shape the sheets need, and only ids/strings/ints.
+ *
+ * The blob is written by a browser and read by every device, so it must not become a place to
+ * stash arbitrary JSON: `order`/`answered` are inventory-row ids (capped), `counts` four counters,
+ * `history` the undo chain (capped), `scope` a place slug.
+ */
+function auditStateSanitize(array $state): array {
+    $order = [];
+    foreach ((array)($state['order'] ?? []) as $id) {
+        $n = (int)$id;
+        if ($n > 0) {
+            $order[] = $n;
+        }
+        if (count($order) >= 5000) {
+            break;
+        }
+    }
+    $answered = [];
+    foreach ((array)($state['answered'] ?? []) as $key => $value) {
+        $n = (int)$key;
+        if ($n > 0) {
+            // The value is the KIND of answer ('there' | 'finished' | 'spoiled' | 'skip'), and it
+            // must survive the trip: casting it to int turned every answer into 0, i.e. "not
+            // answered", so after a reload the counts went back to full and the same rows were
+            // asked again.
+            $kind = is_string($value) ? trim($value) : '';
+            $answered[(string)$n] = in_array($kind, ['there', 'finished', 'spoiled', 'skip'], true) ? $kind : 1;
+        }
+        if (count($answered) >= 5000) {
+            break;
+        }
+    }
+    $counts = [];
+    foreach (['there', 'finished', 'spoiled', 'skipped'] as $k) {
+        $counts[$k] = max(0, (int)($state['counts'][$k] ?? 0));
+    }
+    $history = [];
+    foreach ((array)($state['history'] ?? []) as $entry) {
+        if (is_array($entry)) {
+            $history[] = $entry;
+        }
+        if (count($history) >= 100) {
+            break;
+        }
+    }
+    $startedAt = (int)($state['startedAt'] ?? 0);
+    return [
+        'v'         => 1,
+        'scope'     => mb_substr(trim((string)($state['scope'] ?? '')), 0, 64),
+        'order'     => $order,
+        'index'     => max(0, (int)($state['index'] ?? 0)),
+        'answered'  => $answered,
+        'history'   => $history,
+        'counts'    => $counts,
+        'startedAt' => $startedAt > 0 ? $startedAt : (int)round(microtime(true) * 1000),
+        'updatedAt' => (int)round(microtime(true) * 1000),
+    ];
+}
+
+function auditStateGet(PDO $db): void {
+    echo json_encode(['success' => true, 'state' => auditStateRead($db)], JSON_UNESCAPED_UNICODE);
+}
+
+function auditStateSave(PDO $db): void {
+    $raw = (string)file_get_contents('php://input');
+    // A stocktake of a whole pantry: 5 000 ids, a hundred undo entries, four counters.
+    if (strlen($raw) > 262144) {
+        EverLog::warn('audit_state_save payload too large', [
+            'event' => 'api_audit_state_too_large',
+            'bytes' => strlen($raw),
+        ]);
+        http_response_code(413);
+        echo json_encode(['success' => false, 'error' => 'Payload too large']);
+        return;
+    }
+    $input = json_decode($raw, true);
+    $state = is_array($input['state'] ?? null) ? $input['state'] : null;
+    if (!$state) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Missing state object']);
+        return;
+    }
+    $clean = auditStateSanitize($state);
+    $db->prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)')
+        ->execute([auditStateKey(), json_encode($clean, JSON_UNESCAPED_UNICODE)]);
+    EverLog::debug('Stocktake state saved', [
+        'event'    => 'api_audit_state_save',
+        'rows'     => count($clean['order']),
+        'answered' => count($clean['answered']),
+        'index'    => $clean['index'],
+        'scope'    => (string)$clean['scope'],
+    ]);
+    echo json_encode(['success' => true, 'updatedAt' => $clean['updatedAt']]);
+}
+
+function auditStateClearAction(PDO $db): void {
+    auditStateClear($db);
+    EverLog::info('Stocktake state cleared', ['event' => 'api_audit_state_clear']);
+    echo json_encode(['success' => true]);
 }
 
 function appSettingsSave(PDO $db): void {

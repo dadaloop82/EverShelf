@@ -5,6 +5,131 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.25] - 2026-11-09
+
+The pantry row finally behaves like a shelf: the picture stops taking a quarter of
+the phone, the two facts a row is read for are legible, and the stocktake is one
+procedure of the HOUSE — on the server, resumable from any device, with counters
+that actually go down. Every number below was measured in headless Chromium with
+the real stylesheets and the real pantry.
+
+### Added
+- **The product sheet can now say whether a pack is open.** `opened_at` is what the post-opening
+  clock, the Home's "Aperti" list, the banner and the pantry filter read, and until now the only
+  way to set it was to consume something — so a pack opened by hand could only be corrected by a
+  lie about the stock. The sheet's head carries a switch ("Aperto"), which stamps today and
+  re-dates the expiry on the OPENED clock, or clears the stamp and returns to the sealed
+  estimate. A date the household typed (`expiry_user_set`) is never overwritten, and a medicine
+  keeps its own `med_open` flow (the box's PAO).
+- **A product standing in more than one place gets one line per place, each with its own
+  pencil.** The sheet opens the row that was tapped, so a correction to the fridge pack had no
+  door from here. The "Anche in" block lists every other shelf the article stands on (place,
+  stock) and its ✏️ opens THAT row in the same edit sheet; depleted traces are left out.
+- **A barcode no catalogue knows is now a question, not a dead end** (stocktake → «Scansiona»).
+  The camera closes and the search of «Ti dico io» opens with the code on its head: the household
+  is holding the box, which is the only moment the association can be made. **The list is one line
+  per PLACE, not per article** (`_auditAssignMatches()` returns every row, the shelf being
+  inventoried first): a «Riso basmati» standing in the pantry and in two living-room rows used to
+  appear once, with whichever place came first — so the shelf in front of the household was the one
+  it could not see. The pick now carries the row id, so the stocktake card that opens is THAT
+  shelf's, and the panel says it in one line (`audit.assign_places_note`). Picking a product
+  writes the code onto that article through a new action, `product_barcode_set`, and opens its
+  card so the stocktake continues on it. The next read resolves — for the session and after a
+  reload (`_barcodeRememberProduct`).
+  The write is deliberately **not** `product_save`: that is the catalogue's merge point (it
+  re-derives name, unit, pack and kind, and can merge two articles), and a hand association sent
+  through it came back with the pack reset (`default_quantity` 2 → 1, `package_unit` g → '') in a
+  test on a real row. `product_barcode_set` writes `products.barcode` and nothing else, logs
+  `api_product_barcode_set` (with the previous value), and **refuses** a code another product
+  already owns (`barcode_already_used` + `audit.assign_taken`, naming the owner) instead of
+  merging two articles behind a tap.
+- **A list has a shape while it loads, and a picture shimmers while it travels.** A cold load painted
+  nothing: the page looked finished-but-empty for the second or two a fetch takes on a phone (a slow
+  one reads it as broken). The waiting state the shopping list already had — **SHELFY breathing on
+  the splash ring over skeleton rows** with a shimmer — is now one component
+  (`_listSkeletonHtml()` / `_showListSkeleton(id, rows)` / `_hideListSkeleton(id)`, one CSS block
+  with the `.shop-*` and `.list-*` aliases, `prefers-reduced-motion` respected) and it is used by:
+  the pantry (`loadInventory`, six rows, removed by the render — and taken away when the retry also
+  fails, because an endless shimmer is worse than the truth) and the Home (`loadDashboard` →
+  `#expiring-list`, `loadStaleDashboardItems` → `#stale-list`). It never paints over rows that are
+  already there (`_showListSkeleton` checks `.inventory-item` / `.alert-item` / `.shop-row`).
+  The **pictures** are remote (Open Food Facts), so `.product-thumb`, `.inv-image` and
+  `.item-detail-image` carry `is-loading` until the image's own `onload`/`onerror` removes it: a
+  row shows a shimmering frame instead of an empty square that looks like a missing product
+  (measured on a throttled connection: 130 of 195 pantry thumbnails shimmering while their photos
+  were still in flight).
+- **A stocktake left half-done can be resumed from ANY device.** It could not: the run lived in
+  `localStorage` (`evershelf_audit_resume`), so a stocktake started in front of the fridge was
+  invisible to the phone in the kitchen, which started from zero and asked the household to do
+  again what it had already done. The state of the house is not a property of a browser: the blob
+  (scope, `order`, `index`, `answered`, `history`, `counts`) now lives in `app_settings` under
+  `audit_state` — `GET audit_state` / `POST audit_state_save` / `audit_state_clear`
+  (`auditStateRead()` / `auditStateSanitize()`, ids and counters only, capped) — and **the server
+  owns the hour**: a run nobody touched is dropped on read (`api_audit_state_expired`), so no
+  device can offer a stale resume. The client asks the server before the sheet paints
+  (`_auditLoadState`), pushes on every answer through a coalesced write and flushes on
+  `visibilitychange`/`pagehide`, and keeps `localStorage` only as an offline mirror (read when the
+  server did not answer at all). Measured with two browser profiles: profile B had an empty
+  `localStorage`, opened «Inventario veloce» and answered **«↩ Resume the stocktake (195 left)»**;
+  two answers given on B (`counts.there = 2`) were what profile A resumed, and «Fatto» on A
+  removed the row from the server.
+
+### Changed
+- **A long label may not make a row taller — and the photo may never sit under the words.**
+  The phone breakpoint shrank the text gutter to 5% while the strip stayed at 25%, so the first
+  letter of every row was printed **62 px inside the picture** (measured at a 365 px viewport) —
+  exactly what the household reported. Both now read the SAME custom property (`--row-photo-w`),
+  so they cannot drift, and the order in which the card gives things up is fixed:
+  1. the photo strip walks down a **ladder** as the card narrows — 18% → 14% → 10% → **5%**, its
+     floor: a list no longer gives a quarter of a phone to a picture (and the kiosk band's 40 px
+     tile is the same variable, so its text starts 48 px from the edge instead of 26% of a
+     1 000 px wall);
+  2. the long labels are **compact by construction**, not by a media query: **"🕓 4gg"** — the
+     unit abbreviated per language (`dashboard.days_short`: `{n}gg` · `{n}dy` · `{n}T` · `{n}j` ·
+     `{n}d` · `{n}天`) — instead of "📦 Aperto da 4 giorni", and **"📦 2 pz"** instead of
+     "🗄️ Dispensa · ne hai ancora 2 pz", with a different mark per fact (the stock wears the
+     package, the opened age the clock). The whole sentence stays in the tooltip;
+  3. only below 480 px does the **brand** go — the product NAME is never sacrificed.
+  Measured in headless Chromium with the real stylesheets (the media query needs a real viewport,
+  so every width is an iframe): all five lists stay **132.00 px** and every text line stays
+  **9–19 px clear of the picture** from 310 to 1 200 px, with no action line ever wrapping.
+  **This is a media query on the viewport, not a container query on the card** — and the reason
+  is worth keeping: `container-type: inline-size` on the row made the pantry rows collapse to
+  their own content in the touch-tablet band (296 px wide instead of 600, measured in headless
+  Chromium), because that band sizes its columns by content.
+- **Quantity and expiry are the two facts a shelf row is read for, so they are bold and a notch
+  larger** (`0.86rem/800` for the pill, `0.84rem/750` for the date, the Home badges the same) —
+  still inside the 34 px action line, so no card grows by a pixel at any width of the ladder.
+- **The stocktake's "Modifica quantità" is "Modifica"**: the button opens the whole edit sheet
+  (quantity, place, expiry, pack), so naming only the quantity sent the household looking for a
+  field it does not carry (`audit.change_qty`, six locales).
+- **The stocktake panel has no title.** «Verifica la dispensa» repeated what the mode switch
+  («Uno alla volta · Ti dico io · Scansiona») and the session bar («Inventario di …») already say,
+  and it took the first line of a phone screen: the head now holds only the **✕**, top-right, where
+  a thumb looks for it. The dialog keeps `audit.title` as its accessible name (`aria-label`), and
+  the summary dropped the same eyebrow (its own title «Inventario fatto» stays).
+- **The stocktake shows what is LEFT, and a confirmed product empties the search field.** Three
+  things made the progress invisible — and one made it a lie:
+  - the scope list counted the *shelf* (`Everything (207)`, `Fridge (88)`), so twenty products
+    confirmed by camera or by name left every number exactly where it was: it now counts the rows
+    this session has NOT answered yet (`_auditScopesBodyHtml`, the same `answered` ledger the three
+    ways write into), and a place with nothing left is a **completed line** (✓, dashed, not a
+    button that would open an empty run);
+  - the answer's *kind* was stored per row and the server's sanitiser cast it to `int`, so
+    `'there'` became `0` — i.e. "not answered": after a reload the counts went back to full and the
+    same rows were asked again (`auditStateSanitize` keeps `there|finished|spoiled|skip`);
+  - a session done only by camera or by name was never saved (it has no card order), so a reload
+    started from scratch: the blob now travels anyway and inherits the order a run of the SAME
+    shelf holds, so `↩ Riprendi l'inventario` survives;
+  - opening another place (or «Everything») inside the same stocktake keeps the ledger, so
+    «Tutto (206)» really opens 206 cards and not 207.
+
+  In «Ti dico io» the field starts **empty** after a confirmed product (`_auditFinish` clears
+  `_auditSearchTerm`): it used to keep the previous name and its results under it, as if the
+  confirmation had not happened. Measured on the real pantry: confirm one «latte» → `Everything
+  206 · Fridge 87`, field empty, «Tutto» opens `1 of 206`; after a page reload the same numbers and
+  `Stocktake of Fridge: ✓ 1` come back from the server.
+
 ## [1.31.24] - 2026-11-08
 
 ### Security
@@ -112,25 +237,6 @@ exploited, and the two items that change a default are called out as such.
     tooltip) and the opened age stays in the meta line and in the sheet.
   Height, radius, shadow, border and the 10 px rhythm are now identical in all five lists at
   every width — re-measured after the fix: **132.00 px × 5**.
-- **A long label may not make a row taller: on a narrow card the row sheds, in a fixed order.**
-  Below **480 px** of viewport the card gives up, in this sequence, only what it can spare:
-  1. the **brand** (a variant of the article, not the article — the name is never sacrificed);
-  2. the text gutter, from **26% down to its 5% minimum** (the photo is a hint, the words are
-     the content);
-  3. the long labels, which switch to a compact form built by `_dualLabelHtml()`:
-     **"🕓 4gg"** instead of "📦 Aperto da 4 giorni" and **"🗄️ 2 pz"** instead of
-     "🗄️ Dispensa · ne hai ancora 2 pz" — different marks for the two facts, and the unit is
-     abbreviated per language (`dashboard.days_short`: `{n}gg` · `{n}dy` · `{n}T` · `{n}j` ·
-     `{n}d` · `{n}天`).
-  Measured with real phones widths (iframes, so the media query is the page's own): all five
-  lists stay **132.00 px** at 320 / 360 / 375 / 390 / 414 / 430 / 460 / 480 / 500 / 560 / 760 /
-  1024 px, with no action line ever wrapping onto a second row.
-  **This is a media query on the viewport, not a container query on the card** — and the reason
-  is worth keeping: `container-type: inline-size` on the row made the pantry rows collapse to
-  their own content in the touch-tablet band (296 px wide instead of 600, measured in headless
-  Chromium), because that band sizes its columns by content. A one-column list has no use for a
-  container query anyway.
-
 ### Upgrade check
 - **`php scripts/check-upgrade-migration.php`** answers "will this release eat the household's
   data?" with evidence instead of optimism: it builds a database with the **old** code (a

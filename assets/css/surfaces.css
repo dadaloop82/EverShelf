@@ -201,7 +201,9 @@ body {
     left: 0;
     top: 0;
     bottom: 0;
-    width: 25%;
+    /* ONE number drives the picture and the text gutter (see the gutter rule below): a
+       narrower gutter with the same strip printed the words on the photo. */
+    width: var(--row-photo-w, 18%);
     height: auto;
     min-width: 0;
     margin: 0;
@@ -228,12 +230,27 @@ body {
     background: transparent;
 }
 
-/* The gutter: the 25% of the strip plus a hair, on every line of the card. */
+/* The gutter: the width of the strip plus a hair, on every line of the card. It reads the SAME
+   variable as the picture (`--row-photo-w`), because the two cannot drift: shrinking only the
+   padding prints the text on the photo — which is exactly what happened when the phone
+   breakpoint forced `padding-left: 5%` while the strip stayed at 25% (measured: the first
+   letter landed 62 px INSIDE the picture at a 365 px viewport).
+   The strip is a LADDER now: it loses width as the card narrows, and 5% is its floor. A row
+   never prints a word on the picture, whatever step it is on. */
+.inventory-item,
+.alert-item { --row-photo-w: 18%; }
+@media (max-width: 1023px) { .inventory-item, .alert-item { --row-photo-w: 14%; } }
+@media (max-width: 767px) { .inventory-item, .alert-item { --row-photo-w: 10%; } }
+@media (max-width: 480px) { .inventory-item, .alert-item { --row-photo-w: 5%; } }
+/* The product sheet is NOT a list row: its head keeps the 64 px tile (the lightbox target), so
+   the gutter is the tile plus the gap at every width — the ladder above would put the title
+   under the picture on a phone (it did: "Pomodoro" printed as "modoro"). */
+.item-detail-header-row { --row-photo-w: 74px; }
 .inventory-item .inv-row-content .inv-card-top,
 .inventory-item .inv-row-content .inv-card-bottom,
 .alert-item .alert-item-info,
-.alert-item .alert-item-badges,
-.item-detail-header-row .item-detail-header-text { padding-left: 26%; }
+.alert-item .alert-item-badges { padding-left: calc(var(--row-photo-w, 18%) + 1%); }
+.item-detail-header-row .item-detail-header-text { padding-left: calc(var(--row-photo-w, 18%) + 1%); }
 /* The touch-tablet/kiosk band puts the quantity/expiry/`✓ Usa` strip on the RIGHT of the
    row, nowhere near the photo: padding it there squeezed it into three broken lines. */
 html.is-kiosk .inventory-item .inv-row-content .inv-card-bottom,
@@ -241,30 +258,23 @@ html.is-touch-tablet .inventory-item .inv-row-content .inv-card-bottom { padding
 
 /* ── Too narrow? Then the card sheds what it can spare ────────────────────────
    A row never wraps onto a second action line: the household reads a list by scanning
-   heights, and one tall row breaks the rhythm of the whole panel. Below 480 px of VIEWPORT
-   (the width at which the long labels stop fitting — measured, not guessed: the pantry row
-   needs ~434 px and the Home card ~456) three things happen, in this order:
-     1. the BRAND goes (it is a variant of the article, not the article);
-     2. the text gutter shrinks from 26% to its 5% minimum (the photo is a hint, the words
-        are the content);
-     3. every long label switches to its compact form (`.label-short`, built by
-        `_dualLabelHtml()`): "🕓 4gg" instead of "📦 Aperto da 4 giorni", "🗄️ 2 pz" instead of
-        "🗄️ Dispensa · ne hai ancora 2 pz".
-   The product NAME is never sacrificed: it is what the row is for.
+   heights, and one tall row breaks the rhythm of the whole panel. The shed order is fixed and
+   the product NAME is last — it is what the row is for:
+     1. the long labels are already compact in the code ("🕓 4gg", "📦 2 pz"), so a phone never
+        pays for a sentence it cannot fit;
+     2. the photo strip walks down its ladder (18 → 14 → 10 → 5%, the floor) and the text
+        gutter follows it, in the SAME variable — the words never land on the picture;
+     3. the BRAND goes below 480 px (it is a variant of the article, not the article).
+   The name itself is only ever clamped to two lines, never dropped.
    A container query would be the textbook answer (`container-type: inline-size` on the card),
    but the pantry rows sit in a band whose columns are sized by their content: size containment
    collapses them to their own content (296 px instead of 600 in the touch-tablet band, measured
    in headless Chromium). The viewport is a safe proxy here — the list is one column. */
-.label-short { display: none; }
+/* Below 480 px the BRAND goes — never the product name. It is a variant of the article, and
+   the row exists to say which article it is. */
 @media (max-width: 480px) {
-    .label-full { display: none; }
-    .label-short { display: inline; }
     .alert-item .alert-item-brand,
     .inventory-item .inv-brand-inline { display: none; }
-    .alert-item .alert-item-info,
-    .alert-item .alert-item-badges,
-    .inventory-item .inv-row-content .inv-card-top,
-    .inventory-item .inv-row-content .inv-card-bottom { padding-left: 5%; }
 }
 /* A phone's action line may wrap, but its pieces never break in half (the date used to
    split into "12/03/20 / 27"). */
@@ -329,6 +339,25 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     padding: 0;
 }
 
+/* ── The two facts of a row are readable at a glance ─────────────────────────
+   Quantity and expiry are what the household looks for on a shelf row; they were drawn at
+   0.8 / 0.78 rem with a 650 weight, i.e. at the same size as the category line under the name.
+   They are now bold and a notch larger — and still inside the 34 px action line, so no card
+   grows by a pixel (measured at every step of the photo-strip ladder, 320 → 1200 px).
+   The Home badges carry the same two facts, so they keep the same weight and size. */
+.inv-qty-pill {
+    font-size: 0.86rem;
+    font-weight: 800;
+}
+.inv-time {
+    font-size: 0.84rem;
+    font-weight: 750;
+}
+.alert-item-badge {
+    font-size: 0.84rem;
+    font-weight: 800;
+}
+
 /* ── One row grammar, down to the order of the elements ──────────────────────
    A Home row and a pantry row now carry the same things in the same places: the photo
    strip, the name with its brand BESIDE it, the secondary line, then the action line
@@ -382,8 +411,11 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     line-height: 1.3;
 }
 .alert-item .alert-item-main { gap: 4px; }
+/* The secondary line carries the stock ("📦 2 pz"): bold enough to read at arm's length, at
+   the same size as the badge it sits beside. */
 .alert-item .alert-item-qty {
-    font-size: 0.8rem;
+    font-size: 0.84rem;
+    font-weight: 650;
     line-height: 1.35;
 }
 /* The fav star is an icon, not a line of text: without this it sets the height of the name
@@ -454,18 +486,28 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
         #000 0 14%, rgba(0, 0, 0, 0.82) 34%, rgba(0, 0, 0, 0.5) 56%,
         rgba(0, 0, 0, 0.18) 78%, transparent 100%);
 }
+/* The emoji takes the same strip as a photo — but a 5 % strip is 19 px wide, so the glyph is
+   sized from the strip, not from the viewport: a 40 px face inside a 19 px window was two
+   halves of an emoji with a hard cut through the middle. */
+.inventory-item .inv-image:not(:has(img)),
+.alert-item .product-thumb.is-icon {
+    font-size: clamp(14px, 3.4vw, 30px);
+}
 .inventory-item .inv-image:not(:has(img)),
 .item-detail-header-row .item-detail-image:not(:has(img)),
 .alert-item .product-thumb.is-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(24px, 6.4vw, 40px);
     line-height: 1;
     -webkit-mask-image: linear-gradient(to right,
         #000 0 22%, rgba(0, 0, 0, 0.7) 46%, rgba(0, 0, 0, 0.3) 72%, transparent 100%);
             mask-image: linear-gradient(to right,
         #000 0 22%, rgba(0, 0, 0, 0.7) 46%, rgba(0, 0, 0, 0.3) 72%, transparent 100%);
+}
+/* The sheet's head is not a list row: its strip is wider and its emoji can be a real mark. */
+.item-detail-header-row .item-detail-image:not(:has(img)) {
+    font-size: clamp(24px, 6.4vw, 40px);
 }
 .inventory-item .inv-image .product-thumb-emoji,
 .alert-item .product-thumb-emoji,
@@ -1987,6 +2029,82 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     margin: 0;
     vertical-align: middle;
 }
+/* ── The opened flag ─────────────────────────────────────────────────────────
+   `opened_at` is a fact the household knows better than the app does (a pack opened by hand, or
+   one that was never opened): it is a switch, on its own line under the place, in the same
+   one-line grammar as the edit sheet's vacuum switch. It stays narrow so the title keeps the
+   room, and it never adds a second row of controls: label left, switch right. */
+.item-detail-header-text .item-detail-opened-flag {
+    margin: 6px 0 0;
+    gap: 10px;
+    justify-content: flex-start;
+    max-width: 220px;
+    font-size: 0.82rem;
+    font-weight: 650;
+    color: var(--text-main);
+}
+.item-detail-header-text .item-detail-opened-flag .toggle-switch {
+    flex: 0 0 auto;
+    transform: scale(0.86);
+    transform-origin: left center;
+}
+
+/* ── The other shelves the same product stands on ────────────────────────────
+   One line per place: mark, name, the stock, and the pencil that edits THAT row. A product in
+   two places is two rows, and a correction belongs to one of them — the sheet's own pencil can
+   only reach the row it opened. */
+.item-detail-places {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: 14px;
+    background: var(--bg-app);
+}
+.item-detail-places-title {
+    margin: 0 0 6px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.item-detail-places-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.item-detail-place {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    font-size: 0.86rem;
+    color: var(--text-main);
+}
+.item-detail-place-ico { font-size: 1rem; line-height: 1; }
+.item-detail-place-name { font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-detail-place-qty {
+    margin-left: auto;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    color: #047857;
+}
+.item-detail-place-edit {
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.item-detail-place-edit:active { background: color-mix(in srgb, var(--surface-border) 45%, transparent); }
 /* Live scale strip (g/ml only): hidden until streaming, then soft bounce-in. */
 .item-detail-scale-slot {
     width: 100%;

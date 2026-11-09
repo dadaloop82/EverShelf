@@ -423,7 +423,11 @@ function _locIconMarkup(locKey, meta) {
 function _invImageHtml(imageUrl, catIcon) {
     if (!_validProductImageUrl(imageUrl)) return catIcon || '';
     const fallback = String(catIcon || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    return `<img src="${escapeAttr(imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.textContent='${fallback}'">`;
+    // While the (remote, Open Food Facts) picture travels, the frame shimmers instead of showing
+    // an empty square: `is-loading` is on the frame, the events take it away.
+    return `<img src="${escapeAttr(imageUrl)}" alt="" loading="lazy"`
+        + ` onload="this.parentElement.classList.remove('is-loading')"`
+        + ` onerror="this.parentElement.classList.remove('is-loading');this.parentElement.textContent='${fallback}'">`;
 }
 
 /**
@@ -488,13 +492,14 @@ function _productThumbHtml(item, opts = {}) {
         ? _medFormIconMarkup(it, 'med-icon-lg')
         : escapeHtml(ownIcon || CATEGORY_ICONS[mapToLocalCategory(it.category, it.name)] || '📦');
     const extra = opts.className ? ' ' + String(opts.className) : '';
-    return `<span class="product-thumb${url ? '' : ' is-icon'}${medical ? ' is-medical' : ''}${extra}" aria-hidden="true">`
+    return `<span class="product-thumb${url ? ' is-loading' : ' is-icon'}${medical ? ' is-medical' : ''}${extra}" aria-hidden="true">`
         + `<span class="product-thumb-emoji">${icon}</span>`
         + (url
             // escapeAttr, not escapeHtml: this lands inside a quoted attribute, and a URL
             // the user can type must not be able to close it.
             ? `<img class="product-thumb-img" src="${escapeAttr(url)}" alt="" loading="lazy" decoding="async"`
-              + ` onerror="this.parentElement.classList.add('is-icon')">`
+              + ` onload="this.parentElement.classList.remove('is-loading')"`
+              + ` onerror="this.parentElement.classList.add('is-icon');this.parentElement.classList.remove('is-loading')">`
             : '')
         + '</span>';
 }
@@ -2145,7 +2150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261109b'; // bump when translations change
+const _I18N_VERSION = '20261109i'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -12396,43 +12401,51 @@ function _alertItemHead(item) {
 }
 
 /**
- * Second line of a dashboard row: where the product is, how much is left and any
- * extra note ("🗄️ Dispensa · ne hai ancora 15 conf · non usato da 40 giorni").
- */
-/**
- * A label with two forms: the full sentence and the narrow one.
+ * The opened-age mark: `🕓 4gg` (`🕓 4dy` in English), never the sentence.
  *
- * `surfaces.css` shows one or the other with a container query on the card, because only the
- * card knows how much room it has (the same row lives in a 360 px phone section and on a
- * tablet). The narrow form is never a truncation: it is the same fact written shorter —
- * "ne hai ancora 2 pz" → "🗄️ 2 pz", "Aperto da 4 giorni" → "🕓 4gg" — so a wrapped action line
- * is not the price of a long translation.
+ * The row is a list line, not a paragraph: "📦 Aperto da 4 giorni" cost the action strip a
+ * third of the card, and it was the first thing to be truncated on a phone. The compact form
+ * is the same fact in two glyphs — the CLOCK says "how long it has been open", the number
+ * carries the language's own short unit (`dashboard.days_short`: it `{n}gg`, en `{n}dy`) —
+ * and the full sentence stays one long-press away in the tooltip.
  */
-function _dualLabelHtml(fullHtml, shortHtml) {
-    return `<span class="label-full">${fullHtml}</span><span class="label-short">${shortHtml}</span>`;
+function _openedAgeHtml(daysOpen) {
+    const full = t('inventory.opened_for_days', { n: daysOpen });
+    return `<span class="inv-time inv-time-opened" title="${escapeAttr(full)}">`
+        + `🕓 ${escapeHtml(t('dashboard.days_short', { n: daysOpen }))}</span>`;
 }
 
+/**
+ * Second line of a dashboard row: where the product is and how much is left.
+ *
+ * `[place] · 📦 2 pz` — the stock is a mark plus its number, never the sentence "ne hai ancora
+ * 2 pz": a Home row and a pantry row must survive the same width, and this line is the first
+ * to be cut. Its icon is the PACKAGE, while the opened age wears the CLOCK (🕓): two facts,
+ * two marks that cannot be confused. The whole sentence is in the tooltip.
+ */
 function _alertItemMeta(item, extra = '') {
     if (!item) return '';
     const locKey = normalizeLocationKey(item.location);
     const locInfo = LOCATIONS[normalizeLocationKey(locKey)] || { icon: '📦', label: item.location || '' };
-    const parts = [];
-    if (item.location && locInfo.label) parts.push(`${locInfo.icon} ${locInfo.label}`);
-    let qtyPlain = '';
+    const full = [];
+    const bits = [];
+    if (item.location && locInfo.label) {
+        full.push(`${locInfo.icon} ${locInfo.label}`);
+        bits.push(`${locInfo.icon} ${escapeHtml(locInfo.label)}`);
+    }
     if (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') {
         const qty = stripHtml(formatQuantityForItem(item));
         if (qty) {
-            qtyPlain = qty;
-            parts.push(t('dashboard.still_have_qty', { qty }));
+            full.push(t('dashboard.still_have_qty', { qty }));
+            bits.push(`📦 ${escapeHtml(qty)}`);
         }
     }
-    if (extra) parts.push(extra);
-    if (!parts.length) return '';
-    // Narrow card: the place mark and the number, nothing else.
-    const short = [locInfo.icon, qtyPlain].filter(Boolean).join(' ');
-    return `<span class="alert-item-qty">`
-        + _dualLabelHtml(escapeHtml(parts.join(' · ')), escapeHtml(short))
-        + '</span>';
+    if (extra) {
+        full.push(extra);
+        bits.push(escapeHtml(extra));
+    }
+    if (!bits.length) return '';
+    return `<span class="alert-item-qty" title="${escapeAttr(full.join(' · '))}">${bits.join(' · ')}</span>`;
 }
 
 let _staleRotateTimer = null;
@@ -12454,6 +12467,9 @@ async function loadDashboard() {
     if (!document.getElementById('location-rail')?.childElementCount) {
         _paintLocationRailSkeleton();
     }
+    // The stock block is the first thing the home promises and the last thing it can paint (two
+    // requests): give it its shape meanwhile, exactly like the pantry and the shopping list.
+    _showListSkeleton('expiring-list', 3);
 
     try {
         const [summaryData, statsData] = await Promise.all([
@@ -12756,6 +12772,7 @@ async function loadStaleDashboardItems() {
     const section = document.getElementById('alert-stale');
     const list = document.getElementById('stale-list');
     if (!section || !list) return;
+    _showListSkeleton('stale-list', 2);
     try {
         const data = await api('stale_inventory_items', { limit: DASHBOARD_STALE_MAX, min_days: 21, mode: 'expiry' });
         const items = data.items || [];
@@ -15120,6 +15137,9 @@ loadInventory._requestId = 0;
 async function loadInventory() {
     // A late answer for the previous location must not overwrite the current one.
     const requestId = ++loadInventory._requestId;
+    // Cold load: give the list its SHAPE (SHELFY on the splash ring over skeleton rows) instead of
+    // an empty screen for the second or two the pantry takes on a phone.
+    _showListSkeleton('inventory-list', 6);
     try {
         _restoreInventorySearchInput();
         const [locData, allData] = await Promise.all([
@@ -15154,6 +15174,10 @@ async function loadInventory() {
                 loadInventory._retried = true;
                 _remoteLogSync('API_RETRY', `inventory_list retry after: ${err && err.message}`);
                 setTimeout(() => { loadInventory._retried = false; loadInventory(); }, 1500);
+            } else {
+                // The retry failed too: take the skeleton away rather than promise a list that is
+                // not coming (an endless shimmer is worse than the truth).
+                _hideListSkeleton('inventory-list');
             }
         }
     }
@@ -15202,7 +15226,8 @@ function _medCategoryBadgesHtml(item) {
 
 /**
  * Relative time badge for list cards (not absolute calendar dates).
- * Opened packs lead with "Aperto da N gg"; sealed packs use Scade tra / Ancora N mesi / Oltre 1 anno.
+ * An opened pack leads with its compact age mark (`_openedAgeHtml`: "🕓 4gg", the clock);
+ * sealed packs use Scade tra / Ancora N mesi / Oltre 1 anno.
  * Medicines: once opened, the PAO (med_pao_days) owns the badge — never the far pack year.
  */
 function _inventoryExpiryBadgeHtml(item) {
@@ -15218,12 +15243,7 @@ function _inventoryExpiryBadgeHtml(item) {
                 const cls = over ? 'inv-time-expired' : (daysOpen >= Math.max(1, max - 7) ? 'inv-time-urgent' : 'inv-time-opened');
                 return `<span class="inv-time ${cls}">⚠️ ${escapeHtml(t(key, { n: daysOpen, max }))}</span>`;
             }
-            return `<span class="inv-time inv-time-opened">`
-                // Narrow card: "🕓 4gg" instead of "📦 Aperto da 4 giorni" — the same fact,
-                // short enough to keep the action line on one row on a phone (see _dualLabelHtml).
-                + _dualLabelHtml('📦 ' + escapeHtml(t('inventory.opened_for_days', { n: daysOpen })),
-                                 '🕓 ' + escapeHtml(t('dashboard.days_short', { n: daysOpen })))
-                + '</span>';
+            return _openedAgeHtml(daysOpen);
         }
         if (!item.expiry_date) {
             return `<span class="inv-time inv-time-far">🛡️ ${escapeHtml(t('medical.state_new'))}</span>`;
@@ -15249,14 +15269,7 @@ function _inventoryExpiryBadgeHtml(item) {
                 daysOpen = Math.max(0, Math.round((today.getTime() - openedTs) / 86400000));
             }
         }
-        if (Number.isFinite(daysOpen)) {
-            return `<span class="inv-time inv-time-opened">`
-                // Narrow card: "🕓 4gg" instead of "📦 Aperto da 4 giorni" — the same fact,
-                // short enough to keep the action line on one row on a phone (see _dualLabelHtml).
-                + _dualLabelHtml('📦 ' + escapeHtml(t('inventory.opened_for_days', { n: daysOpen })),
-                                 '🕓 ' + escapeHtml(t('dashboard.days_short', { n: daysOpen })))
-                + '</span>';
-        }
+        if (Number.isFinite(daysOpen)) return _openedAgeHtml(daysOpen);
     }
     if (!item.expiry_date) return '';
     const days = daysUntilExpiry(item.expiry_date);
@@ -15322,7 +15335,7 @@ function renderInventoryItem(item, opts = {}) {
         <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
         <div class="inv-row-content inv-card">
             <div class="inv-card-top">
-                <div class="inv-image">${thumb}</div>
+                <div class="inv-image${_validProductImageUrl(item.image_url) ? ' is-loading' : ''}">${thumb}</div>
                 <div class="inv-info">
                     <div class="inv-name-row">
                         <div class="inv-name-block">${nameBlock}</div>
@@ -16335,6 +16348,93 @@ function _itemDetailExpiryChip(item) {
     return `<span class="item-detail-chip ${cls}">${escapeHtml(expiryText)}</span>`;
 }
 
+/**
+ * The other shelves this same product stands on, each with its OWN pencil.
+ *
+ * A product is one article with several rows: a pack in the fridge, one in the pantry, one in the
+ * freezer. The sheet opens the row that was tapped, and its pencil edits exactly that row — so a
+ * correction to the fridge pack had no door from here at all (the household had to go back to the
+ * list and find the other row). Each line names its place, its stock and the pencil that opens
+ * THAT row in the same edit sheet the sheet's own pencil opens.
+ *
+ * Depleted rows are left out: a trace is not a place the product stands in.
+ */
+function _itemDetailOtherPlacesHtml(item) {
+    if (!item || !item.product_id) return '';
+    const rows = (Array.isArray(currentInventory) ? currentInventory : [])
+        .filter(r => r && String(r.product_id) === String(item.product_id) && Number(r.id) !== Number(item.id))
+        .filter(r => (typeof isInventoryDepleted === 'function') ? !isInventoryDepleted(r) : parseFloat(r.quantity) > 0);
+    if (!rows.length) return '';
+    const editTitle = t('inventory.item_detail_edit');
+    const lines = rows.map(r => {
+        const loc = LOCATIONS[normalizeLocationKey(r.location)] || { icon: '📦', label: r.location || '' };
+        const qty = stripHtml(formatQuantityForItem(r));
+        return `<li class="item-detail-place">
+                <span class="item-detail-place-ico" aria-hidden="true">${loc.icon || '📦'}</span>
+                <span class="item-detail-place-name">${escapeHtml(loc.label || '')}</span>
+                <span class="item-detail-place-qty">${escapeHtml(qty)}</span>
+                <button type="button" class="item-detail-place-edit"
+                    title="${escapeAttr(editTitle)}" aria-label="${escapeAttr(editTitle)} ${escapeAttr(loc.label || '')}"
+                    onclick="closeModal();editInventoryItem(${Number(r.id)})">✏️</button>
+            </li>`;
+    }).join('');
+    return `<div class="item-detail-places">
+            <p class="item-detail-places-title">${escapeHtml(t('inventory.detail_other_places'))}</p>
+            <ul class="item-detail-places-list" role="list">${lines}</ul>
+        </div>`;
+}
+
+/**
+ * Mark a pack open — or sealed again — from the sheet.
+ *
+ * `opened_at` is the flag the whole app reads: the post-opening clock (`_openedPao`), the Home's
+ * "Aperti" list, the banner and the pantry filter. Until now the only way to set it was to consume
+ * something, so a pack opened by hand (or one that was never opened at all) could only be
+ * corrected by a lie about the stock. This is the honest door: it stamps today and re-dates the
+ * expiry on the OPENED clock, and sealing it back clears the stamp and returns to the sealed
+ * estimate. A date the household typed (`expiry_user_set`) is never overwritten.
+ *
+ * A medicine keeps its own flow: `med_open` also applies the box's PAO and its own shelf rules.
+ */
+async function itemDetailToggleOpened(inventoryId, opened) {
+    const item = _findInventoryItem(inventoryId);
+    if (!item || _isMedicalRow(item)) return;
+    const body = { id: item.id };
+    const kind = { name: item.name, category: item.category || '' };
+    try {
+        if (opened) {
+            const now = new Date();
+            body.opened_at = now.toISOString().slice(0, 19).replace('T', ' ');
+            if (!Number(item.expiry_user_set)) {
+                const d = new Date(now);
+                d.setHours(12, 0, 0, 0);
+                d.setDate(d.getDate() + Math.max(1, estimateOpenedExpiryDays(kind, item.location)));
+                body.expiry_date = d.toISOString().slice(0, 10);
+            }
+        } else {
+            body.opened_at_clear = 1;
+            if (!Number(item.expiry_user_set)) {
+                const d = new Date();
+                d.setHours(12, 0, 0, 0);
+                d.setDate(d.getDate() + Math.max(1, estimateExpiryDays(kind, item.location)));
+                body.expiry_date = d.toISOString().slice(0, 10);
+            }
+        }
+        const res = await api('inventory_update', {}, 'POST', body);
+        if (!(res.success || res.ok)) {
+            showToast(res.error || t('error.generic'), 'error');
+            return;
+        }
+        if (opened) item.opened_at = body.opened_at;
+        else item.opened_at = null;
+        if (body.expiry_date) item.expiry_date = body.expiry_date;
+        if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+        showItemDetail(inventoryId, item.product_id);
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
+}
+
 function showItemDetail(inventoryId, productId, presetQty) {
     const item = _findInventoryItem(inventoryId);
     if (!item) {
@@ -16379,6 +16479,17 @@ function showItemDetail(inventoryId, productId, presetQty) {
     // in parentheses inside the title flattened both into one grey sentence
     // ("Pan Bauletto al Grano Duro (Mulino Bianco)"), and at 16 px the pair was unreadable.
     const brandLine = item.brand ? `<p class="item-detail-brand">${escapeHtml(item.brand)}</p>` : '';
+    // The opened flag is a CONTROL, not a sentence: `opened_at` drives the post-opening clock, the
+    // Home's "Aperti" list and the pantry filter, so the household must be able to say it here —
+    // and take it back. A medicine keeps its own (med_open applies the box's PAO).
+    const openedFlag = isMed ? '' : `<label class="toggle-row item-detail-opened-flag">
+                            <span>${escapeHtml(t('inventory.opened_flag'))}</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="item-detail-opened" ${item.opened_at ? 'checked' : ''}
+                                    onchange="itemDetailToggleOpened(${inventoryId}, this.checked)">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>`;
     // A package is recognised by its picture: 64 px tells the variants apart (grano duro vs
     // classico vs integrale), and a tap opens it full screen to read an ingredient list, a
     // nutrition table or a lot number off the box itself (`openProductImageLightbox`).
@@ -16386,7 +16497,9 @@ function showItemDetail(inventoryId, productId, presetQty) {
     const thumbHtml = hasPhoto
         ? `<button type="button" class="item-detail-photo-btn" onclick="openProductImageLightbox(${inventoryId})"
                    title="${escapeAttr(t('inventory.photo_zoom'))}" aria-label="${escapeAttr(t('inventory.photo_zoom'))}">
-               <img src="${escapeAttr(item.image_url)}" alt="">
+               <img src="${escapeAttr(item.image_url)}" alt=""
+                    onload="this.closest('.item-detail-image')&&this.closest('.item-detail-image').classList.remove('is-loading')"
+                    onerror="this.closest('.item-detail-image')&&this.closest('.item-detail-image').classList.remove('is-loading')">
            </button>`
         : `<span class="item-detail-emoji">${_productCatIconHtml(item)}</span>`;
     // Mount the slots whenever this row *could* be weighed; visibility follows a live stream.
@@ -16442,6 +16555,7 @@ function showItemDetail(inventoryId, productId, presetQty) {
                         <p class="item-detail-loc-line">
                             <span aria-hidden="true">${locPin}</span> ${escapeHtml(locInfo.label)}${statusBits.length ? ` · ${statusBits.join(' · ')}` : ''}${expiryChip ? ` · ${expiryChip}` : ''}
                         </p>
+                        ${openedFlag}
                     </div>
                 </div>
                 <div class="item-detail-header-actions">
@@ -16485,6 +16599,7 @@ function showItemDetail(inventoryId, productId, presetQty) {
                     </button>
                 </div>
             </div>` : ''}
+            ${_itemDetailOtherPlacesHtml(item)}
             <div class="item-detail-support${supportRowClass}">
                 ${supportHtml}
             </div>
@@ -20166,7 +20281,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261109b';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261109i';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20176,7 +20291,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261109b';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261109i';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -23096,6 +23211,22 @@ async function _saveExternalBarcodeProduct(code, p) {
         addToScanRecents(currentProduct);
     }
     return saveResult;
+}
+
+/**
+ * Remember that a code belongs to a product — for this session and for the next reload.
+ *
+ * A barcode the household associated by hand (the stocktake's "the app does not know this box"
+ * panel writes it onto the product) must not answer "unknown" again on the same device: the
+ * session map is what `_resolveBarcodeLookup` reads first, and the persisted map is what it reads
+ * after a reload. The shape is the one a local resolve returns (`{found, source:'local', product}`).
+ */
+function _barcodeRememberProduct(barcode, product) {
+    const key = _barcodeCacheKey(barcode);
+    if (!key || !product || !product.id) return;
+    const payload = { found: true, source: 'local', product };
+    _barcodeSessionCache.set(key, payload);
+    _barcodePersistSet(key, payload);
 }
 
 async function _resolveBarcodeLookup(barcode) {
@@ -31750,6 +31881,61 @@ function _showShoppingSkeleton() {
 function _hideShoppingSkeleton() {
     const listEl = document.getElementById('shopping-items');
     const skel = listEl ? listEl.querySelector('.shop-loading') : null;
+    if (skel) skel.remove();
+}
+
+/**
+ * The shape of a list before its data arrives — the same waiting state the shopping list has:
+ * SHELFY breathing on the splash ring, over skeleton rows with a shimmer.
+ *
+ * A cold load used to paint nothing at all: the page looked finished-but-empty for a second or
+ * three ("non è molto bello vedere tutto bianco"), and on a slow phone that reads as broken. The
+ * skeleton says two things at once — something is coming, and this is where it will be.
+ *
+ * @param {number} [rows] how many placeholder rows
+ * @param {string} [textKey] i18n key for the line beside the avatar
+ * @returns {string} markup
+ */
+function _listSkeletonHtml(rows = 4, textKey = 'common.loading_list') {
+    const n = Math.max(1, Math.min(8, Number(rows) || 4));
+    const lines = Array.from({ length: n }).map(() =>
+        '<div class="list-skel-row">'
+        + '<span class="list-skel-thumb"></span>'
+        + '<span class="list-skel-lines"><i class="w70"></i><i class="w45"></i></span>'
+        + '</div>'
+    ).join('');
+    return `<div class="list-loading" role="status" aria-live="polite">
+        <div class="list-loading-head">
+            <span class="list-loading-avatar-wrap">
+                <img class="list-loading-avatar" src="assets/img/shelfy/shelfy-avatar-96.png" alt="" decoding="async">
+                <span class="list-loading-ring" aria-hidden="true"></span>
+            </span>
+            <span class="list-loading-text">${escapeHtml(t(textKey))}</span>
+        </div>
+        <div class="list-loading-rows">${lines}</div>
+    </div>`;
+}
+
+/**
+ * Paint that waiting state into a list container — never over rows that are already there.
+ *
+ * @param {string} containerId
+ * @param {number} [rows]
+ * @param {string} [textKey]
+ */
+function _showListSkeleton(containerId, rows = 4, textKey = 'common.loading_list') {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (el.querySelector('.list-loading')) return;
+    // A list that already has something to show keeps it: the skeleton is for the empty moment.
+    if (el.querySelector('.inventory-item, .alert-item, .shop-row, .audit-hit')) return;
+    el.innerHTML = _listSkeletonHtml(rows, textKey);
+}
+
+/** Take it away (the real render usually replaces the whole container anyway). */
+function _hideListSkeleton(containerId) {
+    const el = document.getElementById(containerId);
+    const skel = el ? el.querySelector('.list-loading') : null;
     if (skel) skel.remove();
 }
 

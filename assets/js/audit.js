@@ -210,16 +210,27 @@ function _auditSetMode(mode) {
     _auditStart();
 }
 
-/**
- * Remember the point reached — the SESSION, not the sheet.
+/* ── The stocktake lives on the SERVER ────────────────────────────────────────
+ * A run started in front of the fridge and left half-done must be resumable from the phone in the
+ * kitchen, and its tally ("3 there, 1 finished") is one fact for the whole house: the state of the
+ * household is not a property of a browser. The blob lives in `app_settings` under `audit_state`
+ * (`GET audit_state` / `POST audit_state_save` / `audit_state_clear`) and the SERVER owns the hour
+ * — a run nobody touched is dropped on read, so no device can offer a stale resume.
  *
- * Closing the overlay by mistake (or leaving for the camera) must not restart the stocktake: the
- * run is resolved against the pantry as it is when the user comes back, everything already
- * answered is skipped, and the tally of the answers given by search and by barcode survives too.
+ * `localStorage` stays an offline MIRROR (a phone in a cellar still resumes what it did) and is
+ * never the truth: the server's answer wins whenever it answered at all.
  */
-function _auditPersist() {
+let _auditServerState = null;   // the run the server handed us (null = there is none)
+let _auditStateSeen = false;    // did the server answer? (only then the mirror is ignored)
+let _auditStateSeenAt = 0;      // when it answered (the read is cached for a few seconds)
+let _auditStateLoad = null;     // the in-flight read, shared: ten taps are one request
+let _auditStateSaveTimer = 0;
+let _auditStateDirty = false;
+
+/** The blob this device would store: the SESSION plus the propose run's point reached. */
+function _auditStateBlob() {
     const s = _auditSession;
-    if (!s) return;
+    if (!s) return null;
     // The propose view owns the card order and the point reached; a search or scan card only
     // adds an answer to the same ledger.
     if (_audit && _audit.mode === 'propose') {
@@ -228,26 +239,112 @@ function _auditPersist() {
         s.scope = _audit.scope || '';
         s.startedAt = _audit.startedAt || s.startedAt;
     }
-    // Nothing to resume without an order (a stocktake done entirely by name or by barcode is
-    // written to the server already; its tally is a convenience, not a record).
-    if (!s.order.length) return;
-    try {
-        localStorage.setItem(AUDIT_RESUME_KEY, JSON.stringify({
-            v: 1,
-            scope: s.scope || null,
-            order: s.order,
-            index: s.index || 0,
-            answered: s.answered || {},
-            history: s.history || [],
-            counts: s.counts,
-            startedAt: s.startedAt,
-            updatedAt: Date.now(),
-        }));
-    } catch (_e) { /* storage disabled/full: the run simply cannot be resumed */ }
+    let order = (s.order || []).slice();
+    let index = s.index || 0;
+    // A stocktake done only by camera or by name has no card order — and that must not throw away
+    // the run another device is holding for the SAME shelf (`↩ Riprendi l'inventario`). The order
+    // is inherited; the answers and the tally are this device's, and they travel either way.
+    const prev = _auditServerState;
+    if (!order.length && prev && Array.isArray(prev.order) && prev.order.length
+        && normalizeLocationKey(prev.scope || '') === normalizeLocationKey(s.scope || '')) {
+        order = prev.order.slice();
+        index = Number(prev.index) || 0;
+    }
+    return {
+        v: 1,
+        scope: s.scope || '',
+        order,
+        index,
+        answered: s.answered || {},
+        history: (s.history || []).slice(-50),
+        counts: s.counts || _auditEmptyCounts(),
+        startedAt: s.startedAt || Date.now(),
+        updatedAt: Date.now(),
+    };
+}
+
+/** Push the run to the server, coalesced: an answer is written once, not once per repaint. */
+function _auditPushState(delay = 600) {
+    _auditStateDirty = true;
+    clearTimeout(_auditStateSaveTimer);
+    _auditStateSaveTimer = setTimeout(() => { _auditFlushState(); }, delay);
+}
+
+function _auditFlushState() {
+    clearTimeout(_auditStateSaveTimer);
+    if (!_auditStateDirty) return;
+    const blob = _auditStateBlob();
+    _auditStateDirty = false;
+    if (!blob) return;
+    _auditServerState = blob;
+    api('audit_state_save', {}, 'POST', { state: blob }).catch(() => { _auditStateDirty = true; });
+}
+
+/**
+ * Ask the server for the household's run — awaited before the sheet paints, so «Riprendi» is a
+ * fact and not a guess. A pending write is flushed first, and a late answer never overwrites a
+ * newer blob this device already has.
+ */
+async function _auditLoadState(maxAgeMs = 0) {
+    if (_auditStateDirty) _auditFlushState();
+    if (_auditStateLoad) return _auditStateLoad;
+    if (maxAgeMs > 0 && _auditStateSeen && (Date.now() - _auditStateSeenAt) < maxAgeMs) {
+        return _auditServerState;
+    }
+    _auditStateLoad = (async () => {
+        try {
+            const r = await api('audit_state', {}, 'GET', null, {}, 4000);
+            if (r && r.success) {
+                // A run without a card order is still a ledger (a stocktake done by camera or by
+                // name): its tally and its answers count, «Riprendi» simply has nothing to reopen.
+                const next = (r.state && Number(r.state.updatedAt) > 0) ? r.state : null;
+                const cur = _auditServerState;
+                if (!cur || !next || Number(next.updatedAt || 0) >= Number(cur.updatedAt || 0)) {
+                    _auditServerState = next;
+                }
+                _auditStateSeen = true;
+                _auditStateSeenAt = Date.now();
+            }
+        } catch (_e) { /* offline: the mirror below is what this device has */ }
+        return _auditServerState;
+    })();
+    try { await _auditStateLoad; } finally { _auditStateLoad = null; }
+    return _auditServerState;
+}
+
+/**
+ * Remember the point reached — the SESSION, not the sheet.
+ *
+ * Closing the overlay by mistake (or leaving for the camera) must not restart the stocktake: the
+ * run is resolved against the pantry as it is when the user comes back, everything already
+ * answered is skipped, and the tally of the answers given by search and by barcode survives too.
+ */
+function _auditPersist() {
+    const blob = _auditStateBlob();
+    if (!blob) return;
+    // The offline mirror first (it cannot fail for lack of network), then the server.
+    try { localStorage.setItem(AUDIT_RESUME_KEY, JSON.stringify(blob)); } catch (_e) { /* storage full/disabled */ }
+    _auditPushState();
 }
 
 function _auditClearPersist() {
+    clearTimeout(_auditStateSaveTimer);
+    _auditStateDirty = false;
+    _auditServerState = null;
     try { localStorage.removeItem(AUDIT_RESUME_KEY); } catch (_e) { /* ignore */ }
+    // The server copy is what the OTHER device would resume: drop it there too (offline, it
+    // expires on its own within the hour).
+    api('audit_state_clear', {}, 'POST').catch(() => {});
+}
+
+/** The offline mirror — read only when the server could not answer at all. */
+function _auditMirroredRun() {
+    try {
+        const raw = localStorage.getItem(AUDIT_RESUME_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch (_e) {
+        return null;
+    }
 }
 
 /**
@@ -256,15 +353,11 @@ function _auditClearPersist() {
  * hour, unreadable, every row already answered, or every row gone.
  */
 function _auditSavedRun() {
-    let data;
-    try {
-        const raw = localStorage.getItem(AUDIT_RESUME_KEY);
-        if (!raw) return null;
-        data = JSON.parse(raw);
-    } catch (_e) {
+    // The household's run comes from the SERVER; the mirror is only what an offline device has.
+    const data = _auditServerState || (_auditStateSeen ? null : _auditMirroredRun());
+    if (!data || data.v !== 1 || !Array.isArray(data.order) || !data.order.length || !data.updatedAt) {
         return null;
     }
-    if (!data || data.v !== 1 || !Array.isArray(data.order) || !data.updatedAt) return null;
     if (Date.now() - Number(data.updatedAt) > AUDIT_RESUME_TTL_MS) {
         _auditClearPersist();
         return null;
@@ -358,10 +451,14 @@ function _auditScale() {
  * answer (a hundred products in one run is not a session), and a paused run for the same place
  * continues instead of restarting from zero.
  */
-function _auditStartFromBanner() {
+async function _auditStartFromBanner() {
     const key = currentLocation ? normalizeLocationKey(currentLocation) : '';
     // The place the banner names is the scope of BOTH modes: the search list puts its rows first.
     _auditSetScope(key);
+    // The household's run lives on the SERVER and this device may be brand new: ask before
+    // deciding that this shelf has nothing to resume. Without this await the banner started a NEW
+    // run on every device that had not seen the old one — which is exactly "rifammi l'inventario".
+    try { await _auditLoadState(3000); } catch (_e) { /* paint with what we have */ }
     if (!key) {
         _auditStart();
         return;
@@ -378,8 +475,25 @@ function _auditStartFromBanner() {
 }
 
 /** Entry point: resume a paused run, or choose the scope of a new one. */
-function _auditStart() {
+/**
+ * Open the stocktake sheet.
+ *
+ * The run may have been started on ANOTHER device (or on this one, in another browser): the server
+ * is asked BEFORE the sheet paints, so the household is never told to begin a stocktake it already
+ * half-done. The read is bounded (4 s) and falls back to this device's mirror, so a dead network
+ * cannot block the procedure.
+ */
+async function _auditStart() {
+    try { await _auditLoadState(3000); } catch (_e) { /* paint with what we have */ }
+    _auditStartPaint();
+}
+
+function _auditStartPaint() {
     const items = _auditItems();
+    // A run left half-done (here or on another device) still says how far it got: its tally and
+    // its answers are adopted — NOT its order, so «Riprendi l'inventario» stays the door to the run
+    // itself — otherwise the list counts the size of the pantry and the stocktake looks stuck.
+    _auditAdoptRunCounts();
     // A live session IS this page's saved run: the persisted copy would only duplicate it.
     const saved = (_auditSession && _auditSession.order.length) ? null : _auditSavedRun();
     const el = document.getElementById('audit-overlay');
@@ -391,9 +505,10 @@ function _auditStart() {
     const body = _auditMode === 'search'
         ? _auditSearchBodyHtml()
         : (_auditMode === 'scan' ? _auditScanBodyHtml() : _auditScopesBodyHtml(items, saved));
-    el.innerHTML = `<div class="audit-panel">
-        <div class="audit-head">
-            <h3>${escapeHtml(t('audit.title'))}</h3>
+    // No visible title: the panel says what it is with the mode switch and «Inventario di …», and
+    // on a phone the first line belongs to them. The dialog keeps an accessible NAME instead.
+    el.innerHTML = `<div class="audit-panel" role="dialog" aria-modal="true" aria-label="${escapeAttr(t('audit.title'))}">
+        <div class="audit-head audit-head--bare">
             <button type="button" class="audit-close" onclick="_auditStop()" aria-label="${escapeAttr(t('audit.close'))}">✕</button>
         </div>
         ${_auditModeSwitchHtml()}
@@ -418,17 +533,38 @@ function _auditScopesBodyHtml(items, saved) {
         return `<p class="audit-hint">${escapeHtml(t('audit.empty'))}</p>
             <button type="button" class="audit-scope" onclick="_auditSetMode('search')">🔎 ${escapeHtml(t('audit.mode_search'))}</button>`;
     }
+    /**
+     * What is LEFT, not how big the pantry is.
+     *
+     * The list used to count the rows on the shelf, so twenty products confirmed by camera or by
+     * name left every number exactly where it was — the household could not see the stocktake
+     * moving and read it as "the stocktake is not saving". A row this session already answered is
+     * not a question any more, so it comes off the count (and a place with nothing left is a
+     * COMPLETED line, not a button that opens an empty run).
+     */
+    const answered = (_auditSession && _auditSession.answered) || {};
+    const remaining = (rows) => rows.filter(it => !answered[String(it.id)]).length;
     const byLoc = {};
-    items.forEach(it => { byLoc[it.location] = (byLoc[it.location] || 0) + 1; });
+    items.forEach(it => {
+        if (!byLoc[it.location]) byLoc[it.location] = [];
+        byLoc[it.location].push(it);
+    });
     const scopes = [];
     if (saved) {
         // A run closed by mistake within the last hour continues where it stopped.
         scopes.push(`<button type="button" class="audit-scope audit-resume" onclick="_auditResume()"><span aria-hidden="true">↩</span> ${escapeHtml(t('audit.resume', { n: saved.items.length }))}</button>`);
     }
-    scopes.push(`<button type="button" class="audit-scope" onclick="_auditBegin(null)">${escapeHtml(t('audit.scope_all'))} (${items.length})</button>`);
+    const allLeft = remaining(items);
+    scopes.push(allLeft
+        ? `<button type="button" class="audit-scope" onclick="_auditBegin(null)">${escapeHtml(t('audit.scope_all'))} (${allLeft})</button>`
+        : `<span class="audit-scope is-done" aria-disabled="true"><span aria-hidden="true">✓</span> ${escapeHtml(t('audit.scope_all'))} (0)</span>`);
     Object.keys(byLoc).forEach(loc => {
         const info = LOCATIONS[loc] || { icon: '📦', label: loc };
-        scopes.push(`<button type="button" class="audit-scope" onclick="_auditBegin('${escapeHtml(loc)}')">${info.icon} ${escapeHtml(info.label || loc)} (${byLoc[loc]})</button>`);
+        const left = remaining(byLoc[loc]);
+        const label = `${info.icon} ${escapeHtml(info.label || loc)} (${left})`;
+        scopes.push(left
+            ? `<button type="button" class="audit-scope" onclick="_auditBegin('${escapeHtml(loc)}')">${label}</button>`
+            : `<span class="audit-scope is-done" aria-disabled="true"><span aria-hidden="true">✓</span> ${escapeHtml(info.label || loc)} (0)</span>`);
     });
     return `${saved ? `<p class="audit-hint audit-resume-hint">${escapeHtml(t('audit.resume_hint'))}</p>` : ''}
         <p class="audit-hint">${escapeHtml(t('audit.scope_hint'))}</p>
@@ -447,6 +583,31 @@ function _auditSearchBodyHtml() {
                oninput="_auditSearchInput(this.value)"
                onkeydown="if(event.key==='Enter'){event.preventDefault();_auditSearchPickFirst();}">
         <div class="audit-search-results" id="audit-search-results"></div>`;
+}
+
+/**
+ * Adopt the household's run into this device's LIST — its tally and its answers, never its order.
+ *
+ * The scope list counts what is left, so a device that has just loaded the app must know what the
+ * run already answered or every place reads full again (the stocktake looks stuck). The order stays
+ * out: «↩ Riprendi l'inventario (N rimasti)» is the door to the run, and it reads `_auditSavedRun`.
+ */
+function _auditAdoptRunCounts() {
+    const st = _auditServerState;
+    if (!st || !Number(st.updatedAt)) return;
+    // A run THIS device has open owns the ledger: never replace it with what the server had.
+    if (_auditSession && (_auditSession.order || []).length) return;
+    const scope = normalizeLocationKey(st.scope || '');
+    if (_auditSession && (_auditSession.scope || '') === scope) return;
+    _auditSession = {
+        scope,
+        startedAt: Number(st.startedAt) || Number(st.updatedAt) || Date.now(),
+        counts: { ..._auditEmptyCounts(), ...(st.counts && typeof st.counts === 'object' ? st.counts : {}) },
+        answered: (st.answered && typeof st.answered === 'object') ? { ...st.answered } : {},
+        history: [],   // the undo chain belongs to the run, not to the list
+        order: [],     // see above: «Riprendi» is what opens the run
+        index: 0,
+    };
 }
 
 /** Continue the paused run (the picker already told the user how many are left). */
@@ -893,9 +1054,17 @@ function _auditScanStop(reopen = true) {
     if (reopen) _auditStart();
 }
 
-/** A phone that locks, a tab that hides: the stream stops and the sheet says where we were. */
+/** A phone that locks, a tab that hides: the stream stops, and the run reaches the server. */
 document.addEventListener('visibilitychange', () => {
-    if (document.hidden && _auditScanActive) _auditScanStop(true);
+    if (!document.hidden) return;
+    if (_auditScanActive) _auditScanStop(true);
+    // A stocktake must not die with the tab: whatever has not reached the server yet goes now
+    // (the debounced write may still be waiting when the page is frozen).
+    if (_auditStateDirty) _auditFlushState();
+});
+/** Closing the tab is the same promise, kept at the last possible moment. */
+window.addEventListener('pagehide', () => {
+    if (_auditStateDirty) _auditFlushState();
 });
 
 /**
@@ -924,9 +1093,12 @@ async function _auditScanHit(code) {
     }
     if (!_auditScanActive) return;
     if (!product || !product.id) {
+        // A code no catalogue knows is not a dead end: the household is HOLDING the box, which is
+        // the only moment the association can be made. The camera closes and the search of "Ti
+        // dico io" opens with the code on its head; picking a product writes the code onto it.
         _auditScanStatus(t('audit.scan_no_match'));
-        // Back to work: the next frame may be the one in focus.
-        _auditScanLoop(++_auditScanGen);
+        _auditScanStop(false);
+        _auditAssignView(clean);
         return;
     }
     const row = (typeof _inventoryRowForProduct === 'function')
@@ -947,14 +1119,167 @@ async function _auditScanHit(code) {
  * The card of the scanned box: the same one the other two ways open.
  *
  * A product can stand in two places (a fridge pack and a pantry pack): the row of the place being
- * inventoried wins, which is the row the household is standing in front of.
+ * inventoried wins, which is the row the household is standing in front of — unless the caller
+ * already named the row (`preferRowId`, the "this one" of the barcode picker).
  */
-function _auditScanCard(row) {
+function _auditScanCard(row, opts = {}) {
     const scope = _auditScopeKey();
     const rows = _auditItems().filter(r => Number(r.product_id) === Number(row.product_id));
-    const preferred = rows.find(r => !scope || normalizeLocationKey(r.location) === scope) || rows[0] || row;
+    const picked = Number(opts.preferRowId) > 0
+        ? rows.find(r => Number(r.id) === Number(opts.preferRowId))
+        : null;
+    const preferred = picked
+        || rows.find(r => !scope || normalizeLocationKey(r.location) === scope)
+        || rows[0] || row;
     const fresh = _auditItems().find(r => Number(r.id) === Number(preferred.id)) || preferred;
     _auditOneCardView(fresh, 'scan', fresh.display_name || fresh.name || '');
+}
+
+/* ── An unknown code: the search of "Ti dico io", with the code in hand ─────────
+ * A box no catalogue knows used to answer with one line of text and nothing else — while the
+ * household was standing there holding the product the app had just failed to name. The code is
+ * a variant of the article (the article is theirs), so the honest way out is to let them SAY
+ * which product it is: the same search as the second mode, the same rows, and the pick writes
+ * the code onto that product (`product_barcode_set`). The next read of that barcode resolves to
+ * it — in this session and after a reload (`_barcodeRememberProduct`).
+ *
+ * ONE LINE PER PLACE, not per article: "Riso basmati" standing in the pantry, in the fridge and
+ * in the living-room cupboard listed once, with the place of whichever row happened to come
+ * first, hid the shelf the household was looking at. The picker shows every row (place + stock),
+ * the place being inventoried first, and picking a line opens the card of THAT row.
+ */
+
+/** The code being associated (one at a time: the panel exists only while it is unknown). */
+let _auditPendingCode = '';
+/** How many rows the picker lists: a search, not the pantry (a product may fill it alone). */
+const AUDIT_ASSIGN_MAX = 10;
+
+/** The panel: the code that was read, one field, the matching rows. */
+function _auditAssignView(code) {
+    _auditPendingCode = String(code || '').trim();
+    if (!_auditPendingCode) return;
+    const el = document.getElementById('audit-overlay');
+    if (!el) return;
+    el.hidden = false;
+    el.innerHTML = `<div class="audit-panel">
+        <div class="audit-head">
+            <h3>${escapeHtml(t('audit.assign_title'))}</h3>
+            <button type="button" class="audit-close" onclick="_auditAssignCancel()" aria-label="${escapeAttr(t('audit.close'))}">✕</button>
+        </div>
+        <p class="audit-hint">${escapeHtml(t('audit.assign_hint', { code: _auditPendingCode }))}</p>
+        <p class="audit-hint audit-assign-note">${escapeHtml(t('audit.assign_places_note'))}</p>
+        <input type="text" id="audit-assign-input" class="form-input audit-search-input"
+               autocomplete="off" autocapitalize="sentences" spellcheck="false"
+               placeholder="${escapeAttr(t('inventory.search_placeholder'))}"
+               oninput="_auditAssignRender(this.value)"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();_auditAssignPickFirst();}">
+        <div class="audit-search-results" id="audit-assign-results"></div>
+        <button type="button" class="audit-done audit-scan-open" onclick="_auditScanStart()">
+            <span aria-hidden="true">📷</span> ${escapeHtml(t('audit.scan_open'))}</button>
+    </div>`;
+    const input = document.getElementById('audit-assign-input');
+    if (input) setTimeout(() => { try { input.focus(); } catch (_e) { /* kiosk: no keyboard */ } }, 60);
+}
+
+/**
+ * Every ROW the term matches — a product standing in three places is three lines.
+ *
+ * The order answers the question the household has in front of them: the place this stocktake is
+ * about comes first (the shelf they are standing at), then the other shelves, then the whole-house
+ * rows. Depleted traces are left out: they are not a place the product stands in.
+ */
+function _auditAssignMatches(term) {
+    const q = _auditFold(term);
+    if (!q) return [];
+    const scope = _auditScopeKey();
+    const here = [];
+    const elsewhere = [];
+    for (const it of _auditItems()) {
+        if (!it || !it.product_id) continue;
+        if (typeof isInventoryDepleted === 'function' && isInventoryDepleted(it)) continue;
+        const hay = _auditFold(`${it.display_name || ''} ${it.name || ''} ${it.brand || ''}`);
+        if (!hay.includes(q)) continue;
+        if (!scope || normalizeLocationKey(it.location) === scope) here.push(it);
+        else elsewhere.push(it);
+    }
+    return here.concat(elsewhere).slice(0, AUDIT_ASSIGN_MAX);
+}
+
+function _auditAssignRender(term) {
+    const box = document.getElementById('audit-assign-results');
+    if (!box) return;
+    const q = String(term || '').trim();
+    if (!q) { box.innerHTML = ''; return; }
+    const rows = _auditAssignMatches(q);
+    if (!rows.length) {
+        box.innerHTML = `<p class="audit-hint">${escapeHtml(t('audit.search_none', { term: q }))}</p>`;
+        return;
+    }
+    box.innerHTML = rows.map(it => {
+        const loc = LOCATIONS[normalizeLocationKey(it.location)] || { icon: '📦', label: it.location || '' };
+        const qty = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
+            ? stripHtml(formatQuantity(it.quantity, it.unit, it.default_quantity, it.package_unit))
+            : `${it.quantity || ''} ${it.unit || ''}`.trim();
+        const thumb = (typeof _productThumbHtml === 'function') ? _productThumbHtml(it) : '';
+        // The pick carries the ROW (place included): the card that opens is that shelf's.
+        return `<div class="audit-hit is-assign">
+            <div class="audit-hit-open">
+                <span class="audit-hit-thumb">${thumb}</span>
+                <span class="audit-hit-text">
+                    <span class="audit-hit-name">${escapeHtml(it.display_name || it.name || '')}</span>
+                    <span class="audit-hit-meta">${escapeHtml(loc.icon || '📍')} ${escapeHtml(loc.label || '')} · ${escapeHtml(qty)}</span>
+                </span>
+            </div>
+            <button type="button" class="audit-hit-quick" onclick="_auditAssignPick(${Number(it.id)})">
+                <span aria-hidden="true">🔗</span> ${escapeHtml(t('audit.assign_action'))}</button>
+        </div>`;
+    }).join('');
+}
+
+/** Enter picks the first row — the closest match, in the place being inventoried. */
+function _auditAssignPickFirst() {
+    const input = document.getElementById('audit-assign-input');
+    const rows = _auditAssignMatches(input ? input.value : '');
+    if (rows.length) _auditAssignPick(Number(rows[0].id));
+}
+
+/**
+ * Write the code onto the chosen product, then continue the stocktake on THAT row.
+ *
+ * The picker hands over an inventory ROW (the place is part of the answer): the code is written on
+ * the article (`product_barcode_set`, one field, on the product), and the card that opens is the
+ * shelf the household picked — not "the first row of that product". A code another product already
+ * owns is REFUSED and named, never merged behind a tap.
+ */
+async function _auditAssignPick(invId) {
+    const code = _auditPendingCode;
+    const row = _auditItems().find(r => Number(r.id) === Number(invId)) || null;
+    if (!code || !row || !row.product_id) return;
+    const productId = Number(row.product_id);
+    const name = String(row.name || row.display_name || '');
+    try {
+        const res = await api('product_barcode_set', {}, 'POST', { id: productId, barcode: code });
+        if (!res || !(res.success || res.ok)) {
+            if (res && res.error === 'barcode_already_used') {
+                showToast(t('audit.assign_taken', { name: res.existing_name || code }), 'error', 7000);
+            } else {
+                showToast(t('audit.assign_failed'), 'error');
+            }
+            return;
+        }
+        if (typeof _barcodeRememberProduct === 'function') _barcodeRememberProduct(code, row);
+        showToast(t('audit.assign_done', { name: name || code }), 'success');
+        _auditPendingCode = '';
+        _auditScanCard(row, { preferRowId: Number(row.id) });
+    } catch (_e) {
+        showToast(t('audit.assign_failed'), 'error');
+    }
+}
+
+/** ✕ leaves the association: the stocktake goes back to where it was, the code stays unknown. */
+function _auditAssignCancel() {
+    _auditPendingCode = '';
+    _auditStart();
 }
 
 /** The card offers the camera as the third way in — and the camera opens at once. */
@@ -980,7 +1305,6 @@ function _auditSwitchToSearch() {
 function _auditBegin(location, saved = null) {
     // The chosen scope is the place the search mode sorts by, so it outlives this run.
     _auditSetScope(location || '');
-    const sameScope = !!_auditSession && (_auditSession.scope || '') === (location || '');
     // A resumed run rebuilds the SESSION (the tally and the answers it already has); a new one
     // continues the session of this same place instead of zeroing it.
     if (saved) {
@@ -994,18 +1318,33 @@ function _auditBegin(location, saved = null) {
             index: 0,
         };
     } else {
-        _auditSessionFor(location);
+        // ONE procedure. Moving to another shelf (or to the whole pantry) inside the same stocktake
+        // keeps the ledger this session already filled — the counts in the list come from it, so
+        // the run must start from the SAME numbers (opening «Tutto (206)» and being asked 207
+        // questions is the kind of disagreement that makes the count look fake). A session with
+        // nothing answered is simply replaced by the one for the place being opened.
+        const prev = _auditSession;
+        const carriesLedger = prev && prev.answered && Object.keys(prev.answered).length > 0
+            && (prev.scope || '') !== (location || '');
+        if (carriesLedger) {
+            prev.scope = location || '';
+            prev.order = [];
+            prev.index = 0;
+        } else {
+            _auditSessionFor(location);
+        }
     }
     const session = _auditSession;
     // Same comparison on both sides: a row may store the slug while the scope is a label.
     const scopeRows = saved
         ? null
         : _auditItems().filter(it => !location || normalizeLocationKey(it.location) === location);
-    // Continuing the same place never asks twice: what this stocktake already answered by hand, by
-    // name or by barcode stays answered.
+    // Continuing the same place never asks twice, and neither does starting one after answering
+    // by name or by barcode: what this stocktake already answered is not a question any more
+    // (`answered` is the one ledger the three ways write into).
     const items = saved
         ? saved.items
-        : (sameScope ? scopeRows.filter(it => !session.answered[String(it.id)]) : scopeRows);
+        : scopeRows.filter(it => !session.answered[String(it.id)]);
     _audit = {
         items,
         index: 0,
@@ -1025,7 +1364,7 @@ function _auditBegin(location, saved = null) {
     if (!_audit.items.length) {
         // This place is already fully answered (by any of the three ways): the summary is the
         // answer, not an empty wizard.
-        if (sameScope && scopeRows && scopeRows.length) {
+        if (scopeRows && scopeRows.length) {
             _audit = null;
             _auditFinish();
             return;
@@ -1464,6 +1803,10 @@ async function _auditFinish() {
         const errors = state.errors;
         const wasScan = state.mode === 'scan';
         _audit = null;
+        // The product is answered: the field starts EMPTY again, or the next search begins with
+        // the previous name in it (and its results under it) as if the confirmation had not
+        // happened. The camera needs no reset: it simply opens on the next box.
+        if (!wasScan) _auditSearchTerm = '';
         _auditPersist();
         // A scanned answer puts the camera straight back on: one box after another is how a shelf
         // is checked. A searched one returns to the field with the term still in it.
@@ -1497,7 +1840,6 @@ function _auditRenderSummary({ counts, errors = 0, canUndo = false }) {
     el.innerHTML = `<div class="audit-panel">
         <div class="audit-head">
             <div class="audit-head-text">
-                <p class="audit-eyebrow">${escapeHtml(t('audit.title'))}</p>
                 <h3>${escapeHtml(t('audit.summary_title'))}</h3>
             </div>
             <button type="button" class="audit-close" onclick="_auditEndSession(true)" aria-label="${escapeAttr(t('audit.close'))}">✕</button>

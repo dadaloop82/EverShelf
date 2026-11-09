@@ -93,11 +93,16 @@ html.is-touch-tablet .inv-card-bottom {
     justify-content: flex-end;
 }
 
+/* The band keeps a 40 px photo — but it is the SAME variable the gutter reads, so the words
+   start 48 px from the edge instead of 26 % of the card (on a 1000 px wall that was 260 px of
+   empty paper beside a 40 px icon). */
+html.is-kiosk .inventory-item,
+html.is-touch-tablet .inventory-item,
+html.is-kiosk .alert-item,
+html.is-touch-tablet .alert-item { --row-photo-w: 40px; }
+
 html.is-kiosk .inv-image,
 html.is-touch-tablet .inv-image {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
     font-size: 1.2rem;
 }
 
