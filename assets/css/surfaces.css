@@ -342,20 +342,36 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
 /* ── The two facts of a row are readable at a glance ─────────────────────────
    Quantity and expiry are what the household looks for on a shelf row; they were drawn at
    0.8 / 0.78 rem with a 650 weight, i.e. at the same size as the category line under the name.
-   They are now bold and a notch larger — and still inside the 34 px action line, so no card
-   grows by a pixel (measured at every step of the photo-strip ladder, 320 → 1200 px).
-   The Home badges carry the same two facts, so they keep the same weight and size. */
+   They are now bold and a notch larger — the stock at the size of the product name, the date
+   just under it — and still inside the 34 px action line, so no card grows by a pixel
+   (measured in headless Chromium at 320 → 1200 px: every row 132 px before and after).
+   The Home badges carry the same two facts, so they keep the same weight and size: the badge
+   rule further down (`.alert-item-badge`, one class, 12 px) wins by ORDER, so the two-class
+   selector below is what makes the Home's date as legible as the pantry's — not a second
+   number to keep in sync. */
 .inv-qty-pill {
-    font-size: 0.86rem;
+    font-size: 0.95rem;
     font-weight: 800;
+    min-height: 30px;
+    padding: 4px 11px;
 }
 .inv-time {
-    font-size: 0.84rem;
-    font-weight: 750;
-}
-.alert-item-badge {
-    font-size: 0.84rem;
+    font-size: 0.9rem;
     font-weight: 800;
+}
+/* The strip is 2 px tighter than the rest of the card: those 6 px of gap are what let the two
+   facts stay at these sizes on a 360 px phone WITHOUT the action line wrapping to a second
+   line (the strip's content box there is 292 px: 77 + 110 + 37 + 34 + 18 = 276). */
+.inventory-item .inv-row-content .inv-card-bottom { gap: 6px; }
+.alert-item .alert-item-badge {
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+/* The Home's stock line ("🧊 Frigo · 📦 1500 ml"): the same fact as the pantry's pill, one
+   step quieter because it is a line and not a chip — but no longer the 12 px of a footnote. */
+.alert-item .alert-item-qty {
+    font-size: 0.86rem;
+    font-weight: 700;
 }
 
 /* ── One row grammar, down to the order of the elements ──────────────────────
@@ -2105,6 +2121,41 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     cursor: pointer;
 }
 .item-detail-place-edit:active { background: color-mix(in srgb, var(--surface-border) 45%, transparent); }
+/* The line itself OPENS that pack (the pencil corrects it): «consume the other one» must be one
+   tap, not an edit. The date says WHICH pack it is when two of them sit in the same place. */
+.item-detail-place-open {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: -4px -6px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.item-detail-place-open:active { background: color-mix(in srgb, var(--surface-border) 45%, transparent); }
+.item-detail-place-date {
+    font-size: 0.76rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+/* The total across the packs, under the place line: the sheet leads with the pack on screen, and
+   the household must not have to add the rows up in its head. */
+.item-detail-total {
+    margin: 4px 0 0;
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+}
 /* Live scale strip (g/ml only): hidden until streaming, then soft bounce-in. */
 .item-detail-scale-slot {
     width: 100%;

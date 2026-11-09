@@ -2150,7 +2150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261109j'; // bump when translations change
+const _I18N_VERSION = '20261109t'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -15274,23 +15274,37 @@ function _inventoryExpiryBadgeHtml(item) {
     if (!item.expiry_date) return '';
     const days = daysUntilExpiry(item.expiry_date);
     if (!Number.isFinite(days)) return '';
+    // A row is SCANNED, not read: these two facts are compact BY CONSTRUCTION (never by a media
+    // query) and the full sentence lives in the tooltip — the rule the opened age already
+    // follows ("🕓 4gg") and the words the Home badges already print ("12 gg fa").
+    // It is also what lets the date be legible: "⏳ Scade tra 12 giorni" is 136 px at the new
+    // size and the strip has 126 px for it beside the quantity chip and two buttons on a 360 px
+    // phone (measured in headless Chromium: the old sizes fitted by 0.3 px of 292), while
+    // "⏰ Scade fra 12gg" is 110 px — the whole sentence went 8 px past the edge and wrapped the
+    // action line onto a second line, which is a 40 px taller card on the rows that matter.
     if (days < 0) {
-        return `<span class="inv-time inv-time-expired">⚠️ ${escapeHtml(t('expiry.badge_expired_ago').replace('{n}', Math.abs(days)))}</span>`;
+        const long = t('expiry.badge_expired_ago', { n: Math.abs(days) });
+        return `<span class="inv-time inv-time-expired" title="${escapeAttr(long)}">⚠️ ${escapeHtml(_relativeDaysAgo(days))}</span>`;
     }
     if (days === 0) {
-        return `<span class="inv-time inv-time-urgent">⚠️ ${escapeHtml(t('expiry.badge_today'))}</span>`;
-    }
-    if (days <= 7) {
-        return `<span class="inv-time inv-time-urgent">⚠️ ${escapeHtml(t('inventory.expires_in_days', { n: days }))}</span>`;
+        // `expiry.badge_today` already carries its own ⚠️: prefixing it again printed two.
+        return `<span class="inv-time inv-time-urgent">${escapeHtml(t('expiry.badge_today'))}</span>`;
     }
     if (days <= 30) {
-        return `<span class="inv-time inv-time-soon">⏳ ${escapeHtml(t('inventory.expires_in_days', { n: days }))}</span>`;
+        const cls = days <= 7 ? 'inv-time-urgent' : 'inv-time-soon';
+        const long = t('inventory.expires_in_days', { n: days });
+        return `<span class="inv-time ${cls}" title="${escapeAttr(long)}">${escapeHtml(t('expiry.badge_expiring_short', { n: days }))}</span>`;
     }
     if (days < 365) {
         const months = Math.max(1, Math.round(days / 30));
-        return `<span class="inv-time inv-time-ok">📅 ${escapeHtml(t('inventory.still_months', { n: months }))}</span>`;
+        // `~`: the months ARE an estimate (the date is rounded), and it is what fits beside the
+        // quantity on a phone — "📅 Quedan 3 meses" was 139 px in the widest locale.
+        return `<span class="inv-time inv-time-ok" title="${escapeAttr(formatDate(item.expiry_date))}">📅 ${escapeHtml(t('expiry.months_approx', { n: months }))}</span>`;
     }
-    return `<span class="inv-time inv-time-far">🛡️ ${escapeHtml(t('inventory.over_one_year', { date: formatDate(item.expiry_date) }))}</span>`;
+    // Past a year the row says what the Home badge already says (✅ Stabile), the date in the
+    // tooltip: "🛡️ Oltre 1 anno (12/03/2027)" is 168 px, wider than the whole strip on a phone.
+    const farLong = t('inventory.over_one_year', { date: formatDate(item.expiry_date) });
+    return `<span class="inv-time inv-time-far" title="${escapeAttr(farLong)}">${escapeHtml(t('expiry.badge_stable'))}</span>`;
 }
 
 function renderInventoryItem(item, opts = {}) {
@@ -16359,22 +16373,49 @@ function _itemDetailExpiryChip(item) {
  *
  * Depleted rows are left out: a trace is not a place the product stands in.
  */
+/**
+ * The OTHER packs of the same article — one line per ROW, each one openable.
+ *
+ * Two things made this block blind, and a household scanning a tin of stock cubes saw only one
+ * pack of the three it owns:
+ *  - the pool was `currentInventory`, i.e. the place the pantry happens to be filtered to: with
+ *    «Dispensa» open, the pack in the fridge simply did not exist here;
+ *  - it only offered a pencil. The line now OPENS that pack's sheet (`_itemDetailSwitchPack`), so
+ *    «consume the other one» is one tap, and the pencil keeps the way to correct it.
+ * The date is printed too: two packs of the same article in the SAME place are two different
+ * things (6 pz che scadono a marzo, 30 pz che scadono l'anno dopo), and without it they looked
+ * like a duplicate line.
+ */
 function _itemDetailOtherPlacesHtml(item) {
     if (!item || !item.product_id) return '';
-    const rows = (Array.isArray(currentInventory) ? currentInventory : [])
+    const pool = (_allInventoryCache && _allInventoryCache.length)
+        ? _allInventoryCache
+        : (Array.isArray(currentInventory) ? currentInventory : []);
+    const seen = new Set();
+    const rows = pool
         .filter(r => r && String(r.product_id) === String(item.product_id) && Number(r.id) !== Number(item.id))
-        .filter(r => (typeof isInventoryDepleted === 'function') ? !isInventoryDepleted(r) : parseFloat(r.quantity) > 0);
+        .filter(r => (typeof isInventoryDepleted === 'function') ? !isInventoryDepleted(r) : parseFloat(r.quantity) > 0)
+        .filter(r => { const k = String(r.id); if (seen.has(k)) return false; seen.add(k); return true; })
+        .sort((a, b) => String(a.expiry_date || '').localeCompare(String(b.expiry_date || '')));
     if (!rows.length) return '';
     const editTitle = t('inventory.item_detail_edit');
+    const openTitle = t('inventory.detail_open_pack');
     const lines = rows.map(r => {
         const loc = LOCATIONS[normalizeLocationKey(r.location)] || { icon: '📦', label: r.location || '' };
         const qty = stripHtml(formatQuantityForItem(r));
+        const date = r.expiry_date && typeof formatDate === 'function' ? formatDate(r.expiry_date) : '';
+        const place = loc.label || '';
         return `<li class="item-detail-place">
-                <span class="item-detail-place-ico" aria-hidden="true">${loc.icon || '📦'}</span>
-                <span class="item-detail-place-name">${escapeHtml(loc.label || '')}</span>
-                <span class="item-detail-place-qty">${escapeHtml(qty)}</span>
+                <button type="button" class="item-detail-place-open"
+                    title="${escapeAttr(openTitle)}" aria-label="${escapeAttr(openTitle + ' · ' + place + ' ' + qty)}"
+                    onclick="_itemDetailSwitchPack(${Number(r.id)})">
+                    <span class="item-detail-place-ico" aria-hidden="true">${loc.icon || '📦'}</span>
+                    <span class="item-detail-place-name">${escapeHtml(place)}</span>
+                    <span class="item-detail-place-qty">${escapeHtml(qty)}</span>
+                    ${date ? `<span class="item-detail-place-date">${escapeHtml(date)}</span>` : ''}
+                </button>
                 <button type="button" class="item-detail-place-edit"
-                    title="${escapeAttr(editTitle)}" aria-label="${escapeAttr(editTitle)} ${escapeAttr(loc.label || '')}"
+                    title="${escapeAttr(editTitle)}" aria-label="${escapeAttr(editTitle)} ${escapeAttr(place)}"
                     onclick="closeModal();editInventoryItem(${Number(r.id)})">✏️</button>
             </li>`;
     }).join('');
@@ -16382,6 +16423,36 @@ function _itemDetailOtherPlacesHtml(item) {
             <p class="item-detail-places-title">${escapeHtml(t('inventory.detail_other_places'))}</p>
             <ul class="item-detail-places-list" role="list">${lines}</ul>
         </div>`;
+}
+
+/** Show another pack of the same article in the same sheet (the row tapped in «Anche in»). */
+function _itemDetailSwitchPack(inventoryId) {
+    const row = _findInventoryItem(inventoryId);
+    if (!row) return;
+    showItemDetail(Number(row.id), Number(row.product_id));
+}
+
+/**
+ * How much of this article the house really has, across every pack — or '' when there is only the
+ * one on screen. Scanning a box of stock cubes and reading «6 pz» while 30 more sit next door is
+ * the report this answers: the sheet leads with the pack, and the total is right beside it.
+ */
+function _itemDetailTotalPacksHtml(item) {
+    if (!item || !item.product_id) return '';
+    const pool = (_allInventoryCache && _allInventoryCache.length)
+        ? _allInventoryCache
+        : (Array.isArray(currentInventory) ? currentInventory : []);
+    const seen = new Set();
+    const rows = pool
+        .filter(r => r && String(r.product_id) === String(item.product_id))
+        .filter(r => (typeof isInventoryDepleted === 'function') ? !isInventoryDepleted(r) : parseFloat(r.quantity) > 0)
+        .filter(r => { const k = String(r.id); if (seen.has(k)) return false; seen.add(k); return true; });
+    if (rows.length < 2) return '';
+    const total = rows.reduce((sum, r) => sum + (parseFloat(r.quantity) || 0), 0);
+    if (!(total > 0)) return '';
+    const unit = String(item.unit || '').trim();
+    const qty = stripHtml(formatQuantity(total, unit, item.default_quantity, item.package_unit));
+    return `<p class="item-detail-total"><span aria-hidden="true">📦</span> ${escapeHtml(t('inventory.detail_total_qty', { qty }))}</p>`;
 }
 
 /**
@@ -16555,6 +16626,7 @@ function showItemDetail(inventoryId, productId, presetQty) {
                         <p class="item-detail-loc-line">
                             <span aria-hidden="true">${locPin}</span> ${escapeHtml(locInfo.label)}${statusBits.length ? ` · ${statusBits.join(' · ')}` : ''}${expiryChip ? ` · ${expiryChip}` : ''}
                         </p>
+                        ${_itemDetailTotalPacksHtml(item)}
                         ${openedFlag}
                     </div>
                 </div>
@@ -20281,7 +20353,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261109i';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261109t';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20291,7 +20363,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261109i';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261109t';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -41013,9 +41085,57 @@ function _chatMatchProductsInText(text) {
     return Array.from(byPid.values());
 }
 
-/** Action strip: one emerald "Usa" per product named in the reply. */
+/** The word a recipe uses to title its ingredient list, in the six languages we ship. */
+const _CHAT_ING_HEAD = /(ingredienti|ingredients|zutaten|ingr[ée]dients|ingredientes|配料|食材)/i;
+
+/**
+ * Is this line a LABEL (a heading, or a bold label alone on its line) — `### Ingredienti:`,
+ * `**Ingredienti:**`, `**Come si fa:**` — and not a bullet with content (`* **Latte:** 150 ml`)?
+ */
+function _chatIsLabel(line) {
+    const s = String(line || '').trim();
+    if (!s) return false;
+    if (/^#{1,6}\s/.test(s)) return true;
+    if (/^\*\*[^*]{1,80}\*\*:?\s*$/.test(s)) return true;
+    if (/^\*[^*]{1,80}\*:?\s*$/.test(s)) return true;
+    return false;
+}
+
+/**
+ * The ingredient SECTIONS of a reply — the only place a «Usa» button may come from.
+ *
+ * A recipe proposal normally opens with prose («i prodotti freschi che scadono prima sono: yogurt,
+ * farina, kiwi, zucchine…») and then lists what the dish really uses. Matching the whole answer put
+ * a «Usa» button on every pantry product the introduction happened to NAME, so the buttons offered
+ * ingredients no recipe mentions — the report «perché i bottoni “usa” sono di ingredienti che non
+ * vengono nemmeno citati nella ricetta?». One block per «Ingredienti» label (a reply may propose
+ * two options), each one ending at the next label.
+ */
+function _chatIngredientBlocks(text) {
+    const lines = String(text || '').split('\n');
+    const blocks = [];
+    for (let i = 0; i < lines.length; i++) {
+        if (!_CHAT_ING_HEAD.test(lines[i]) || !_chatIsLabel(lines[i])) continue;
+        const buf = [];
+        for (let j = i + 1; j < lines.length; j++) {
+            const cur = lines[j];
+            if (/^\s*-{3,}\s*$/.test(cur)) break;   // a horizontal rule ends the section
+            if (_chatIsLabel(cur)) break;           // the next section (or the next option)
+            buf.push(cur);
+        }
+        const block = buf.join('\n').trim();
+        if (block) blocks.push(block);
+    }
+    return blocks;
+}
+
+/** Action strip: one emerald "Usa" per product the RECIPE names in its ingredients. */
 function _chatUseActionsHtml(text) {
-    const matches = _chatMatchProductsInText(text);
+    // The scope is the ingredient list; with no such section (a plain answer: «hai il latte in
+    // frigo, usalo») the whole reply is the scope, as before.
+    const blocks = _chatIngredientBlocks(text);
+    const scope = blocks.length ? blocks.join('\n') : String(text || '');
+    const matches = _chatMatchProductsInText(scope);
     if (!matches.length) return '';
     const useLbl = t('btn.use') || 'Usa';
     return `<div class="chat-use-actions" role="group" aria-label="${escapeAttr(useLbl)}">`

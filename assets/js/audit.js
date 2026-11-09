@@ -53,6 +53,8 @@ let _auditSearchTimer = 0;
 const AUDIT_MODE_KEY = 'evershelf_audit_mode';
 /** The place this stocktake is about ('' = the whole pantry). */
 let _auditScope = '';
+/** Has a run or a mode CHOSEN that place? ('' is a real choice: the whole pantry.) */
+let _auditScopePinned = false;
 const AUDIT_SCOPE_KEY = 'evershelf_audit_scope';
 /** How many rows the search lists: this place's own first, the other shelves after. */
 const AUDIT_SEARCH_MAX_HERE = 8;
@@ -69,6 +71,8 @@ let _auditSession = null;
 
 /** Set while the stocktake's own camera is open (a stream that belongs to this procedure only). */
 let _auditScanActive = false;
+/** Is the sheet painting the LIVE viewfinder (the camera lives in the panel body, not full screen)? */
+let _auditCamOn = false;
 /** The MediaStream, the frame timer and the generation that cancels a pending read. */
 let _auditScanStream = null;
 let _auditScanTimer = 0;
@@ -99,17 +103,30 @@ function _auditFold(value) {
  */
 function _auditScopeKey() {
     if (_audit && _audit.scope) return normalizeLocationKey(_audit.scope);
-    if (typeof currentLocation !== 'undefined' && currentLocation) return normalizeLocationKey(currentLocation);
     // A place the household deleted must not come back as the scope of a move.
     const known = (key) => !key || (typeof LOCATIONS === 'undefined') || !!LOCATIONS[key];
+    // The scope the stocktake itself PINNED (`_auditSetScope`, when a run starts or a mode is
+    // entered) outranks the place the PANTRY has open. Reading the pantry's own filter mid-run
+    // moved the ledger to another shelf, and a session for a new scope starts at zero: measured in
+    // the simulation, «Inventario di Frigo: ✓ 4» became «Inventario di Dispensa: ✓ 1» on the next
+    // answer and never went past it again — the report "rimane sempre a uno".
+    if (_auditScopePinned && known(_auditScope)) return _auditScope;
+    if (typeof currentLocation !== 'undefined' && currentLocation) return normalizeLocationKey(currentLocation);
     if (_auditScope && known(_auditScope)) return _auditScope;
     const stored = _auditStoredScope();
     return known(stored) ? stored : '';
 }
 
-/** Remember it, so switching mode (or a search card opened by name) forgets no shelf. */
+/**
+ * Remember it, so switching mode (or a search card opened by name) forgets no shelf.
+ *
+ * Pinning it is the point: from here on the stocktake is about THIS place, whatever the pantry
+ * behind the overlay happens to be filtering. Closing the stocktake releases the pin
+ * (`_auditStop`), so the next one starts from the place the household is standing in.
+ */
 function _auditSetScope(key) {
     _auditScope = key ? normalizeLocationKey(key) : '';
+    _auditScopePinned = true;
     try { localStorage.setItem(AUDIT_SCOPE_KEY, _auditScope); } catch (_e) { /* private mode: memory only */ }
 }
 
@@ -160,40 +177,113 @@ function _auditSessionRemaining() {
 }
 
 /**
- * The tally every sheet carries: proof that the three ways feed ONE stocktake, plus the two doors
- * out of a single answer («Riepilogo» and «↩ Torna alla card»).
+ * How far the STOCKTAKE has got, in the one number the three ways share.
+ *
+ * `total` is the rows this run is about — the place being inventoried, or the whole pantry — and
+ * `done` the ones the session answered: the SAME ledger the scope list counts, so «Frigo (37)» and
+ * the bar can never disagree.
+ *
+ * It is deliberately NOT the open card's position, which is the bug that was reported: a card
+ * opened by name or by barcode is a run of ONE for the wizard, so its own counter read «1 di 1» on
+ * every box the household scanned and never moved. `inHand` adds the card being looked at (while it
+ * is still unanswered), so the bar fills on the card in front of you instead of starting empty.
  */
-function _auditSessionBarHtml() {
-    const s = _auditSession;
-    if (!s) return '';
-    const c = s.counts || _auditEmptyCounts();
-    const total = c.there + c.finished + c.spoiled + c.skipped;
-    const left = _auditSessionRemaining();
-    if (!total && !left) return '';
+function _auditProgress(inHand = false) {
+    const scope = _auditScopeKey();
+    const answered = (_auditSession && _auditSession.answered) || {};
+    let rows = _auditItems().filter(it => !scope || normalizeLocationKey(it.location) === scope);
+    // The pantry cache may not have arrived yet (a stocktake opened right after boot): the run in
+    // hand is then the only truthful list, so the bar keeps counting on it instead of vanishing.
+    if (!rows.length && _audit && (_audit.items || []).length) rows = _audit.items;
+    const done = rows.filter(it => answered[String(it.id)]).length;
+    const total = Math.max(rows.length, done);
+    const shown = Math.max(0, Math.min(total, done + (inHand ? 1 : 0)));
+    return { total, done, shown, percent: total ? Math.round((shown / total) * 100) : 0 };
+}
+
+/** What the answers WERE — the breakdown that sits beside the count, not a second number. */
+function _auditTallyBits() {
+    const c = (_auditSession && _auditSession.counts) || _auditEmptyCounts();
     const bits = [];
     if (c.there) bits.push(`✓ ${c.there}`);
     if (c.finished) bits.push(`🏁 ${c.finished}`);
     if (c.spoiled) bits.push(`🗑️ ${c.spoiled}`);
     if (c.skipped) bits.push(`⏭️ ${c.skipped}`);
-    const place = _auditScopeLabel(s.scope || '');
+    return bits;
+}
+
+/**
+ * THE progress bar of the stocktake: one widget, painted by the three sheets, by EVERY card (a
+ * proposed one and a single question alike) and by the camera.
+ *
+ * That is the point of it: switching between «Uno alla volta», «Ti dico io» and «Scansiona» — or
+ * landing on the panel of an unreadable code — used to make the bar disappear, and a bar that only
+ * the propose run has cannot show a stocktake being carried out by barcode. Same numbers, same
+ * place, from the first card to the last, whichever way the answer came in.
+ */
+function _auditProgressHtml(inHand = false) {
+    const p = _auditProgress(inHand);
+    if (!p.total) return '';
+    const bits = _auditTallyBits();
+    const label = t('audit.count_of', { n: p.shown, total: p.total });
+    return `<div class="audit-progress-wrap">
+        <div class="audit-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${p.total}"
+             aria-valuenow="${p.shown}" aria-valuetext="${escapeAttr(label)}"><span style="width:${p.percent}%"></span></div>
+        <p class="audit-count">${escapeHtml(label)}${bits.length
+            ? `<span class="audit-progress-tally"> · ${escapeHtml(bits.join(' · '))}</span>` : ''}</p>
+    </div>`;
+}
+
+/**
+ * The tally every sheet carries: the place this stocktake is about, how far it got, and the two
+ * doors out of a single answer («Riepilogo» and «↩ Torna alla card»).
+ *
+ * It NEVER disappears. A fresh session (nothing answered yet, no propose order) used to print no
+ * line at all, so moving from one way to another looked like losing the run.
+ */
+function _auditSessionBarHtml() {
+    const s = _auditSession;
+    const c = (s && s.counts) || _auditEmptyCounts();
+    const total = c.there + c.finished + c.spoiled + c.skipped;
+    const left = _auditSessionRemaining();
+    const place = _auditScopeLabel((s && s.scope) || _auditScopeKey());
     const label = place ? t('audit.session_place', { place }) : t('audit.session_all');
     return `<div class="audit-session-bar">
-        <span class="audit-session-line">${escapeHtml(label)}${bits.length ? `: <strong>${escapeHtml(bits.join(' · '))}</strong>` : ''}</span>
+        <span class="audit-session-line">${escapeHtml(label)}</span>
         <span class="audit-session-actions">
             ${left ? `<button type="button" class="audit-session-btn" onclick="_auditResumeCard()">↩ ${escapeHtml(t('audit.resume_card', { n: left }))}</button>` : ''}
             ${total ? `<button type="button" class="audit-session-btn" onclick="_auditShowSummary()">${escapeHtml(t('audit.session_summary'))}</button>` : ''}
         </span>
+        ${_auditProgressHtml()}
     </div>`;
 }
 
-/** The mode switch: three ways in, the chosen one emerald-filled. */
+/**
+ * The three ways in, as TABS: they live at the top of EVERY view of the stocktake (the three
+ * sheets, the card of the run, a card opened by name or by barcode, the picker of an unreadable
+ * code), so the household can always see where it is and change its mind.
+ *
+ * They used to be painted only on the three sheets: the banner goes straight into the card of a
+ * run, so the options vanished the moment the stocktake started («non vedo più né i bottoni né le
+ * icone»).
+ *
+ * The icon and the label are two elements on purpose: on a narrow phone the three labels cannot
+ * share one line three ways, and a tab whose words wrap pushes the card down. Below 480 px the CSS
+ * drops `.audit-mode-label` and the tab becomes its icon — big, still a 52 px tap target — while
+ * `title` and `aria-label` keep the meaning for a long-press and for a screen reader.
+ */
 function _auditModeSwitchHtml() {
-    const btn = (mode, icon, key) => {
+    // The labels are resolved at the CALL SITE with a literal t-call: a key handed to a helper
+    // through a variable is invisible to `scripts/i18n-audit.py`, which then reports the three
+    // `audit.mode_*` strings as "defined but unused". (Never write a bare t-call with quotes
+    // inside a comment either: the audit reads the source text, not the syntax.)
+    const tab = (mode, icon, label) => {
         const on = _auditMode === mode;
-        return `<button type="button" class="audit-mode${on ? ' is-active' : ''}" aria-pressed="${on}"
-            onclick="_auditSetMode('${mode}')"><span aria-hidden="true">${icon}</span> ${escapeHtml(t(key))}</button>`;
+        return `<button type="button" class="audit-mode${on ? ' is-active' : ''}" role="tab" aria-selected="${on}" aria-pressed="${on}"
+            title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}"
+            onclick="_auditSetMode('${mode}')"><span class="audit-mode-icon" aria-hidden="true">${icon}</span><span class="audit-mode-label">${escapeHtml(label)}</span></button>`;
     };
-    return `<div class="audit-modes">${btn('propose', '🃏', 'audit.mode_propose')}${btn('search', '🔎', 'audit.mode_search')}${btn('scan', '📷', 'audit.mode_scan')}</div>`;
+    return `<div class="audit-modes" role="tablist">${tab('propose', '🃏', t('audit.mode_propose'))}${tab('search', '🔎', t('audit.mode_search'))}${tab('scan', '📷', t('audit.mode_scan'))}</div>`;
 }
 
 function _auditSetMode(mode) {
@@ -504,7 +594,9 @@ function _auditStartPaint() {
     el.hidden = false;
     const body = _auditMode === 'search'
         ? _auditSearchBodyHtml()
-        : (_auditMode === 'scan' ? _auditScanBodyHtml() : _auditScopesBodyHtml(items, saved));
+        : (_auditMode === 'scan'
+            ? (_auditCamOn ? _auditScanLiveHtml() : _auditScanBodyHtml())
+            : _auditScopesBodyHtml(items, saved));
     // No visible title: the panel says what it is with the mode switch and «Inventario di …», and
     // on a phone the first line belongs to them. The dialog keeps an accessible NAME instead.
     el.innerHTML = `<div class="audit-panel" role="dialog" aria-modal="true" aria-label="${escapeAttr(t('audit.title'))}">
@@ -596,7 +688,11 @@ function _auditAdoptRunCounts() {
     const st = _auditServerState;
     if (!st || !Number(st.updatedAt)) return;
     // A run THIS device has open owns the ledger: never replace it with what the server had.
-    if (_auditSession && (_auditSession.order || []).length) return;
+    // "Open" is a card order OR any answer — a stocktake carried out only by barcode and by name
+    // has no order, and adopting the server's blob over it was a second way for the tally to jump
+    // back to «✓ 1» (another shelf, another device, the same hour).
+    if (_auditSession && ((_auditSession.order || []).length
+        || Object.keys(_auditSession.answered || {}).length)) return;
     const scope = normalizeLocationKey(st.scope || '');
     if (_auditSession && (_auditSession.scope || '') === scope) return;
     _auditSession = {
@@ -811,9 +907,12 @@ function _auditOneCardView(it, mode, label) {
     const scope = _auditScopeKey();
     const session = _auditSessionFor(scope);
     // The card belongs to the way it came in: closing it must return to THAT sheet (and the next
-    // open of the overlay remembers it).
-    _auditMode = mode === 'scan' ? 'scan' : 'search';
-    try { localStorage.setItem(AUDIT_MODE_KEY, _auditMode); } catch (_e) { /* private mode */ }
+    // open of the overlay remembers it). A `pack` is a question INSIDE the stocktake — another
+    // package of the same article — so it must not rewrite the way the household chose.
+    if (mode !== 'pack') {
+        _auditMode = mode === 'scan' ? 'scan' : 'search';
+        try { localStorage.setItem(AUDIT_MODE_KEY, _auditMode); } catch (_e) { /* private mode */ }
+    }
     _audit = {
         items: [it],
         index: 0,
@@ -882,30 +981,31 @@ function _auditScanBodyHtml() {
         <button type="button" class="audit-done audit-scan-open" onclick="_auditScanStart()"><span aria-hidden="true">📷</span> ${escapeHtml(t('audit.scan_open'))}</button>`;
 }
 
-/** The overlay the stream lives in: built once, reused, never inside the audit panel. */
-function _auditScanOverlay() {
-    let el = document.getElementById('audit-scan-overlay');
-    if (el) return el;
-    el = document.createElement('div');
-    el.id = 'audit-scan-overlay';
-    el.className = 'audit-scan-overlay';
-    el.hidden = true;
-    el.innerHTML = `<video id="audit-scan-video" playsinline muted autoplay aria-hidden="true"></video>
-        <div class="audit-scan-frame" aria-hidden="true"></div>
-        <div class="audit-scan-chrome">
-            <div class="audit-scan-head">
-                <div class="audit-scan-titles">
-                    <p class="audit-scan-eyebrow" id="audit-scan-eyebrow"></p>
-                    <p class="audit-scan-title">${escapeHtml(t('audit.scan_finder_title'))}</p>
-                </div>
-                <button type="button" class="audit-scan-close" id="audit-scan-close" aria-label="${escapeAttr(t('audit.close') || 'Close')}">✕</button>
-            </div>
-            <p class="audit-scan-status" id="audit-scan-status" role="status" aria-live="polite"></p>
-        </div>`;
-    document.body.appendChild(el);
-    const close = el.querySelector('#audit-scan-close');
-    if (close) close.addEventListener('click', () => _auditScanStop(true));
-    return el;
+/**
+ * The live viewfinder, INSIDE the stocktake panel.
+ *
+ * It used to be a full-screen overlay (`position: fixed; inset: 0`): the sheet, the tabs and the
+ * tally disappeared the moment the camera opened («puoi lasciarlo dentro al tab e non farlo a tutto
+ * schermo?»). The video now sits in the panel's body, framed, with the status line and the running
+ * tally under it — the household never loses the place it is inventorying.
+ *
+ * Two ✕, two meanings: the one ON the picture turns the camera off (the sheet stays, its tab shows
+ * the «Apri la fotocamera» button), the panel's own ✕ closes the stocktake.
+ */
+function _auditScanLiveHtml() {
+    const place = _auditScopeLabel(_auditScopeKey());
+    const stopTitle = t('audit.scan_stop_camera');
+    return `<div class="audit-cam">
+            <video id="audit-scan-video" playsinline muted autoplay aria-hidden="true"></video>
+            <div class="audit-scan-frame" aria-hidden="true"></div>
+            <button type="button" class="audit-cam-stop" id="audit-scan-close"
+                title="${escapeAttr(stopTitle)}" aria-label="${escapeAttr(stopTitle)}"
+                onclick="_auditScanStop(true)">✕</button>
+        </div>
+        <p class="audit-scan-status" id="audit-scan-status" role="status" aria-live="polite"></p>
+        <div class="audit-scan-progress" id="audit-scan-progress"></div>
+        <p class="audit-hint">${escapeHtml(t('audit.scan_finder_hint'))}</p>
+        ${place ? `<p class="audit-hint audit-search-scope-note"><span aria-hidden="true">📍</span> ${escapeHtml(t('audit.search_in_place', { place }))}</p>` : ''}`;
 }
 
 function _auditScanStatus(text) {
@@ -914,22 +1014,20 @@ function _auditScanStatus(text) {
 }
 
 /** The tally of the three ways, printed under the viewfinder: proof the scan counts too. */
-function _auditScanTallyText() {
-    const c = (_auditSession && _auditSession.counts) || _auditEmptyCounts();
-    const bits = [];
-    if (c.there) bits.push(`✓ ${c.there}`);
-    if (c.finished) bits.push(`🏁 ${c.finished}`);
-    if (c.spoiled) bits.push(`🗑️ ${c.spoiled}`);
-    if (c.skipped) bits.push(`⏭️ ${c.skipped}`);
-    return bits.join(' · ');
+function _auditScanProgressPaint() {
+    const el = document.getElementById('audit-scan-progress');
+    // A shelf checked by barcode must SHOW itself moving: this is the same bar, and the same
+    // number, the sheets and the cards print.
+    if (el) el.innerHTML = _auditProgressHtml();
 }
 
 /**
- * Open the stocktake's own camera.
+ * Open the stocktake's own camera — INSIDE the panel, never over the whole screen.
  *
- * The stream starts immediately — the household is standing in front of the shelf — and the audit
- * panel goes away, because the viewfinder must fill the screen. The session stays: the tally keeps
- * counting whatever the next answer comes from.
+ * The stream starts immediately (the household is standing in front of the shelf) and the sheet is
+ * repainted with the live view in its body: the header, the three tabs and the tally stay where
+ * they are. The run is persisted before the stream opens, so answering a box or leaving the tab
+ * never loses the stocktake.
  */
 async function _auditScanStart() {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices
@@ -943,18 +1041,11 @@ async function _auditScanStart() {
     _auditPersist();
     if (_audit && !_audit.finished) _auditFlush();
     _audit = null;
-    const panel = document.getElementById('audit-overlay');
-    if (panel) {
-        panel.hidden = true;
-        panel.innerHTML = '';
-    }
-    const el = _auditScanOverlay();
-    el.hidden = false;
+    _auditCamOn = true;
     _auditScanActive = true;
-    const eyebrow = document.getElementById('audit-scan-eyebrow');
-    const place = _auditScopeLabel(_auditScopeKey());
-    if (eyebrow) eyebrow.textContent = place ? t('audit.verify_place', { place }) : t('audit.title');
-    _auditScanStatus(_auditScanTallyText() || t('audit.scan_finder_hint'));
+    _auditStartPaint();          // the sheet, with the viewfinder in its body
+    _auditScanStatus(t('audit.scan_finder_hint'));
+    _auditScanProgressPaint();
 
     const gen = ++_auditScanGen;
     const video = document.getElementById('audit-scan-video');
@@ -1033,13 +1124,15 @@ async function _auditScanReadFrame(canvas) {
 }
 
 /**
- * Close the camera. `reopen` brings the audit sheet back (the ✕, Esc, a failure, the phone locking):
- * the household is never dropped out of the stocktake with no way back in.
+ * Turn the camera off. `reopen` repaints the sheet (its tab then shows the «Apri la fotocamera»
+ * button): the ✕ on the picture, Esc, a failure and the phone locking all land here, so the
+ * household is never dropped out of the stocktake with no way back in.
  */
 function _auditScanStop(reopen = true) {
     _auditScanGen++;
     clearTimeout(_auditScanTimer);
     _auditScanActive = false;
+    _auditCamOn = false;
     const video = document.getElementById('audit-scan-video');
     if (video) {
         try { video.pause(); } catch (_e) { /* already stopped */ }
@@ -1049,8 +1142,6 @@ function _auditScanStop(reopen = true) {
         try { _auditScanStream.getTracks().forEach(tr => { try { tr.stop(); } catch (_e) { /* gone */ } }); } catch (_e) { /* gone */ }
         _auditScanStream = null;
     }
-    const el = document.getElementById('audit-scan-overlay');
-    if (el) el.hidden = true;
     if (reopen) _auditStart();
 }
 
@@ -1068,12 +1159,95 @@ window.addEventListener('pagehide', () => {
 });
 
 /**
+ * The OTHER packs of the same article, as a list under the facts.
+ *
+ * A barcode points at an ARTICLE, not at a package: «Brodo Il Dado Classico» had 6 pz and 30 pz on
+ * the same shelf, and the scan opened the card of one of them with no way to reach the other —
+ * «mi fa vedere solo una e non mi propone l'altra». The list names every pack the same product
+ * stands on (place, stock, date) and a tap opens THAT row's card, inside the same stocktake.
+ */
+function _auditOtherPacks(it) {
+    if (!it || !it.product_id) return [];
+    return _auditItems()
+        .filter(r => r && String(r.product_id) === String(it.product_id) && Number(r.id) !== Number(it.id))
+        .sort((a, b) => String(a.expiry_date || '').localeCompare(String(b.expiry_date || '')));
+}
+
+function _auditOtherPacksHtml(it) {
+    const packs = _auditOtherPacks(it);
+    if (!packs.length) return '';
+    const openTitle = t('audit.other_pack_open');
+    const items = packs.map(r => {
+        const loc = (typeof LOCATIONS !== 'undefined' && LOCATIONS[normalizeLocationKey(r.location)])
+            || { icon: '📦', label: r.location || '' };
+        const qty = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
+            ? stripHtml(formatQuantity(r.quantity, r.unit, r.default_quantity, r.package_unit))
+            : `${r.quantity || ''} ${r.unit || ''}`.trim();
+        const date = r.expiry_date && typeof formatDate === 'function' ? formatDate(r.expiry_date) : '';
+        const label = `${loc.label || ''} · ${qty}${date ? ` · ${date}` : ''}`;
+        return `<li><button type="button" class="audit-pack-line"
+                title="${escapeAttr(openTitle)}" aria-label="${escapeAttr(openTitle + ' · ' + label)}"
+                onclick="_auditOpenPack(${Number(r.id)})">
+                <span class="audit-pack-ico" aria-hidden="true">${loc.icon || '📦'}</span>
+                <span class="audit-pack-place">${escapeHtml(loc.label || '')}</span>
+                <span class="audit-pack-qty">${escapeHtml(qty)}</span>
+                ${date ? `<span class="audit-pack-date">${escapeHtml(date)}</span>` : ''}
+                <span class="audit-pack-go" aria-hidden="true">›</span>
+            </button></li>`;
+    }).join('');
+    return `<div class="audit-packs">
+        <p class="audit-packs-title">${escapeHtml(t('audit.other_packs'))}</p>
+        <ul class="audit-packs-list" role="list">${items}</ul>
+    </div>`;
+}
+
+/** Open the card of another pack of the same article — the run it belongs to is not lost. */
+function _auditOpenPack(invId) {
+    const row = _auditItems().find(r => Number(r.id) === Number(invId));
+    if (!row) return;
+    _auditOneCardView(row, 'pack', row.display_name || row.name || '');
+}
+
+/**
+ * The pantry row of a product the catalogue just named.
+ *
+ * `product_id` is the exact answer, and it is tried first. But the same ARTICLE can live in two
+ * catalogue rows — one added by hand before the code was ever offered, one created when the
+ * barcode was first scanned — so a tin of «Tonno ai semi di girasole» standing in the pantry
+ * answered «non c'è nell'inventario»: the code pointed at the empty row, the stock sat on the
+ * other. The name of the article is the second key, on the stored titles (singular, no brand),
+ * the shelf being inventoried first.
+ */
+function _auditRowForProduct(product) {
+    const pid = Number(product && product.id) || 0;
+    const rows = _auditItems();
+    const scope = _auditScopeKey();
+    const inScope = (r) => !scope || normalizeLocationKey(r.location) === scope;
+    if (pid) {
+        const exact = rows.filter(r => Number(r.product_id) === pid);
+        if (exact.length) return exact.find(inScope) || exact[0];
+    }
+    const pname = _auditFold(product && product.name);
+    if (!pname) return null;
+    const same = rows.filter(r => _auditFold(r.name) === pname);
+    const hit = same.find(inScope) || same[0] || null;
+    // The case is worth a line in `data/logs/app-*.log`: a barcode pointing at a catalogue row that
+    // holds no stock while the same article IS on a shelf means two `products` rows for one
+    // article, and the log is how that data problem is found instead of blamed on the scanner.
+    if (hit && typeof remoteLog === 'function') {
+        remoteLog('AUDIT', `scan: product ${pid || '?'} carries no stock, matched row ${hit.id} of product ${hit.product_id} by name «${product.name}»`);
+    }
+    return hit;
+}
+
+/**
  * A code was read: the camera closes and the ONE card of the stocktake opens.
  *
  * The lookup is the app's own catalogue resolution (`_resolveBarcodeLookup`, cached) — never the
  * shopping pipeline, never the medicine wizard, never an AI identification. Only a product with
- * usable stock is a stocktake row; anything else keeps the camera running with a line that says so,
- * because a stocktake must not stop on a box the ledger does not know.
+ * usable stock is a stocktake row; a code the app cannot place does not stop the run, it ASKS:
+ * the picker of «Ti dico io» opens with the code in hand (the household is holding the box, the
+ * only moment the association can be made).
  */
 async function _auditScanHit(code) {
     const clean = String(code || '').trim();
@@ -1101,13 +1275,16 @@ async function _auditScanHit(code) {
         _auditAssignView(clean);
         return;
     }
-    const row = (typeof _inventoryRowForProduct === 'function')
-        ? _inventoryRowForProduct(product.id)
-        : (_auditItems().find(r => Number(r.product_id) === Number(product.id)) || null);
+    const name = product.display_name || product.name || '';
+    const row = _auditRowForProduct(product);
     if (!row) {
-        showToast(t('audit.scan_not_stocked', { name: product.display_name || product.name || '' }), 'info', 6000);
-        _auditScanStatus(t('audit.scan_finder_hint'));
-        _auditScanLoop(++_auditScanGen);
+        // The code IS known but no shelf holds it — and a toast that says so is a dead end (the
+        // household reads "it is not in the pantry" about a tin that is standing right there).
+        // Same answer as an unknown code: close the camera and ask WHICH row it is, with the name
+        // the catalogue gave us already in the field and its matches on screen.
+        _auditScanStatus(t('audit.scan_not_stocked', { name }));
+        _auditScanStop(false);
+        _auditAssignView(clean, name);
         return;
     }
     // The answer is here: camera off, card on.
@@ -1155,9 +1332,10 @@ let _auditPendingCode = '';
 const AUDIT_ASSIGN_MAX = 10;
 
 /** The panel: the code that was read, one field, the matching rows. */
-function _auditAssignView(code) {
+function _auditAssignView(code, knownName = '') {
     _auditPendingCode = String(code || '').trim();
     if (!_auditPendingCode) return;
+    const known = String(knownName || '').trim();
     const el = document.getElementById('audit-overlay');
     if (!el) return;
     el.hidden = false;
@@ -1166,10 +1344,14 @@ function _auditAssignView(code) {
             <h3>${escapeHtml(t('audit.assign_title'))}</h3>
             <button type="button" class="audit-close" onclick="_auditAssignCancel()" aria-label="${escapeAttr(t('audit.close'))}">✕</button>
         </div>
+        ${_auditModeSwitchHtml()}
+        ${_auditProgressHtml()}
         <p class="audit-hint">${escapeHtml(t('audit.assign_hint', { code: _auditPendingCode }))}</p>
+        ${known ? `<p class="audit-hint">${escapeHtml(t('audit.assign_known_hint', { name: known }))}</p>` : ''}
         <p class="audit-hint audit-assign-note">${escapeHtml(t('audit.assign_places_note'))}</p>
         <input type="text" id="audit-assign-input" class="form-input audit-search-input"
                autocomplete="off" autocapitalize="sentences" spellcheck="false"
+               value="${escapeAttr(known)}"
                placeholder="${escapeAttr(t('inventory.search_placeholder'))}"
                oninput="_auditAssignRender(this.value)"
                onkeydown="if(event.key==='Enter'){event.preventDefault();_auditAssignPickFirst();}">
@@ -1177,6 +1359,9 @@ function _auditAssignView(code) {
         <button type="button" class="audit-done audit-scan-open" onclick="_auditScanStart()">
             <span aria-hidden="true">📷</span> ${escapeHtml(t('audit.scan_open'))}</button>
     </div>`;
+    // The name the catalogue gave us is already the search: the row the household is standing in
+    // front of is on screen, one tap away, instead of a blank field after a dead end.
+    if (known) _auditAssignRender(known);
     const input = document.getElementById('audit-assign-input');
     if (input) setTimeout(() => { try { input.focus(); } catch (_e) { /* kiosk: no keyboard */ } }, 60);
 }
@@ -1265,6 +1450,11 @@ async function _auditAssignPick(invId) {
             } else {
                 showToast(t('audit.assign_failed'), 'error');
             }
+            // The code stays where it is, but the stocktake does not stop on it: the row the
+            // household just pointed at is the question in front of them, and answering it is the
+            // whole reason they lifted the box.
+            _auditPendingCode = '';
+            _auditScanCard(row, { preferRowId: Number(row.id) });
             return;
         }
         if (typeof _barcodeRememberProduct === 'function') _barcodeRememberProduct(code, row);
@@ -1279,26 +1469,6 @@ async function _auditAssignPick(invId) {
 /** ✕ leaves the association: the stocktake goes back to where it was, the code stays unknown. */
 function _auditAssignCancel() {
     _auditPendingCode = '';
-    _auditStart();
-}
-
-/** The card offers the camera as the third way in — and the camera opens at once. */
-function _auditSwitchToScan() {
-    _auditSetScope(_auditScopeKey());
-    if (_audit && !_audit.finished) _auditStop(false);
-    _auditMode = 'scan';
-    try { localStorage.setItem(AUDIT_MODE_KEY, 'scan'); } catch (_e) { /* ignore */ }
-    _auditScanStart();
-}
-
-/** Mode 1's card offers the other way in without losing the run (closing keeps the point). */
-function _auditSwitchToSearch() {
-    // The scope of the run is the place the search list must put FIRST: capture it before the run
-    // is dropped for the search sheet.
-    _auditSetScope(_auditScopeKey());
-    if (_audit && !_audit.finished) _auditStop(false);
-    _auditMode = 'search';
-    try { localStorage.setItem(AUDIT_MODE_KEY, 'search'); } catch (_e) { /* ignore */ }
     _auditStart();
 }
 
@@ -1466,16 +1636,13 @@ function _auditRender() {
     }
     const isSearch = _audit.mode === 'search';
     const isScan = _audit.mode === 'scan';
-    // One question about one product: no progress bar, no «Salta» — the way out is another product.
+    // One question about one product: no «Salta» — the way out is another product. It is NOT an
+    // excuse to hide the bar: the count is the stocktake's, not this card's (see `_auditProgress`).
     const isOne = isSearch || isScan;
-    const total = _audit.items.length;
-    const done = _audit.index;
-    const percent = Math.max(0, Math.min(100, Math.round(((done + 1) / total) * 100)));
     el.hidden = false;
     const qtyPlain = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
         ? stripHtml(formatQuantity(it.quantity, it.unit, it.default_quantity, it.package_unit))
         : `${it.quantity || ''} ${it.unit || ''}`.trim();
-    const countLabel = t('audit.count_of', { n: done + 1, total });
     const locMeta = (typeof LOCATIONS !== 'undefined' && LOCATIONS[normalizeLocationKey(it.location)])
         || { icon: '📦', label: it.location || '' };
     const placeLabel = locMeta.label || it.location || '';
@@ -1498,13 +1665,10 @@ function _auditRender() {
     const confirmShort = t('audit.confirm_yes_qty', { qty: qtyPlain });
     el.innerHTML = `<div class="audit-panel" role="dialog" aria-modal="true" aria-label="${escapeAttr(t('audit.title'))}">
         <div class="audit-top">
-            ${isOne ? '' : `<div class="audit-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${total}"
-                 aria-valuenow="${done + 1}" aria-valuetext="${escapeAttr(countLabel)}">
-                <span style="width:${percent}%"></span>
-            </div>
-            <p class="audit-count">${escapeHtml(countLabel)}</p>`}
+            ${_auditProgressHtml(!(_audit.answered && _audit.answered[String(it.id)]))}
             <button type="button" class="audit-close" onclick="_auditStop()" aria-label="${escapeAttr(t('audit.close'))}">✕</button>
         </div>
+        ${_auditModeSwitchHtml()}
         <p class="audit-eyebrow">${escapeHtml(isSearch
             ? t('audit.search_badge', { term: _audit.term || '' })
             : placeTitle)}</p>
@@ -1516,6 +1680,7 @@ function _auditRender() {
                 <p class="audit-product-meta"><span aria-hidden="true">${escapeHtml(locMeta.icon || '📍')}</span> ${escapeHtml(placeLabel)} · <span aria-hidden="true">📦</span> ${escapeHtml(t('audit.stock_label'))}: <strong>${escapeHtml(qtyPlain)}</strong> · <span aria-hidden="true">⏳</span> <span class="audit-expiry${isExpired ? ' is-expired' : ''}">${escapeHtml(expiryFact)}</span></p>
             </div>
         </div>
+        ${_auditOtherPacksHtml(it)}
         <button type="button" class="audit-there" onclick="_auditAnswer('there')"><span aria-hidden="true">✓</span> <span class="audit-there-full">${escapeHtml(confirmFull)}</span><span class="audit-there-short">${escapeHtml(confirmShort)}</span></button>
         <div class="audit-grid">
             <button type="button" class="audit-cell audit-finished" onclick="_auditAnswer('finished')"><span aria-hidden="true">🏁</span> ${escapeHtml(t('audit.exhausted'))}</button>
@@ -1527,10 +1692,7 @@ function _auditRender() {
         <div class="audit-foot">
             ${_audit.history.length
                 ? `<button type="button" class="audit-back" onclick="_auditUndo()">↩ ${escapeHtml(t('audit.undo_last'))}</button>`
-                : `<div class="audit-foot-links">
-                    <button type="button" class="audit-back" onclick="_auditSwitchToSearch()">🔎 ${escapeHtml(t('audit.mode_search'))}</button>
-                    <button type="button" class="audit-back" onclick="_auditSwitchToScan()">📷 ${escapeHtml(t('audit.mode_scan'))}</button>
-                </div>`}
+                : ''}
             ${isSearch
                 ? `<button type="button" class="audit-skip" onclick="_auditSearchBack()">🔎 ${escapeHtml(t('audit.search_another'))}</button>`
                 : (isScan
@@ -1631,6 +1793,13 @@ function _auditItemSaved(id) {
  * There is deliberately NO "quasi finito" answer: it wrote a quantity the household never said
  * (100 g, half a pack) and looked like a third way to confirm. Whoever has a little left says
  * the real amount through «Modifica quantità», and the shopping list follows the shelf.
+ *
+ * ONE answer per ARTICLE PER PLACE. The pantry really does hold several packs of the same product
+ * on the same shelf — 17 such groups in this household's own data (Amido di mais ×3, Limone ×3,
+ * Riso basmati ×3, i dadi, il tonno…) — and one card per pack read as «poi mi richiede le stesse
+ * cose che ho già confermato». The packs of a place are ONE question: «C'è» confirms them all,
+ * «Finito»/«Andato a male» empties them all (one queued write per pack, because the API empties
+ * one row per call). Another SHELF is another question, and stays one.
  */
 function _auditAnswer(kind) {
     if (!_audit || _audit.finished) return;
@@ -1641,7 +1810,7 @@ function _auditAnswer(kind) {
     // the tally (and, for «finisce»/«butta», queue a second write). The session's `answered` map is
     // the ledger; `_auditUndo()` deletes the entry, so a real correction still goes through.
     if (_audit.answered && _audit.answered[String(it.id)]) {
-        _audit.index++;
+        _auditAdvancePastAnswered();
         _auditRender();
         return;
     }
@@ -1652,22 +1821,36 @@ function _auditAnswer(kind) {
         kind,
         previousQuantity: parseFloat(it.quantity) || 0,
         row: null,
+        rows: [],
+        siblings: [],
     };
+    // The other packs of the same article on the SAME shelf.
+    const place = normalizeLocationKey(it.location);
+    const siblings = _auditItems().filter(r => r
+        && String(r.product_id) === String(it.product_id)
+        && Number(r.id) !== Number(it.id)
+        && normalizeLocationKey(r.location) === place
+        && !(_audit.answered && _audit.answered[String(r.id)]));
+    entry.siblings = siblings.map(r => Number(r.id));
     _audit.answered[String(it.id)] = kind;
-    if (kind === 'finished') {
-        entry.row = { kind: 'use', product_id: it.product_id, location: it.location, label };
-        _audit.queue.push(entry.row);
-        _audit.counts.finished++;
-    } else if (kind === 'spoiled') {
-        entry.row = {
-            kind: 'waste',
-            product_id: it.product_id,
-            location: it.location,
-            notes: _wasteNotesForReason('spoiled'),
-            label,
-        };
-        _audit.queue.push(entry.row);
-        _audit.counts.spoiled++;
+    siblings.forEach(r => { _audit.answered[String(r.id)] = kind; });
+    if (kind === 'finished' || kind === 'spoiled') {
+        // One write per pack: `inventory_use` empties ONE row of that product in that place per
+        // call, so two packs need two, and the whole shelf position really ends up empty.
+        [it, ...siblings].forEach(r => {
+            const row = {
+                kind: kind === 'finished' ? 'use' : 'waste',
+                product_id: r.product_id,
+                location: r.location,
+                label,
+            };
+            if (kind === 'spoiled') row.notes = _wasteNotesForReason('spoiled');
+            entry.rows.push(row);
+            _audit.queue.push(row);
+        });
+        entry.row = entry.rows[0];
+        if (kind === 'finished') _audit.counts.finished++;
+        else _audit.counts.spoiled++;
     } else if (kind === 'there') {
         _audit.counts.there++;
     } else {
@@ -1675,9 +1858,20 @@ function _auditAnswer(kind) {
     }
     _audit.history.push(entry);
     if (_audit.queue.length >= _auditBatchSize) _auditFlush();
-    _audit.index++;
+    _auditAdvancePastAnswered();
     _auditPersist();
     _auditRender();
+}
+
+/** The next card this run still has a question for (a pack answered elsewhere is skipped). */
+function _auditAdvancePastAnswered() {
+    if (!_audit) return;
+    _audit.index++;
+    const answered = _audit.answered || {};
+    while (_audit.index < _audit.items.length
+        && answered[String(_audit.items[_audit.index].id)]) {
+        _audit.index++;
+    }
 }
 
 /**
@@ -1694,15 +1888,29 @@ async function _auditUndo() {
         try { await state.flushPromise; } catch (_e) { /* counted by the flush */ }
     }
     const entry = state.history[state.history.length - 1];
-    const queuedAt = entry.row ? state.queue.indexOf(entry.row) : -1;
-    if (queuedAt >= 0) {
-        state.queue.splice(queuedAt, 1);
-    } else if (entry.row && !(await _auditUndoSent(entry))) {
-        showToast(t('audit.undo_failed'), 'error');
-        return;
+    // An answer that covered several packs of the same article has several writes (and several
+    // `answered` entries): undo the WHOLE answer, never half a shelf.
+    const rows = (Array.isArray(entry.rows) && entry.rows.length) ? entry.rows.filter(Boolean)
+        : (entry.row ? [entry.row] : []);
+    const stillQueued = rows.filter(r => state.queue.indexOf(r) >= 0);
+    if (stillQueued.length !== rows.length) {
+        // At least one write already reached the server: revert the sent ones, and keep the queued
+        // ones out of the next flush.
+        const sent = rows.filter(r => state.queue.indexOf(r) < 0);
+        for (const row of sent) {
+            if (!(await _auditUndoSent(entry, row))) {
+                showToast(t('audit.undo_failed'), 'error');
+                return;
+            }
+        }
     }
+    rows.forEach(r => {
+        const at = state.queue.indexOf(r);
+        if (at >= 0) state.queue.splice(at, 1);
+    });
     state.history.pop();
     delete state.answered[String(entry.item.id)];
+    (entry.siblings || []).forEach(id => { delete state.answered[String(id)]; });
     if (state.counts[entry.kind] > 0) state.counts[entry.kind]--;
     state.finished = false;
     let idx = state.items.findIndex(x => x.id == entry.item.id);
@@ -1718,9 +1926,9 @@ async function _auditUndo() {
     showToast(t('audit.undo_done'), 'info');
 }
 
-/** Revert one already-sent answer; true when the shelf is back as it was. */
-async function _auditUndoSent(entry) {
-    const row = entry.row;
+/** Revert one already-sent write of an answer; true when the shelf is back as it was. */
+async function _auditUndoSent(entry, row) {
+    if (!row) return true;
     // A write the server refused (duplicate, rate limit) changed nothing.
     if (row.applied === false) return true;
     try {
@@ -1794,6 +2002,14 @@ async function _auditFlush() {
 async function _auditFinish() {
     const state = _audit;
     await _auditFlush();
+    // Another PACK of the same article: back to the card the household was on, run intact — this
+    // was a question inside the stocktake, not a stocktake of its own.
+    if (state && state.mode === 'pack') {
+        _audit = null;
+        _auditPersist();
+        if (!_auditSessionView()) _auditStart();
+        return;
+    }
     // ONE question, answered by name or by barcode: back to its sheet (the term still in the field,
     // the camera one tap away) with the answer counted in the same stocktake — never a summary of
     // a run of one.
@@ -1844,6 +2060,7 @@ function _auditRenderSummary({ counts, errors = 0, canUndo = false }) {
             </div>
             <button type="button" class="audit-close" onclick="_auditEndSession(true)" aria-label="${escapeAttr(t('audit.close'))}">✕</button>
         </div>
+        ${_auditProgressHtml()}
         <p class="audit-summary">${t('audit.summary_line')
             .replace('{there}', c.there)
             .replace('{finished}', c.finished)
@@ -1889,6 +2106,9 @@ function _auditStop(reload = false) {
         _auditFlush();
     }
     _audit = null;
+    // The place is the RUN's, not the pantry's: leaving the stocktake releases it, so the next one
+    // starts from the place the household is standing in (`_auditScopeKey`).
+    _auditScopePinned = false;
     const el = document.getElementById('audit-overlay');
     if (el) {
         el.hidden = true;

@@ -136,16 +136,19 @@ html.is-touch-tablet .inv-med-sub {
     font-size: var(--es-text-micro);
 }
 
+/* The two facts stay at least as large as on a phone: a wall tablet is read from further
+   away, so the band only grows them — a `--es-text-small` (0.8 rem) here would UNDO the
+   pantry's sizes on the one screen that needs them most. */
 html.is-kiosk .inv-qty-pill,
 html.is-touch-tablet .inv-qty-pill {
-    min-height: 30px;
-    padding: 4px 11px;
-    font-size: var(--es-text-small);
+    min-height: 32px;
+    padding: 4px 12px;
+    font-size: 1rem;
 }
 
 html.is-kiosk .inv-time,
 html.is-touch-tablet .inv-time {
-    font-size: var(--es-text-small);
+    font-size: 0.95rem;
 }
 
 html.is-kiosk .inv-quick-use,

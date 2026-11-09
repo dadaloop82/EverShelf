@@ -23,6 +23,14 @@ const RECENTLY_EXHAUSTED_DAYS = 30;
 // at runtime, so constants defined further down the file are still undefined when a
 // route handler runs. Smart Shopping used to fail with "Undefined constant".
 const SMART_HIGH_USE_STOCK_PCT = 25.0;
+/**
+ * Ceiling for a pack row's "typical purchase", in PACKS.
+ *
+ * A `conf` row's purchase log is often written in grams (200 g of panna booked as 200 conf), which
+ * turned the reference into ~86 packs: «Panna da cucina» with SIX packs in the pantry read 6 % of a
+ * purchase → «near_empty» → auto-added at every cron run, and the read-path prune deleted it again.
+ */
+const SMART_PACK_REF_QTY_MAX = 10.0;
 const SHOPPING_TOTAL_CACHE_MAX = 4;
 
 /**
@@ -16107,6 +16115,14 @@ function bringQuickSyncProduct(PDO $db, int $productId): void {
             EverLog::info('bringQuickSync: added to Bring!', ['product_id' => $productId, 'name' => $bringName]);
         } elseif ($totalQty > 0 && $onBring
             && !familyHasRecentlyDepletedSiblings($db, $productId, $genericName)) {
+            // Same rule as the internal branch below: no cache, no deletion.
+            if ($smartItems === []) {
+                EverLog::debug('bringQuickSync: no cache, nothing removed', [
+                    'event' => 'shopping_quick_sync_no_cache',
+                    'product_id' => $productId,
+                ]);
+                return;
+            }
             $eval = shoppingEvaluateFamilyRestock($db, $productId);
             if (!empty($eval['covered'])) {
                 bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}",
@@ -16145,6 +16161,20 @@ function bringQuickSyncProduct(PDO $db, int $productId): void {
                ->execute([$genericName, $prod['name'], $spec]);
             EverLog::info('shoppingQuickSync: added to internal list', ['product_id' => $productId, 'name' => $genericName]);
         } elseif ($totalQty > $threshold && $onList) {
+            // NO CACHE = NO KNOWLEDGE, and this runs on EVERY inventory write (a stocktake answers
+            // one card at a time). `$si === null` above means "the cache stopped asking" OR "there
+            // is no cache at all" — `shopping_remove` unlinks it on purpose — and deleting on the
+            // second case is what took shopping rows off the list answer after answer while the
+            // next cron put them straight back: «mette e toglie». Only a cache that EXISTS and does
+            // not ask may remove a row.
+            if ($smartItems === []) {
+                EverLog::debug('shoppingQuickSync: no cache, nothing removed', [
+                    'event' => 'shopping_quick_sync_no_cache',
+                    'product_id' => $productId,
+                    'name' => $genericName,
+                ]);
+                return;
+            }
             // Only remove when remaining family need is covered (partial restock keeps the row)
             $eval = shoppingEvaluateFamilyRestock($db, $productId);
             if (!empty($eval['covered'])) {
@@ -20482,6 +20512,15 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             );
         }
         $refQty = smartPurchaseRefQty($totalBought, $buyCount, $defQty, $qty, $familyAvgBuy);
+        // A pack row's "typical purchase" is counted in PACKS, and a purchase log written in grams
+        // lands in `conf` anyway (200 g of panna booked as 200 conf, an average of 86 packs per
+        // purchase). Such a reference makes a stocked shelf read «near_empty:6» and put the article
+        // back on the list at every cron run: «Panna da cucina» had SIX packs at home. The cap only
+        // ever makes a row LESS urgent, and a real basket of more than ten packs of the same
+        // product is a one-off, not a reference.
+        if (shoppingUnitIsPack($unit) && $refQty > SMART_PACK_REF_QTY_MAX) {
+            $refQty = SMART_PACK_REF_QTY_MAX;
+        }
         $pctLeft = $refQty > 0 ? min(200, ($qty / $refQty) * 100) : ($qty > 0 ? 100 : 0);
         // pctLeft based on FRESH (non-expired) stock only — used for expiry-aware suppression
         $freshPctLeft = $refQty > 0 ? min(200, ($freshQty / $refQty) * 100) : ($freshQty > 0 ? 100 : 0);
@@ -20553,7 +20592,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         // the jam/dairy case that kept finished articles off the list. The average
         // purchase is deliberately NOT used for packs: a legacy gram log on a conf
         // product (690 "conf" for a 690 g jar) would make coverage impossible.
-        $refIsPack = in_array(mb_strtolower($unit), ['conf', 'pz', 'busta', 'buste', 'pacco', 'pacchi', 'barattolo', 'barattoli', 'confezione', 'confezioni', 'pezzo', 'pezzi'], true);
+        $refIsPack = shoppingUnitIsPack($unit);
         $coverageNeeded = $refIsPack ? 1.0 : max(1.0, 0.5 * $refQty);
 
         // --- Determine urgency ---
@@ -21553,13 +21592,21 @@ function internalShoppingListGenericKey(PDO $db, string $name, string $rawName =
 function internalFindShoppingListRowByGeneric(PDO $db, string $name, string $rawName = ''): ?array {
     $target = internalShoppingListGenericKey($db, $name, $rawName);
     $stmt = $db->query("SELECT id, name, raw_name, specification FROM shopping_list");
+    $hit = null;
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $rowKey = internalShoppingListGenericKey($db, (string)$row['name'], (string)($row['raw_name'] ?? ''));
         if ($rowKey === $target) {
-            return $row;
+            $hit = $row;
+            break;
         }
     }
-    return null;
+    // The cursor MUST be closed before returning: this runs inside the shoppers' write paths
+    // (`shoppingSyncProductFromCache` updates the row it just found), and SQLite answers
+    // «database is locked» — after the 20 s busy timeout — to a write issued on the same
+    // connection while a read cursor is still open. The quick sync died there every time the
+    // specification really needed updating, i.e. every time the suggested quantity changed.
+    $stmt->closeCursor();
+    return $hit;
 }
 
 /**
@@ -21624,59 +21671,73 @@ function internalShoppingNormalizeNames(PDO $db): array {
 }
 
 /**
- * Drop internal rows whose family stock already covers the smart-shopping plan window.
+ * Drop internal rows the smart cache no longer asks for — the read-path twin of
+ * `internalShoppingCleanupObsolete()`.
  *
- * The smart cache stays the single source of truth for "is this row still needed": a row
- * the cache still predicts is NOT pruned, or the cron would add it, delete it and add it
- * again every 5 minutes (the automations fought each other: `internalShoppingAutoAddCritical`
- * vs this function). Rows the user marked as finished (🛒 Esaurito) are never touched.
+ * This runs on EVERY `shopping_list` GET (`shoppingGetList`), so it must be both blind-proof and
+ * the SAME rule as the cron, or the automations fight each other while the household watches:
+ * «continua a mettere e togliere prodotti urgenti, come se qualcosa si accorgesse che mancano e
+ * qualcos'altro che ce ne sono abbastanza». Two ways it used to do exactly that:
+ *
+ *  1. **No cache = no knowledge.** `shoppingRemoveInternal()` unlinks `smart_shopping_cache.json`
+ *     on purpose, which opened a window where the index was empty: every app-managed row fell
+ *     through to the family-coverage check and rows whose family was stocked were DELETED, five
+ *     minutes later the cron rebuilt the cache and re-added them. With no cache there is nothing
+ *     to compare against, so the prune does nothing at all.
+ *  2. **One predicate.** The family-coverage fallthrough was a second rule next to
+ *     `evershelfShoppingRowStillNeeded()` (the one the cron cleanup and the Bring! transport use),
+ *     and the two disagreed about rows like «Panna da cucina»: 6 packs in the pantry, cache
+ *     «urgent». A read now asks the same question the cron asks.
+ *
+ * Rows the user marked as finished (🛒 Esaurito) are never touched.
  */
 function internalShoppingPruneCovered(PDO $db): array {
     if (isShoppingBringMode()) {
         return ['skipped' => 'bring_mode'];
     }
+    $smartItems = evershelfLoadSmartItemsForSync($db);
+    $index = evershelfSmartItemsIndex($smartItems);
+    if ($smartItems === []) {
+        // Nothing to compare against: a read must not delete on "no knowledge".
+        // (`evershelfSmartItemsIndex()` always returns ['exact'=>[], 'token'=>[]], so the empty
+        // case has to be asked of the ITEMS, not of the index — a guard on `$index === []` never
+        // fires and the whole bug walks straight through it.)
+        return ['skipped' => 'no_cache', 'candidates' => 0, 'removed' => 0];
+    }
+    $familyUsableQty = static fn(string $generic, string $unit, float $pkgSize, string $pkgUnit): float
+        => evershelfFamilyUsableStockQtyMemo($db, $generic, $unit, $pkgSize, $pkgUnit);
     $rows = $db->query('SELECT id, name, raw_name, specification FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
-    $prods = $db->query('SELECT id, name, shopping_name FROM products')->fetchAll(PDO::FETCH_ASSOC);
-    $index = evershelfSmartItemsIndex(evershelfLoadSmartItemsForSync($db));
     $removed = 0;
+    $candidates = 0;
+    $del = $db->prepare('DELETE FROM shopping_list WHERE id = ?');
     foreach ($rows as $row) {
+        // Only EverShelf-owned rows; never a row the user marked as finished.
+        if (!evershelfSpecIsAppManaged((string)($row['specification'] ?? ''))
+            || evershelfSpecIsDeliberate((string)($row['specification'] ?? ''))) {
+            continue;
+        }
         $listName = (string)$row['name'];
         $listRaw  = (string)($row['raw_name'] ?? '');
-        // Never the row the user said "I finished this" about.
-        if (evershelfSpecIsDeliberate((string)($row['specification'] ?? ''))) {
+        if (evershelfShoppingRowStillNeeded($db, $index, $listName, $listRaw, $familyUsableQty)) {
             continue;
         }
-        // Still predicted by the cache → the auto-add would put it straight back.
-        $si = $index !== [] ? evershelfSmartItemFor($index, $listName, $listRaw) : null;
-        if ($si !== null && evershelfSmartItemIsStillNeeded($db, $si)) {
-            continue;
-        }
-        if (seasonalShoppingItemOutOfSeason($listName)
-            || ($listRaw !== '' && seasonalShoppingItemOutOfSeason($listRaw))) {
-            $db->prepare('DELETE FROM shopping_list WHERE id = ?')->execute([(int)$row['id']]);
-            $removed++;
-            continue;
-        }
-        $bestPid  = null;
-        foreach ($prods as $p) {
-            if (!shoppingListRowMatchesProduct($db, $listName, $listRaw, (string)$p['name'], (string)($p['shopping_name'] ?? ''))) {
-                continue;
-            }
-            $bestPid = (int)$p['id'];
-            break;
-        }
-        if ($bestPid === null) {
-            continue;
-        }
-        $eval = shoppingEvaluateFamilyRestock($db, $bestPid);
-        if (!empty($eval['covered'])) {
-            $db->prepare('DELETE FROM shopping_list WHERE id = ?')->execute([(int)$row['id']]);
+        $candidates++;
+        $del->execute([(int)$row['id']]);
+        if ($del->rowCount() > 0) {
             $removed++;
         }
     }
+    if ($removed > 0) {
+        // A read-path deletion is worth a line: it is the only trace of "the list changed itself".
+        EverLog::info('shopping_prune_covered', [
+            'event' => 'shopping_prune_covered',
+            'candidates' => $candidates,
+            'removed' => $removed,
+        ]);
+    }
     // Do not invalidate smart_shopping_cache here: prune only touches shopping_list
     // rows. Unlinking mid-cron made internalShoppingAutoAddCritical see no_cache.
-    return ['removed' => $removed];
+    return ['candidates' => $candidates, 'removed' => $removed];
 }
 
 function internalShoppingDedupeGenerics(PDO $db): array {

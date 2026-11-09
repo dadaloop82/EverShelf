@@ -13870,6 +13870,27 @@ body.offline-mode #smart-shopping {
     font-variant-numeric: tabular-nums;
     color: var(--text-muted);
 }
+/* ── THE progress bar of the stocktake ───────────────────────────────────────
+   One widget, painted by the three mode sheets, by every card (a proposed one and a single
+   question alike) and by the camera. It is the acknowledgement that the three ways are one
+   stocktake: it must never come and go with the mode — a bar that only the propose run has
+   cannot show a shelf being checked by barcode, and a fresh session used to print no line at
+   all, which read as "the run is lost". Same numbers everywhere, from the first card on. */
+.audit-progress-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    min-width: 0;
+}
+/* The bar never disappears behind a long count: it keeps a readable width and the count wraps
+   under it (a phone, a big font, the four kinds of answer on one line). */
+.audit-progress-wrap .audit-progress { min-width: 64px; }
+.audit-progress-tally { font-weight: 600; color: var(--text-muted); }
+/* In the card's head it shares the line with the ✕; in the session bar it takes its own. */
+.audit-top > .audit-progress-wrap { flex: 1 1 auto; }
+.audit-session-bar > .audit-progress-wrap { flex: 1 1 100%; margin-top: 4px; }
+/* On the camera the chrome is white on black: the bar follows it, never the page. */
 .audit-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 /* The stocktake panel has NO title: "Verifica la dispensa" said nothing a household did not
    already know (the mode switch and «Inventario di …» below say it), and it stole the first line
@@ -13914,28 +13935,54 @@ body.offline-mode #smart-shopping {
 }
 .audit-scope.is-done span[aria-hidden] { color: var(--brand-primary, #059669); font-weight: 700; }
 
-/* ── The three ways to run a stocktake ──────────────────────────────────────
-   «Uno alla volta» (the app proposes) | «Ti dico io» (the household names it) | «Scansiona»
-   (the barcode). One segmented row of three, the chosen one emerald: it is a choice between
-   equal ways, not a primary action, so none of them wears the solid emerald of the confirm. */
+/* ── The three ways to run a stocktake, as TABS ─────────────────────────────
+   «Uno per uno» (the app proposes) | «Ti dico io» (the household names it) | «Codice a barre»
+   (the camera). One segmented row of three, the chosen one emerald: it is a choice between equal
+   ways, not a primary action, so none of them wears the solid emerald of the confirm.
+   The row is painted at the top of EVERY view (the three sheets, the card of the run, the picker
+   of an unreadable code): the banner opens straight into a card, and a mode switch that only the
+   sheets carry disappears the moment the stocktake starts. */
 .audit-modes {
     display: flex;
-    gap: 8px;
-    margin: 12px 0 4px;
+    gap: 4px;
+    margin: 8px 0 12px;
+    padding: 4px;
+    border-radius: 14px;
+    border: 1px solid var(--surface-border, var(--border));
+    background: var(--bg-app, #f8fafc);
 }
 .audit-mode {
     flex: 1 1 0;
     min-width: 0;
-    min-height: 44px;
-    padding: 10px 8px;
+    min-height: 40px;
+    padding: 8px 6px;
     font: inherit;
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     font-weight: 700;
-    border-radius: 12px;
-    border: 1px solid var(--surface-border, var(--border));
-    background: var(--surface-bg, #f8fafc);
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
     color: var(--text-main, inherit);
     cursor: pointer;
+    /* Two elements, one control: the glyph and the word, 6 px apart. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.audit-mode-icon { font-size: 1.15rem; line-height: 1; }
+/* A narrow phone cannot hold three labels (in six languages) on one line: the switch becomes
+   three big ICONS. The word does not disappear — it is the `title`/`aria-label` of the button —
+   and the tap target grows instead of shrinking, because this is the one control that decides
+   how the stocktake is run. 480 px is the same phone breakpoint the lists use. */
+@media (max-width: 480px) {
+    .audit-mode {
+        min-height: 52px;
+        padding: 8px 6px;
+        gap: 0;
+    }
+    .audit-mode-icon { font-size: 1.6rem; }
+    .audit-mode-label { display: none; }
 }
 .audit-mode.is-active {
     border-color: var(--brand-primary, #059669);
@@ -13980,26 +14027,22 @@ body.offline-mode #smart-shopping {
     gap: 8px;
     width: 100%;
 }
-.audit-foot-links { display: flex; gap: 8px; flex-wrap: wrap; }
-/* ── The stocktake's OWN camera ─────────────────────────────────────────────
-   A stream of its own, on its own overlay: the shopping trip keeps its scanner (and its panels,
-   its AI and its session) because a stocktake in front of a shelf is a different procedure. The
-   viewfinder fills the screen, one calm frame says where to aim, the place and the running tally
-   sit underneath. No `backdrop-filter` here: this overlay covers everything on a wall tablet. */
-.audit-scan-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 240;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+/* ── The stocktake's OWN camera, INSIDE the panel ────────────────────────────
+   A stream of its own (the shopping trip keeps its scanner, its AI and its session), but no longer
+   a takeover: the viewfinder sits in the sheet's body as a framed 4:3 box, so the header, the three
+   tabs and the running tally stay on screen while the household scans a shelf — «puoi lasciarlo
+   dentro al tab e non farlo a tutto schermo?». */
+.audit-cam {
+    position: relative;
+    margin: 0 0 10px;
+    border-radius: 14px;
     overflow: hidden;
     background: #000;
+    aspect-ratio: 4 / 3;
+    max-height: 46vh;
 }
-.audit-scan-overlay[hidden] { display: none !important; }
 #audit-scan-video {
-    position: absolute;
-    inset: 0;
+    display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -14010,51 +14053,38 @@ body.offline-mode #smart-shopping {
     position: absolute;
     left: 50%;
     top: 50%;
-    width: min(78vw, 520px);
-    height: min(30vh, 200px);
+    width: min(78%, 420px);
+    height: min(38%, 150px);
     transform: translate(-50%, -50%);
-    border: 2px solid rgba(255, 255, 255, 0.75);
-    border-radius: 16px;
-    box-shadow: 0 0 24px rgba(0, 0, 0, 0.45);
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    border-radius: 14px;
+    box-shadow: 0 0 18px rgba(0, 0, 0, 0.4);
     pointer-events: none;
 }
-.audit-scan-chrome {
+/* The ✕ ON the picture turns the camera off; the sheet stays open on its tab. */
+.audit-cam-stop {
     position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 16px;
-    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-    color: #fff;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
-}
-.audit-scan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.audit-scan-titles { min-width: 0; }
-.audit-scan-eyebrow {
-    margin: 0;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    opacity: 0.85;
-}
-.audit-scan-title { margin: 2px 0 0; font-size: 1.05rem; font-weight: 700; }
-.audit-scan-status { margin: 0; min-height: 1.2em; font-size: 0.9rem; font-weight: 600; }
-.audit-scan-close {
-    flex: 0 0 auto;
-    width: 44px;
-    height: 44px;
+    top: 8px;
+    right: 8px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    background: rgba(0, 0, 0, 0.5);
     color: #fff;
     font: inherit;
-    font-size: 1.1rem;
+    font-size: 1rem;
+    line-height: 1;
     cursor: pointer;
 }
+.audit-scan-status {
+    margin: 0 0 6px;
+    min-height: 1.2em;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted, #64748b);
+}
+.audit-scan-progress { margin: 0 0 6px; }
 .audit-search-input { margin: 6px 0 10px; }
 .audit-search-results { display: flex; flex-direction: column; gap: 8px; }
 /* A hit is a row: the place mark, the thumb, the name and where it is, then ONE action. The mark is
@@ -14155,7 +14185,11 @@ body.offline-mode #smart-shopping {
 .audit-expiry { white-space: nowrap; }
 .audit-expiry.is-expired { color: var(--tone-danger, #dc2626); font-weight: 700; }
 /* The four exceptions: same weight, same colour, no alarm palette — the emoji says what they
-   are. "Finito" and "andato a male" are twins and must not look like two different apps. */
+   are. "Finito" and "andato a male" are twins and must not look like two different apps.
+   TWO BY TWO at every width: the labels are short by construction («Finito», «Andato a male»,
+   «Modifica», «Sposta»), and a column of four pushed the question off a phone screen — the report
+   «metti i 4 bottoni in griglia 2 x 2». A long locale («Se ha estropeado») wraps inside its cell,
+   never widens the grid, and the two cells of a row always share the height. */
 .audit-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -14176,7 +14210,10 @@ body.offline-mode #smart-shopping {
     font: inherit;
     font-size: 0.86rem;
     font-weight: 650;
+    line-height: 1.2;
     text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
     cursor: pointer;
 }
 .audit-cell:active { background: var(--bg-app, #f1f5f9); }
@@ -14195,6 +14232,75 @@ body.offline-mode #smart-shopping {
 .audit-product-name { margin: 0; font-weight: 700; font-size: 1.05rem; line-height: 1.25; }
 .audit-product-brand { margin: 2px 0 0; font-weight: 500; color: var(--text-muted, #64748b); font-size: 0.82rem; }
 .audit-product-meta { margin: 4px 0 0; font-size: 0.82rem; color: var(--text-muted, #64748b); }
+/* ── The other packs of the same article ─────────────────────────────────────
+   A barcode points at an ARTICLE, not at a package: «6 pz» on a shelf that also holds a 30-pack
+   is only half the answer, and the scan used to open one row with no way to reach the other.
+   One line per pack (place, stock, date) and a tap opens THAT row's card inside the same
+   stocktake (`_auditOpenPack`). */
+.audit-packs {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--surface-border, var(--border));
+    border-radius: 12px;
+    background: var(--surface-bg, #f8fafc);
+}
+.audit-packs-title {
+    margin: 0 0 6px;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted, #64748b);
+}
+.audit-packs-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.audit-pack-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 34px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-main, inherit);
+    font: inherit;
+    font-size: 0.86rem;
+    line-height: 1.2;
+    text-align: left;
+    cursor: pointer;
+}
+.audit-pack-line:active { background: color-mix(in srgb, var(--border) 35%, transparent); }
+.audit-pack-ico { font-size: 1rem; line-height: 1; flex: 0 0 auto; }
+.audit-pack-place {
+    font-weight: 650;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.audit-pack-qty {
+    margin-left: auto;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #047857;
+    white-space: nowrap;
+}
+.audit-pack-date {
+    font-size: 0.76rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted, #64748b);
+    white-space: nowrap;
+}
+.audit-pack-go { flex: 0 0 auto; color: var(--text-muted, #64748b); font-weight: 800; }
 /* A scale reading is a shortcut, not a warning: a mint pill like the product sheet. */
 .audit-scale-pill {
     display: flex;
@@ -14300,9 +14406,10 @@ body.offline-mode #smart-shopping {
     60%  { box-shadow: 0 0 0 12px rgba(5, 150, 105, 0); }
     100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
 }
-@media (max-width: 420px) {
-    /* Two columns would cut the labels in half on a small phone: one per row, still compact. */
-    .audit-grid { grid-template-columns: 1fr; }
+/* A phone's cell is narrower, never fewer: the 2×2 stays. */
+@media (max-width: 480px) {
+    .audit-grid { gap: 6px; }
+    .audit-cell { min-height: 44px; padding: 8px 8px; font-size: 0.82rem; gap: 5px; }
 }
 
 /* Receipt OCR (#114): the review table is the safety net before the pantry. */

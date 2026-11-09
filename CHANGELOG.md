@@ -1,4 +1,4 @@
-# Changelog
+perchè# Changelog
 
 All notable changes to EverShelf will be documented in this file.
 
@@ -150,6 +150,202 @@ the real stylesheets and the real pantry.
   opened, `conf` 2 → sealed, quantity 0 → sealed.
   A row already used *before* this fix keeps its old state (no `opened_at` is invented): the
   «Aperto» switch in the product sheet corrects it in one tap, or the next partial use does.
+
+### Changed
+- **The two facts a row is read for are now the two biggest things in it.** The stock and the
+  expiry were 0.86 / 0.84 rem with a 750 weight — the same size as the category line under the
+  name, which is why a shelf row read as a paragraph and not as a list. They are now **0.95 rem /
+  800** (the chip, in its mint pill, at the size of the product name) and **0.9 rem / 800** (the
+  date, in its own state colour), and the strip's gap went 8 → 6 px to pay for them. Measured in
+  headless Chromium with the real stylesheets at 320 → 1200 px: every row is still **132 px**,
+  the 34 px action line absorbs the growth.
+  The date itself had to become **compact by construction**, exactly like the opened age
+  («🕓 4gg»): «⏳ Scade tra 12 giorni» is 136 px at the new size and the strip has 126 px for it
+  beside a quantity chip and two buttons on a 360 px phone (the old sizes fitted by **0.3 px** of
+  292, which is why they had to stay small). The pantry now says what the Home badges already
+  said — «⏰ Scade fra 12gg», «⚠️ 12 gg fa», «📅 ~3 mesi», «✅ Stabile» past a year — with the full
+  sentence in the `title` and the exact date in the tooltip. Two details fell out of it: the row
+  printed **two** ⚠️ on an expired row and on «Scade oggi!» (the keys already carry the glyph,
+  and the markup prefixed it again), and «📅 Quedan 3 meses» (139 px, the widest locale) wrapped
+  the action line on a phone.
+  Known and unchanged: a French «⚠️ Expire aujourd'hui !» (149.7 px) and a medicine's
+  «Aperto da 4 gg · consigliato max 7 gg» still wrap their action line at 360 px — both did
+  before this change.
+- **The stocktake's three ways are three TABS, always on screen — and three icons on a phone.**
+  The report («dove sono le tre opzioni nell'inventario veloce? non vedo più né i bottoni né le
+  icone») exposed two things: the switch was painted only by `_auditStartPaint()` — the three
+  sheets — while the pantry banner goes **straight into the card of a run** (`_auditBegin` /
+  `_auditSessionView`), so it vanished the moment the stocktake started, and its words were not the
+  household's. `_auditModeSwitchHtml()` is now rendered at the top of **every** view (the three
+  sheets, the card of the run, a card opened by name or by barcode, the picker of an unreadable
+  code — the camera keeps the full screen, it IS the third tab), with the labels **«Uno per uno» |
+  «Ti dico io» | «Codice a barre»** (`audit.mode_*`, six locales) in a segmented row on its own
+  surface (`--bg-app`, 4 px padding, emerald tint on the active tab). Measured in the simulation:
+  3 tabs with exactly 1 active in all five views. Below 480 px the CSS drops `.audit-mode-label` and
+  the tab becomes its icon — **26 px inside a 52 px tap target**, growing instead of shrinking —
+  while `title`/`aria-label` keep the word (the German «Eins nach dem anderen» wraps its label above
+  that, 60 px, as before).
+  The labels are resolved with a literal t-call at the call site, so `scripts/i18n-audit.py` sees
+  `audit.mode_*` as used instead of "defined but unused".
+
+### Fixed
+- **A barcode points at an ARTICLE, not at a package.** Scanning the code of a product the house
+  owns in more than one pack (the report: «i dadi di brodo … mi fa vedere solo una e non mi propone
+  l'altra») opened the sheet of ONE row and stopped there: the other packs were not offered
+  anywhere. Two causes, both fixed:
+  - the product sheet's «Anche in» block read `currentInventory` — **the place the pantry happens
+    to be filtered to** — so a pack on another shelf did not exist in that list at all, and two
+    packs in the SAME place were indistinguishable (no date). It now reads the whole pantry, one
+    line per ROW with place, stock **and expiry**, and the line itself **opens that pack's sheet**
+    (`_itemDetailSwitchPack`): «consume the other one» is one tap, the ✏️ still corrects it;
+  - the sheet now leads with **how much of the article the house has** (`_itemDetailTotalPacksHtml`,
+    «📦 38 pz in tutto»), because «6 pz» on a shelf that also holds a 30-pack is half the answer.
+  The stocktake card carries the same thing as a list under the facts (`_auditOtherPacksHtml`: place,
+  stock, date, one line per pack) whose tap opens **that** row's card inside the same run (mode
+  `pack`: the card returns to the run it belongs to, and the way the household chose is not
+  rewritten). Measured on the real data of «Brodo Il Dado Classico» (6 pz + 30 pz on the same shelf,
+  2 in the fridge, one depleted row): the sheet lists 2 other packs with their dates, the total
+  reads 38 pz, the tap opens the 30-pack row, and the stocktake card offers the 30-pack line which
+  opens that row's card.
+- **The shopping list stopped adding and removing the same urgent rows.** The report: «continua a
+  mettere e togliere prodotti urgenti, come se qualcosa si accorgesse che mancano e qualcos'altro
+  che ce ne sono abbastanza». It was not a feeling: two automations were deleting rows that a third
+  had just added. `shopping_remove` **unlinks** `data/smart_shopping_cache.json` on purpose, and
+  during that window both `internalShoppingPruneCovered()` (on **every** `shopping_list` read) and
+  `bringQuickSyncProduct()` (on **every** inventory write — a stocktake, answer after answer) treated
+  the missing cache as "nothing is needed": they fell back to the family-coverage rule and deleted
+  the rows, then the next cron rebuilt the cache and `internalShoppingAutoAddCritical()` put them
+  straight back. Measured on a real pantry: the list went 14 → 2 rows in minutes, while the cron log
+  showed `added: 8` — then `added: 8` again ten minutes later.
+  **No cache = no knowledge**: both paths now refuse to delete anything while the smart cache is
+  absent (only a cache that EXISTS and does not ask may remove a row), and the read-path prune asks
+  the SAME question the cron and the Bring! transport ask (`evershelfShoppingRowStillNeeded()` + the
+  family-stock callable) instead of hand-rolling a second rule. A read that deletes now writes a
+  `shopping_prune_covered` line, and a quick-sync with no cache writes
+  `shopping_quick_sync_no_cache`: the next report has evidence.
+- **The quick sync no longer dies on «database is locked».** `internalFindShoppingListRowByGeneric()` returned
+  from **inside** its `while ($stmt->fetch())` loop, leaving the read cursor open; the caller
+  (`shoppingSyncProductFromCache`) then issued the `UPDATE` on the same connection, and SQLite
+  answers that with `SQLSTATE[HY000] 5 database is locked` after the 20 s busy timeout — so the
+  real-time sync failed exactly when it had something to write (every time a suggested quantity
+  changed), leaving the row with a stale specification. The cursor is closed before returning, and
+  the reproduction (a plain CLI call of `bringQuickSyncProduct()`) now completes in milliseconds.
+- **«Panna da cucina» with six packs in the pantry read "urgent".** The `conf` unit had **no** guard
+  in `shoppingSanitizeDailyRate()` (only `pz` did), and the "typical purchase" was computed from a
+  log that counted grams as packs (597 `conf` consumed, 200 `conf` bought in one go): the row read
+  `near_empty:6 · ends_in:0 · urgency high` with **6 packs on the shelf**, so the cron kept asking
+  for what was there — and the deletion paths kept disagreeing with it. Three fixes, one vocabulary:
+  `shoppingUnitIsPack()` (`conf`/`pz`/`busta`/`pacco`/`barattolo`/`confezione`/`pezzo`, one list for
+  the rate guard, the coverage rule and the cap), the rate guard now covers `conf` (a pack a day is
+  already generous; the usage frequency is the ceiling), and `SMART_PACK_REF_QTY_MAX` (10) caps a
+  pack row's reference purchase so «86 packs» can never be the yardstick. Re-running
+  `smartShopping()` on the same data: the panna leaves the suggestions, «Amido di mais» goes from
+  `days_left 1` to 25, and the next cron adds 12 rows that then STAY.
+- **A barcode the catalogue knows but no shelf holds is now a QUESTION, not a dead end.** Scanning a
+  tin of «Tonno ai semi di girasole» from the pantry answered «non c'è nell'inventario» while the
+  tin was standing right there. The code resolves to a *second* catalogue row for the same article
+  (the one created when the code was first scanned, the stock on the row added by hand), so the
+  lookup by `product_id` found no row — and the answer was a toast that left the camera running and
+  the household with no way forward.
+  `_auditRowForProduct()` now looks the row up by `product_id` and then **by the article's name**
+  (folded, the shelf being inventoried first); that fallback writes one `[AUDIT]` line into
+  `data/logs/app-*.log`, because two `products` rows for one article is a DATA problem and the log is
+  where it is found instead of blamed on the scanner. When no shelf holds the article at all, the
+  camera closes and the picker of «Ti dico io» opens with the code on its head and **the name the
+  catalogue gave us already in the field** (`audit.assign_known_hint`, all six locales), so one tap
+  says which row it really is. An association the server refuses (`barcode_already_used`, the code
+  belongs to another row) no longer strands the run either: the card of the row the household just
+  picked opens anyway, because that row is the question in front of them.
+  Measured in the simulation (the real `audit.js` driven in node): a barcode resolving to product 99
+  — no stock — with the same article stocked on product 42 opens the card of THAT row; an article
+  with no row at all opens the picker, prefilled, bar included; a refused association opens the card.
+- **The stocktake's progress bar no longer disappears, and it actually moves.** It was the propose
+  run's own counter (`(index+1)/total`), printed only when the run had more than one card: a card
+  opened by name or by barcode is a run of **one** for the wizard, so its counter read «1 di 1» on
+  every box the household scanned and never moved — the report «rimane sempre a uno» — and the
+  three sheets' line (`_auditSessionBarHtml`) printed **nothing** on a fresh session, so switching
+  from «Ti dico io» to «Scansiona» to «Uno alla volta» looked like losing the run.
+  There is now **one bar, one number, every view**: `_auditProgress` (→ `_auditProgressHtml`) counts
+  the rows the stocktake is ABOUT — the place being inventoried, or the whole pantry — against the
+  ones the session answered, i.e. the same ledger the scope list counts, so «Frigo (37)» and the
+  bar can never disagree. It is painted by the three mode sheets, by **every** card (a proposed one
+  and a single question alike), by the panel of an unreadable barcode (`_auditAssignView`) and by
+  the camera (`#audit-scan-progress` → `_auditScanProgressPaint()`), with the breakdown beside the
+  count («40 di 206 · ✓ 33 · 🏁 3»). The open card counts as the one being looked at (`inHand`), so
+  the first of fifteen reads 7% and never an empty line; the bar keeps a 64 px minimum and the count
+  wraps under it, so a long place name or a big font cannot squeeze it away (measured in headless
+  Chromium: the card head stays **23 px** at 320 → 600 px, with and without all four counters).
+- **The tally stopped jumping back to «✓ 1».** `_auditScopeKey()` read the **pantry's own filter**
+  before the stocktake's choice, so a run started on Frigo followed `currentLocation` the moment it
+  pointed elsewhere: `_auditSessionFor()` then opened a session for the new place, which starts at
+  zero. Measured in the simulation (`/tmp` harness driving the real `audit.js`): one answer on Frigo
+  → the pantry filter moves to Dispensa → the sheet read «Inventario di Dispensa: **✓ 1**» and the
+  next answers counted 1, 2 on the wrong shelf while Frigo's rows were unanswered again. The scope
+  is now **pinned** when a run starts or a mode is entered (`_auditScopePinned` / `_auditSetScope`,
+  released by `_auditStop`, so the next stocktake starts from the place the household is standing
+  in), and `_auditAdoptRunCounts()` never replaces a session that has answers (a barcode-only run
+  has no card order, and adopting the server's blob over it was a second way to lose the ledger).
+  Same simulation after the fix: Frigo keeps counting 1 → 2 → 3 across the filter change, the mode
+  switch and a scanned box.
+
+### Fixed
+- **The chat's «Usa» buttons now come from the recipe's ingredients, not from its prose.** The
+  report: «quando mi propone una ricetta i bottoni “usa” sono di ingredienti che non vengono nemmeno
+  citati nella ricetta». `_chatUseActionsHtml()` matched the pantry against the **whole reply**, and
+  a recipe proposal opens by listing what is about to expire — the real answer from the DB reads
+  «i prodotti freschi che scadono prima sono: **Pan Bauletto** … **Yogurt** … **Kiwi rossi e
+  Zucchine** …» before the dish, so «Zucchine» got its own «Usa» button on a French Toast. Each
+  button is now taken from the reply's **ingredient sections**
+  (`_chatIngredientBlocks()`: every `### Ingredienti:` / `**Ingredienti:**` label up to the next
+  label — a reply may propose two options — in the six languages), and only when the reply has no
+  such section (a plain answer: «hai il latte in frigo, usalo») does the whole text remain the
+  scope. Measured on the two real conversations in the database: 2 ingredient blocks and 1 found,
+  every button's keyword now appears in an ingredient line, and «Zucchine» — named only in the
+  introduction — no longer has one.
+
+### Changed
+- **The four exceptions are a 2×2 grid on every screen.** «Finito», «Andato a male», «Modifica»,
+  «Sposta» were already `grid-template-columns: 1fr 1fr` — but a `@media (max-width: 420px)` override
+  collapsed them into a **column of four** on every phone («mettimi i 4 bottoni in griglia 2 x 2»),
+  which pushed the question and the product off the screen. The override is gone: the four labels are
+  short by construction, a long locale («Se ha estropeado») wraps **inside** its cell instead of
+  widening the grid, and on a phone the cells only lose padding (`8 px`, `0.82 rem`). Measured in
+  headless Chromium with the real stylesheets at 320 → 900 px: **2 rows × 2 cells everywhere**, cell
+  137 px at 320, 157 at 360, 256 from 600 up, no label clipped, and the two cells of a row always
+  share the height.
+- **The stocktake's camera lives inside the panel, not over the whole screen.** The report: «quando
+  si usa la telecamera per il codice a barre puoi lasciarlo dentro al tab e non farlo a tutto
+  schermo?». `#audit-scan-overlay` was `position: fixed; inset: 0` — opening the barcode tab threw
+  the sheet, the three tabs and the running tally away and left a black viewfinder, so the household
+  lost sight of the place it was inventorying. The live view is now a framed 4:3 box **in the sheet's
+  body** (`_auditScanLiveHtml()`, `.audit-cam`), painted by `_auditStartPaint()` when `_auditCamOn`
+  is set: the header, the tabs, the progress bar and the status line all stay around it, and the
+  video is capped at 46 vh so the sheet never becomes a viewfinder. **Two ✕, two meanings**: the one
+  ON the picture turns the camera off (`audit.scan_stop_camera`, six locales) and leaves the sheet
+  open on its tab with the «Apri la fotocamera» button, while the panel's own ✕ closes the
+  stocktake. Measured in headless Chromium with the real stylesheets: 320×240 at a 360 px phone,
+  491×368 from 600 px up (4:3, 46 vh cap) with the guide frame inside, panel 420–566 px tall.
+  Measured in the simulation: the panel stays visible with the viewfinder in it, the three tabs are
+  there, the tally reads «1 di 5 · ✓ 1» under the picture, and stopping the camera repaints the
+  tab with the start button.
+
+### Fixed
+- **The stocktake asks each ARTICLE once per shelf, not once per pack.** The report: «facendo
+  l'inventario misto tra lettore codici, ti dico io e uno per uno poi mi richiede le stesse cose che
+  ho già confermato». The pantry really does hold several packs of the same product in the same
+  place — **17 such groups** in this household's own data (Amido di mais ×3, Limone ×3, Riso basmati
+  ×3, i dadi, il tonno, il mais…) — and «Uno per uno» asked one card per ROW, so the same name and
+  photo came back with only the date changed. `_auditAnswer()` now answers the **whole shelf
+  position** in one go: «C'è» confirms every pack of that article in that place, «Finito» /
+  «Andato a male» queue **one write per pack** (the API empties one row per call, so two packs need
+  two and the shelf really ends up empty), the tally still counts ONE answer, and the card advances
+  past the packs it just covered (`_auditAdvancePastAnswered()`). Another SHELF stays another
+  question, and «Annulla ultima» reverts the whole answer — every queued or already-sent write and
+  every `answered` entry (`entry.rows` / `entry.siblings`).
+  Measured in the harness against the real `audit.js` (rows 8+9 of «Tonno ai semi di girasole» in
+  the pantry, row 10 in the fridge): «C'è» stamps 8 and 9 and leaves 10 alone, «Finito» sends exactly
+  **two** `inventory_use` calls and never the fridge one, the tally reads ✓ 1, the undo empties the
+  queue and the ledger, and the card after the answer is row 10 — the sibling never comes back.
 
 ## [1.31.24] - 2026-11-08
 

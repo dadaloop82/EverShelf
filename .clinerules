@@ -93,14 +93,19 @@ runtime/binary files — if a task truly needs one, ask first.
   sections, every `.alert-item` is a card with the pantry's chrome — and the chrome is
   **tokens**: `--es-radius-card` / `--es-shadow-card` (18 px, what `elegant.css` gives
   `.inventory-item`), never `--radius` / `--shadow` (24 px); title `0.95rem` and meta
-  `0.84rem` in both; `.alert-item-badges` has a **34 px floor**; `.alert-item + .alert-item`
+  `0.84rem` in both, and **the two facts a row is read for are the biggest things in it**:
+  the stock chip `0.95rem/800` (mint pill), the date `0.9rem/800`, the same in the Home's
+  badges — a 34 px action line absorbs both, so every row stays 132 px (measured 320 → 1200);
+  `.alert-item-badges` has a **34 px floor**; `.alert-item + .alert-item`
   must not zero `border-top` (1 px shorter every row); the brand lives **inside** the name
   (`_alertItemHead()`), never as a flex sibling (a third line, +18 px). Every one of these
   was wrong once: the Home lists measured 149.86 / 131 / 132.86 / 120.8 / 190.8 px against
   the pantry's 132, now 132.00 × 5. **When the card is too narrow it sheds, never wraps**:
   the long labels are compact **by construction** (not by a media query) — "🕓 4gg" for the
-  opened age and "📦 2 pz" for the stock, unit abbreviated per language
-  (`dashboard.days_short`), the full sentence in the `title` — the strip walks its ladder and
+  opened age, "⏰ Scade fra 12gg" / "⚠️ 12 gg fa" / "📅 ~3 mesi" / "✅ Stabile" for the expiry
+  (the full sentence in the `title`, the exact date in the tooltip) and "📦 2 pz" for the
+  stock, unit abbreviated per language
+  (`dashboard.days_short`, `expiry.badge_expiring_short`) — the strip walks its ladder and
   only below 480 px does the brand go: the product name is never sacrificed. That is a
   **media query** on purpose: `container-type: inline-size` on the row collapsed the pantry rows
   in the touch-tablet band (296 px instead of 600) because that band sizes its columns by
@@ -125,10 +130,27 @@ runtime/binary files — if a task truly needs one, ask first.
   rows already stored without one. And when the suggested quantity would outlive the food,
   `smartShopping()` attaches `waste` and the row prints the smaller amount beside it
   (`🍃 (2 pz)` + `shopping.waste_hint`), emerald and never red: nothing is lost yet.
+- **The shopping list must not fight itself.** Three things add or drop a row —
+  `internalShoppingAutoAddCritical()` (cron), `internalShoppingPruneCovered()` (every
+  `shopping_list` READ) and `bringQuickSyncProduct()` (every inventory WRITE) — and they must
+  answer with ONE predicate, `evershelfShoppingRowStillNeeded()` (+ the family stock), never with
+  a second copy. **No cache = no knowledge**: `shopping_remove` unlinks
+  `data/smart_shopping_cache.json`, and while it was gone the read-path prune and the quick sync
+  read "no cache" as "nothing is needed", deleted every app-managed row whose family was stocked
+  and let the next cron put them back — «mette e toglie», 14 → 2 rows while the cron logged
+  `added: 8` twice. Both now return early on an empty smart index (test the ITEMS:
+  `evershelfSmartItemsIndex([])` is `['exact'=>[], 'token'=>[]]`, never `[]`), and the two events
+  log `shopping_prune_covered` / `shopping_quick_sync_no_cache`. **A pack row counts PACKS**:
+  `shoppingUnitIsPack()` (`conf`, `pz`, `busta`, `pacco`, `barattolo`, `confezione`, `pezzo`) is the
+  one vocabulary for the daily-rate guard, the coverage rule and `SMART_PACK_REF_QTY_MAX` — without
+  the `conf` branch a gram log written as `conf` (597 consumed, 86 per purchase) made «Panna da
+  cucina» read `near_empty:6 · ends_in:0` with SIX packs on the shelf.
 - **A write that dies in flight is queued, never dropped.** `api()` hands a failed write to the
   offline queue (`_queueWriteAfterNetworkFail`), so a purchase marked while the phone was
   offline survives; `_syncOfflineQueue()` replays it at boot, on `online` and when offline
   mode is left. One list (`_OFFLINE_QUEUEABLE_ACTIONS`) for both paths.
+- **The stocktake asks each ARTICLE once per SHELF, not once per pack.** 17 groups of the same product in the same place exist in a real pantry (Amido ×3, Limone ×3, il tonno, i dadi…), and one card per ROW asked the same name twice («poi mi richiede le stesse cose che ho già confermato»). `_auditAnswer()` stamps every pack of that article in that place (`entry.siblings`), queues ONE write per pack for «Finito»/«Andato a male» (`inventory_use` empties one row per call), counts ONE answer, advances past the packs it covered (`_auditAdvancePastAnswered`) and `_auditUndo()` reverts the whole answer (`entry.rows`). Another SHELF stays another question.
+- **A barcode points at an ARTICLE, not at a package.** A product standing in several packs must never show only the one on screen: the product sheet's «Anche in» block (`_itemDetailOtherPlacesHtml`) reads the WHOLE pantry (`_allInventoryCache`, never the place the list is filtered to), one line per ROW with place, stock and expiry, the line itself opens that pack's sheet (`_itemDetailSwitchPack`) and the ✏️ edits that row; the head adds the total across the packs (`_itemDetailTotalPacksHtml`). The stocktake card lists them too (`_auditOtherPacksHtml` → `_auditOpenPack`, mode `pack`) and `_auditFinish` returns to the run instead of closing it. «6 pz» on a shelf that also holds a 30-pack is half the answer (report: i dadi di brodo).
 - **One discard sheet.** `openWasteSheet()` → `_showWasteRecordModal()` (quantity + the four
   reasons) is every "Butta": row, banner, swipe, action page. A medicine keeps its short
   confirm. Never re-add `showThrowForm()` / `throwAll` / `throwPartial`.
@@ -212,9 +234,23 @@ runtime/binary files — if a task truly needs one, ask first.
   **Three ways, one card, one ledger.** `_auditMode` (persisted under `evershelf_audit_mode`) switches
   between «Uno alla volta» (the app proposes, `_auditScopesBodyHtml` + `_auditBegin`), «Ti dico io»
   (`_auditSearchBodyHtml`: a name in, `_auditSearchMatches` over the pantry ROWS — `here` first,
-  `elsewhere` after) and «Scansiona» (`_auditScanStart` opens the stocktake's OWN camera on its
-  own overlay: independent of the shopping scanner, sharing only the decoder and the catalogue
-  lookup). The three answer the SAME question about the same shelf, so they
+  `elsewhere` after) and «Scansiona» (`_auditScanStart` opens the stocktake's OWN camera INSIDE the panel
+  (`_auditScanLiveHtml`, a framed box in the sheet's body — never a full-screen takeover: the tabs
+  and the tally stay on screen, and the ✕ on the picture turns the camera off), independent of the
+  shopping scanner, sharing only the decoder and the catalogue lookup). **The three ways are TABS, drawn in EVERY view** (`_auditModeSwitchHtml`: the sheets, the card of the run, a card opened by name or by barcode, the picker of an unreadable code), labelled «Uno per uno» / «Ti dico io» / «Codice a barre». **On a narrow phone the tabs are three ICONS**: below 480 px
+  the CSS drops `.audit-mode-label`, the glyph grows to 25.6 px inside a 52 px tap target and the
+  three labels survive in `title`/`aria-label` — «Uno alla volta» / «Ti dico io» / «Scansiona»
+  (and the longer German) cannot share one line three ways, and a switch whose words wrap pushes
+  the card down. **ONE progress bar, and it never comes and goes** (`_auditProgress` →
+  `_auditProgressHtml`): `total` is the rows the run is ABOUT and `done` the ones the session
+  answered (the same ledger the scope list counts), and it is painted by the three mode sheets, by
+  EVERY card — a card opened by name or by barcode is a run of ONE for the wizard, and its own
+  counter read «1 di 1» on every box and never moved — by the panel of an unreadable code and by
+  the camera (`#audit-scan-progress`), with the breakdown beside the count («40 di 206 · ✓ 33»).
+  The scope is **pinned** (`_auditScopePinned`, released by `_auditStop`): reading the pantry's own
+  filter mid-run moved the ledger to another shelf and a session for a new scope starts at zero
+  («✓ 4» became «✓ 1» and never moved again), and `_auditAdoptRunCounts` never replaces a session
+  that has answers. The three answer the SAME question about the same shelf, so they
   share `_auditSession` (counts + answered + the propose run's `order`/`index`): a card opened by
   name (`_auditSearchPick`) or by barcode (`_auditScanCard`) counts in the same tally, «Riepilogo»
   (`_auditShowSummary` → `_auditRenderSummary`) reads that ledger from any sheet, «↩ Torna alla card»
@@ -222,8 +258,13 @@ runtime/binary files — if a task truly needs one, ask first.
   ends it (`_auditEndSession`). `_auditFinish` returns to the sheet of the way the answer came in.
   The camera hands over through `_auditScanHit(code)` → `_resolveBarcodeLookup()` and it takes ONLY
   a product with usable stock (that row is the stocktake's question, preferring the row of the place
-  being inventoried, `_auditScanCard`); anything else keeps the stream running and says so
-  (`audit.scan_no_match` / `audit.scan_not_stocked`). The ✕ or Esc close it and
+  being inventoried, `_auditScanCard`) — looked up by `product_id` and then by the article's NAME
+  (`_auditRowForProduct`), because one article can live in two `products` rows and the scan of a tin
+  standing in the pantry answered «Tonno ai semi di girasole non c'è nell'inventario». Anything the
+  app cannot place — an unknown code OR a known one with no stock — does NOT stop on a toast: the
+  camera closes and the picker of «Ti dico io» opens (`_auditAssignView`, the name already in the
+  field when it is known), and a pick whose `product_barcode_set` is refused
+  (`barcode_already_used`) still opens the card of the row that was picked. The ✕ or Esc close it and
   `visibilitychange` releases the stream, so it never outlives the sheet. The second mode is
   about what is really on a
   shelf: a depleted row and a product the app knows with no stock anywhere are **never listed**,
@@ -235,8 +276,8 @@ runtime/binary files — if a task truly needs one, ask first.
   (`_auditSearchMoveHere` → `inventory_update { location }`, then the live caches + `loadInventory`)
   for one that does not. An unknown name still offers `audit.search_create`
   (`_auditSearchCreate`). A one-question card is never a resumable run of its own — its answer
-  lands in the session, and what resumes is the propose run it belongs to — and mode 1's card
-  carries a quiet «🔎 Ti dico io» link and a «📷 Scansiona» one that keep the run.
+  lands in the session, and what resumes is the propose run it belongs to — and the three TABS at the top of
+  every view are the only switch (they keep the run), so the card carries no duplicate way in.
 - **A place is deletable only when empty — and the server decides.** `POST location_delete`
   (`locationDeleteAction`) removes a built-in too (`app_settings.deleted_locations`, subtracted by
   `validInventoryLocations()`), refuses a place with usable stock (`in_use`) and refuses to leave
@@ -264,6 +305,7 @@ runtime/binary files — if a task truly needs one, ask first.
   → «Sto elaborando…» with the ring turned into a spinner the instant the sentence closes
   (silence deadline 1,4 s, so the screen is never still for seconds), and the `[Esegui]`
   field lives behind a neutral «Preferisco scrivere» link, never in the voice view.
+- **In the chat the «Usa» buttons belong to the RECIPE, not to the prose.** `formatChatReply()` appends `_chatUseActionsHtml(text)`, and it must read only the reply's ingredient sections (`_chatIngredientBlocks()`: every `### Ingredienti:` / `**Ingredienti:**` label up to the next label, in the six languages) — matching the whole answer put a «Usa» on every product the INTRODUCTION named («i prodotti che scadono prima: yoghurt, farina, kiwi, zucchine…»), so a recipe ended up offering ingredients it never uses. With no ingredient section (a plain answer) the whole text stays the scope.
 - **Two versions in the header, one rule for space.** `.header-version` stays a **bare semver**
   (`reportError()` reads it as the app version); the kiosk APK version lives in
   `#header-kiosk-version` ("kiosk 1.7.26"), from `_kioskBridge.getAppVersion()`. `_paintKioskVersion()`

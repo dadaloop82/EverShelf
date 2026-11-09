@@ -85,6 +85,23 @@ function shoppingFallbackDailyRate(float $usage, float $daysSinceFirst): float
 }
 
 /**
+ * Unit words that count PACKS or PIECES, not a mass and not a volume.
+ *
+ * ONE vocabulary for a fact three places need: the daily-rate guard, the "a pack covers a
+ * purchase" coverage rule and the typical-purchase cap. `conf` was missing from the rate guard,
+ * and a gram log written as `conf` (597 "conf" of panna consumed, 86 "conf" per purchase) gave a
+ * pack row a daily rate of tens of packs — «Panna da cucina» with SIX packs in the pantry read
+ * «near_empty:6 · ends_in:0» and went back on the shopping list at every cron run.
+ */
+function shoppingUnitIsPack(string $unit): bool
+{
+    return in_array(mb_strtolower(trim($unit)), [
+        'conf', 'pz', 'busta', 'buste', 'pacco', 'pacchi',
+        'barattolo', 'barattoli', 'confezione', 'confezioni', 'pezzo', 'pezzi',
+    ], true);
+}
+
+/**
  * Hard cap on daily consumption rate (g/ml/pz already sanitized elsewhere).
  */
 function shoppingSanitizeDailyRate(
@@ -103,7 +120,10 @@ function shoppingSanitizeDailyRate(
 
     $u = strtolower(trim($unit));
 
-    if ($u === 'pz') {
+    if (shoppingUnitIsPack($u)) {
+        // A pack a day is already generous, and the usage frequency is the ceiling that matters:
+        // without this branch a `conf` row had NO guard at all (the `pz` one skipped it), so one
+        // gram-logged consumption made days_left read 0 and the row "urgent" forever.
         if ($useCount > 0 && $usesPerMonth > 0) {
             $cap = ($usesPerMonth / 30.0) * 1.2;
             $dailyRate = min($dailyRate, max(0.2, $cap));
