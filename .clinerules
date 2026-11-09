@@ -167,6 +167,13 @@ runtime/binary files — if a task truly needs one, ask first.
   (`isInventoryDepleted`), and when a `pz` row still holds whole pieces — no pack was opened,
   and "la confezione aperta" about three eggs is a lie (a half piece still asks). A skipped
   question never strands the caller: `landing` is honoured and both move contexts are cleared.
+- **A `pz` row is judged by the FRACTION of a piece, never by `default_quantity`**: on a `pz` row
+  that number is often the pack's WEIGHT (Pan Bauletto `pz` with 400 made **20 pieces** read as
+  «0.05 of a pack → opened» and **5 pieces** as «sealed», the two answers the wrong way round).
+  «Opened» is `opened_at`, or half a piece / half a package; only `g`/`kg`/`ml`/`l` compare
+  against `default_quantity`. And using PART of a perishable `pz` row stamps `opened_at` in
+  `useFromInventoryCore` (the bag of sliced bread really is open) — the 9999 sentinel (salt,
+  sugar, a detergent) never is.
 - **The product sheet leads with the package.** Its head is a 64×64 thumbnail (12 px radius)
   that opens the photo **full screen** (`openProductImageLightbox` → `#image-lightbox`, Esc or a
   tap outside closes it), then the title, then the **brand on its own line** (`.item-detail-brand`)

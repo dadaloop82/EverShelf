@@ -2150,7 +2150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261109i'; // bump when translations change
+const _I18N_VERSION = '20261109j'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -27022,11 +27022,31 @@ function _renderUseExpiryHint(items) {
     hintEl.style.display = 'block';
 }
 
+/**
+ * Is this row an OPENED pack?
+ *
+ * `opened_at` is the truth. When it is missing, the shape of the quantity may imply it — but only
+ * for units that are COUNTED, and never by dividing by `default_quantity`:
+ *
+ * - `conf`: a fraction of a package is an opened package (0.5 conf);
+ * - `pz`: a fraction of a PIECE is an opened pack (0.5 pz, half a loaf);
+ * - `g` / `kg` / `ml` / `l`: a quantity that is not a whole number of packs is a pack that was
+ *   opened (750 g of a 1 000 g bag).
+ *
+ * A `pz` row was being divided by `default_quantity` too, and on those rows that number is often
+ * the WEIGHT of the pack (Pan Bauletto: `pz`, `default_quantity` 400): 20 pieces read as "0.05 of
+ * a pack" → **opened** (a shelf nobody touched), and 5 pieces fell inside the 2 % tolerance →
+ * **sealed** (the pack that had just been used). Both were wrong, and the two answers were the
+ * wrong way round.
+ */
 function _isOpenedInventoryItem(item) {
+    if (!item) return false;
     if (item.opened_at) return true;
     const q = parseFloat(item.quantity);
+    if (!Number.isFinite(q) || q <= 0) return false;
+    const unit = String(item.unit || 'pz');
+    if (unit === 'conf' || unit === 'pz') return q !== Math.floor(q);
     const dq = parseFloat(item.default_quantity) || 0;
-    if (item.unit === 'conf' && dq > 0) return q !== Math.floor(q);
     if (dq > 0) return Math.abs(q - Math.round(q / dq) * dq) > dq * 0.02;
     return false;
 }

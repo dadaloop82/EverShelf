@@ -6780,6 +6780,18 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
             // Opened = a fractional (non-integer) quantity remains
             $f = round($newQty - floor($newQty + 0.001), 6);
             if ($f > 0.001) $isNowOpened = true;
+        } elseif ($unit === 'pz') {
+            // A tray/bag of PIECES that lost some of them was opened: the sliced bread, the tray
+            // of eggs, the pack of rusks. What remains is not sealed stock any more, and the
+            // post-opening clock (PAO) is what tells the household how long it keeps. There is no
+            // "half a piece" accounting to split, so this is the same row marked open — and a
+            // NON-perishable (the 9999 sentinel: salt, sugar, a detergent) is never "opened",
+            // which is what keeps the Home's «Aperti» list honest.
+            $pName = (string)($prodInfo['name'] ?? '');
+            $pCat = (string)($prodInfo['category'] ?? '');
+            if (estimateOpenedExpiryDaysPHP($pName, $pCat, $location) < 9999) {
+                $isNowOpened = true;
+            }
         } elseif (in_array($unit, ['g','kg','ml','l']) && $defQty > 0) {
             // Opened = remaining qty is not a clean multiple of the package size
             $pkgRem = round($newQty - floor($newQty / $defQty + 0.001) * $defQty, 6);

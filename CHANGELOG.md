@@ -130,6 +130,27 @@ the real stylesheets and the real pantry.
   206 · Fridge 87`, field empty, «Tutto» opens `1 of 206`; after a page reload the same numbers and
   `Stocktake of Fridge: ✓ 1` come back from the server.
 
+### Fixed
+- **A pack of pieces that lost some of them is OPENED — and a shelf nobody touched is not.**
+  `_isOpenedInventoryItem()` divided the stock by `default_quantity` on `pz` rows too, and on those
+  rows that number is often the **weight of the pack**: the Pan Bauletto kept in the living room (20
+  pieces of a row whose `default_quantity` is 400) read as «0.05 of a pack → opened», while the one
+  that had just been used in the kitchen (5 pieces, inside the 2 % tolerance) read as **sealed** —
+  the two answers the wrong way round. Counted units are now judged by the FRACTION of a piece or a
+  package (`0.5 pz`, `0.5 conf`), and only `g` / `kg` / `ml` / `l` compare against
+  `default_quantity`.
+  And using PART of a perishable `pz` row now stamps the opening (`useFromInventoryCore`): the bag
+  of sliced bread really is open, so the row carries `opened_at` and its date is re-dated on the
+  post-opening clock; a **non-perishable** (the 9999 sentinel: salt, sugar, a detergent) is never
+  marked opened, which is what keeps the Home's «Aperti» list honest.
+  Measured on scratch products: `pz` bread 5 → 4 through `inventory_use` became `opened_at = now`
+  with the expiry re-dated 2026-11-20 → 2026-11-13, while `pz` salt 3 → 2 stayed `opened_at = NULL`
+  with its sealed date. Client cases: `pz` 20 and `pz` 5 → sealed, `pz` 4 with `opened_at` →
+  opened, `pz` 0.5 → opened, `g` 300 of a 400 pack → opened, `g` 800 → sealed, `conf` 1.5 →
+  opened, `conf` 2 → sealed, quantity 0 → sealed.
+  A row already used *before* this fix keeps its old state (no `opened_at` is invented): the
+  «Aperto» switch in the product sheet corrects it in one tap, or the next partial use does.
+
 ## [1.31.24] - 2026-11-08
 
 ### Security
