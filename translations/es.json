@@ -296,6 +296,7 @@
     "stale_edit": "Editar",
     "stale_throw": "Tirar",
     "stale_opened": "Abierto",
+    "days_short": "{n}d",
     "banner_expired_detail": "{when} · aún tienes <strong>{qty}</strong>.",
     "banner_opened_detail": "{when} en {location} · aún tienes <strong>{qty}</strong>.",
     "banner_expired_action_modify": "Editar",

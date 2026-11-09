@@ -312,6 +312,7 @@
     "stale_edit": "编辑",
     "stale_throw": "丢弃",
     "stale_opened": "已开封",
+    "days_short": "{n}天",
     "banner_expired_detail": "{when} · 仍有 <strong>{qty}</strong>。",
     "banner_opened_detail": "{location} · {when} · 仍有 <strong>{qty}</strong>。",
     "banner_prediction_confirmed": "✅ 已确认——系统会从下次入库开始重新计算预测",

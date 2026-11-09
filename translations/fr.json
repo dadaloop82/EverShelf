@@ -296,6 +296,7 @@
     "stale_edit": "Modifier",
     "stale_throw": "Jeter",
     "stale_opened": "Ouvert",
+    "days_short": "{n}j",
     "banner_expired_detail": "{when} · il vous reste encore <strong>{qty}</strong>.",
     "banner_opened_detail": "{when} dans {location} · il vous reste encore <strong>{qty}</strong>.",
     "banner_expired_action_modify": "Modifier",

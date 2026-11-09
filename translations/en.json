@@ -312,6 +312,7 @@
     "stale_edit": "Edit",
     "stale_throw": "Discard",
     "stale_opened": "Opened",
+    "days_short": "{n}dy",
     "banner_expired_detail": "{when} · you still have <strong>{qty}</strong>.",
     "banner_opened_detail": "{when} in {location} · you still have <strong>{qty}</strong>.",
     "banner_prediction_confirmed": "✅ Confirmed — forecasts will recalculate from your next entries",

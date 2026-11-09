@@ -2145,7 +2145,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261109a'; // bump when translations change
+const _I18N_VERSION = '20261109b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -12399,18 +12399,40 @@ function _alertItemHead(item) {
  * Second line of a dashboard row: where the product is, how much is left and any
  * extra note ("🗄️ Dispensa · ne hai ancora 15 conf · non usato da 40 giorni").
  */
+/**
+ * A label with two forms: the full sentence and the narrow one.
+ *
+ * `surfaces.css` shows one or the other with a container query on the card, because only the
+ * card knows how much room it has (the same row lives in a 360 px phone section and on a
+ * tablet). The narrow form is never a truncation: it is the same fact written shorter —
+ * "ne hai ancora 2 pz" → "🗄️ 2 pz", "Aperto da 4 giorni" → "🕓 4gg" — so a wrapped action line
+ * is not the price of a long translation.
+ */
+function _dualLabelHtml(fullHtml, shortHtml) {
+    return `<span class="label-full">${fullHtml}</span><span class="label-short">${shortHtml}</span>`;
+}
+
 function _alertItemMeta(item, extra = '') {
     if (!item) return '';
     const locKey = normalizeLocationKey(item.location);
     const locInfo = LOCATIONS[normalizeLocationKey(locKey)] || { icon: '📦', label: item.location || '' };
     const parts = [];
     if (item.location && locInfo.label) parts.push(`${locInfo.icon} ${locInfo.label}`);
+    let qtyPlain = '';
     if (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') {
         const qty = stripHtml(formatQuantityForItem(item));
-        if (qty) parts.push(t('dashboard.still_have_qty', { qty }));
+        if (qty) {
+            qtyPlain = qty;
+            parts.push(t('dashboard.still_have_qty', { qty }));
+        }
     }
     if (extra) parts.push(extra);
-    return parts.length ? `<span class="alert-item-qty">${escapeHtml(parts.join(' · '))}</span>` : '';
+    if (!parts.length) return '';
+    // Narrow card: the place mark and the number, nothing else.
+    const short = [locInfo.icon, qtyPlain].filter(Boolean).join(' ');
+    return `<span class="alert-item-qty">`
+        + _dualLabelHtml(escapeHtml(parts.join(' · ')), escapeHtml(short))
+        + '</span>';
 }
 
 let _staleRotateTimer = null;
@@ -15196,7 +15218,12 @@ function _inventoryExpiryBadgeHtml(item) {
                 const cls = over ? 'inv-time-expired' : (daysOpen >= Math.max(1, max - 7) ? 'inv-time-urgent' : 'inv-time-opened');
                 return `<span class="inv-time ${cls}">⚠️ ${escapeHtml(t(key, { n: daysOpen, max }))}</span>`;
             }
-            return `<span class="inv-time inv-time-opened">📦 ${escapeHtml(t('inventory.opened_for_days', { n: daysOpen }))}</span>`;
+            return `<span class="inv-time inv-time-opened">`
+                // Narrow card: "🕓 4gg" instead of "📦 Aperto da 4 giorni" — the same fact,
+                // short enough to keep the action line on one row on a phone (see _dualLabelHtml).
+                + _dualLabelHtml('📦 ' + escapeHtml(t('inventory.opened_for_days', { n: daysOpen })),
+                                 '🕓 ' + escapeHtml(t('dashboard.days_short', { n: daysOpen })))
+                + '</span>';
         }
         if (!item.expiry_date) {
             return `<span class="inv-time inv-time-far">🛡️ ${escapeHtml(t('medical.state_new'))}</span>`;
@@ -15223,7 +15250,12 @@ function _inventoryExpiryBadgeHtml(item) {
             }
         }
         if (Number.isFinite(daysOpen)) {
-            return `<span class="inv-time inv-time-opened">📦 ${escapeHtml(t('inventory.opened_for_days', { n: daysOpen }))}</span>`;
+            return `<span class="inv-time inv-time-opened">`
+                // Narrow card: "🕓 4gg" instead of "📦 Aperto da 4 giorni" — the same fact,
+                // short enough to keep the action line on one row on a phone (see _dualLabelHtml).
+                + _dualLabelHtml('📦 ' + escapeHtml(t('inventory.opened_for_days', { n: daysOpen })),
+                                 '🕓 ' + escapeHtml(t('dashboard.days_short', { n: daysOpen })))
+                + '</span>';
         }
     }
     if (!item.expiry_date) return '';
@@ -20134,7 +20166,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261109a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261109b';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20144,7 +20176,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261109a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261109b';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

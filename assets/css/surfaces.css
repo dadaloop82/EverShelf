@@ -238,6 +238,34 @@ body {
    row, nowhere near the photo: padding it there squeezed it into three broken lines. */
 html.is-kiosk .inventory-item .inv-row-content .inv-card-bottom,
 html.is-touch-tablet .inventory-item .inv-row-content .inv-card-bottom { padding-left: 0; }
+
+/* ── Too narrow? Then the card sheds what it can spare ────────────────────────
+   A row never wraps onto a second action line: the household reads a list by scanning
+   heights, and one tall row breaks the rhythm of the whole panel. Below 480 px of VIEWPORT
+   (the width at which the long labels stop fitting — measured, not guessed: the pantry row
+   needs ~434 px and the Home card ~456) three things happen, in this order:
+     1. the BRAND goes (it is a variant of the article, not the article);
+     2. the text gutter shrinks from 26% to its 5% minimum (the photo is a hint, the words
+        are the content);
+     3. every long label switches to its compact form (`.label-short`, built by
+        `_dualLabelHtml()`): "🕓 4gg" instead of "📦 Aperto da 4 giorni", "🗄️ 2 pz" instead of
+        "🗄️ Dispensa · ne hai ancora 2 pz".
+   The product NAME is never sacrificed: it is what the row is for.
+   A container query would be the textbook answer (`container-type: inline-size` on the card),
+   but the pantry rows sit in a band whose columns are sized by their content: size containment
+   collapses them to their own content (296 px instead of 600 in the touch-tablet band, measured
+   in headless Chromium). The viewport is a safe proxy here — the list is one column. */
+.label-short { display: none; }
+@media (max-width: 480px) {
+    .label-full { display: none; }
+    .label-short { display: inline; }
+    .alert-item .alert-item-brand,
+    .inventory-item .inv-brand-inline { display: none; }
+    .alert-item .alert-item-info,
+    .alert-item .alert-item-badges,
+    .inventory-item .inv-row-content .inv-card-top,
+    .inventory-item .inv-row-content .inv-card-bottom { padding-left: 5%; }
+}
 /* A phone's action line may wrap, but its pieces never break in half (the date used to
    split into "12/03/20 / 27"). */
 .inventory-item .inv-row-content .inv-card-bottom { flex-wrap: wrap; row-gap: 6px; }

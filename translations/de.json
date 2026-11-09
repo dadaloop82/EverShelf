@@ -312,6 +312,7 @@
     "stale_edit": "Bearbeiten",
     "stale_throw": "Wegwerfen",
     "stale_opened": "Geöffnet",
+    "days_short": "{n}T",
     "banner_expired_detail": "{when} · du hast noch <strong>{qty}</strong>.",
     "banner_opened_detail": "{when} in {location} · du hast noch <strong>{qty}</strong>.",
     "banner_prediction_confirmed": "✅ Bestätigt — Prognosen werden aus den nächsten Einträgen neu berechnet",

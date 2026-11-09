@@ -312,6 +312,7 @@
     "stale_edit": "Modifica",
     "stale_throw": "Butta",
     "stale_opened": "Aperto",
+    "days_short": "{n}gg",
     "banner_expired_detail": "{when} · hai ancora <strong>{qty}</strong>.",
     "banner_opened_detail": "{when} in {location} · hai ancora <strong>{qty}</strong>.",
     "banner_prediction_confirmed": "✅ Confermato — il sistema ricalcolerà le previsioni dalle prossime registrazioni",

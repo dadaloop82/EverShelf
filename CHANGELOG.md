@@ -112,6 +112,24 @@ exploited, and the two items that change a default are called out as such.
     tooltip) and the opened age stays in the meta line and in the sheet.
   Height, radius, shadow, border and the 10 px rhythm are now identical in all five lists at
   every width — re-measured after the fix: **132.00 px × 5**.
+- **A long label may not make a row taller: on a narrow card the row sheds, in a fixed order.**
+  Below **480 px** of viewport the card gives up, in this sequence, only what it can spare:
+  1. the **brand** (a variant of the article, not the article — the name is never sacrificed);
+  2. the text gutter, from **26% down to its 5% minimum** (the photo is a hint, the words are
+     the content);
+  3. the long labels, which switch to a compact form built by `_dualLabelHtml()`:
+     **"🕓 4gg"** instead of "📦 Aperto da 4 giorni" and **"🗄️ 2 pz"** instead of
+     "🗄️ Dispensa · ne hai ancora 2 pz" — different marks for the two facts, and the unit is
+     abbreviated per language (`dashboard.days_short`: `{n}gg` · `{n}dy` · `{n}T` · `{n}j` ·
+     `{n}d` · `{n}天`).
+  Measured with real phones widths (iframes, so the media query is the page's own): all five
+  lists stay **132.00 px** at 320 / 360 / 375 / 390 / 414 / 430 / 460 / 480 / 500 / 560 / 760 /
+  1024 px, with no action line ever wrapping onto a second row.
+  **This is a media query on the viewport, not a container query on the card** — and the reason
+  is worth keeping: `container-type: inline-size` on the row made the pantry rows collapse to
+  their own content in the touch-tablet band (296 px wide instead of 600, measured in headless
+  Chromium), because that band sizes its columns by content. A one-column list has no use for a
+  container query anyway.
 
 ### Upgrade check
 - **`php scripts/check-upgrade-migration.php`** answers "will this release eat the household's

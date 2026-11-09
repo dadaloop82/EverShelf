@@ -81,7 +81,13 @@ runtime/binary files — if a task truly needs one, ask first.
   must not zero `border-top` (1 px shorter every row); the brand lives **inside** the name
   (`_alertItemHead()`), never as a flex sibling (a third line, +18 px). Every one of these
   was wrong once: the Home lists measured 149.86 / 131 / 132.86 / 120.8 / 190.8 px against
-  the pantry's 132, now 132.00 × 5. A **medicine** opens
+  the pantry's 132, now 132.00 × 5. **When the card is too narrow it sheds, never wraps**:
+  below 480 px of viewport the brand goes, the text gutter drops to its 5% minimum and the long
+  labels switch to their compact form (`_dualLabelHtml()`: "🕓 4gg", "🗄️ 2 pz",
+  `dashboard.days_short`) — the product name is never sacrificed. That is a **media query** on
+  purpose: `container-type: inline-size` on the row collapsed the pantry rows in the
+  touch-tablet band (296 px instead of 600) because that band sizes its columns by content.
+  A **medicine** opens
   with its own drawn
   mark (`_medIconMarkup()`, `assets/img/icons/medicine.svg`), never a food emoji:
   same for the plain emoji slots (`_productCatIconHtml()`), the `badge-medical`
