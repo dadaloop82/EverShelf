@@ -52,6 +52,8 @@
     "move_here": "Mover aquí",
     "move_done": "Movido a {place}",
     "move_failed": "No puedo moverlo: inténtalo de nuevo.",
+    "elsewhere_hint": "«{name}» figura en {place}, no en {scope}. ¿Está aquí delante de ti?",
+    "elsewhere_leave": "No, déjalo donde está",
     "mode_scan": "Código de barras",
     "scan_hint": "Apunta al código de barras: se abre la ficha de ese producto, igual que con las otras dos vías.",
     "scan_open": "Abrir la cámara",

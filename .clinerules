@@ -270,11 +270,26 @@ runtime/binary files — if a task truly needs one, ask first.
   shelf: a depleted row and a product the app knows with no stock anywhere are **never listed**,
   and the place the stocktake is about (`_auditScopeKey`: the run's scope → the pantry's open place
   → the last one, kept in `evershelf_audit_scope`) comes FIRST under its own heading. Each hit
-  opens with the place mark — ✓ `audit.mark_here` / ✕ `audit.mark_elsewhere` — and the action on
+  opens with the place mark — ✓ `audit.mark_here` / ✕ `audit.mark_elsewhere` — carries the CARD's
+  own two facts on two lines (`_auditHitFactsHtml`, the same helper the barcode picker uses: the
+  place + the stock, then the date with its own mark, both bold at `0.95rem/800` against the
+  `0.82rem` of the line around them, expired in red) and the action on
   the right answers the same question: the emerald **✓ C'è** (`_auditSearchQuickThere`, the "there"
   answer with no card) for a row that belongs here, a neutral **Sposta qui**
   (`_auditSearchMoveHere` → `inventory_update { location }`, then the live caches + `loadInventory`)
-  for one that does not. An unknown name still offers `audit.search_create`
+  for one that does not. **Below 520 px the action is one icon** («✓ C'è», «↪ Sposta qui»,
+  «🔗 È questo», the words in `title` + `aria-label`, a 44 px tap target): with the label the pill
+  ate ~110 px and the text column fell to 123 px on a 393 px phone, where the place printed UNDER
+  the pill. The place and the stock are two nowrap groups (`.audit-hit-seg`, ellipsis) that may
+  wrap between each other, so a long place name never slides under the action. **A scan never walks
+  into another shelf**: a row the ledger puts in ANOTHER place is a QUESTION (`_auditElsewhereView`
+  — «Sposta qui» / «No, lascia dov'è», eyebrow = the place being inventoried, the session/pin
+  untouched), never a silent jump to that shelf's card; the same guard covers the ✕ rows of the
+  search list (`_auditSearchPick`), and only an explicit pick on a line that prints its place (the
+  barcode picker) opens that row's card. The BRAND sits on
+  the line under the product name (`_auditHitTitleHtml`, one line, tail ellipsised; a product with
+  no brand omits it). An unknown name
+  still offers `audit.search_create`
   (`_auditSearchCreate`). A one-question card is never a resumable run of its own — its answer
   lands in the session, and what resumes is the propose run it belongs to — and the three TABS at the top of
   every view are the only switch (they keep the run), so the card carries no duplicate way in.

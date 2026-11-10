@@ -52,6 +52,8 @@
     "move_here": "移到这里",
     "move_done": "已移到{place}",
     "move_failed": "无法移动，请重试。",
+    "elsewhere_hint": "「{name}」登记在{place}，不在{scope}。它就在你面前吗？",
+    "elsewhere_leave": "不，留在原处",
     "mode_scan": "条形码",
     "scan_hint": "对准条形码：打开该产品的卡片，与其他两种方式相同。",
     "scan_open": "打开相机",

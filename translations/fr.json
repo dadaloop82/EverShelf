@@ -52,6 +52,8 @@
     "move_here": "Déplacer ici",
     "move_done": "Déplacé dans {place}",
     "move_failed": "Déplacement impossible : réessayez.",
+    "elsewhere_hint": "«{name}» est enregistré en {place}, pas en {scope}. Est-il ici devant toi ?",
+    "elsewhere_leave": "Non, laisse-le où il est",
     "mode_scan": "Code-barres",
     "scan_hint": "Vise le code-barres : la fiche de ce produit s’ouvre, exactement comme avec les deux autres voies.",
     "scan_open": "Ouvrir la caméra",

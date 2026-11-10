@@ -765,6 +765,52 @@ function _auditSearchMatches(term) {
 }
 
 /**
+ * The two facts of a hit row, one per line: where it stands + how much, then WHEN it expires.
+ *
+ * The search list showed the place and the stock and nothing else, so two packs of the same
+ * article — the rice in the pantry that expires in March and the one in the cupboard that expires
+ * next month — were indistinguishable, and picking the wrong one answers the wrong question.
+ * The date is the SAME fact the card carries, with the same words (`audit.expiry_on` /
+ * `expiry_was` / `expiry_none`) and its own mark on its own line, and the stock and the date are
+ * bold and a notch larger than the place line around them (`.audit-hit-facts` in `style.css`), so
+ * a hit reads exactly like the card it opens. A row with no date says so instead of hiding it.
+ */
+function _auditHitFactsHtml(it) {
+    const loc = (typeof LOCATIONS !== 'undefined' && LOCATIONS[normalizeLocationKey(it.location)])
+        || { icon: '📦', label: it.location || '' };
+    const qty = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
+        ? stripHtml(formatQuantity(it.quantity, it.unit, it.default_quantity, it.package_unit))
+        : `${it.quantity || ''} ${it.unit || ''}`.trim();
+    const hasExpiry = !!(it && it.expiry_date);
+    const date = hasExpiry && typeof formatDate === 'function' ? formatDate(it.expiry_date) : '';
+    const expired = hasExpiry && typeof daysUntilExpiry === 'function' && daysUntilExpiry(it.expiry_date) < 0;
+    const expiryFact = hasExpiry
+        ? t(expired ? 'audit.expiry_was' : 'audit.expiry_on', { date })
+        : t('audit.expiry_none');
+    return `<span class="audit-hit-facts">
+                        <span class="audit-hit-fact audit-hit-fact-place"><span class="audit-hit-seg"><span aria-hidden="true">${escapeHtml(loc.icon || '📍')}</span> ${escapeHtml(loc.label || '')} ·</span><span class="audit-hit-seg"><span aria-hidden="true">📦</span> <strong class="audit-hit-qty">${escapeHtml(qty)}</strong></span></span>
+                        <span class="audit-hit-fact audit-hit-fact-expiry"><span aria-hidden="true">⏳</span> <span class="audit-expiry${expired ? ' is-expired' : ''}">${escapeHtml(expiryFact)}</span></span>
+                    </span>`;
+}
+
+/**
+ * The name of a hit, with its BRAND on the next line.
+ *
+ * The row said the product and where it stands, and nothing about who makes it: «Fusilli Pasta di
+ * Semola di Grano Duro» is the same sentence on a premium box and on the discount one, and the
+ * household recognises the package by its brand before it reads the name. It is a line of its own
+ * under the name — the pantry row and the card put it beside/under the name for the same reason —
+ * and it is never trimmed to make room: only the tail can be ellipsised. A row with no brand
+ * simply omits the line.
+ */
+function _auditHitTitleHtml(it) {
+    const name = escapeHtml(it.display_name || it.name || '');
+    const brand = String((it && it.brand) || '').trim();
+    return `<span class="audit-hit-name">${name}</span>${brand
+        ? `<span class="audit-hit-brand">${escapeHtml(brand)}</span>` : ''}`;
+}
+
+/**
  * One hit of the search list.
  *
  * The row opens with the PLACE MARK — the one fact that matters here: ✓ it is where you are
@@ -778,23 +824,22 @@ function _auditSearchRowHtml(it, scope) {
     const placeLabel = _auditScopeLabel(scope);
     const loc = (typeof LOCATIONS !== 'undefined' && LOCATIONS[locKey])
         || { icon: '📦', label: it.location || '' };
-    const qty = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
-        ? stripHtml(formatQuantity(it.quantity, it.unit, it.default_quantity, it.package_unit))
-        : `${it.quantity || ''} ${it.unit || ''}`.trim();
     const thumb = (typeof _productThumbHtml === 'function') ? _productThumbHtml(it) : '';
     const mark = inScope
         ? `<span class="audit-hit-mark is-here" title="${escapeAttr(t('audit.mark_here', { place: placeLabel || loc.label || '' }))}" aria-hidden="true">✓</span>`
         : `<span class="audit-hit-mark is-elsewhere" title="${escapeAttr(t('audit.mark_elsewhere', { place: placeLabel }))}" aria-hidden="true">✕</span>`;
+    const thereLabel = t('audit.there_is');
+    const moveLabel = t('audit.move_here');
     const action = inScope
-        ? `<button type="button" class="audit-hit-quick" onclick="_auditSearchQuickThere(${Number(it.id)})"><span aria-hidden="true">✓</span> ${escapeHtml(t('audit.there_is'))}</button>`
-        : `<button type="button" class="audit-hit-move" onclick="_auditSearchMoveHere(${Number(it.id)})">${escapeHtml(t('audit.move_here'))}</button>`;
+        ? `<button type="button" class="audit-hit-quick" title="${escapeAttr(thereLabel)}" aria-label="${escapeAttr(thereLabel)}" onclick="_auditSearchQuickThere(${Number(it.id)})"><span aria-hidden="true">✓</span> <span class="audit-hit-action-label">${escapeHtml(thereLabel)}</span></button>`
+        : `<button type="button" class="audit-hit-move" title="${escapeAttr(moveLabel)}" aria-label="${escapeAttr(moveLabel)}" onclick="_auditSearchMoveHere(${Number(it.id)})"><span aria-hidden="true">↪</span> <span class="audit-hit-action-label">${escapeHtml(moveLabel)}</span></button>`;
     return `<div class="audit-hit${inScope ? '' : ' is-elsewhere'}">
             <button type="button" class="audit-hit-open" onclick="_auditSearchPick(${Number(it.id)})">
                 ${mark}
                 <span class="audit-hit-thumb">${thumb}</span>
                 <span class="audit-hit-text">
-                    <span class="audit-hit-name">${escapeHtml(it.display_name || it.name || '')}</span>
-                    <span class="audit-hit-meta">${escapeHtml(loc.icon || '📍')} ${escapeHtml(loc.label || '')} · ${escapeHtml(qty)}</span>
+                    ${_auditHitTitleHtml(it)}
+                    ${_auditHitFactsHtml(it)}
                 </span>
             </button>
             ${action}
@@ -853,7 +898,9 @@ function _auditSearchQuickThere(invId) {
         _auditRenderSearchResults();
         return;
     }
-    _auditSearchPick(invId);
+    // `_auditSearchPick` answers false when the row belongs to another shelf (it asks instead):
+    // there is no card to confirm, and the shelf being inventoried is not touched.
+    if (!_auditSearchPick(invId)) return;
     if (!_audit || _audit.finished) return;
     _auditAnswer('there');
 }
@@ -867,23 +914,23 @@ function _auditSearchQuickThere(invId) {
  */
 async function _auditSearchMoveHere(invId) {
     const scope = _auditScopeKey();
-    if (!scope) return;
+    if (!scope) return false;
     const it = _auditItems().find(r => Number(r.id) === Number(invId));
-    if (!it) return;
+    if (!it) return false;
     const placeLabel = _auditScopeLabel(scope);
     let res = null;
     try {
         res = await api('inventory_update', {}, 'POST', { id: it.id, location: scope });
     } catch (_e) {
         showToast(t('audit.move_failed'), 'error');
-        return;
+        return false;
     }
     if (!res || res.success === false) {
         const msg = (typeof _apiErrorText === 'function')
             ? _apiErrorText(res || {})
             : ((res && (res.message || res.error)) || t('audit.move_failed'));
         showToast(msg, 'error');
-        return;
+        return false;
     }
     if (typeof _patchLiveInventoryItem === 'function') _patchLiveInventoryItem(it.id, { location: scope });
     if (_audit && !_audit.finished) {
@@ -894,6 +941,7 @@ async function _auditSearchMoveHere(invId) {
     if (typeof loadInventory === 'function') {
         loadInventory().then(() => _auditRenderSearchResults()).catch(() => { /* the patch already shows it */ });
     }
+    return true;
 }
 
 /**
@@ -934,11 +982,19 @@ function _auditOneCardView(it, mode, label) {
     _auditRender();
 }
 
-/** Tap a pantry row → the same card as the other mode, for that one product. */
+/** Tap a pantry row → the same card as the other mode, for that one product. `false` = asked instead. */
 function _auditSearchPick(invId) {
     const it = _auditItems().find(r => Number(r.id) === Number(invId));
-    if (!it) return;
+    if (!it) return false;
+    // The search lists the packs of OTHER shelves too (marked ✕): opening one of those cards would
+    // answer a shelf the household is not standing at. It gets the same question a scan gets.
+    const scope = _auditScopeKey();
+    if (scope && normalizeLocationKey(it.location) !== scope) {
+        _auditElsewhereView(it, scope);
+        return false;
+    }
     _auditOneCardView(it, 'search', String(_auditSearchTerm || '').trim());
+    return true;
 }
 
 /** Nothing matched at all: create it (the product form, with the typed name already in). */
@@ -1298,6 +1354,13 @@ async function _auditScanHit(code) {
  * A product can stand in two places (a fridge pack and a pantry pack): the row of the place being
  * inventoried wins, which is the row the household is standing in front of — unless the caller
  * already named the row (`preferRowId`, the "this one" of the barcode picker).
+ *
+ * **The stocktake never walks to another shelf on its own.** When the only row of that article
+ * lives ELSEWHERE, opening its card was a silent jump: the card's head named «Verifica Dispensa
+ * cucina» while the household was inventorying the living room, and answering it confirmed a shelf
+ * it was not standing in front of — and there may well be packs of the same article here, recorded
+ * nowhere. So an out-of-scope row is a QUESTION (`_auditElsewhereView`): «è qui?», answered by the
+ * household; the place being inventoried does not change in either answer.
  */
 function _auditScanCard(row, opts = {}) {
     const scope = _auditScopeKey();
@@ -1309,7 +1372,107 @@ function _auditScanCard(row, opts = {}) {
         || rows.find(r => !scope || normalizeLocationKey(r.location) === scope)
         || rows[0] || row;
     const fresh = _auditItems().find(r => Number(r.id) === Number(preferred.id)) || preferred;
+    // A row the household tapped by name (the picker prints the place on every line) is an explicit
+    // choice; a row the SCANNER matched is not. Only the second one asks.
+    if (!picked && scope && normalizeLocationKey(fresh.location) !== scope) {
+        _auditElsewhereView(fresh, scope);
+        return;
+    }
     _auditOneCardView(fresh, 'scan', fresh.display_name || fresh.name || '');
+}
+
+/* ── The pack is on ANOTHER shelf: ask, never jump ───────────────────────────
+ * Reported: inventorying «Mobile Soggiorno», scanning a product the ledger placed in «Dispensa
+ * cucina» opened THAT shelf's card — «mi cambia tutto, mi scrive verifica dispensa cucina» — so the
+ * household, standing in the living room, was asked to confirm a pantry it could not see. Two
+ * things are true at once: the app's row IS somewhere else, and the box in their hands is here (and
+ * there may well be packs here that the ledger never recorded). Only the household knows, so the
+ * sheet asks one question on one screen: the product, where the ledger has it, and «Sposta qui» /
+ * «No, lascia dov'è». The place being inventoried does not change in either answer — the session,
+ * the tally and the pin stay on it — and moving the row opens its card HERE, so the stock and the
+ * date can be corrected on the shelf the household is actually standing in front of.
+ */
+
+/** The question on screen, if any: `{ rowId, productId, scope }`. */
+let _auditElsewhere = null;
+
+function _auditElsewhereView(row, scope) {
+    if (!row) return;
+    _auditElsewhere = {
+        rowId: Number(row.id) || 0,
+        productId: Number(row.product_id) || 0,
+        scope: scope || '',
+    };
+    const el = document.getElementById('audit-overlay');
+    if (!el) return;
+    const loc = (typeof LOCATIONS !== 'undefined' && LOCATIONS[normalizeLocationKey(row.location)])
+        || { icon: '📦', label: row.location || '' };
+    const scopeLabel = _auditScopeLabel(scope) || t('audit.title');
+    const name = row.display_name || row.name || '';
+    const brand = String(row.brand || '').trim();
+    const qty = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
+        ? stripHtml(formatQuantity(row.quantity, row.unit, row.default_quantity, row.package_unit))
+        : `${row.quantity || ''} ${row.unit || ''}`.trim();
+    const hasExpiry = !!row.expiry_date;
+    const date = hasExpiry && typeof formatDate === 'function' ? formatDate(row.expiry_date) : '';
+    const expired = hasExpiry && typeof daysUntilExpiry === 'function' && daysUntilExpiry(row.expiry_date) < 0;
+    const expiryFact = hasExpiry
+        ? t(expired ? 'audit.expiry_was' : 'audit.expiry_on', { date })
+        : t('audit.expiry_none');
+    const thumb = (typeof _productThumbHtml === 'function') ? _productThumbHtml(row) : '';
+    el.hidden = false;
+    el.innerHTML = `<div class="audit-panel" role="dialog" aria-modal="true" aria-label="${escapeAttr(t('audit.title'))}">
+        <div class="audit-head audit-head--bare">
+            <button type="button" class="audit-close" onclick="_auditElsewhereDismiss()" aria-label="${escapeAttr(t('audit.close'))}">✕</button>
+        </div>
+        ${_auditModeSwitchHtml()}
+        ${_auditProgressHtml()}
+        <p class="audit-eyebrow">${escapeHtml(t('audit.session_place', { place: scopeLabel }))}</p>
+        <div class="audit-product-row">
+            <div class="audit-product-thumb">${thumb}</div>
+            <div class="audit-product-main">
+                <p class="audit-product-name">${escapeHtml(name)}</p>
+                ${brand ? `<p class="audit-product-brand">${escapeHtml(brand)}</p>` : ''}
+                <div class="audit-product-facts">
+                    <p class="audit-fact-line"><span aria-hidden="true">${escapeHtml(loc.icon || '📦')}</span> ${escapeHtml(loc.label || '')} · <span aria-hidden="true">📦</span> ${escapeHtml(t('audit.stock_label'))}: <strong class="audit-fact-qty">${escapeHtml(qty)}</strong></p>
+                    <p class="audit-fact-line audit-fact-line-expiry"><span aria-hidden="true">⏳</span> <span class="audit-expiry${expired ? ' is-expired' : ''}">${escapeHtml(expiryFact)}</span></p>
+                </div>
+            </div>
+        </div>
+        <p class="audit-hint audit-elsewhere-hint">${escapeHtml(t('audit.elsewhere_hint', {
+            name: name || '',
+            place: loc.label || '',
+            scope: scopeLabel,
+        }))}</p>
+        <button type="button" class="audit-there" onclick="_auditElsewhereMoveHere()"><span aria-hidden="true">↪</span> ${escapeHtml(t('audit.move_here'))}</button>
+        <div class="audit-foot">
+            <button type="button" class="audit-skip" onclick="_auditElsewhereDismiss()">${escapeHtml(t('audit.elsewhere_leave'))}</button>
+        </div>
+    </div>`;
+}
+
+/** «Sposta qui»: the row comes into this shelf and its card opens here — the question answered. */
+async function _auditElsewhereMoveHere() {
+    const st = _auditElsewhere;
+    if (!st || !st.rowId || !st.scope) return;
+    _auditElsewhere = null;
+    const moved = await _auditSearchMoveHere(st.rowId);   // the same write as the ✕ row of «Ti dico io»
+    const row = _auditItems().find(r => Number(r.id) === Number(st.rowId));
+    if (!moved) {
+        // Refused (the toast says why): the question stays, the shelf does not disappear.
+        if (row) _auditElsewhereView(row, st.scope);
+        return;
+    }
+    if (!row) { _auditScanStart(); return; }
+    // It stands here now: the card is the question the household lifted the box for.
+    _auditOneCardView(Object.assign({}, row, { location: st.scope }), 'scan', row.display_name || row.name || '');
+}
+
+/** «No, lascia dov'è» (or ✕): nothing is written, and the stocktake goes back to where it came in. */
+function _auditElsewhereDismiss() {
+    _auditElsewhere = null;
+    if (_auditMode === 'scan') { _auditScanStart(); return; }
+    _auditStart();
 }
 
 /* ── An unknown code: the search of "Ti dico io", with the code in hand ─────────
@@ -1401,22 +1564,18 @@ function _auditAssignRender(term) {
         return;
     }
     box.innerHTML = rows.map(it => {
-        const loc = LOCATIONS[normalizeLocationKey(it.location)] || { icon: '📦', label: it.location || '' };
-        const qty = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
-            ? stripHtml(formatQuantity(it.quantity, it.unit, it.default_quantity, it.package_unit))
-            : `${it.quantity || ''} ${it.unit || ''}`.trim();
         const thumb = (typeof _productThumbHtml === 'function') ? _productThumbHtml(it) : '';
         // The pick carries the ROW (place included): the card that opens is that shelf's.
         return `<div class="audit-hit is-assign">
             <div class="audit-hit-open">
                 <span class="audit-hit-thumb">${thumb}</span>
                 <span class="audit-hit-text">
-                    <span class="audit-hit-name">${escapeHtml(it.display_name || it.name || '')}</span>
-                    <span class="audit-hit-meta">${escapeHtml(loc.icon || '📍')} ${escapeHtml(loc.label || '')} · ${escapeHtml(qty)}</span>
+                    ${_auditHitTitleHtml(it)}
+                    ${_auditHitFactsHtml(it)}
                 </span>
             </div>
-            <button type="button" class="audit-hit-quick" onclick="_auditAssignPick(${Number(it.id)})">
-                <span aria-hidden="true">🔗</span> ${escapeHtml(t('audit.assign_action'))}</button>
+            <button type="button" class="audit-hit-quick" title="${escapeAttr(t('audit.assign_action'))}" aria-label="${escapeAttr(t('audit.assign_action'))}" onclick="_auditAssignPick(${Number(it.id)})">
+                <span aria-hidden="true">🔗</span> <span class="audit-hit-action-label">${escapeHtml(t('audit.assign_action'))}</span></button>
         </div>`;
     }).join('');
 }
@@ -1612,7 +1771,9 @@ function _auditResumeCard() {
  * different colour languages (solid red, dashed purple, amber). A stocktake is read in half a
  * second and answered in one tap, so this is the whole hierarchy:
  *
- *   1. the product (photo, name, brand, place, stock on record) — facts, once;
+ *   1. the product (photo, name, brand, then the place + stock on one line and the date on the
+ *      NEXT one with its own mark) — facts, once, and the two the household checks against the
+ *      shelf (stock, date) are bold and a notch larger than the line around them;
  *   2. ONE emerald primary: `✓ Confermo {qty}`;
  *   3. a neutral 2×2 for when something is off (finished / spoiled / edit / move);
  *   4. one quiet link in the footer: «Salta» — a card the household cannot answer (a product
@@ -1677,7 +1838,10 @@ function _auditRender() {
             <div class="audit-product-main">
                 <p class="audit-product-name">${escapeHtml(it.display_name || it.name || '')}</p>
                 ${it.brand ? `<p class="audit-product-brand">${escapeHtml(it.brand)}</p>` : ''}
-                <p class="audit-product-meta"><span aria-hidden="true">${escapeHtml(locMeta.icon || '📍')}</span> ${escapeHtml(placeLabel)} · <span aria-hidden="true">📦</span> ${escapeHtml(t('audit.stock_label'))}: <strong>${escapeHtml(qtyPlain)}</strong> · <span aria-hidden="true">⏳</span> <span class="audit-expiry${isExpired ? ' is-expired' : ''}">${escapeHtml(expiryFact)}</span></p>
+                <div class="audit-product-facts">
+                    <p class="audit-fact-line"><span aria-hidden="true">${escapeHtml(locMeta.icon || '📍')}</span> ${escapeHtml(placeLabel)} · <span aria-hidden="true">📦</span> ${escapeHtml(t('audit.stock_label'))}: <strong class="audit-fact-qty">${escapeHtml(qtyPlain)}</strong></p>
+                    <p class="audit-fact-line audit-fact-line-expiry"><span aria-hidden="true">⏳</span> <span class="audit-expiry${isExpired ? ' is-expired' : ''}">${escapeHtml(expiryFact)}</span></p>
+                </div>
             </div>
         </div>
         ${_auditOtherPacksHtml(it)}

@@ -52,6 +52,8 @@
     "move_here": "Hierher verschieben",
     "move_done": "Verschoben nach {place}",
     "move_failed": "Verschieben fehlgeschlagen: erneut versuchen.",
+    "elsewhere_hint": "«{name}» steht in {place}, nicht in {scope}. Steht es hier vor dir?",
+    "elsewhere_leave": "Nein, lass es dort",
     "mode_scan": "Barcode",
     "scan_hint": "Barcode anvisieren: die Karte dieses Produkts öffnet sich, genau wie bei den anderen zwei Wegen.",
     "scan_open": "Kamera öffnen",

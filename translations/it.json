@@ -52,6 +52,8 @@
     "move_here": "Sposta qui",
     "move_done": "Spostato in {place}",
     "move_failed": "Non riesco a spostarlo: riprova.",
+    "elsewhere_hint": "«{name}» risulta in {place}, non in {scope}. È qui davanti a te?",
+    "elsewhere_leave": "No, lascia dov’è",
     "mode_scan": "Codice a barre",
     "scan_hint": "Inquadra il codice a barre: si apre la card di quel prodotto, come con le altre due vie.",
     "scan_open": "Apri la fotocamera",

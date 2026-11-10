@@ -52,6 +52,8 @@
     "move_here": "Move here",
     "move_done": "Moved to {place}",
     "move_failed": "Could not move it: try again.",
+    "elsewhere_hint": "«{name}» is recorded in {place}, not in {scope}. Is it here in front of you?",
+    "elsewhere_leave": "No, leave it where it is",
     "mode_scan": "Barcode",
     "scan_hint": "Point at the barcode: the card of that product opens, exactly like the other two ways.",
     "scan_open": "Open the camera",

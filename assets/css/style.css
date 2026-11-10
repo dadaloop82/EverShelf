@@ -13904,6 +13904,15 @@ body.offline-mode #smart-shopping {
 /* The note under the "which product is this?" hint: a product standing in several places is one
    line per place, and that needs saying — otherwise three identical names look like a bug. */
 .audit-hint.audit-assign-note { margin-top: -6px; font-size: 0.82rem; opacity: 0.85; }
+/* The question of the «is it here?» panel: it is the REASON the sheet is open, so it is not set as
+   a footnote. Same size as the facts around it, one weight up, in the text colour. */
+.audit-hint.audit-elsewhere-hint {
+    margin: 12px 0 14px;
+    font-size: 0.95rem;
+    font-weight: 650;
+    color: var(--text-main, inherit);
+    line-height: 1.35;
+}
 .audit-scopes { display: flex; flex-direction: column; gap: 10px; }
 .audit-scope, .audit-done {
     width: 100%;
@@ -14090,10 +14099,15 @@ body.offline-mode #smart-shopping {
 /* A hit is a row: the place mark, the thumb, the name and where it is, then ONE action. The mark is
    the fact the stocktake is about — ✓ it stands in the place you are inventorying, ✕ it does not —
    and the action answers the same question: «✓ C'è» (emerald: it confirms the shelf) or «Sposta
-   qui» (neutral: a correction). Both are small pills, so the name keeps the line on a phone. */
+   qui» (neutral: a correction). Both are small pills, so the name keeps the line on a phone.
+   The row WRAPS when the action cannot fit beside the text (a long label such as the German
+   «Hierher verschieben» beside a place and a date on a 320 px phone): the action moves under the
+   row, right-aligned, instead of squeezing the text column to 16 px — the wrap is decided by
+   `flex-basis: 60%` plus `flex-wrap`, so a row whose action DOES fit keeps one line. */
 .audit-hit {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     width: 100%;
     padding: 8px 10px;
@@ -14107,7 +14121,7 @@ body.offline-mode #smart-shopping {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex: 1 1 auto;
+    flex: 1 1 60%;
     min-width: 0;
     padding: 2px;
     font: inherit;
@@ -14123,6 +14137,8 @@ body.offline-mode #smart-shopping {
 .audit-hit-quick,
 .audit-hit-move {
     flex: 0 0 auto;
+    /* On its own line (see `.audit-hit`) the action sits at the RIGHT, under the row. */
+    margin-left: auto;
     min-height: 36px;
     padding: 6px 10px;
     border-radius: 10px;
@@ -14150,8 +14166,99 @@ body.offline-mode #smart-shopping {
 .audit-hit-thumb img { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; }
 .audit-hit-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .audit-hit-name { font-size: 1rem; font-weight: 700; overflow-wrap: anywhere; }
-.audit-hit-brand { font-weight: 400; color: var(--text-muted, #64748b); }
-.audit-hit-meta { font-size: 0.82rem; color: var(--text-muted, #64748b); }
+.audit-hit-brand {
+    /* The BRAND is a line of its own under the name — the card puts it under the title too, and
+       the box is recognised by its brand before the name is read: «Fusilli Pasta di Semola di
+       Grano Duro» is the same sentence on a premium pack and on the discount one. One line; only
+       its tail may be ellipsised, the NAME above it is never cut. */
+    display: block;
+    font-size: 0.84rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--text-muted, #64748b);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* ── The two facts of a hit, one per line: where + how much, then WHEN ────────
+   The list showed the place and the stock and nothing else, so two packs of the same article —
+   the rice in the pantry expiring in March, the one in the cupboard expiring next month — looked
+   identical, and picking the wrong one answers the wrong question. The date is the card's own
+   fact, in the card's words (`audit.expiry_on` / `expiry_was` / `expiry_none`), on a line of its
+   own with its mark; it and the stock are bold and a notch larger than the place line around them
+   (`0.95rem/800` against `0.82rem`), so a hit reads like the card it opens. The date itself never
+   breaks in half (`.audit-expiry`): only its mark can move down when a locale needs the room. */
+.audit-hit-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.audit-hit-fact {
+    font-size: 0.82rem;
+    line-height: 1.3;
+    color: var(--text-muted, #64748b);
+}
+/* The place and the stock are two GROUPS: they may wrap between each other, never inside one of
+   them. A group that alone is wider than the column ends in an ellipsis (a long place name)
+   instead of sliding under the action button — on a 393 px phone "Mobile Soggiorno" was painted
+   UNDER «È questo», half covered by the pill. */
+.audit-hit-fact-place {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 6px;
+    min-width: 0;
+}
+.audit-hit-seg {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.audit-hit-qty,
+.audit-hit-fact-expiry .audit-expiry {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-main, inherit);
+    font-variant-numeric: tabular-nums;
+    /* "1 kg" never splits in half when the place line wraps on a 320 px phone. */
+    white-space: nowrap;
+    min-width: 0;
+    max-width: 100%;
+}
+/* In a hit the date may wrap BETWEEN «Scade il» and the date (the date itself has no space, so it
+   never breaks in half) — a 320 px phone gives this line less than the sentence needs. */
+.audit-hit-fact-expiry .audit-expiry {
+    white-space: normal;
+}
+.audit-hit-fact-expiry .audit-expiry.is-expired { color: var(--tone-danger, #dc2626); }
+
+/* ── Below 520 px the action is ONE ICON ─────────────────────────────────────
+   «Sposta qui» / «È questo» are three words that only fit beside the name by squeezing it: on a
+   393 px phone the text column fell to 123 px, the product name took three lines and the place
+   was printed under the pill. The icon keeps the meaning (`title` + `aria-label` carry the words,
+   the same rule the mode tabs follow) and the row gets its width back; 44 px is the tap target. */
+.audit-hit-action-label { display: none; }
+@media (min-width: 520px) {
+    .audit-hit-action-label { display: inline; }
+}
+@media (max-width: 519px) {
+    .audit-hit-quick,
+    .audit-hit-move {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        min-width: 44px;
+        height: 44px;
+        min-height: 44px;
+        padding: 0;
+        font-size: 1.05rem;
+    }
+}
 .audit-search-create { border-style: dashed; }
 
 /* The ONE answer that writes the stock: full width, emerald, 56 px tall. */
@@ -14231,7 +14338,42 @@ body.offline-mode #smart-shopping {
 .audit-product-main { min-width: 0; }
 .audit-product-name { margin: 0; font-weight: 700; font-size: 1.05rem; line-height: 1.25; }
 .audit-product-brand { margin: 2px 0 0; font-weight: 500; color: var(--text-muted, #64748b); font-size: 0.82rem; }
-.audit-product-meta { margin: 4px 0 0; font-size: 0.82rem; color: var(--text-muted, #64748b); }
+/* ── The card's two facts: stock and date, one per line ───────────────────────
+   They are the two things the household checks against the shelf, so they are bold and a notch
+   larger than the line around them (`0.95rem/800` against `0.82rem`). The date sits on a line of
+   ITS OWN with its mark (⏳): on one line, «📦 Giacenza: 1500 ml · ⏳ Scade il 31/01/2027» put two
+   number pairs side by side — the stock read as if it were part of the date — and it was the
+   first thing to wrap on a phone. The date itself never breaks in half (`.audit-expiry`), only
+   the mark can move to the next line if a long locale needs it. */
+.audit-product-facts {
+    margin-top: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+}
+.audit-fact-line {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.3;
+    color: var(--text-muted, #64748b);
+}
+.audit-fact-qty {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-main, inherit);
+    font-variant-numeric: tabular-nums;
+    /* "1,5 l" is one fact: it never splits in half when the line above wraps. */
+    white-space: nowrap;
+}
+.audit-fact-line-expiry .audit-expiry {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-main, inherit);
+    font-variant-numeric: tabular-nums;
+}
+.audit-fact-line-expiry .audit-expiry.is-expired { color: var(--tone-danger, #dc2626); }
 /* ── The other packs of the same article ─────────────────────────────────────
    A barcode points at an ARTICLE, not at a package: «6 pz» on a shelf that also holds a 30-pack
    is only half the answer, and the scan used to open one row with no way to reach the other.

@@ -100,6 +100,57 @@ the real stylesheets and the real pantry.
 - **Quantity and expiry are the two facts a shelf row is read for, so they are bold and a notch
   larger** (`0.86rem/800` for the pill, `0.84rem/750` for the date, the Home badges the same) —
   still inside the 34 px action line, so no card grows by a pixel at any width of the ladder.
+- **The stocktake card's two facts own a line each — and they are the biggest things in the card.**
+  `_auditRender` drew the place, the stock and the date as one sentence («📍 Frigo · 📦 Giacenza:
+  1500 ml · ⏳ Scade il 31/01/2027»), where two number pairs sat side by side and the stock read as
+  if it belonged to the date. The card now says the place + the stock on one line and the date on
+  the **next one with its own mark**, and the two facts the household checks against the shelf are
+  bold at `0.95rem/800` against the `0.82rem` of the line around them (`.audit-product-facts` /
+  `.audit-fact-qty` / `.audit-fact-line-expiry`, `style.css`). Measured in headless Chromium at
+  280 / 320 / 360 / 560 px in it/de/fr/zh: the date lands 5 px under the stock, the line is one
+  row of 19.75 px and nothing overflows in any locale — the expiry itself never breaks in half
+  (`.audit-expiry`), only its mark can move down if a language needs it. An expired date keeps its
+  red. The change is in `_auditRender`, so all three ways in — «Uno per uno», «Ti dico io», the
+  barcode and the «Anche in» pack card — show the same card.
+- **«Ti dico io» now says WHEN, not only WHERE**: the search results carried the place and the
+  stock and nothing else, so two packs of the same article — the rice in the pantry expiring in
+  March and the one in the cupboard expiring next month — looked identical, and picking the wrong
+  one answers the wrong question. `_auditHitFactsHtml` gives every hit the card's own two facts on
+  two lines: the place + the stock, then the date with its own mark and the card's own words
+  (`audit.expiry_on` / `expiry_was` / `expiry_none`), both bold at `0.95rem/800` against the
+  `0.82rem` of the line around them, an expired one in red. The same helper feeds the barcode
+  association picker, so a hit and the card it opens cannot disagree. The row also **wraps instead
+  of squeezing the text**: with `flex-wrap` + `flex-basis: 60%` a long action label (the German
+  «Hierher verschieben» on a 320 px phone) drops under the row, right-aligned, where the text
+  column used to collapse to **16 px** — measured in headless Chromium at 320 / 360 / 480 px: the
+  column is now 167 px in that case and no row overflows; the place and the stock are two
+  unbreakable groups (`"1 kg"` never splits) so a wrapped line never leaves its 📦 alone.
+  **Below 520 px the action is one ICON** («✓ C'è», «↪ Sposta qui», «🔗 È questo» keep their words
+  in `title` + `aria-label`, the rule the mode tabs already follow) in a 44 px tap target: with the
+  label the pill took ~110 px of a 393 px phone, the text column fell to **123 px**, the product
+  name took three lines and the place was painted UNDER the pill («Mobile Soggiorno» half covered
+  by «È questo» in the screenshot that reported it). Measured in headless Chromium with real
+  iframes at 320 / 393 / 480 / 560 px: the column is 200 px at 393 (was 123), the name is two
+  lines, «Mobile Soggiorno · 📦 500 g» and «Scade il 02/09/2028» each on one line, no overflow at
+  any width and the labels come back at 520 px. **The row also names the BRAND, on the line under
+  the product name** (`_auditHitTitleHtml`): «Fusilli Pasta di Semola di Grano Duro» is the same
+  sentence on a premium box and on the discount one, and the household recognises the pack by its
+  brand before it reads the title. One line, its tail ellipsised if a brand is absurdly long (the
+  NAME above is never cut); a product with no brand simply omits the line.
+- **A scan never walks into another shelf.** Inventorying «Mobile Soggiorno», a box the ledger had
+  in «Dispensa cucina» opened THAT card — «mi cambia tutto, mi scrive verifica dispensa cucina» —
+  so the household was asked to confirm a pantry it was not standing in front of, while the pack in
+  its hands (and any amount of it the ledger never recorded) was here. `_auditScanCard` now ASKS
+  (`_auditElsewhereView`): the product, the place the ledger has it (place + stock + date, the card's
+  own facts), and **«↪ Sposta qui» / «No, lascia dov'è»** — the eyebrow names the place being
+  inventoried («Inventario di Mobile Soggiorno») and the session, the tally and the pin are
+  untouched by either answer. «Sposta qui» writes the same `inventory_update` the ✕ row of «Ti dico
+  io» writes (`_auditSearchMoveHere`, now returning whether it succeeded) and then opens the card
+  HERE, so the stock and the date can be corrected on the shelf in front of the household; «No»
+  goes back to the camera (or to the search) and writes nothing. The ✕ rows of the search list are
+  guarded by the same question (`_auditSearchPick`), because a card about another shelf is the same
+  mistake through another door; only an explicit pick on a line that prints its place (the barcode
+  association picker) still opens that row's card.
 - **The stocktake's "Modifica quantità" is "Modifica"**: the button opens the whole edit sheet
   (quantity, place, expiry, pack), so naming only the quantity sent the household looking for a
   field it does not carry (`audit.change_qty`, six locales).
