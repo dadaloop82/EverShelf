@@ -31,6 +31,7 @@
     "card": "系列 {name}：{count} 个变体共 {qty}"
   },
   "audit": {
+    "med_already_opened": "已开封",
     "med_days_q": "已开封几天？",
     "med_days_today": "今天",
     "med_opened": "已开封",

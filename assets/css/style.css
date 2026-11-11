@@ -15556,3 +15556,24 @@ body.cooking-mode-active #shelfy-intro { z-index: 100001; }
 .med-open-since .settings-hint { margin: 0 0 6px; }
 .med-open-since-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .med-open-since-chips .btn { min-height: 40px; }
+
+/* ── No camera → no camera icons, anywhere ────────────────────────────────
+   Asked for: «se non ci sono le autorizzazioni o non si può usare la fotocamera NON far vedere
+   l'icona in ogni parte del programma, è inutile far vedere qualcosa che non può funzionare».
+   `_detectCameraAvailability()` (app.js) puts `no-camera` on <html> the moment the answer is no —
+   no getUserMedia, the permission already refused, or a camera that just failed — and every scan
+   entry point disappears: the inline handlers are matched by attribute, so a button added later
+   is covered without touching it. */
+html.no-camera [onclick*="showPage('scan')"],
+html.no-camera [onclick*='showPage("scan")'],
+html.no-camera [onclick*="_medGoToCabinetScan"],
+html.no-camera [onclick*="startSpesaMode"],
+html.no-camera [data-camera-only] { display: none !important; }
+
+/* A stocktake answer that is already given cannot be given again. */
+.audit-cell[disabled],
+.audit-cell.is-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}

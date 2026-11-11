@@ -10632,6 +10632,48 @@ function _openCaptureSheetInner() {
  * change by recreating the Activity reloads the whole app (reported as "opening SHELFY
  * restarts everything"). Everything that would open a keyboard asks this first.
  */
+/**
+ * Can this device use the camera at all?
+ *
+ * Asked for: «se non ci sono le autorizzazioni o non si può usare la fotocamera NON far vedere
+ * l'icona in ogni parte del programma, è inutile far vedere qualcosa che non può funzionare».
+ * A 📷 that can only open a grey box is a promise the app cannot keep, so the entry points are
+ * hidden (`html.no-camera`, see surfaces.css) the moment the answer is known to be no: no
+ * `getUserMedia` on this browser, the permission already refused, or a camera that just failed.
+ */
+let _cameraBlocked = false;
+function _cameraUsable() {
+    return !_cameraBlocked && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+}
+
+function _applyCameraChrome() {
+    try { document.documentElement.classList.toggle('no-camera', !_cameraUsable()); } catch (e) {}
+}
+
+function _markCameraBlocked(reason) {
+    if (_cameraBlocked) return;
+    _cameraBlocked = true;
+    _applyCameraChrome();
+    try { remoteLog('CAM', 'camera unavailable: ' + reason); } catch (e) {}
+}
+
+/** Boot-time check: no API, or a permission the browser already knows is refused. */
+function _detectCameraAvailability() {
+    try {
+        if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+            _markCameraBlocked('no getUserMedia');
+            return;
+        }
+        if (navigator.permissions && navigator.permissions.query) {
+            navigator.permissions.query({ name: 'camera' }).then((st) => {
+                if (st.state === 'denied') _markCameraBlocked('permission denied');
+                st.onchange = () => { if (st.state === 'denied') _markCameraBlocked('permission denied'); };
+            }).catch(() => { /* Safari answers "unsupported name" */ });
+        }
+    } catch (e) { /* never blocks the boot */ }
+    _applyCameraChrome();
+}
+
 function _isKioskDevice() {
     try {
         return typeof _kioskBridge !== 'undefined'
@@ -19965,7 +20007,7 @@ function _editMedicalInventoryItem(item) {
                 <p class="settings-hint">${escapeHtml(t('audit.med_days_q'))}</p>
                 <div class="med-open-since-chips">
                     <button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, 0)">${escapeHtml(t('audit.med_days_today'))}</button>
-                    ${[2, 7, 14, 30].map(n => `<button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, ${n})">${escapeHtml(t('dashboard.days_short').replace('{n}', n))}</button>`).join('')}
+                    ${[2, 7, 14, 30, 60, 90].map(n => `<button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, ${n})">${escapeHtml(t('dashboard.days_short').replace('{n}', n))}</button>`).join('')}
                 </div>
             </div>` : ''}
             <button type="submit" class="btn btn-large btn-primary full-width mt-2">${t('btn.save')}</button>
@@ -20428,6 +20470,10 @@ async function initScanner() {
     } catch (err) {
         clearTimeout(_camWatchdogTimer);
         scanLog(`CAMERA ERROR: ${err.name}: ${err.message}`);
+        // Refused or no camera at all: this device cannot scan, and every 📷 in the app must go.
+        if (['NotAllowedError', 'NotFoundError', 'SecurityError', 'NotReadableError'].includes(err && err.name)) {
+            _markCameraBlocked(err.name);
+        }
         _kioskTrace('CAM', `error ${err.name}: ${err.message}`);
         console.error('Camera error:', err);
         if (viewport) viewport.classList.add('scanner-off');
@@ -20503,7 +20549,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111g';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111h';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20513,7 +20559,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261111g';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261111h';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -45099,6 +45145,8 @@ async function _initApp() {
         setTimeout(() => { try { _kioskCheckForUpdates(); } catch (e) { /* old APK */ } }, 4000);
     }
     _initHeaderVersionFit();
+    // No camera → no camera icons anywhere (the check is cheap and never blocks the boot).
+    try { _detectCameraAvailability(); } catch (e) { /* very old browser */ }
     // The title is translated after this point, so the row is measured again once the width is
     // the real one (a longer label in German can push the versions out of the header).
     setTimeout(() => { try { _paintKioskVersion(); } catch (e) { /* layout not ready */ } }, 600);

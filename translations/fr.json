@@ -31,6 +31,7 @@
     "card": "Famille {name} : {qty} sur {count} variantes"
   },
   "audit": {
+    "med_already_opened": "Déjà ouvert",
     "med_days_q": "Ouvert depuis combien de jours ?",
     "med_days_today": "Aujourd'hui",
     "med_opened": "Ouvert",

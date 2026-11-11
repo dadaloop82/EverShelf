@@ -283,10 +283,14 @@ function _auditModeSwitchHtml() {
             title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}"
             onclick="_auditSetMode('${mode}')"><span class="audit-mode-icon" aria-hidden="true">${icon}</span><span class="audit-mode-label">${escapeHtml(label)}</span></button>`;
     };
-    return `<div class="audit-modes" role="tablist">${tab('propose', '🃏', t('audit.mode_propose'))}${tab('search', '🔎', t('audit.mode_search'))}${tab('scan', '📷', t('audit.mode_scan'))}</div>`;
+    // No camera → no «Scansiona» tab: a stocktake mode that can only open a grey box is not a way in.
+    const canScan = (typeof _cameraUsable !== 'function') || _cameraUsable();
+    return `<div class="audit-modes" role="tablist">${tab('propose', '🃏', t('audit.mode_propose'))}${tab('search', '🔎', t('audit.mode_search'))}${canScan ? tab('scan', '📷', t('audit.mode_scan')) : ''}</div>`;
 }
 
 function _auditSetMode(mode) {
+    // A mode stored on a device that has no camera falls back to the one that needs none.
+    if (mode === 'scan' && typeof _cameraUsable === 'function' && !_cameraUsable()) mode = 'propose';
     _auditMode = (mode === 'search' || mode === 'scan') ? mode : 'propose';
     try { localStorage.setItem(AUDIT_MODE_KEY, _auditMode); } catch (_e) { /* ignore */ }
     // Back to «Uno alla volta» with a session open means back to ITS card: the three ways are one
@@ -1867,7 +1871,12 @@ function _auditRender() {
         <div class="audit-grid">
             <button type="button" class="audit-cell audit-finished" onclick="_auditAnswer('finished')"><span aria-hidden="true">🏁</span> ${escapeHtml(t('audit.exhausted'))}</button>
             ${_isMedicalRow(it)
-                ? `<button type="button" class="audit-cell audit-med-open" onclick="_auditMedOpen()"><span aria-hidden="true">📂</span> ${escapeHtml(t('audit.med_opened'))}</button>`
+                ? (it.opened_at
+                    // Already open: the button has nothing left to do, and a button that opens
+                    // what is already open is a lie the household pays for (a second opened_at,
+                    // a PAO date moved for nothing).
+                    ? `<button type="button" class="audit-cell audit-med-open is-disabled" disabled aria-disabled="true" title="${escapeAttr(t('audit.med_already_opened'))}"><span aria-hidden="true">📂</span> ${escapeHtml(t('audit.med_opened'))}</button>`
+                    : `<button type="button" class="audit-cell audit-med-open" onclick="_auditMedOpen()"><span aria-hidden="true">📂</span> ${escapeHtml(t('audit.med_opened'))}</button>`)
                 : `<button type="button" class="audit-cell audit-spoiled" onclick="_auditAnswer('spoiled')"><span aria-hidden="true">🗑️</span> ${escapeHtml(t('audit.spoiled'))}</button>`}
             <button type="button" class="audit-cell audit-edit" onclick="_auditEdit('quantity')"><span aria-hidden="true">✏️</span> ${escapeHtml(t('audit.change_qty'))}</button>
             <button type="button" class="audit-cell audit-edit" onclick="_auditEdit('location')"><span aria-hidden="true">📍</span> ${escapeHtml(t('audit.change_location'))}</button>
@@ -1900,7 +1909,7 @@ function _auditRender() {
             ask.innerHTML = `<p class="audit-med-days-q">${escapeHtml(t('audit.med_days_q'))}</p>
                 <div class="audit-med-days">
                     ${chip(0, t('audit.med_days_today'))}
-                    ${[2, 7, 14, 30].map(n => chip(n, t('dashboard.days_short').replace('{n}', n))).join('')}
+                    ${[2, 7, 14, 30, 60, 90].map(n => chip(n, t('dashboard.days_short').replace('{n}', n))).join('')}
                 </div>
                 <button type="button" class="audit-skip" onclick="_auditMedDaysCancel()">${escapeHtml(t('btn.cancel'))}</button>`;
             panel.appendChild(ask);
@@ -2104,7 +2113,10 @@ async function _auditMedOpen(days) {
         // invented), but the household is told what is missing and where to fix it.
         showToast(t('audit.med_opened_no_pao'), 'warning', 6000);
     }
-    _auditAnswer('there');
+    // Opening a box says HOW LONG IT KEEPS, not «yes, I have it»: counting a «there» here meant a
+    // household that only marked a pack open had confirmed a stocktake answer it never gave.
+    // Only the green button answers; this one just repaints the card with the new date.
+    _auditRender();
 }
 
 /** Take the «da quanti giorni?» question away, leaving the pack exactly as it was. */
