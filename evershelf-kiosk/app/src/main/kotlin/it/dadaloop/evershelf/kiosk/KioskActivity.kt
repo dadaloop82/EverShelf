@@ -151,6 +151,20 @@ class KioskActivity : AppCompatActivity() {
     // Pending WebView permission request
     private var pendingWebPermission: PermissionRequest? = null
 
+    /**
+     * The last console lines, whatever their level.
+     *
+     * A killed renderer takes its console with it, and what the page was DOING at that moment is
+     * usually an INFO line ("Stream OK", "Local OCR engine ready", a `[CAM]` trace) — not the
+     * ERROR lines this class used to forward. This ring is the only copy that survives
+     * `onRenderProcessGone`, and it rides along with that report so the next refusal explains
+     * itself instead of being guessed at. Bounded so an hour of chatter cannot grow it.
+     */
+    private val consoleTail = mutableListOf<String>()
+
+    /** Wall-clock of the renderer restarts, for the backoff below (a restart loop is worse). */
+    private val rendererRestarts = mutableListOf<Long>()
+
     private fun safeEvalJs(script: String) {
         if (!::webView.isInitialized) return
         if (isFinishing || isDestroyed) return
@@ -493,6 +507,14 @@ class KioskActivity : AppCompatActivity() {
         // Ensure kiosk lock and permissions are active
         enableKioskLock()
         requestAllPermissions()
+        // The wall says which version it is RUNNING, on every launch. The permission dialog is
+        // the first thing a fresh install shows and the header label belongs to the page (which
+        // drops it the moment the row is narrow), so "ho preso l'ultima versione?" was only
+        // answerable from a screenshot — and a reinstall that installed nothing looked exactly
+        // like one that did. A Toast, not a dialog: it takes no tap away from the page, and the
+        // web side prints the same two numbers a second later (`_showKioskBootVersion()`, which
+        // also knows the web app version).
+        Toast.makeText(this, "EverShelf Kiosk ${appVersionName()}", Toast.LENGTH_LONG).show()
 
         webView.visibility   = View.VISIBLE
         btnSettings.visibility = View.VISIBLE
@@ -564,14 +586,30 @@ class KioskActivity : AppCompatActivity() {
                 val crashed = detail?.didCrash() ?: true
                 val priority = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                     detail?.rendererPriorityAtExit() ?: -1 else -1
+                // Three kills inside ten minutes is a loop, not a hiccup: restarting in 600 ms is
+                // what made the wall look like it "restarts by itself" every few seconds. Each
+                // further restart waits 20 s, and the count rides along in the report.
+                val now = System.currentTimeMillis()
+                rendererRestarts.removeAll { now - it > 10 * 60 * 1000 }
+                rendererRestarts.add(now)
+                val throttled = rendererRestarts.size >= 3
                 ErrorReporter.reportMessage(
                     type    = if (crashed) "renderer-crashed" else "renderer-killed-oom",
                     message = "WebView renderer process ${if (crashed) "crashed" else "killed by system (OOM)"}",
-                    extra   = mapOf("priority" to priority) + memorySnapshot(),
-                    forceReport = true
+                    extra   = mapOf<String, Any?>(
+                        "priority" to priority,
+                        "restarts_10min" to rendererRestarts.size,
+                        "restart_delay_ms" to if (throttled) 20000L else 600L,
+                        "camera_permission" to (ContextCompat.checkSelfPermission(
+                            this@KioskActivity, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED),
+                        "lock_task" to lockTaskState(),
+                        "console_tail" to consoleTail.toList()
+                    ) + memorySnapshot(),
+                    forceReport = true,
+                    level = if (crashed) "error" else "warn"
                 )
                 // Give the reporter 600 ms to queue the POST, then restart the Activity cleanly
-                Handler(Looper.getMainLooper()).postDelayed({ recreate() }, 600)
+                Handler(Looper.getMainLooper()).postDelayed({ recreate() }, if (throttled) 20000L else 600L)
                 return true // we handled it — do NOT let the system kill the Activity immediately
             }
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -608,12 +646,23 @@ class KioskActivity : AppCompatActivity() {
                 }
             }
             override fun onConsoleMessage(msg: ConsoleMessage?): Boolean {
-                if (msg != null && msg.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
-                    ErrorReporter.reportMessage(
-                        type = "webview-js-error",
-                        message = msg.message(),
-                        extra = mapOf("source_id" to msg.sourceId(), "line" to msg.lineNumber())
-                    )
+                if (msg != null) {
+                    // EVERY level, not only ERROR: when the renderer is killed, what the page was
+                    // doing is an INFO line ("Stream OK", "Local OCR engine ready", a [CAM]
+                    // trace), and the console dies with it — this ring is the only copy that
+                    // reaches the report (see `consoleTail`).
+                    try {
+                        if (consoleTail.size >= 30) consoleTail.removeAt(0)
+                        consoleTail.add("${msg.messageLevel()} ${msg.message()} @${msg.lineNumber()}")
+                    } catch (_: Exception) { /* a log ring must never break the page */ }
+                    if (msg.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                        ErrorReporter.reportMessage(
+                            type = "webview-js-error",
+                            message = msg.message(),
+                            extra = mapOf("source_id" to msg.sourceId(), "line" to msg.lineNumber()),
+                            level = "error"
+                        )
+                    }
                 }
                 return true
             }
@@ -647,6 +696,32 @@ class KioskActivity : AppCompatActivity() {
                     webView.clearCache(true)
                     webView.reload()
                 }
+            }
+
+            /**
+             * One line from the page into the server log, right now.
+             *
+             * The two symptoms the wall keeps reporting — "the camera stays a grey box" and
+             * "tapping SHELFY restarts the app" — happen inside the WebView, where a killed
+             * renderer takes its console with it and a `getUserMedia()` that never settles writes
+             * nothing at all. `app.js` calls this at the decisive points (`_kioskTrace()`), so the
+             * next attempt carries what the page believed: whether the recogniser exists, whether
+             * the stream was asked for, what the camera answered. An older app.js that does not
+             * know this method checks `typeof` first, so nothing breaks either way.
+             */
+            @JavascriptInterface
+            fun logEvent(tag: String, message: String) {
+                try {
+                    if (consoleTail.size >= 30) consoleTail.removeAt(0)
+                    consoleTail.add("[js-$tag] ${message.take(300)}")
+                } catch (_: Exception) {}
+                ErrorReporter.reportMessage(
+                    type    = "js-" + tag.take(24),
+                    message = message.take(500),
+                    extra   = mapOf("lock_task" to lockTaskState()) + memorySnapshot(),
+                    forceReport = false,
+                    level   = "info"
+                )
             }
             @JavascriptInterface
             fun speak(text: String, rate: Float, pitch: Float) {

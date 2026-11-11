@@ -5,6 +5,25 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Kiosk 1.7.33] - 2026-11-11
+
+Kiosk APK only.
+
+### The wall always says which version it is running
+A reinstall that installed nothing looked exactly like one that did: the APK version lived in
+`#header-kiosk-version`, which is the **first** thing the header gives up when its row is narrow,
+and the wall has no console to ask.
+- `KioskActivity.launchWebView()` shows a Toast — `EverShelf Kiosk 1.7.33 (34)` — on **every
+  launch**, before the page is loaded, so the answer does not depend on the web app at all.
+- The page prints the same two numbers in a boot banner (`_showKioskBootVersion()`): the installed
+  APK from `getAppVersion()` **and** the web app version from `.header-version` — the pair that
+  distinguishes "the APK came down" from "the app came down". Shown on every boot, dismissible
+  with a 44 px ✕, gone by itself after 9 s, and built with `textContent`.
+- The boot log line carries both values (`[KIOSK] boot version apk=… app=…`), so
+  `grep KIOSK data/logs/kiosk-*.log` answers "did I get the latest?" without a screenshot.
+- This release also carries 1.7.32 (console tail + `camera_permission` + `restarts_10min` in a dead
+  renderer's report), which no published APK had yet.
+
 ## [Unreleased] — Ideas & Roadmap
 
 > Ideas collected during development. No priority or date implied.

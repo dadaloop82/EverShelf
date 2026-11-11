@@ -8,12 +8,29 @@ The EverShelf Kiosk app turns any Android tablet into a dedicated, locked-down k
 
 **[⬇ Download latest APK](https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk)**
 
-> Current version: **v1.7.24** (versionCode 25) — requires Android 7.0+
+> Current version: **v1.7.33** (versionCode 34) — requires Android 7.0+
 >
 > Use the `kiosk-latest` tag (not GitHub’s “Latest” release — that tracks the web app and has no APK).
 > On a phone already on the EverShelf LAN, Settings → EverShelf Kiosk → **Scarica APK da questo server** serves `releases/evershelf-kiosk.apk` from your instance.
 >
 > Native UI matches the EverShelf **emerald Corporate UI** (wizard, settings, splash; EN/IT/DE/FR/ES).
+
+---
+
+## Which version is running?
+
+Both numbers are printed **on every boot**, because a tablet on a wall has no console:
+
+| Where | What it says | Where it comes from |
+|---|---|---|
+| Native **Toast** at launch (before the page loads) | `EverShelf Kiosk 1.7.33 (34)` | `KioskActivity.launchWebView()` → `appVersionName()` |
+| **Boot banner** in the page (bottom, ✕ to dismiss, gone after 9 s) | `Chiosco 1.7.33 (34) · app v1.31.27` | `_showKioskBootVersion()` in `app.js` |
+| **Boot log line** in `data/logs/kiosk-YYYY-MM-DD.log` | `[KIOSK] boot version apk=1.7.33 (34) app=v1.31.27` | `remoteLog()` from the same function |
+| **Server log** at every boot | `"app_version":"1.7.33 (34)"` in the `mem` / `Boot memory snapshot` report | `KioskActivity` → `ErrorReporter` |
+
+The header also carries `kiosk 1.7.33 (34)` next to the app version, but it is the **first thing
+the header gives up** when the row is narrow — which is why the boot banner exists and why it is
+shown every time, never once per device.
 
 ---
 
@@ -131,9 +148,23 @@ Tap the **↻** button in the top-left overlay to clear the WebView cache and re
 
 ## Update Notifications
 
-The app polls for updates every **30 minutes**, while the real GitHub API call is
-throttled to **once every 6 hours**. If a newer version is available, a banner appears
-with a one-tap download and install flow (`REQUEST_INSTALL_PACKAGES`).
+Updates arrive **from your own server first**: the app asks
+`GET /api/index.php?action=kiosk_update`, which reads `releases/kiosk-version.json` +
+`releases/evershelf-kiosk.apk` from the instance and compares `version_code` with the installed
+one. When it is newer, the native banner offers **⬇ Installa aggiornamento**, and the APK is
+streamed by the app itself (`openTrustedConnection()`) — never by `DownloadManager`, which cannot
+reach a self-signed HTTPS LAN host and waits forever for a network Android calls “internet”.
+GitHub (`kiosk-latest`) is the fallback for a wall that is not on the LAN.
+
+The check runs every **30 minutes** and once 4 s after the page boots; the version it is running
+is always printed (see [Which version is running?](#which-version-is-running)).
+
+**How the APK gets there**: `.github/workflows/build-kiosk.yml` runs on every push to **`main`**
+that touches `evershelf-kiosk/**`. It builds the **release** APK with the project keystore (a
+debug-signed APK cannot install over a release one), publishes the `kiosk-<version>` and
+`kiosk-latest` GitHub releases, and commits `releases/evershelf-kiosk.apk` +
+`releases/kiosk-version.json` back to `main` for LAN OTA. Bumping `versionCode` in
+`evershelf-kiosk/app/build.gradle.kts` is therefore the only way an update reaches a wall.
 
 ---
 
@@ -167,6 +198,12 @@ The WebView accepts self-signed certificates automatically. No configuration nee
 
 ### App crashes on startup
 - Force-stop the app, clear its data (Settings → Apps → EverShelf Kiosk → Clear data), and relaunch
+- **The next launch reports why**: on Android 11+ `ErrorReporter.detectPreviousCrash()` reads
+  `ActivityManager.getHistoricalProcessExitReasons()` and posts `crash-java` / `crash-native` /
+  `anr` / `oom-kill` (with the trace) to the instance the moment the app starts again — so the
+  server log names the death, and a crash that left no line at all was **native** (a Java throw
+  is caught and saved by the app's own `UncaughtExceptionHandler`).
+- With adb: `adb logcat -b crash -d` and `adb logcat -v time | grep -iE "AndroidRuntime|chromium|camera"`.
 
 ---
 
@@ -178,7 +215,14 @@ cd evershelf-kiosk
 # APK: app/build/outputs/apk/release/app-release.apk
 ```
 
-Requires Android Studio or JDK 17+ with the Android SDK.
+Requires Android Studio or JDK 17+ with the Android SDK. A **signed** build needs
+`evershelf-kiosk/keystore.properties` (or the `KIOSK_STORE_*` env vars) — never publish a
+debug-signed APK: Android refuses to update over a different signature and the wall would have
+to be uninstalled.
+
+The normal path is CI, not a laptop: push to **`main`** touching `evershelf-kiosk/**` and
+`build-kiosk.yml` builds, signs and publishes the APK (see
+[Update Notifications](#update-notifications)).
 
 ---
 
