@@ -3925,9 +3925,24 @@ function getExpiredSafety(item, daysExpired) {
  */
 function _openedPao(item) {
     const p = item && item.pao;
-    if (!p || typeof p !== 'object') return null;
-    if (!p.state || !Number.isFinite(Number(p.days_open))) return null;
-    return p;
+    if (p && typeof p === 'object') {
+        if (p.state && Number.isFinite(Number(p.days_open))) return p;
+    }
+    // A medicine keeps its OWN second clock, and it is computed here because the server's table
+    // (`data/opened_shelf_life.json`) describes FOOD families. Opening a box starts a real
+    // expiry: past `med_pao_days` the box is late even if the printed date is still far —
+    // «un prodotto aperto superati i X giorni di apertura potrebbe essere scaduto anche se la
+    // data di scadenza non è ancora arrivata».
+    if (item && item.opened_at && typeof _isMedicalRow === 'function' && _isMedicalRow(item)) {
+        const max = Number(item.med_pao_days) || 0;
+        if (max <= 0) return null;
+        const daysOpen = (typeof _medDaysOpen === 'function') ? _medDaysOpen(item) : null;
+        if (daysOpen == null) return null;
+        const warn = Math.max(1, max - 7);
+        const state = daysOpen >= max ? 'critical' : (daysOpen >= warn ? 'warn' : 'ok');
+        return { days_open: daysOpen, warn, critical: max, state, score: daysOpen / max };
+    }
+    return null;
 }
 
 /**
@@ -18804,13 +18819,13 @@ async function _medMarkOpened(invId, days) {
             return;
         }
         showToast(r.pao_days > 0
-            ? t('medical.opened_expiry').replace('{date}', formatDate(r.expiry_date))
+            ? t('medical.opened_expiry').replace('{date}', formatDate(r.pao_expiry || r.expiry_date))
             : t('medical.opened_no_pao'), r.pao_days > 0 ? 'success' : 'info');
         // The edit sheet says what it just did instead of closing under the household's finger.
         const hint = document.querySelector('.modal-header.edit-modal-header + .form .settings-hint');
         if (hint) hint.textContent = `${t('medical.state_opened')} · ${formatDate(r.opened_at)}`;
-        const ask = document.querySelector('.med-open-since');
-        if (ask) ask.remove();
+        // The «da quanti giorni» control stays: it is the field you just used, and removing it
+        // made the whole block vanish under the finger («se cambio i giorni il campo sparisce»).
         _renderMedClassify();
         loadDashboard();
         if (typeof loadInventory === 'function') loadInventory();
@@ -20080,6 +20095,7 @@ function _editMedicalInventoryItem(item) {
             <div class="form-group">
                 <label>${escapeHtml(t('medical.pao_label'))}</label>
                 <input type="number" id="edit-med-pao" class="form-input" min="0" step="1" value="${Number(item.med_pao_days) || 0}">
+                <p class="settings-hint">${escapeHtml(t('medical.pao_hint'))}</p>
             </div>
             <button type="submit" class="btn btn-large btn-primary full-width mt-2">${t('btn.save')}</button>
         </form>
@@ -20620,7 +20636,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111m';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111n';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20630,7 +20646,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261111m';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261111n';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

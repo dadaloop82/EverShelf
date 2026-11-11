@@ -3134,6 +3134,7 @@
     "api_aifa": "El catálogo nacional italiano de medicamentos (open data de AIFA): nombre comercial, principio activo y envase de cada AIC, importado una vez en tu instancia."
   },
   "medical": {
+    "pao_hint": "El número impreso en la caja (el símbolo del tarro abierto con sus meses) manda: esto es solo una propuesta.",
     "opened_since_change": "Abierto desde (toca para corregir)",
     "title": "💊 Medicamentos y botiquín",
     "hint": "Módulo opcional: separa los medicamentos de la comida y responde a «qué tengo para…» con tus propios productos, no con consejos. Desactivado hasta que lo actives.",

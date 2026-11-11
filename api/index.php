@@ -10955,22 +10955,32 @@ function medOpenAction(PDO $db): void {
     $daysAgo = max(0, min(3650, (int)($input['days_ago'] ?? 0)));
     $openMod = '-' . $daysAgo . ' day';
     $db->prepare("UPDATE inventory SET opened_at = date('now', ?) WHERE id = ?")->execute([$openMod, $invId]);
-    $newExpiry = '';
-    if ($pao > 0) {
-        $left = $pao - $daysAgo;
-        $expiryMod = ($left >= 0 ? '+' : '-') . abs($left) . ' day';
-        $db->prepare("UPDATE inventory SET expiry_date = date('now', ?), expiry_user_set = 1 WHERE id = ?")
-           ->execute([$expiryMod, $invId]);
-        $newExpiry = (string)$db->query("SELECT expiry_date FROM inventory WHERE id = " . (int)$invId)->fetchColumn();
-    }
+    // The DATE PRINTED ON THE BOX IS THE BOX'S OWN BUSINESS: opening it must not rewrite it.
+    // What changes is the SECOND clock — opened_at + PAO — and the row is late when EITHER one
+    // has passed: «un prodotto aperto superati i X giorni di apertura potrebbe essere scaduto
+    // anche se la data di scadenza non è ancora arrivata».
     $openedAt = (string)$db->query("SELECT opened_at FROM inventory WHERE id = " . (int)$invId)->fetchColumn();
+    $printedExpiry = (string)$db->query("SELECT COALESCE(expiry_date, '') FROM inventory WHERE id = " . (int)$invId)->fetchColumn();
+    $paoExpiry = '';
+    if ($pao > 0 && $openedAt !== '') {
+        $left = $pao - $daysAgo;
+        $paoExpiry = (string)$db->query("SELECT date('now', '" . ($left >= 0 ? '+' : '-') . abs($left) . " day')")->fetchColumn();
+    }
     EverLog::info('Medicine marked as opened', [
         'event' => 'med_open',
         'inventory_id' => $invId,
         'pao_days' => $pao,
         'days_ago' => $daysAgo,
+        'pao_expiry' => $paoExpiry,
     ]);
-    echo json_encode(['success' => true, 'opened_at' => $openedAt, 'expiry_date' => $newExpiry, 'pao_days' => $pao, 'days_ago' => $daysAgo], JSON_UNESCAPED_UNICODE);
+    echo json_encode([
+        'success'       => true,
+        'opened_at'     => $openedAt,
+        'expiry_date'   => $printedExpiry,
+        'pao_expiry'    => $paoExpiry,
+        'pao_days'      => $pao,
+        'days_ago'      => $daysAgo,
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 /**

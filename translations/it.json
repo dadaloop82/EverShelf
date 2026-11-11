@@ -3134,6 +3134,7 @@
     "api_aifa": "Catalogo nazionale dei farmaci (open data AIFA): nome commerciale, principio attivo e confezione di ogni AIC, importato una volta nella tua istanza."
   },
   "medical": {
+    "pao_hint": "Il numero stampato sulla confezione (il vasetto aperto con i mesi) vince su questo: qui c'è solo una proposta.",
     "opened_since_change": "Aperta da (tocca per correggere)",
     "title": "💊 Farmaci e armadietto",
     "hint": "Modulo opzionale: separa i farmaci dal cibo e risponde a «cosa ho in casa per…» con i tuoi prodotti, non con consigli. Disattivo finché non lo accendi.",

@@ -1861,7 +1861,13 @@ function _auditRender() {
                 <p class="audit-product-name">${escapeHtml(it.display_name || it.name || '')}</p>
                 ${it.brand ? `<p class="audit-product-brand">${escapeHtml(it.brand)}</p>` : ''}
                 <div class="audit-product-facts">
-                    <p class="audit-fact-line"><span aria-hidden="true">${escapeHtml(locMeta.icon || '📍')}</span> ${escapeHtml(placeLabel)} · <span aria-hidden="true">📦</span> ${escapeHtml(t('audit.stock_label'))}: <strong class="audit-fact-qty">${escapeHtml(qtyPlain)}</strong></p>
+                    ${_isMedicalRow(it)
+                        // A medicine answers with WHAT IT IS, not where it is: «Armadietto farmaci»
+                        // is where you are standing («si sa che sto guardando lì») and the stock is
+                        // already the number on the green button. The AIC tells one box from
+                        // the next («così capisco a cosa si riferisce»).
+                        ? `<p class="audit-fact-line audit-fact-line-med"><span aria-hidden="true">🔖</span> ${escapeHtml(String(it.barcode || '—'))}${String(it.med_ingredient || '').trim() ? ` · <span aria-hidden="true">🧪</span> ${escapeHtml(String(it.med_ingredient).trim())}` : ''}</p>`
+                        : `<p class="audit-fact-line"><span aria-hidden="true">${escapeHtml(locMeta.icon || '📍')}</span> ${escapeHtml(placeLabel)} · <span aria-hidden="true">📦</span> ${escapeHtml(t('audit.stock_label'))}: <strong class="audit-fact-qty">${escapeHtml(qtyPlain)}</strong></p>`}
                     <p class="audit-fact-line audit-fact-line-expiry"><span aria-hidden="true">⏳</span> <span class="audit-expiry${isExpired ? ' is-expired' : ''}">${escapeHtml(expiryFact)}</span></p>
                 </div>
             </div>
@@ -2107,10 +2113,12 @@ async function _auditMedOpen(days) {
         return;
     }
     const pao = Number(res && res.pao_days) || 0;
-    if (pao > 0 && res && res.expiry_date) {
+    if (pao > 0 && res && (res.pao_expiry || res.expiry_date)) {
         it.opened_at = res.opened_at || it.opened_at;
-        it.expiry_date = res.expiry_date;
-        showToast(t('audit.med_opened_toast', { date: formatDate(res.expiry_date) }), 'success');
+        // The PRINTED date is not touched (opening a box does not rewrite the box): the toast
+        // speaks about the opened clock, which is the one this answer just started.
+        if (res.expiry_date) it.expiry_date = res.expiry_date;
+        showToast(t('audit.med_opened_toast', { date: formatDate(res.pao_expiry || res.expiry_date) }), 'success');
     } else {
         // No PAO on the product: the row is opened and the date is left alone (nothing is
         // invented), but the household is told what is missing and where to fix it.
