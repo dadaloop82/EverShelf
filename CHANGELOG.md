@@ -5,6 +5,32 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Kiosk 1.7.36] - 2026-11-11
+
+Kiosk APK only.
+
+### The BLE gateway started without its Bluetooth permissions and took the app with it
+1.7.35 booted and died again — this time **before the page was ever requested** (`mem` at 09:32:50,
+then Apache's log has not one `index.html` from the tablet), and the previous run's exit history
+named **two Java crashes** (`crash-java(4)`, 10:22:09 and 10:22:42) with the WebView sandbox going
+down in the same second.
+`launchWebView()` starts `GatewayService` — a **foreground service of type `connectedDevice`** — as
+soon as `has_scale` is set. Android 14 refuses that service without `BLUETOOTH_CONNECT`:
+`startForeground()` throws `SecurityException` inside the service, and that ends the whole process.
+After a reinstall the app's data (and `has_scale`) come back with the backup while the runtime
+Bluetooth grants do not — which is why this only appeared today.
+- `startGatewayService()` checks the Bluetooth grants first (`bluetoothPermissionsMissing()`) and
+  **does not start** without them (`gateway-skipped`), inside a try/catch (`gateway-start-failed`).
+- The launch gate asks them too when a scale is configured (camera + `BLUETOOTH_SCAN` /
+  `BLUETOOTH_CONNECT`, or fine location below Android 12), with no pin and no WebView alive.
+- `GatewayService.onCreate()` guards `startForeground()` (`gateway-foreground-failed` +
+  `stopSelf()`), and `onStartCommand()` guards the WebSocket/BLE start: a scale that cannot run must
+  never take the appliance down.
+- **A crash report is no longer lost.** `doPost()` returns whether the server took it, the pending
+  crash is cleared **only on success** — it used to be wiped *before* the POST, which is why these
+  Java crashes produced no `uncaught-exception` at all — and the same holds when the saved crash is
+  re-sent on the next launch.
+
 ## [Kiosk 1.7.35] - 2026-11-11
 
 Kiosk APK only.

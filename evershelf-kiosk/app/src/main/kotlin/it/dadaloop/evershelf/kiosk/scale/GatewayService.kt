@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
+import it.dadaloop.evershelf.kiosk.ErrorReporter
 import it.dadaloop.evershelf.kiosk.KioskActivity
 import it.dadaloop.evershelf.kiosk.R
 
@@ -72,7 +73,23 @@ class GatewayService : Service(), BleScaleListener, ServerEventListener {
         super.onCreate()
         bleManager = BleScaleManager(this, this)
         createNotificationChannel()
-        startForeground(NOTIF_ID, buildNotification("Avvio bilancia…"))
+        try {
+            startForeground(NOTIF_ID, buildNotification("Avvio bilancia…"))
+        } catch (e: Exception) {
+            // Android 14: a `connectedDevice` foreground service requires BLUETOOTH_CONNECT (and
+            // the app must hold it at the moment `startForeground()` runs). Without it this throws
+            // SecurityException *inside the service*, i.e. it takes the whole process with it —
+            // which is exactly how a wall lost its page one second after `launchWebView()`, with
+            // no `index.html` in the server log. A scale that cannot run is not a reason to lose
+            // the appliance.
+            ErrorReporter.reportMessage(
+                type    = "gateway-foreground-failed",
+                message = e.message ?: "startForeground threw",
+                forceReport = true,
+                level   = "error"
+            )
+            stopSelf()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -82,8 +99,19 @@ class GatewayService : Service(), BleScaleListener, ServerEventListener {
                 return START_NOT_STICKY
             }
             else -> {
-                startWsServer()
-                connectToSavedScale()
+                // A failure in the gateway must never take the page with it: the wall can live
+                // without a scale, it cannot live without the app.
+                try {
+                    startWsServer()
+                    connectToSavedScale()
+                } catch (e: Exception) {
+                    ErrorReporter.reportMessage(
+                        type    = "gateway-start-failed",
+                        message = e.message ?: "gateway start threw",
+                        forceReport = true,
+                        level   = "error"
+                    )
+                }
             }
         }
         return START_STICKY

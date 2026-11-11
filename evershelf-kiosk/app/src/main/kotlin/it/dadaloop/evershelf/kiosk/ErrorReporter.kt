@@ -152,9 +152,11 @@ object ErrorReporter {
                 // Persist to SharedPreferences first so the data survives even if
                 // the network POST doesn't complete before the process is killed.
                 savePendingCrash(type, message, stack, ctx)
-                reportSync(type, message, stack, ctx)
-                // If reportSync succeeded, the issue was sent — clear the pending entry
-                clearPendingCrash()
+                // Only a report that really reached the server may clear the pending entry.
+                // Clearing it after a failed POST is how a `SecurityException` inside the BLE
+                // gateway left the wall with no trace at all: the crash was saved, the POST
+                // failed, the file was wiped, and the next launch had nothing to re-send.
+                if (reportSync(type, message, stack, ctx)) clearPendingCrash()
             } catch (_: Exception) {}
             // Re-throw to the previous handler so the system crash dialog/restart still works
             previousHandler?.uncaughtException(thread, throwable)
@@ -366,14 +368,14 @@ object ErrorReporter {
         } else {
             synchronized(sentFingerprints) { sentFingerprints.add(fp) }
         }
-        executor.execute { doPost(type, message, stack, context, level) }
+        executor.execute { val ignored = doPost(type, message, stack, context, level) }
     }
 
     /** Synchronous variant used only in the UncaughtExceptionHandler (already off main thread). */
-    private fun reportSync(type: String, message: String, stack: String, context: Map<String, Any?>, level: String = "error") {
+    private fun reportSync(type: String, message: String, stack: String, context: Map<String, Any?>, level: String = "error"): Boolean {
         val fp = fingerprint(type, message)
         synchronized(sentFingerprints) { sentFingerprints.add(fp) }
-        doPost(type, message, stack, context, level)
+        return doPost(type, message, stack, context, level)
     }
 
     // ── Crash persistence helpers ─────────────────────────────────────────────
@@ -407,8 +409,6 @@ object ErrorReporter {
     private fun sendPendingCrash() {
         val json = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_PENDING, null) ?: return
-        // Clear immediately so we don't re-send if THIS launch also crashes
-        clearPendingCrash()
         executor.execute {
             try {
                 val p       = JSONObject(json)
@@ -420,13 +420,17 @@ object ErrorReporter {
                 val ctx     = mutableMapOf<String, Any?>("note" to "Sent on next launch after crash")
                 if (savedTs.isNotEmpty()) ctx["crash_ts"] = savedTs
                 ctxJson.keys().forEach { k -> ctx[k] = ctxJson.opt(k) }
-                doPost("$type-survived", message, stack, ctx)
+                // Cleared only when the server really took it. It used to be cleared BEFORE the
+                // POST, so a crash that could not be delivered (a LAN that was not up yet, the
+                // 8 s timeout on a wall that had just died) was wiped and never re-sent — the
+                // kiosk's own report of its own crash was the one thing we never got.
+                if (doPost("$type-survived", message, stack, ctx)) clearPendingCrash()
             } catch (_: Exception) {}
         }
     }
 
-    private fun doPost(type: String, message: String, stack: String, context: Map<String, Any?>, level: String = "error") {
-        val url = serverBaseUrl.ifEmpty { return }
+    private fun doPost(type: String, message: String, stack: String, context: Map<String, Any?>, level: String = "error"): Boolean {
+        val url = serverBaseUrl.ifEmpty { return false }
         val endpoint = "$url/api/?action=report_error"
         try {
             val ctxJson = JSONObject()
@@ -477,9 +481,11 @@ object ErrorReporter {
             conn.disconnect()
 
             Log.d(TAG, "Reported '$type' → HTTP $responseCode")
+            return responseCode in 200..299
         } catch (e: Exception) {
             // Never rethrow from the error reporter itself
             Log.w(TAG, "Failed to report error '$type': ${e.message}")
+            return false
         }
     }
 }

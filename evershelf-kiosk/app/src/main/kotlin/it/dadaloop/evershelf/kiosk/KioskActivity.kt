@@ -450,6 +450,10 @@ class KioskActivity : AppCompatActivity() {
         val needed = mutableListOf<String>()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
             needed.add(Manifest.permission.CAMERA)
+        // A configured BLE scale needs its Bluetooth grants before ANYTHING starts the gateway:
+        // a `connectedDevice` foreground service without them is refused by Android 14 with a
+        // SecurityException, i.e. the whole app goes down with it.
+        if (prefs.getBoolean(KEY_HAS_SCALE, false)) needed.addAll(bluetoothPermissionsMissing())
         return needed
     }
 
@@ -593,9 +597,58 @@ class KioskActivity : AppCompatActivity() {
 
     private fun startGatewayService() {
         if (!prefs.getBoolean(KEY_HAS_SCALE, false)) return
-        val intent = Intent(this, it.dadaloop.evershelf.kiosk.scale.GatewayService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
-        else startService(intent)
+        // Android 14 refuses a `connectedDevice` foreground service without BLUETOOTH_CONNECT:
+        // `startForeground()` throws SecurityException INSIDE the service and takes the whole
+        // process with it. That is what ended the wall after a reinstall — the app's data (and
+        // `has_scale`) came back with the backup, the runtime Bluetooth grants did not, and the
+        // service was started anyway: `crash-java` right after `launchWebView()`, no `index.html`,
+        // and nothing in the log because the crash report itself was lost.
+        val missing = bluetoothPermissionsMissing()
+        if (missing.isNotEmpty()) {
+            ErrorReporter.reportMessage(
+                type    = "gateway-skipped",
+                message = "BLE gateway not started: missing " + missing.joinToString(","),
+                extra   = mapOf("lock_task" to lockTaskState()),
+                forceReport = true,
+                level   = "warn"
+            )
+            return
+        }
+        try {
+            val intent = Intent(this, it.dadaloop.evershelf.kiosk.scale.GatewayService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
+            else startService(intent)
+        } catch (e: Exception) {
+            ErrorReporter.reportMessage(
+                type    = "gateway-start-failed",
+                message = e.message ?: "startForegroundService threw",
+                extra   = mapOf("lock_task" to lockTaskState()),
+                forceReport = true,
+                level   = "warn"
+            )
+        }
+    }
+
+    /**
+     * The Bluetooth grants a `connectedDevice` foreground service needs on this Android.
+     *
+     * Android 12+ wants `BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT`; older versions want the fine
+     * location permission for a BLE scan. Checked before the service is started **and** before
+     * anything else asks for permissions, because a missing grant there is a process kill, not a
+     * message.
+     */
+    private fun bluetoothPermissionsMissing(): List<String> {
+        val needed = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED)
+                needed.add(Manifest.permission.BLUETOOTH_SCAN)
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED)
+                needed.add(Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+                needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        return needed
     }
 
     // ── Install UI ────────────────────────────────────────────────────────
