@@ -2150,7 +2150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261110e'; // bump when translations change
+const _I18N_VERSION = '20261111c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7580,6 +7580,12 @@ function _paintKioskVersion() {
     if (nameEl) head.classList.add('is-name-hidden');
 }
 
+// The kiosk's version is answered where the household asked for it: the native Toast at launch
+// (`KioskActivity.launchWebView()`) and `kiosk 1.7.36 (37)` in the header, which
+// `_paintKioskVersion()` keeps whenever the row has room. A third copy as a floating banner was
+// one thing too many ("lì non la voglio, basta quello che c'è già"), so it is gone — the boot log
+// line below still carries both numbers for the server side.
+
 /** Re-fit the header on rotation/resize and after the translations arrive. */
 function _initHeaderVersionFit() {
     _paintKioskVersion();
@@ -10169,6 +10175,86 @@ function _dashboardAlertCap(items, max = DASHBOARD_ALERT_MAX) {
     return { shown, extra: Math.max(0, all.length - shown.length) };
 }
 
+/** The "e altri N…" note of a dashboard block (one place, so the count cannot disagree). */
+function _alertMoreNoteHtml(n) {
+    return n > 0 ? `<div class="alert-more-note">${escapeHtml(t('dashboard.more_items').replace('{n}', n))}</div>` : '';
+}
+
+/**
+ * Paint a dashboard block so it can keep growing to fill the screen.
+ *
+ * The blocks were capped at a fixed number of rows (3 expiring, 5 the others) and that cap was ALL
+ * the panel ever showed: on the wall — one stock panel visible at a time, a whole tablet of height —
+ * the bottom quarter of the screen stayed empty while the note said only "e altri 12".
+ * `shown` stays the first slice, `rest` is kept on the element, and `_growAlertLists()` appends from
+ * it while the panel still has room above the floating nav pill; what does not fit is exactly what
+ * the note counts.
+ */
+function _paintAlertList(list, shown, rest, renderRow, bind) {
+    if (!list) return;
+    const pending = Array.isArray(rest) ? rest.slice() : [];
+    list.innerHTML = shown.map(renderRow).join('') + _alertMoreNoteHtml(pending.length);
+    list._esPending = pending;
+    list._esRenderRow = renderRow;
+    list._esBind = bind || null;
+    if (bind) bind(list);
+}
+
+/** Append rows to a painted block while a whole row still fits above the nav pill. */
+function _growAlertList(list) {
+    if (!list || !Array.isArray(list._esPending) || !list._esPending.length) return 0;
+    const rows = list.querySelectorAll('.alert-item');
+    if (!rows.length) return 0;
+    // Every row of these lists has the same height (the 132 px grammar of the two lists): one
+    // measurement is the whole budget, and the 10 px between two cards is the gap to respect.
+    const lastRow = rows[rows.length - 1];
+    const rowH = lastRow.getBoundingClientRect().height;
+    if (!rowH) return 0;
+    const note = list.querySelector('.alert-more-note');
+    const NAV_FLOOR = 96;                       // the floating bottom nav
+    const bottom = (note || lastRow).getBoundingClientRect().bottom;
+    const room = window.innerHeight - NAV_FLOOR - bottom;
+    const fit = Math.max(0, Math.min(list._esPending.length, Math.floor(room / (rowH + 10))));
+    if (fit <= 0) return 0;
+    const take = list._esPending.splice(0, fit);
+    const html = take.map(list._esRenderRow).join('');
+    if (note) note.insertAdjacentHTML('beforebegin', html);
+    else list.insertAdjacentHTML('beforeend', html);
+    // Re-binding is safe: `_bindRowHoldOpen()` tears the previous binding down first.
+    if (list._esBind) list._esBind(list);
+    const still = list.querySelector('.alert-more-note');
+    if (still) {
+        if (list._esPending.length) still.textContent = t('dashboard.more_items').replace('{n}', list._esPending.length);
+        else still.remove();
+    }
+    return fit;
+}
+
+/**
+ * Fill the Home: every painted block grows until the screen is used, then says "e altri N…".
+ *
+ * Called after the dashboard has painted, when a stock tab is shown and on resize — the wall
+ * rotates, and a landscape tablet has a completely different budget from the next portrait one.
+ */
+function _growAlertLists() {
+    ['expired-list', 'expiring-list', 'opened-list', 'stale-list'].forEach(id => {
+        const list = document.getElementById(id);
+        if (!list) return;
+        const panel = list.closest('.alert-section');
+        if (panel && (panel.hidden || getComputedStyle(panel).display === 'none')) return;
+        _growAlertList(list);
+    });
+}
+
+/** A rotation is a new budget: re-fill what is on screen, debounced. */
+let _growAlertListsTimer = 0;
+window.addEventListener('resize', () => {
+    clearTimeout(_growAlertListsTimer);
+    _growAlertListsTimer = setTimeout(() => {
+        try { _growAlertLists(); } catch (e) { /* layout not ready */ }
+    }, 200);
+}, { passive: true });
+
 /**
  * One-shot notice for a data migration: the "Altro" location was removed and its
  * stock moved to the first location (1.16.19). Shown once per device — the instance
@@ -10280,6 +10366,8 @@ function _stockHubSelect(tab) {
         const has = panel.querySelectorAll('.alert-item').length > 0;
         panel.style.display = (on && has) ? '' : 'none';
     });
+    // The panel just became visible: give it the height it is standing in, then name the rest.
+    requestAnimationFrame(() => { try { _growAlertLists(); } catch (e) { /* layout not ready */ } });
 }
 
 /**
@@ -12495,9 +12583,9 @@ async function loadDashboard() {
         const expiringList = document.getElementById('expiring-list');
         const visibleExpiring = (statsData.expiring_soon || []).filter(item => !isInventoryDepleted(item));
         if (visibleExpiring.length > 0) {
-            const { shown: expiringShown, extra: expiringExtra } = _dashboardAlertCap(visibleExpiring, DASHBOARD_EXPIRING_MAX);
+            const { shown: expiringShown } = _dashboardAlertCap(visibleExpiring, DASHBOARD_EXPIRING_MAX);
             expiringSection.style.display = 'block';
-            expiringList.innerHTML = expiringShown.map(item => {
+            const expiringRow = (item) => {
                 const days = daysUntilExpiry(item.expiry_date);
                 const badgeText = _relativeDaysAhead(days);
                 const badgeClass = days === 0 ? 'today'
@@ -12517,8 +12605,8 @@ async function loadDashboard() {
                         ${_rowMenuButtons(item)}
                     </div>
                 </div>`;
-            }).join('') + (expiringExtra > 0 ? `<div class="alert-more-note">${t('dashboard.more_items').replace('{n}', expiringExtra)}</div>` : '');
-            _bindAlertItemsHoldOpen(expiringList);
+            };
+            _paintAlertList(expiringList, expiringShown, visibleExpiring.slice(expiringShown.length), expiringRow, _bindAlertItemsHoldOpen);
         } else {
             expiringSection.style.display = 'none';
         }
@@ -12548,9 +12636,9 @@ async function loadDashboard() {
             ? visibleExpiredAll.filter(item => !_isMedicalRow(item))
             : visibleExpiredAll;
         if (visibleExpired.length > 0) {
-            const { shown: expiredShown, extra: expiredExtra } = _dashboardAlertCap(visibleExpired);
+            const { shown: expiredShown } = _dashboardAlertCap(visibleExpired);
             expiredSection.style.display = 'block';
-            expiredList.innerHTML = expiredShown.map(item => {
+            const expiredRow = (item) => {
                 const days = Math.abs(daysUntilExpiry(item.expiry_date));
                 const daysText = _relativeDaysAgo(days);
                 // No Controlla / Va bene pill here: the red "N gg fa" badge already carries
@@ -12569,8 +12657,8 @@ async function loadDashboard() {
                         ${_rowMenuButtons(item)}
                     </div>
                 </div>`;
-            }).join('') + (expiredExtra > 0 ? `<div class="alert-more-note">${t('dashboard.more_items').replace('{n}', expiredExtra)}</div>` : '');
-            _bindAlertItemsHoldOpen(expiredList);
+            };
+            _paintAlertList(expiredList, expiredShown, visibleExpired.slice(expiredShown.length), expiredRow, _bindAlertItemsHoldOpen);
         } else {
             expiredSection.style.display = 'none';
         }
@@ -12630,8 +12718,8 @@ async function loadDashboard() {
             const openedVisible = statsData.opened
                 .filter(item => !isInventoryDepleted(item))
                 .sort((a, b) => String(a.opened_at || '9999').localeCompare(String(b.opened_at || '9999')));
-            const { shown: visible, extra } = _dashboardAlertCap(openedVisible, DASHBOARD_OPENED_MAX);
-            openedList.innerHTML = visible.map(item => {
+            const { shown: visible } = _dashboardAlertCap(openedVisible, DASHBOARD_OPENED_MAX);
+            const openedRow = (item) => {
                 const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
                 const qty = parseFloat(item.quantity);
                 const pkgSize = parseFloat(item.default_quantity);
@@ -12724,14 +12812,16 @@ async function loadDashboard() {
                         ${expiryBadge}
                     </div>
                 </div>`;
-            }).join('') + (extra > 0 ? `<div class="alert-more-note">${t('dashboard.more_items').replace('{n}', extra)}</div>` : '');
-            _bindAlertItemsHoldOpen(openedList);
+            };
+            _paintAlertList(openedList, visible, openedVisible.slice(visible.length), openedRow, _bindAlertItemsHoldOpen);
         } else {
             openedSection.style.display = 'none';
         }
         _syncStockHub();
 
         loadStaleDashboardItems();
+        // After the paint: every block takes the height it was given, then names what is left.
+        requestAnimationFrame(() => { try { _growAlertLists(); } catch (e) { /* layout not ready */ } });
         
     } catch (err) {
         console.error('Dashboard load error:', err);
@@ -12774,7 +12864,9 @@ async function loadStaleDashboardItems() {
     if (!section || !list) return;
     _showListSkeleton('stale-list', 2);
     try {
-        const data = await api('stale_inventory_items', { limit: DASHBOARD_STALE_MAX, min_days: 21, mode: 'expiry' });
+        // Ask for more than the first screen holds: the block fills the height it is given and
+        // names the rest ("e altri N…"), instead of stopping at five rows with half a tablet empty.
+        const data = await api('stale_inventory_items', { limit: Math.max(DASHBOARD_STALE_MAX, 24), min_days: 21, mode: 'expiry' });
         const items = data.items || [];
         _startStaleRotation();
         if (!items.length) {
@@ -12784,7 +12876,7 @@ async function loadStaleDashboardItems() {
             return;
         }
         section.style.display = 'block';
-        list.innerHTML = items.map(item => {
+        const staleRow = (item) => {
             const days = item.days_unused != null ? item.days_unused : '—';
             const unusedLabel = item.never_used
                 ? t('dashboard.stale_never_used')
@@ -12815,11 +12907,12 @@ async function loadStaleDashboardItems() {
                     <button type="button" class="alert-item-menu" title="${escapeAttr(t('dashboard.row_actions'))}" aria-label="${escapeAttr(t('dashboard.row_actions'))}" onclick="event.stopPropagation(); showAlertItemDetail(${iid}, ${pid})">⋮</button>
                 </div>
             </div>`;
-        }).join('');
-        _bindAlertItemsHoldOpen(list);
+        };
+        _paintAlertList(list, items.slice(0, DASHBOARD_STALE_MAX), items.slice(DASHBOARD_STALE_MAX), staleRow, _bindAlertItemsHoldOpen);
         // This loader is async and finishes after the tab selection: re-apply it, or
         // the "dimenticati" panel reappears under whichever tab is active.
         _syncStockHub();
+        requestAnimationFrame(() => { try { _growAlertLists(); } catch (e) { /* layout not ready */ } });
     } catch (e) {
         console.warn('[stale]', e);
         section.style.display = 'none';
@@ -13669,7 +13762,11 @@ function renderBannerItem() {
         } else if (fin.stock_qty > 0) {
             baseText = t('dashboard.banner_finished_crumb', { qty: fin.stock_qty, unit: fin.unit });
         }
-        detailEl.innerHTML = baseText + expectedText + ' ' + t('dashboard.banner_finished_check') + _bannerLocationLine(item);
+        // The row of this branch is `fin`, not `item`: `item` is only declared in the
+        // expired/review/no_expiry branches, so this line threw
+        // "ReferenceError: item is not defined" on EVERY "finished" notice and left the
+        // banner without its detail (measured: one error every 5 minutes on the wall).
+        detailEl.innerHTML = baseText + expectedText + ' ' + t('dashboard.banner_finished_check') + _bannerLocationLine(fin);
         // Vanished with a large ledger gap: put restore first so a hasty “Finished”
         // does not wipe a full pack that only disappeared from the inventory row.
         const restoreFirst = !!(fin.vanished && fin.expected_qty);
@@ -14956,6 +15053,10 @@ function formatQuantity(qty, unit, defaultQty, packageUnit, opts) {
     let result;
     if (n === Math.floor(n)) result = `${mark}${Math.floor(n)} ${label}`;
     else if (unit === 'pz') result = `${_pzFractionLabel(n)} ${label}`;
+    // A medicine is never weighed: its g/ml are an estimate read off the box, so they are
+    // written whole and marked approximate — «~22 g», never «14.2 g» (the tenth is a precision
+    // the household cannot measure and the stocktake card printed one).
+    else if (approx && _isWeightVolumeUnit(unit)) result = `${mark}${Math.round(n)} ${label}`;
     else result = `${mark}${n.toFixed(1)} ${label}`;
     return result;
 }
@@ -20353,7 +20454,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261110e';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111d';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20363,7 +20464,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261110e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261111d';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -41611,6 +41712,9 @@ function _renderOfflineBanner(loading = false) {
     // non-blocking "you can keep working" line from _paintOfflineStrip('down').
     const q = _offlineQueueGet();
     banner.classList.remove('is-synced', 'is-fading');
+    // Down again after a green «Sincronizzato!»: the retry belongs to the orange strip.
+    const retryEl = banner.querySelector('.offline-banner-retry');
+    if (retryEl) retryEl.hidden = false;
     if (q.length > 0) {
         textEl.textContent = t('error.offline_ops_pending').replace('{n}', q.length);
     } else if (loading) {
@@ -41714,8 +41818,14 @@ function _paintOfflineStrip(state) {
     const banner = document.getElementById('offline-banner');
     const textEl = banner ? banner.querySelector('.offline-banner-text') : null;
     const iconEl = banner ? banner.querySelector('.offline-banner-icon') : null;
+    // The "Riprova" button asks the server again — there is nothing left to retry on a
+    // strip that has just said «Sincronizzato!» (and `_exitOfflineMode()` removes
+    // `body.offline-mode`, whose CSS used to be the only thing hiding it, BEFORE the green
+    // state is painted: the button came back exactly there).
+    const retryEl = banner ? banner.querySelector('.offline-banner-retry') : null;
     if (!banner || !textEl) return;
     banner.classList.remove('is-synced', 'is-fading');
+    if (retryEl) retryEl.hidden = state === 'synced';
     if (state === 'synced') {
         if (iconEl) iconEl.textContent = '✅';
         textEl.textContent = t('error.offline_synced_short');
@@ -44935,7 +45045,8 @@ async function _initApp() {
     if (_isKioskDevice()) {
         // And it goes in the log: "did the update install?" is answered by the server, not by a
         // screenshot of the header.
-        remoteLog('KIOSK', `apk=${_kioskAppVersion() || 'unknown'}`);
+        remoteLog('KIOSK', `apk=${_kioskAppVersion() || 'unknown'} app=${(document.querySelector('.header-version') || {}).textContent || ''}`);
+        // The version is on the header (and in the native Toast at launch) — no floating banner.
         setTimeout(() => { try { _kioskCheckForUpdates(); } catch (e) { /* old APK */ } }, 4000);
     }
     _initHeaderVersionFit();

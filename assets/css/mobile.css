@@ -77,12 +77,22 @@
     }
 
     /* ── Inventory rows (pantry list + dashboard tiles) ──────────────────── */
+    /* The name owns ONE line. It used to wrap freely (`overflow-wrap: anywhere`), so
+       «Connettivin a plus» took two lines and «Destrometorfano bromidrato della» four, and the
+       row grew until its badges were pushed under the text — the "disordine" a phone showed.
+       The whole name is in the product sheet, one tap away. */
     .inv-name {
-        white-space: normal;
-        overflow: visible;
-        text-overflow: clip;
-        overflow-wrap: anywhere;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        overflow-wrap: normal;
         line-height: 1.3;
+    }
+    /* The medicine filter chips above the cabinet list are a desktop convenience: on a phone
+       they take a row of the little height there is (the macro pills and the room menu already
+       do that job). */
+    .inv-med-chips {
+        display: none;
     }
     .inv-qty-right {
         max-width: 45%;

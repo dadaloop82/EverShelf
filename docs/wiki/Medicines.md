@@ -281,8 +281,12 @@ inside an option label.
 1. **Duplicate active-ingredient warning** (“you already have 2 boxes of ibuprofen”), now that
    the catalogue brings `principle_attivo` with the name.
 2. **Leaflet link** by AIC (the paper box is often gone).
-3. Per-medicine **PAO** override (eye drops 28 days, syrup 30) on top of the generic
-   `data/opened_shelf_life.json` families.
+3. ~~Per-medicine **PAO** override~~ — **done**: `data/medical_pao.json` is the PAO table by FORM
+   (collirio/unguento oftalmico 28 days, sciroppo/sospensione/gocce orali 30, crema/gel/unguento/
+   balsamo/spray 90, fiale monodose 1, compresse/capsule/supposte 0). `medicalPaoDaysForName($name,
+   $notes)` reads it, `med_classify` fills an **empty** PAO from it, `migration_med_pao_default_v1`
+   backfilled the cabinet already in the database (a typed value is never overwritten), and
+   `med_open` accepts `days_ago` so the stocktake can ask «da quanti giorni è aperto?».
 4. **More countries**: the schema already carries `codes`, `dataset` and `ignored` per country;
    a national open-data importer is the missing piece (AIFA is the one implemented).
 

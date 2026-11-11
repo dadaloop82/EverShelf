@@ -10869,6 +10869,24 @@ function medClassifyAction(PDO $db): void {
         echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
         return;
     }
+    // An empty PAO is not an answer: opening the box would mark the row open and leave the date
+    // alone ("non so per quanto tiene"). The FORM the name declares suggests it
+    // (`data/medical_pao.json`: a collirio keeps 28 days, a syrup 30, tablets nothing), and the
+    // household can always change the number in the sheet.
+    if ($paoDays === 0) {
+        $nameForPao = trim((string)($input['name'] ?? ''));
+        $notesForPao = '';
+        // The FORM usually lives in the pack notes ("Fastum" + "gel 2,5% 25 mg/g tubo 50 g"),
+        // not in the title: read them from the product when the caller did not send them.
+        $nameRowPao = $db->prepare('SELECT name, notes FROM products WHERE id = ?');
+        $nameRowPao->execute([$productId]);
+        $paoRow = $nameRowPao->fetch(PDO::FETCH_ASSOC) ?: [];
+        if ($nameForPao === '') {
+            $nameForPao = (string)($paoRow['name'] ?? '');
+        }
+        $notesForPao = (string)($input['notes'] ?? ($paoRow['notes'] ?? ''));
+        $paoDays = medicalPaoDaysForName($nameForPao, $notesForPao);
+    }
     // Settings classify posts tags/ingredient/PAO with no ATC: never wipe the AIFA code the
     // scan stored (`med_atc = ''` broke Phase-2 symptom search for that box).
     if ($atc === '') {
@@ -10932,19 +10950,27 @@ function medOpenAction(PDO $db): void {
         return;
     }
     $pao = (int)($found['med_pao_days'] ?? 0);
-    $db->prepare("UPDATE inventory SET opened_at = date('now') WHERE id = ?")->execute([$invId]);
+    // "Da quanto è aperto?" — the household may mark a box open three weeks after the fact, and
+    // the answer is what makes the PAO date honest: opened_at = today − N, expiry = opened_at + PAO.
+    $daysAgo = max(0, min(3650, (int)($input['days_ago'] ?? 0)));
+    $openMod = '-' . $daysAgo . ' day';
+    $db->prepare("UPDATE inventory SET opened_at = date('now', ?) WHERE id = ?")->execute([$openMod, $invId]);
     $newExpiry = '';
     if ($pao > 0) {
+        $left = $pao - $daysAgo;
+        $expiryMod = ($left >= 0 ? '+' : '-') . abs($left) . ' day';
         $db->prepare("UPDATE inventory SET expiry_date = date('now', ?), expiry_user_set = 1 WHERE id = ?")
-           ->execute(['+' . $pao . ' day', $invId]);
+           ->execute([$expiryMod, $invId]);
         $newExpiry = (string)$db->query("SELECT expiry_date FROM inventory WHERE id = " . (int)$invId)->fetchColumn();
     }
+    $openedAt = (string)$db->query("SELECT opened_at FROM inventory WHERE id = " . (int)$invId)->fetchColumn();
     EverLog::info('Medicine marked as opened', [
         'event' => 'med_open',
         'inventory_id' => $invId,
         'pao_days' => $pao,
+        'days_ago' => $daysAgo,
     ]);
-    echo json_encode(['success' => true, 'opened_at' => date('Y-m-d'), 'expiry_date' => $newExpiry, 'pao_days' => $pao], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['success' => true, 'opened_at' => $openedAt, 'expiry_date' => $newExpiry, 'pao_days' => $pao, 'days_ago' => $daysAgo], JSON_UNESCAPED_UNICODE);
 }
 
 /**
@@ -15943,6 +15969,13 @@ function productMatchesShoppingFamily(string $productName, string $shoppingName)
     $computed = mb_strtolower(computeShoppingName($productName, '', '', false));
     $snComputed = mb_strtolower(computeShoppingName($shoppingName, '', '', false));
     if ($computed === $sn || $computed === $snComputed) return true;
+    // A generic and its own truncation are the SAME family: the dictionary keeps the stem
+    // the title uses («Pan Bauletto al Grano Duro» → «Pan», curated as «Pane»), and the old
+    // exact comparison threw those rows out of the family they were filed under — the
+    // pantry held 23 slices of bread while the list asked for «Pane». Prefix in either
+    // direction, at least three letters, so «Tè al limone» never becomes «Limone».
+    $minLen = min(mb_strlen($computed), mb_strlen($sn));
+    if ($minLen >= 3 && (str_starts_with($computed, $sn) || str_starts_with($sn, $computed))) return true;
     $nameLower = mb_strtolower(trim($productName));
     return $nameLower === $sn || str_starts_with($nameLower, $sn . ' ');
 }
@@ -18902,17 +18935,29 @@ function internalShoppingCleanupObsolete(PDO $db): array {
         => evershelfFamilyUsableStockQtyMemo($db, $generic, $unit, $pkgSize, $pkgUnit);
     $removed     = 0;
     $candidates  = 0;
+    $cleared     = 0;   // «🛒 Esaurito» rows the shelf has since refilled
     $rows = $db->query("SELECT id, name, raw_name, specification FROM shopping_list")->fetchAll(PDO::FETCH_ASSOC);
     $del  = $db->prepare("DELETE FROM shopping_list WHERE id = ?");
 
     foreach ($rows as $row) {
         $spec = (string)($row['specification'] ?? '');
-        // Only EverShelf-owned rows; never a row the user marked as finished.
-        if (!evershelfSpecIsAppManaged($spec) || evershelfSpecIsDeliberate($spec)) {
+        // Only EverShelf-owned rows reach this point.
+        if (!evershelfSpecIsAppManaged($spec)) {
             continue;
         }
         $name = trim((string)($row['name'] ?? ''));
         $raw  = trim((string)($row['raw_name'] ?? ''));
+        if (evershelfSpecIsDeliberate($spec)) {
+            // «🛒 Esaurito» is a decision, never a prediction — but a shelf refilled since
+            // then makes the row a lie («Banane · 🛒 Esaurito» next to three bananas). It is
+            // cleared only on evidence, and the line says so.
+            if (!evershelfFamilyBackInStock($db, $name)) {
+                continue;
+            }
+            $cleared++;
+            $del->execute([(int)$row['id']]);
+            continue;
+        }
 
         if (evershelfShoppingRowStillNeeded($db, $index, $name, $raw, $familyUsableQty)) {
             continue;
@@ -18926,7 +18971,14 @@ function internalShoppingCleanupObsolete(PDO $db): array {
         }
     }
 
-    return ['candidates' => $candidates, 'removed' => $removed];
+    if ($cleared > 0) {
+        EverLog::info('shopping_finished_row_cleared', [
+            'event' => 'shopping_finished_row_cleared',
+            'cleared' => $cleared,
+        ]);
+    }
+
+    return ['candidates' => $candidates, 'removed' => $removed, 'cleared' => $cleared];
 }
 
 function bringGetList(): void {
@@ -20385,6 +20437,18 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                         $usableStockByShoppingName[$sName][$rowBase['family']] =
                             ($usableStockByShoppingName[$sName][$rowBase['family']] ?? 0.0) + $rowBase['qty'];
                     }
+                    // The COUNTED reading (same bucket the coverage rule reads):
+                    // packs and pieces, as the household counts them. A `pz` row whose
+                    // `default_quantity` is a WEIGHT (4.5 avocados × 160 g) expands into
+                    // grams and then covered nothing for the family sold by the piece, so
+                    // «Avocado Hass» read 0 and went back on the list. Rows already
+                    // measured in `pz` were added above and are not counted twice.
+                    if ($rowBase['qty'] > 0 && $rowBase['family'] !== 'pz'
+                        && shoppingUnitIsPack($stUnit)) {
+                        $usableStockByShoppingName[$sName]['pz'] =
+                            ($usableStockByShoppingName[$sName]['pz'] ?? 0.0)
+                            + $fQty * evershelfUnitFactor($stUnit);
+                    }
                 }
             }
             $txFam = $txData[$pStock['id']] ?? null;
@@ -20406,6 +20470,15 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
     $items = [];
     $skippedOutOfSeason = [];
     $wasteLearning = _loadWasteLearning($db);
+    // How EARLY the list may speak (the plan window only decides how MUCH to buy).
+    // `plan_days` is the quantity horizon — «calcolato per 30 giorni» — and using it as the
+    // urgency window too answered with everything that would be finished within a month:
+    // five apples, six tomatoes, a jar of honey, a bag of rice. That is why the list read
+    // «🟠 Presto» on a pantry that had it. The signal is the household's own trip cycle
+    // (`smartDefaultPlanDays()` infers it from the real spesa sessions), floored at a week
+    // of margin and capped by the plan; with no evidence yet, two weeks.
+    $cycleDays  = ($planDefault > 0 && $planDefault < $planDays) ? $planDefault : 14;
+    $signalDays = max(7, min($planDays, $cycleDays));
     foreach ($products as $p) {
         $pid = $p['id'];
         $inv = $inventory[$pid] ?? null;
@@ -20575,15 +20648,34 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         // packages with `evershelfBaseQty()`, so "3 packs × 1 l" covers a litre of milk
         // while "360 g" of jam does not cover a 620 g jar; expired rows and traces
         // (≤ 0.5 g, 2 g…) never count.
+        //
+        // Two readings, the generous one wins (same rule as `evershelfFamilyUsableStockQty()`):
+        //  - MEASURED: packages expanded with their size. `default_quantity` on a `pz` row is
+        //    often what one piece weighs (2 g of "Pomodoro", 160 g of an avocado), so the
+        //    expanded grams are right for a weight question and blind for "how many are left".
+        //  - COUNTED: packs and pieces as such. 2 mozzarellas cover a 1 kg pack, and two
+        //    tomatoes in one row plus four in another are six.
         $pkgUnit = trim((string)($p['package_unit'] ?? ''));
         $refBase = evershelfBaseQty(1.0, $unit, $defQty, $pkgUnit);
         $perUnitBase = $refBase['qty'] > 0 ? $refBase['qty'] : 1.0;
-        $ownBaseQty = evershelfStockRowCoversUnit($freshQty, $unit, null, $unit)
-            ? evershelfBaseQty($freshQty, $unit, $defQty, $pkgUnit)['qty']
+        $refIsCount  = shoppingUnitIsPack($unit);
+        $measuredFamily = (float)($usableStockByShoppingName[$sNameForRef][$refBase['family']] ?? 0.0) / $perUnitBase;
+        $measuredOwn = evershelfStockRowCoversUnit($freshQty, $unit, null, $unit)
+            ? evershelfBaseQty($freshQty, $unit, $defQty, $pkgUnit)['qty'] / $perUnitBase
             : 0.0;
-        $familyBaseQty = (float)($usableStockByShoppingName[$sNameForRef][$refBase['family']] ?? 0.0);
-        $familyUsableQty = $familyBaseQty / $perUnitBase;                        // incl. this product
-        $otherFamilyUsableQty = max(0.0, ($familyBaseQty - $ownBaseQty) / $perUnitBase);
+        $countedFamily = $refIsCount ? (float)($usableStockByShoppingName[$sNameForRef]['pz'] ?? 0.0) : 0.0;
+        $countedOwn    = $refIsCount ? $freshQty * evershelfUnitFactor($unit) : 0.0;
+        $familyUsableQty      = max($measuredFamily, $countedFamily);   // incl. this product
+        $otherFamilyUsableQty = max(0.0, $familyUsableQty - max($measuredOwn, $countedOwn));
+        // The row answers for the ARTICLE, never for one pack: 6 tomatoes split between two
+        // rows are 6 tomatoes, and a «ends_in:5» computed from the 2-piece row (next to a
+        // 4-piece one) is what put a stocked shelf back on the list. When the family holds
+        // more than this row, the family is what "how many days are left" means — but what
+        // EXPIRES is this batch, so the expiry rules keep the row's own number.
+        $daysLeftOwn = $daysLeft;
+        if ($dailyRate > 0 && $familyUsableQty > $qty) {
+            $daysLeft = min($familyUsableQty / $dailyRate, 365);
+        }
         // "Covered" means the family still holds a usable purchase's worth:
         //   * anything sold by the pack/piece → at least ONE full pack/piece left,
         //   * weights/volumes → half the usual bought quantity (the convention the
@@ -20649,7 +20741,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             ? min(200.0, ($familyStockQty / $refQty) * 100.0)
             : $pctLeft;
 
-        // High-use restock (explicit): ≤25% of typical purchase OR empty within plan days.
+        // High-use restock (explicit): ≤25% of typical purchase OR empty before the next
+        // trip. The window is `$signalDays` (the trip cycle), NOT the quantity plan: see
+        // the note where it is computed.
         $isHighUse = $isFrequent || $isUrgentStaple;
         $highUseRestock = smartHighUseNeedsList(
             $isHighUse && !$familyCovered,
@@ -20657,7 +20751,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             $qty,
             (float)$daysLeft,
             (float)$dailyRate,
-            (int)$planDays
+            (int)$signalDays
         );
         if (!empty($highUseRestock['needed'])) {
             $daysLeftDisplay = (int)round($daysLeft);
@@ -20734,7 +20828,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             // (b) regular consumer + will expire before finishing it
             //     (daysLeft based on consumption rate > days to expiry)
             // (c) non-regular + within 3 days + low stock → minimal safety net
-            $willExpireBeforeUsed = $dailyRate > 0 && $daysToExpiry < $daysLeft;
+            $willExpireBeforeUsed = $dailyRate > 0 && $daysToExpiry < $daysLeftOwn;
             if ($isUrgentStaple && ($pctLeft < 50 || $willExpireBeforeUsed)) {
                 if ($urgency === 'none' || $urgency === 'low') {
                     $urgency = 'medium';
@@ -20757,8 +20851,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         }
 
         // Frequently used but stock getting low (predictive) — never "Urgente" alone;
-        // Presto only for top staples about to run out.
-        if ($urgency === 'none' && $dailyRate > 0 && $daysLeft <= 14 && $isUrgentStaple && $isRecent) {
+        // Presto only for top staples about to run out. The window is the trip cycle, so
+        // a pantry that shelters its apples for two weeks is not nagged about them.
+        if ($urgency === 'none' && $dailyRate > 0 && $daysLeft <= $signalDays && $isUrgentStaple && $isRecent) {
             $daysLeftDisplay = (int)round($daysLeft);
             $reasons[] = 'ends_in:' . $daysLeftDisplay;
             if ($daysLeftDisplay <= 3 && $isTopStaple) {
@@ -20772,9 +20867,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                 $score += 25;
             }
         }
-        // Frequent staples that won't cover the shopping plan window
+        // Frequent staples that won't cover the next shopping trip
         if ($dailyRate > 0 && $isUrgentStaple && $isRecent && $qty > 0
-            && $daysLeft <= $planDays && !in_array($urgency, ['critical', 'high'], true)) {
+            && $daysLeft <= $signalDays && !in_array($urgency, ['critical', 'high'], true)) {
             $daysLeftDisplay = (int)round($daysLeft);
             if ($urgency === 'none' || $urgency === 'low') {
                 $urgency = ($daysLeftDisplay <= 3 && $isTopStaple) ? 'high' : 'medium';
@@ -20783,9 +20878,10 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             }
         }
         // Buy-cycle prediction for products not tracked per-use (e.g. salt, spices):
-        // if daily rate was derived from buy cycles and we have < 21 days left → flag.
+        // the rate is synthetic, so the window stays the trip cycle like everywhere else —
+        // a 21-day radar put salt and spices on the list three weeks early, every week.
         if ($urgency === 'none' && $buyCycleDays !== null && $dailyRate > 0
-            && $daysLeft <= 21 && $isRegular && !$justRestocked) {
+            && $daysLeft <= $signalDays && $isRegular && !$justRestocked) {
             $daysLeftDisplay = (int)round($daysLeft);
             $cycleDisplay = (int)round($buyCycleDays);
             $reasons[] = 'ends_in_cycle:' . $daysLeftDisplay . ':' . $cycleDisplay;
@@ -20843,22 +20939,17 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             }
         }
 
-        // Extended predictive horizon for staple items (high-frequency products).
-        // The default predictive block triggers at daysLeft <= 14 for isFrequent (≥1.5/month).
-        // Very frequent items (daily-ish: ≥4/month) or weekly items (≥2/month) should appear
-        // in the shopping list earlier, so the user always has them on their radar when shopping.
-        //   ≥ 4/month → 28-day horizon (daily staples: latte, pane, uova…)
-        //   ≥ 2/month → 21-day horizon (weekly staples: yogurt, frutta, carne…)
-        if ($urgency === 'none' && $dailyRate > 0 && $isRecent && !$justRestocked) {
-            if ($usesPerMonth >= 4 && $daysLeft <= 28) {
-                $urgency = 'low';
-                $reasons[] = 'ends_in:' . (int)round($daysLeft);
-                $score += 20;
-            } elseif ($usesPerMonth >= 2 && $daysLeft <= 21) {
-                $urgency = 'low';
-                $reasons[] = 'ends_in:' . (int)round($daysLeft);
-                $score += 15;
-            }
+        // Frequent staples get the same window as everybody else: the trip cycle.
+        // This block used to reach 28 days for a daily staple and 21 for a weekly one, so
+        // a fridge holding two weeks of fruit was answered with «🟡 A breve» on every one
+        // of them. Anticipating the trip is the point; anticipating the month is a copy of
+        // the pantry. A daily staple running out before the NEXT trip is already flagged
+        // by the high-use rule above, at the same `$signalDays`.
+        if ($urgency === 'none' && $dailyRate > 0 && $isRecent && !$justRestocked
+            && $usesPerMonth >= 2 && $daysLeft <= $signalDays) {
+            $urgency = 'low';
+            $reasons[] = 'ends_in:' . (int)round($daysLeft);
+            $score += 20;
         }
 
         if ($urgency === 'none') continue;
@@ -21689,7 +21780,9 @@ function internalShoppingNormalizeNames(PDO $db): array {
  *     and the two disagreed about rows like «Panna da cucina»: 6 packs in the pantry, cache
  *     «urgent». A read now asks the same question the cron asks.
  *
- * Rows the user marked as finished (🛒 Esaurito) are never touched.
+ * Rows the user marked as finished (🛒 Esaurito) are kept until the shelf proves
+ * otherwise (`evershelfFamilyBackInStock()`): a decision is not a prediction, but a
+ * fridge full of bananas makes «Banane · 🛒 Esaurito» a lie.
  */
 function internalShoppingPruneCovered(PDO $db): array {
     if (isShoppingBringMode()) {
@@ -21709,15 +21802,24 @@ function internalShoppingPruneCovered(PDO $db): array {
     $rows = $db->query('SELECT id, name, raw_name, specification FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
     $removed = 0;
     $candidates = 0;
+    $cleared = 0;
     $del = $db->prepare('DELETE FROM shopping_list WHERE id = ?');
     foreach ($rows as $row) {
-        // Only EverShelf-owned rows; never a row the user marked as finished.
-        if (!evershelfSpecIsAppManaged((string)($row['specification'] ?? ''))
-            || evershelfSpecIsDeliberate((string)($row['specification'] ?? ''))) {
+        // Only EverShelf-owned rows reach this point.
+        if (!evershelfSpecIsAppManaged((string)($row['specification'] ?? ''))) {
             continue;
         }
         $listName = (string)$row['name'];
         $listRaw  = (string)($row['raw_name'] ?? '');
+        if (evershelfSpecIsDeliberate((string)($row['specification'] ?? ''))) {
+            // «🛒 Esaurito» survives every prediction — until the shelf answers.
+            if (!evershelfFamilyBackInStock($db, $listName)) {
+                continue;
+            }
+            $cleared++;
+            $del->execute([(int)$row['id']]);
+            continue;
+        }
         if (evershelfShoppingRowStillNeeded($db, $index, $listName, $listRaw, $familyUsableQty)) {
             continue;
         }
@@ -21726,6 +21828,12 @@ function internalShoppingPruneCovered(PDO $db): array {
         if ($del->rowCount() > 0) {
             $removed++;
         }
+    }
+    if ($cleared > 0) {
+        EverLog::info('shopping_finished_row_cleared', [
+            'event' => 'shopping_finished_row_cleared',
+            'cleared' => $cleared,
+        ]);
     }
     if ($removed > 0) {
         // A read-path deletion is worth a line: it is the only trace of "the list changed itself".
@@ -21737,7 +21845,7 @@ function internalShoppingPruneCovered(PDO $db): array {
     }
     // Do not invalidate smart_shopping_cache here: prune only touches shopping_list
     // rows. Unlinking mid-cron made internalShoppingAutoAddCritical see no_cache.
-    return ['candidates' => $candidates, 'removed' => $removed];
+    return ['candidates' => $candidates, 'removed' => $removed, 'cleared' => $cleared];
 }
 
 function internalShoppingDedupeGenerics(PDO $db): array {

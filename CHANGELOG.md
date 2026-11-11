@@ -1,9 +1,286 @@
-perchè# Changelog
+# Changelog
 
 All notable changes to EverShelf will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.31.28] - 2026-11-11
+
+### The Home fills the screen, then says "e altri N…"
+Reported on the wall: "un quarto del tablet sotto è vuoto, bisognerebbe espandere le liste fino alla
+fine e poi fare 'e altri x…'". The blocks were capped at a fixed number of rows (3 expiring, 5 the
+others) and that cap was **all** the panel ever showed — the note counted the rest while a whole
+quarter of a landscape tablet stayed empty.
+- `_paintAlertList()`/`_growAlertList()` keep the first slice on screen and the remainder on the
+  element, then append rows **until a whole row no longer fits above the floating nav pill** (one
+  measured row = the budget, because every row of these lists has the same height). What does not
+  fit is exactly what the note names (`dashboard.more_items`).
+- Re-filled after the dashboard paints, when a stock tab is shown and on resize (a rotation is a
+  new budget).
+- The "dimenticati" block asks the server for up to 24 rows instead of 5, so there is something to
+  grow into.
+
+### The kiosk's floating version banner is gone
+The header (`kiosk 1.7.37 (38)`) and the native Toast at launch are what the household asked for;
+a third copy floating over the page was one thing too many. The boot **log** line still carries
+both versions (`[KIOSK] apk=… app=…`), and the three `kiosk.boot_version*` keys are gone from all
+six locales.
+
+### A medicine now knows how long it keeps, and asks since when it is open
+Asked for: «per ogni farmaco mi devi chiedere se è aperto e da quanto, e calcolarmi quando buttarlo;
+“Scade dopo l'apertura (giorni)” c'è già nella scheda ma dovresti precompilarlo tu — aggiorna i
+farmaci attualmente in database».
+- `data/medical_pao.json` is the PAO table (period after opening) by the FORM that the name **or the
+  pack notes** declare: collirio / unguento oftalmico 28 days, sciroppo / sospensione / gocce orali 30,
+  crema / gel / unguento / balsamo / spray 90, fiale monodose 1, compresse / capsule / supposte 0
+  (opening changes nothing). It is **data**, not code — the vocabulary ratchet counts product words
+  in the logic files, so the table lives next to the other vocabulary.
+- `medicalPaoDaysForName($name, $notes)` (`api/lib/medical.php`) reads it; `med_classify` fills an
+  **empty** PAO from it instead of storing 0, and `migration_med_pao_default_v1` backfilled the
+  cabinet already in the database. Measured on the real one: 13 medicines, **9 got a number** —
+  Fastum, Connettivina plus, VICKS vaporub, Euclorina, Aureomicina and the myrrangin spray → 90;
+  Novalgina and Destrometorfano (gocce orali) → 30; the glycerine monodose → 1; Tachipirina and
+  Moment (compresse) stayed 0, which is the honest answer. A typed value is never overwritten.
+- `med_open` accepts `days_ago`, and the stocktake asks **«Da quanti giorni è aperto?»** with chips
+  (Oggi · 2 · 7 · 14 · 30 gg): the date becomes opened_at + PAO, so a box marked open three weeks
+  late no longer gets a date three weeks too far.
+
+## [Kiosk 1.7.38] - 2026-11-11
+
+Kiosk APK only.
+
+### The installer's result was thrown away: every update said "APK incompatibile"
+The wall's own log named it on the first try:
+`install_download_ok → install_start (signer_match:true, can_install_unknown:true, vc 37→38) →
+install_session → install_result status=1 … msg:"" … extras:""` — a generic failure with **no
+message at all**, on every update since 1.7.26, with a matching signer, a higher `versionCode` and
+"unknown sources" already granted.
+- **The cause is one flag**: the result `PendingIntent` was built with `FLAG_IMMUTABLE`, so the
+  platform could not write `EXTRA_STATUS` / `EXTRA_STATUS_MESSAGE` / `EXTRA_INTENT` into it. The
+  broadcast arrived empty, the receiver fell back to `STATUS_FAILURE` (1), and the UI translated 1
+  into "APK incompatibile con questo dispositivo o versione Android" — a diagnosis invented from a
+  missing extra. It is `FLAG_MUTABLE` on Android 12+ now (immutability is the flag that breaks it).
+- **The kiosk lock is suspended for the whole install**, not only when the system asks for a
+  confirmation: a pinned activity cannot bring the installer to the front, and the `status=1` was
+  also hiding that (`lock_task:2` in the report). The wall is re-pinned if the attempt fails
+  (`repinAfterInstallFailure()`), and the success path replaces the app anyway.
+- Reports gained `install_suspend_lock` and `lock-repin-after-install`, so the next failure says
+  which side it came from.
+
+## [Kiosk 1.7.37] - 2026-11-11
+
+Kiosk APK only.
+
+### "Keep the settings" is asked once, and it means it
+The offer came back from all three places that discover the server (pairing-next, the auto-skipped
+pairing step, the moment a code is consumed), so the household answered the same question up to
+three times in one run and could not tell whether the answer had been applied. `settingsOfferShown`
+shows it once per run; "Mantieni" still applies everything `get_settings` knows (screensaver,
+prices, meal plan, zero-waste tips, the support answer, and "Gemini/Bring already configured **on
+the server**" so those steps are skipped), and `finishSetup()` only writes what it really has — it
+cannot undo the kept values.
+
+## [Kiosk 1.7.36] - 2026-11-11
+
+Kiosk APK only.
+
+### The BLE gateway started without its Bluetooth permissions and took the app with it
+1.7.35 booted and died again — this time **before the page was ever requested** (`mem` at 09:32:50,
+then Apache's log has not one `index.html` from the tablet), and the previous run's exit history
+named **two Java crashes** (`crash-java(4)`, 10:22:09 and 10:22:42) with the WebView sandbox going
+down in the same second.
+`launchWebView()` starts `GatewayService` — a **foreground service of type `connectedDevice`** — as
+soon as `has_scale` is set. Android 14 refuses that service without `BLUETOOTH_CONNECT`:
+`startForeground()` throws `SecurityException` inside the service, and that ends the whole process.
+After a reinstall the app's data (and `has_scale`) come back with the backup while the runtime
+Bluetooth grants do not — which is why this only appeared today.
+- `startGatewayService()` checks the Bluetooth grants first (`bluetoothPermissionsMissing()`) and
+  **does not start** without them (`gateway-skipped`), inside a try/catch (`gateway-start-failed`).
+- The launch gate asks them too when a scale is configured (camera + `BLUETOOTH_SCAN` /
+  `BLUETOOTH_CONNECT`, or fine location below Android 12), with no pin and no WebView alive.
+- `GatewayService.onCreate()` guards `startForeground()` (`gateway-foreground-failed` +
+  `stopSelf()`), and `onStartCommand()` guards the WebSocket/BLE start: a scale that cannot run must
+  never take the appliance down.
+- **A crash report is no longer lost.** `doPost()` returns whether the server took it, the pending
+  crash is cleared **only on success** — it used to be wiped *before* the POST, which is why these
+  Java crashes produced no `uncaught-exception` at all — and the same holds when the saved crash is
+  re-sent on the next launch.
+
+## [Kiosk 1.7.35] - 2026-11-11
+
+Kiosk APK only.
+
+### The pin is asked once, when the page is already on screen
+1.7.34 fixed the permission half and the wall booted — then died at the kiosk-mode transition.
+The new reporting named it on the first try: `killed-signal(2) status=9`, i.e. **SIGKILL**, with
+no Java trace, no tombstone and no renderer report, nine seconds after the page booted (the page's
+`[PAGEHIDE] unload` is when the process started to go away, the "keeps stopping" dialog is what the
+household then closed).
+`startLockTask()` without Device Owner shows the system's "pin the app?" confirmation, and that
+dialog **pauses** the activity — the app asked for it three times inside one second (launch gate,
+permission result, `launchWebView()`) while the very first page was still loading.
+- **One request, from `onPageFinished()`** (`enterKioskLockOnce()`): it returns immediately when the
+  wall is already pinned, reads the state back 2.5 s later and reports it (`lock-task`), and a pin
+  that does not take leaves the app running — the pin is a convenience, the page is the appliance.
+- **Nothing unpins to ask a permission any more.** A pinned activity cannot host a system window,
+  so a page that asks for the camera when the OS grant is missing is now **denied** with a one-line
+  Toast ("allow the camera in Android settings, then restart") and a `permission-needed-pinned`
+  report; the launch gate asks again at the next start, with no pin and no WebView alive.
+- `enableKioskLock()` is guarded: `startLockTask()` can throw (already pinned, not allowed, a ROM
+  that refuses) and that must never end the process (`lock-task-failed`).
+- **Breadcrumbs that survive a SIGKILL**: `ErrorReporter.step()` writes the current step
+  (`perm-gate`, `perm-asked:…`, `perm-granted`, `webview-start`, `url-loaded`, `lock-enter`,
+  `page-finished`, …) to SharedPreferences *before* the step runs, and the next start reports the
+  last one when the previous run did not stop cleanly (`last-run`). A kill takes the console, the
+  buffered HTTP queue and the pending report with it — it does not take a value on disk.
+
+## [Kiosk 1.7.34] - 2026-11-11
+
+Kiosk APK only.
+
+### A fresh install asked three permissions from inside the kiosk lock, and died there
+Reported on a real wall right after a reinstall (permissions are the one thing Android does
+**not** restore with the app's data, so the dialogs appear again): files, microphone, then
+camera — granting the camera ended the process, the media dialog stayed on screen with no app
+behind it, and only a tablet reboot cleared it. The server log proves where it died: three
+`report_error` POSTs (`kiosk-create`, `onResume`, `mem` — the last one is written right after
+`webView.loadUrl()`) and **not a single `index.html` request**, i.e. the app was gone before the
+page existed. No `uncaught-exception` (a Java throw would be caught and re-sent on the next
+start) and no `renderer-crashed` (a renderer needs a live Activity): a native kill inside the
+permission window.
+- **The launch permissions are asked BEFORE the kiosk lock and before the WebView exists**
+  (`startWhenPermissionsSettled()` → `PERMISSIONS_REQUEST_LAUNCH`): a pinned activity cannot host
+  the system's permission window, which is the same lesson the installer taught us. The kiosk
+  starts when the dialog is answered — **denied camera starts it anyway** (`no scanner` is not
+  `no app`), and a request that never reaches the system is reported instead of freezing on the
+  splash.
+- **The launch asks for the camera only.** The microphone is not needed at launch (a WebView has
+  no Web Speech — the wall says so) and a file chooser goes through SAF; three dialogs in a row
+  were the sequence that killed the app.
+- **A page that asks for the camera suspends the pin** for the duration of the dialog and is
+  re-pinned when the answer lands, and `grant()`/`deny()` on a `PermissionRequest` that outlived
+  its page (a reload, a renderer restart) is now guarded instead of throwing
+  `IllegalStateException` on the main thread — the other way the wall disappeared mid-camera.
+- **Every death is named now**: `detectPreviousCrash()` also reports `REASON_SIGNALED` (a kill by
+  signal leaves no Java trace, which is why this one was invisible), and a new `exit-history`
+  line describes the last five exits — reason number, timestamp, status, Android's description —
+  on **every boot**.
+
+### The wall always says which version it is running
+- `KioskActivity.launchWebView()` shows a Toast — `EverShelf Kiosk 1.7.34 (35)` — on every
+  launch, and the page prints both numbers in a boot banner (`_showKioskBootVersion()`): the
+  installed APK from `getAppVersion()` and the web app version from `.header-version`. Shown on
+  every boot, dismissible with a 44 px ✕, gone by itself after 9 s, painted with `textContent`.
+- The boot log line carries both values (`[KIOSK] boot version apk=… app=…`).
+- This release also carries 1.7.32 (console tail + `camera_permission` + `restarts_10min` in a
+  dead renderer's report), which no published APK had before 1.7.33.
+
+## [Kiosk 1.7.33] - 2026-11-11
+
+Kiosk APK only.
+
+### The wall always says which version it is running
+A reinstall that installed nothing looked exactly like one that did: the APK version lived in
+`#header-kiosk-version`, which is the **first** thing `_paintKioskVersion()` gives up when the
+header row is narrow, and the wall has no console to ask.
+- `KioskActivity.launchWebView()` shows a Toast — `EverShelf Kiosk 1.7.33 (34)` — on **every
+  launch**, before the page is loaded, so the answer does not depend on the web app at all.
+- `app.js` paints the same two numbers in a boot banner (`_showKioskBootVersion()`): the
+  installed APK from `getAppVersion()` **and** the web app version from `.header-version` — the
+  pair that distinguishes "the APK came down" from "the app came down". It is shown on every
+  boot (no `localStorage` gate), dismissible with a 44 px ✕, gone by itself after 9 s, and built
+  with `textContent` so no product name can reach it as markup.
+- The boot log line carries both values (`[KIOSK] boot version apk=… app=…`), so
+  `grep KIOSK data/logs/kiosk-*.log` answers "did I get the latest?" without a screenshot.
+- This release also carries 1.7.32 (the console tail + `camera_permission` + `restarts_10min`
+  that make a dead renderer's report readable), which no published APK had yet.
+
+
+The stocktake now says when a product it opens was ALREADY answered — a re-scanned box,
+a second pack of the same article, a name picked twice.
+
+### Added
+- **An already-answered card says so, and stops pretending to be a question.** A card opened for a
+  row this run already answered (a barcode read again, a pack line of «Anche in», a name picked a
+  second time) used to look exactly like an open one, emerald «Confermo …» included — and pressing
+  it counted nothing and closed the sheet, which reads as the app ignoring the tap. It now carries
+  a mint line with the ANSWER KIND and the hour («✓ Già confermato 14:32», «🏁 Già segnato come
+  finito», «🗑️ buttato», «⏭️ saltato»), and its only two doors are the honest ones: **↩ Cambia
+  risposta** (`_auditReopen` — reverts that answer's queued or already-sent writes, takes it out of
+  the ledger and the tally, and puts the question back) and **Avanti →** (`_auditNext` — the same
+  step a real answer takes, counting nothing). The «Salta» link and the run's «Indietro» are hidden
+  there: they would either duplicate the forward door or undo a DIFFERENT row.
+- **«Anche in» marks the packs already done.** The list under the card prints one line per pack of
+  the same article; a pack this run already answered now shows a mint ✓ (and its `title` says
+  «Già confermato»), so «Amido di mais ×3» no longer opens three cards with no way to tell which one
+  is behind you.
+- **Answers carry the moment they were given** (`entry.at`): the history is what makes the clock
+  printable, and an answer that arrives from another device (a ledger value with no time) prints the
+  fact and no clock instead of inventing one.
+
+### Fixed
+- **The undo of any answer, not only the last.** `_auditUndo()` and the new «Cambia risposta» now
+  share `_auditRevertEntry()`, so both revert the same things: the writes still queued, the ones
+  already sent (`_auditUndoSent`), every pack the answer covered, the ledger entry and the tally.
+  A correction can no longer leave half an answer behind.
+
+### Measured
+- Rendered in headless Chromium at 390 × 844 with the real stylesheets: the answered card is
+  443 px tall (the strip is 36 px), the open card is unchanged, and the emerald primary + 2×2 are
+  absent on the answered one. `_auditReopen` clears the ledger entry, decrements the tally and brings
+  the primary back; `_auditNext` moves to the next unanswered card and counts nothing.
+
+## [1.31.26] - 2026-11-10
+
+The shopping list stops asking for what the pantry already holds, and the green
+«Sincronizzato!» strip stops offering a "Riprova" that has nothing to retry.
+Every number below is measured on a real household (a database copy, old tree vs
+new tree on the same snapshot).
+
+### Fixed
+- **A family the engine could not see.** `smartShopping()` compared a product with its
+  siblings after expanding packages into grams, so a `pz` row whose `default_quantity` is
+  the weight of ONE piece (an avocado at 160 g) read 0 of every unit while 4.5 avocados sat
+  in the fridge: «Avocado Hass» was reported "Esaurito" and put back on the list. The family
+  answer is now the larger of two readings — MEASURED (packages expanded) and COUNTED
+  (`shoppingUnitIsPack()`: packs and pieces as such) — in `evershelfFamilyUsableStockQty()`
+  and in the map `smartShopping()` builds. Two mozzarellas now cover a 1 kg pack, and six
+  tomatoes split over two rows are six.
+- **`days_left` answers for the article, not for the pack.** The row that held 2 of those 6
+  tomatoes declared «ends_in:5» and made the whole shelf "Presto". The window is
+  `familyUsableQty / dailyRate` when the family holds more than the row; what EXPIRES keeps
+  the row's own number (`$daysLeftOwn`).
+- **A generic and its own truncation are the same family.** `productMatchesShoppingFamily()`
+  rejected «Pan Bauletto al Grano Duro» (the dictionary's «Pan») filed under «Pane», so 23
+  slices of bread were invisible to the «Pane» family and the list kept asking for bread.
+  Prefix in either direction, at least three letters — «Tè al limone» still is not «Limone».
+- **The plan says HOW MUCH, the trip says WHEN.** `plan_days` (the «quantità calcolate per
+  30 giorni» setting) was used as the urgency window too, so a pantry planned for a month
+  answered «🟠 Presto» for everything that would be finished within a month: 5 apples,
+  500 g of honey, 6 packs of cornstarch, a 30-day muesli box. `smartShopping()` now flags at
+  `$signalDays` — the household's inferred spesa cycle, floored at 7 days, capped by the
+  plan, 14 with no evidence — in the high-use rule, the predictive block, the buy-cycle
+  block and in one "on the radar" block that replaces the 28/21-day staple radar.
+- **«🛒 Esaurito» ends when the shelf refills.** A row stamped "finished" is a decision and
+  every prediction spares it (`evershelfSpecIsDeliberate()`), but it survived the replacement
+  too: «Banane · 🛒 Esaurito» next to three bananas, «Burro · 🛒 Esaurito» next to a pack of
+  butter. Both prune paths now ask `evershelfFamilyBackInStock()` (the family's own scale, one
+  whole pack or half a package, fresh and above the trace threshold) and clear the row,
+  logging `shopping_finished_row_cleared`. A prediction never removes it; a shelf does.
+- **A green «Sincronizzato!» strip no longer carries a «Riprova».** `_exitOfflineMode()`
+  removes `body.offline-mode` — whose CSS was the only thing hiding the button — *before*
+  painting the green state, so the button reappeared exactly there. `_paintOfflineStrip()`
+  hides it in the synced state (and `_renderOfflineBanner()` restores it for the orange one),
+  with `.offline-banner.is-synced .offline-banner-retry` as the CSS twin.
+
+### Measured
+- On the household's real pantry (same snapshot, old tree vs this tree): **31 → 18**
+  suggested rows, nothing added, no urgency escalated. The six reported (avocado, tomatoes,
+  apples, cornstarch, honey, muesli) are gone, and the first read-path prune removes six rows
+  whose article is back on the shelf.
+- The "finished" rule, proved one case per answer: «Banane» (3 pz), «Ceci» (2 conf) and
+  «Mozzarelle» (2 pz) rows are cleared, «Trentingrana» (nothing in the ledger) is kept.
 
 ## [1.31.25] - 2026-11-09
 

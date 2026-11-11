@@ -102,6 +102,23 @@ function evershelfStockRowCoversUnit(float $qty, string $rowUnit, ?string $expir
  * and — crucially — measured in the same base family once packages are expanded: 3 packs
  * of milk × 1 l = 3 l cover a litre of milk, while 360 g of jam do not cover a 620 g jar.
  * `evershelfBaseQty()` is the app's own converter, so the two cannot drift.
+ *
+ * Two things are deliberately generous, because they only ever make a family look
+ * STOCKED (never invent a suggestion), and both were reported as «la lista si riempie
+ * di cose che ho»:
+ *
+ *  - **A piece is a piece.** `evershelfBaseQty()` expands a `pz` row with a `package_unit`
+ *    into grams (4.5 avocados × 160 g = 720 g), which is right for a weight question but
+ *    made the 4.5 avocados in the fridge cover NOTHING for the same family sold by the
+ *    piece: «Avocado Hass» read 0 of every unit and went back on the list as «Esaurito».
+ *  - **A count is a count.** A family mixes scales — «Mozzarella» is sold as a 1 kg pack
+ *    and as pieces of 100 g with no declared weight — so the answer is the LARGER of the
+ *    two readings (measured, and counted in packs/pieces). `shoppingUnitIsPack()` is the
+ *    same vocabulary the rate guard and the reference cap already use.
+ *
+ * The family is still the stored `shopping_name`, and nothing wider: a title word is not
+ * proof (a «Muesli … e miele» box would answer for the honey family), so a product filed
+ * under another generic stays another family — that is data to correct, not a rule to bend.
  */
 function evershelfFamilyUsableStockQty(
     PDO $db,
@@ -117,6 +134,7 @@ function evershelfFamilyUsableStockQty(
     $ref = evershelfBaseQty(1.0, $unit, $packageSize, $packageUnit);
     $refBase = $ref['qty'] > 0 ? $ref['qty'] : 1.0;
     $refFamily = $ref['family'];
+    $refIsCount = shoppingUnitIsPack($unit);
 
     $stmt = $db->prepare("
         SELECT p.name, p.shopping_name, p.unit, p.default_quantity, p.package_unit,
@@ -128,7 +146,8 @@ function evershelfFamilyUsableStockQty(
         GROUP BY p.id
     ");
     $stmt->execute([$key]);
-    $base = 0.0;
+    $measured = 0.0;   // in the reference's base family (expanded with package sizes)
+    $counted  = 0.0;   // in the reference's own counted unit (packs / pieces)
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $sn = trim((string)($row['shopping_name'] ?? '')) ?: (string)$row['name'];
         if (!productMatchesShoppingFamily((string)$row['name'], $sn)) {
@@ -140,12 +159,62 @@ function evershelfFamilyUsableStockQty(
             continue;
         }
         $rowBase = evershelfBaseQty($qty, $rowUnit, (float)($row['default_quantity'] ?? 0), (string)($row['package_unit'] ?? ''));
-        if ($rowBase['qty'] <= 0 || $rowBase['family'] !== $refFamily) {
-            continue;
+        if ($rowBase['qty'] > 0 && $rowBase['family'] === $refFamily) {
+            $measured += $rowBase['qty'];
         }
-        $base += $rowBase['qty'];
+        if ($refIsCount && shoppingUnitIsPack($rowUnit)) {
+            $counted += $qty * evershelfUnitFactor($rowUnit) / max(0.0001, evershelfUnitFactor($unit));
+        }
     }
-    return $base / $refBase;
+    return max($measured / $refBase, $counted);
+}
+
+/**
+ * The household refilled the shelf after declaring an article finished.
+ *
+ * A row stamped `🛒 Esaurito` is a DECISION («ho finito questo») and no prune may drop it
+ * behind the user's back — that is what `evershelfSpecIsDeliberate()` protects. But when
+ * the same article comes back into the pantry (a purchase, a corrected stocktake) the
+ * decision is no longer true, and the row sat on the list forever: «Banane · 🛒 Esaurito»
+ * next to three bananas in the fridge, reported as «la lista si riempie di cose che ho».
+ *
+ * The question is asked of the FAMILY, with the same usable-stock rule every other
+ * coverage decision uses (fresh, above the trace threshold, same base family), so a trace
+ * or an expired pack never resurrects the row. A pack family needs one whole pack; a
+ * measured family at least half a typical package.
+ */
+function evershelfFamilyBackInStock(PDO $db, string $shoppingName): bool
+{
+    $key = mb_strtolower(trim($shoppingName));
+    if ($key === '') {
+        return false;
+    }
+    // The family's own scale: the unit of the product that holds the most fresh stock of it
+    // (so a `conf` row of 250 g answers in packs, not in grams with no package size).
+    $stmt = $db->prepare("
+        SELECT p.unit AS unit, p.default_quantity AS def_qty, p.package_unit AS pkg_unit,
+               SUM(i.quantity) AS qty
+        FROM products p
+        INNER JOIN inventory i ON p.id = i.product_id AND i.quantity > 0
+        WHERE LOWER(TRIM(COALESCE(NULLIF(p.shopping_name, ''), p.name))) = ?
+          AND (i.expiry_date IS NULL OR i.expiry_date >= date('now'))
+        GROUP BY p.id
+        ORDER BY qty DESC
+        LIMIT 1
+    ");
+    $stmt->execute([$key]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return false;
+    }
+    $unit = trim((string)($row['unit'] ?? ''));
+    if ($unit === '') {
+        return false;
+    }
+    $defaultQty = (float)($row['def_qty'] ?? 0);
+    $packageUnit = trim((string)($row['pkg_unit'] ?? ''));
+    $required   = shoppingUnitIsPack($unit) ? 1.0 : max(1.0, 0.5 * $defaultQty);
+    return evershelfFamilyUsableStockQty($db, $key, $unit, $defaultQty, $packageUnit) >= $required;
 }
 
 /** True when the specification carries a marker EverShelf itself wrote. */

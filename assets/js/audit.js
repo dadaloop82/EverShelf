@@ -779,7 +779,7 @@ function _auditHitFactsHtml(it) {
     const loc = (typeof LOCATIONS !== 'undefined' && LOCATIONS[normalizeLocationKey(it.location)])
         || { icon: '📦', label: it.location || '' };
     const qty = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
-        ? stripHtml(formatQuantity(it.quantity, it.unit, it.default_quantity, it.package_unit))
+        ? stripHtml(formatQuantity(it.quantity, it.unit, it.default_quantity, it.package_unit, { approx: _isMedicalRow(it) }))
         : `${it.quantity || ''} ${it.unit || ''}`.trim();
     const hasExpiry = !!(it && it.expiry_date);
     const date = hasExpiry && typeof formatDate === 'function' ? formatDate(it.expiry_date) : '';
@@ -1233,18 +1233,24 @@ function _auditOtherPacksHtml(it) {
     const packs = _auditOtherPacks(it);
     if (!packs.length) return '';
     const openTitle = t('audit.other_pack_open');
+    const doneTitle = t('audit.already_there');
+    const ledger = (_audit && _audit.answered) || {};
     const items = packs.map(r => {
         const loc = (typeof LOCATIONS !== 'undefined' && LOCATIONS[normalizeLocationKey(r.location)])
             || { icon: '📦', label: r.location || '' };
         const qty = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
-            ? stripHtml(formatQuantity(r.quantity, r.unit, r.default_quantity, r.package_unit))
+            ? stripHtml(formatQuantity(r.quantity, r.unit, r.default_quantity, r.package_unit, { approx: _isMedicalRow(r) }))
             : `${r.quantity || ''} ${r.unit || ''}`.trim();
         const date = r.expiry_date && typeof formatDate === 'function' ? formatDate(r.expiry_date) : '';
         const label = `${loc.label || ''} · ${qty}${date ? ` · ${date}` : ''}`;
-        return `<li><button type="button" class="audit-pack-line"
-                title="${escapeAttr(openTitle)}" aria-label="${escapeAttr(openTitle + ' · ' + label)}"
+        // A pack this stocktake already answered says so ON the line: the household is looking at
+        // the shelf, and «Amido di mais ×3» opens three cards — one of which may already be done.
+        const done = !!ledger[String(r.id)];
+        return `<li><button type="button" class="audit-pack-line${done ? ' is-answered' : ''}"
+                title="${escapeAttr(done ? doneTitle : openTitle)}" aria-label="${escapeAttr((done ? doneTitle + ' · ' : '') + openTitle + ' · ' + label)}"
                 onclick="_auditOpenPack(${Number(r.id)})">
                 <span class="audit-pack-ico" aria-hidden="true">${loc.icon || '📦'}</span>
+                ${done ? `<span class="audit-pack-done" aria-hidden="true">✓</span>` : ''}
                 <span class="audit-pack-place">${escapeHtml(loc.label || '')}</span>
                 <span class="audit-pack-qty">${escapeHtml(qty)}</span>
                 ${date ? `<span class="audit-pack-date">${escapeHtml(date)}</span>` : ''}
@@ -1411,7 +1417,7 @@ function _auditElsewhereView(row, scope) {
     const name = row.display_name || row.name || '';
     const brand = String(row.brand || '').trim();
     const qty = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
-        ? stripHtml(formatQuantity(row.quantity, row.unit, row.default_quantity, row.package_unit))
+        ? stripHtml(formatQuantity(row.quantity, row.unit, row.default_quantity, row.package_unit, { approx: _isMedicalRow(row) }))
         : `${row.quantity || ''} ${row.unit || ''}`.trim();
     const hasExpiry = !!row.expiry_date;
     const date = hasExpiry && typeof formatDate === 'function' ? formatDate(row.expiry_date) : '';
@@ -1802,7 +1808,7 @@ function _auditRender() {
     const isOne = isSearch || isScan;
     el.hidden = false;
     const qtyPlain = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
-        ? stripHtml(formatQuantity(it.quantity, it.unit, it.default_quantity, it.package_unit))
+        ? stripHtml(formatQuantity(it.quantity, it.unit, it.default_quantity, it.package_unit, { approx: _isMedicalRow(it) }))
         : `${it.quantity || ''} ${it.unit || ''}`.trim();
     const locMeta = (typeof LOCATIONS !== 'undefined' && LOCATIONS[normalizeLocationKey(it.location)])
         || { icon: '📦', label: it.location || '' };
@@ -1824,15 +1830,24 @@ function _auditRender() {
             { qty: qtyPlain, place: placeLabel, date: expiryDate })
         : t('audit.confirm_sentence_no_expiry', { qty: qtyPlain, place: placeLabel });
     const confirmShort = t('audit.confirm_yes_qty', { qty: qtyPlain });
+    // A row this stocktake already answered is NOT a question any more. It still opens (a barcode
+    // re-scanned, a pack line of «Anche in», a name picked again) and until now it looked exactly
+    // like an open one: the same emerald «Confermo …», and answering it counted nothing and closed
+    // the sheet — which reads as the app ignoring the tap. The card now says what happened, and its
+    // only two doors are the honest ones: change that answer, or move on.
+    const answeredKind = String((_audit.answered || {})[String(it.id)] || '');
+    const answered = answeredKind !== '';
+    const answeredAt = answered ? _auditAnsweredAt(it.id) : 0;
     el.innerHTML = `<div class="audit-panel" role="dialog" aria-modal="true" aria-label="${escapeAttr(t('audit.title'))}">
         <div class="audit-top">
-            ${_auditProgressHtml(!(_audit.answered && _audit.answered[String(it.id)]))}
+            ${_auditProgressHtml(!answered)}
             <button type="button" class="audit-close" onclick="_auditStop()" aria-label="${escapeAttr(t('audit.close'))}">✕</button>
         </div>
         ${_auditModeSwitchHtml()}
         <p class="audit-eyebrow">${escapeHtml(isSearch
             ? t('audit.search_badge', { term: _audit.term || '' })
             : placeTitle)}</p>
+        ${answered ? _auditAnsweredHtml(answeredKind, answeredAt) : ''}
         <div class="audit-product-row">
             <div class="audit-product-thumb">${thumb}</div>
             <div class="audit-product-main">
@@ -1845,21 +1860,26 @@ function _auditRender() {
             </div>
         </div>
         ${_auditOtherPacksHtml(it)}
-        <button type="button" class="audit-there" onclick="_auditAnswer('there')"><span aria-hidden="true">✓</span> <span class="audit-there-full">${escapeHtml(confirmFull)}</span><span class="audit-there-short">${escapeHtml(confirmShort)}</span></button>
+        ${answered ? `<div class="audit-answered-actions">
+            <button type="button" class="audit-cell audit-answer-again" onclick="_auditReopen(${Number(it.id)})"><span aria-hidden="true">↩</span> ${escapeHtml(t('audit.answer_again'))}</button>
+            <button type="button" class="audit-cell audit-answer-next" onclick="_auditNext()">${escapeHtml(t('audit.continue_next'))} <span aria-hidden="true">→</span></button>
+        </div>` : `<button type="button" class="audit-there" onclick="_auditAnswer('there')"><span aria-hidden="true">✓</span> <span class="audit-there-full">${escapeHtml(confirmFull)}</span><span class="audit-there-short">${escapeHtml(confirmShort)}</span></button>
         <div class="audit-grid">
             <button type="button" class="audit-cell audit-finished" onclick="_auditAnswer('finished')"><span aria-hidden="true">🏁</span> ${escapeHtml(t('audit.exhausted'))}</button>
-            <button type="button" class="audit-cell audit-spoiled" onclick="_auditAnswer('spoiled')"><span aria-hidden="true">🗑️</span> ${escapeHtml(t('audit.spoiled'))}</button>
+            ${_isMedicalRow(it)
+                ? `<button type="button" class="audit-cell audit-med-open" onclick="_auditMedOpen()"><span aria-hidden="true">📂</span> ${escapeHtml(t('audit.med_opened'))}</button>`
+                : `<button type="button" class="audit-cell audit-spoiled" onclick="_auditAnswer('spoiled')"><span aria-hidden="true">🗑️</span> ${escapeHtml(t('audit.spoiled'))}</button>`}
             <button type="button" class="audit-cell audit-edit" onclick="_auditEdit('quantity')"><span aria-hidden="true">✏️</span> ${escapeHtml(t('audit.change_qty'))}</button>
             <button type="button" class="audit-cell audit-edit" onclick="_auditEdit('location')"><span aria-hidden="true">📍</span> ${escapeHtml(t('audit.change_location'))}</button>
         </div>
-        ${_auditScaleReady(it) ? `<button type="button" class="audit-scale-pill" onclick="_auditScale()"><span aria-hidden="true">⚖️</span> ${escapeHtml(t('audit.read_scale'))}</button>` : ''}
+        ${_auditScaleReady(it) ? `<button type="button" class="audit-scale-pill" onclick="_auditScale()"><span aria-hidden="true">⚖️</span> ${escapeHtml(t('audit.read_scale'))}</button>` : ''}`}
         <div class="audit-foot">
-            ${_audit.history.length
+            ${(_audit.history.length && !answered)
                 ? `<button type="button" class="audit-back" onclick="_auditUndo()">↩ ${escapeHtml(t('audit.undo_last'))}</button>`
                 : ''}
             ${isSearch
                 ? `<button type="button" class="audit-skip" onclick="_auditSearchBack()">🔎 ${escapeHtml(t('audit.search_another'))}</button>`
-                : (isScan
+                : (isScan || answered
                     ? ''
                     : `<button type="button" class="audit-skip" onclick="_auditAnswer('skip')">${escapeHtml(t('audit.skip'))} →</button>`)}
         </div>
@@ -1867,6 +1887,84 @@ function _auditRender() {
     // The full question is the default; on a narrow screen (or a long place name) it becomes
     // the short one instead of growing into a paragraph.
     _auditFitConfirm(el);
+    // «Aperto» is not one answer but two facts: THAT it is open, and SINCE WHEN. The second one
+    // cannot be guessed — a box marked open three weeks late would get a PAO date three weeks too
+    // far — so the card asks, in place, with the only answers a household can give at a glance.
+    if (!answered && _isMedicalRow(it) && _audit.medDaysAsk) {
+        const panel = el.querySelector('.audit-panel');
+        if (panel) {
+            panel.classList.add('is-med-days-ask');
+            const ask = document.createElement('div');
+            ask.className = 'audit-med-days-panel';
+            const chip = (days, label) => `<button type="button" class="audit-cell audit-med-day" onclick="_auditMedOpen(${days})">${escapeHtml(label)}</button>`;
+            ask.innerHTML = `<p class="audit-med-days-q">${escapeHtml(t('audit.med_days_q'))}</p>
+                <div class="audit-med-days">
+                    ${chip(0, t('audit.med_days_today'))}
+                    ${[2, 7, 14, 30].map(n => chip(n, `${n} ${t('dashboard.days_short')}`)).join('')}
+                </div>
+                <button type="button" class="audit-skip" onclick="_auditMedDaysCancel()">${escapeHtml(t('btn.cancel'))}</button>`;
+            panel.appendChild(ask);
+        }
+    }
+}
+
+/**
+ * The line that says this row is already in the ledger — what the card is showing, and when.
+ *
+ * The kind is spelled out («già confermato» / «già segnato finito» / «già segnato buttato» /
+ * «già saltato»): "already answered" is not the same news for a box that is there and for one that
+ * was declared empty, and the household must tell the two apart at a glance. The clock is a bare
+ * time (a time reads the same in six languages) taken from the answer's own timestamp.
+ */
+function _auditAnsweredHtml(kind, at) {
+    const icon = kind === 'finished' ? '🏁' : (kind === 'spoiled' ? '🗑️' : (kind === 'skip' ? '⏭️' : '✓'));
+    const label = kind === 'finished' ? t('audit.already_finished')
+        : (kind === 'spoiled' ? t('audit.already_spoiled')
+            : (kind === 'skip' ? t('audit.already_skipped') : t('audit.already_there')));
+    let time = '';
+    if (at > 0) {
+        try {
+            time = new Date(at).toLocaleTimeString(_collationLocale(), { hour: '2-digit', minute: '2-digit' });
+        } catch (_e) { time = ''; }
+    }
+    return `<p class="audit-answered">
+        <span class="audit-answered-ico" aria-hidden="true">${icon}</span>
+        <span class="audit-answered-text">${escapeHtml(label)}</span>
+        ${time ? `<span class="audit-answered-time">${escapeHtml(time)}</span>` : ''}
+    </p>`;
+}
+
+/**
+ * When a row was answered, from the answer that covered it (0 = unknown).
+ *
+ * The history is the only place that knows: an entry carries the moment of the tap. An answer that
+ * arrived from ANOTHER device travelled as a ledger value (`answered: {id: kind}`) without a time,
+ * so the line prints the fact and no clock instead of inventing one.
+ */
+function _auditAnsweredAt(invId) {
+    const key = String(invId);
+    const lists = [_audit && _audit.history, _auditSession && _auditSession.history];
+    for (const list of lists) {
+        if (!Array.isArray(list)) continue;
+        for (let i = list.length - 1; i >= 0; i--) {
+            const entry = list[i];
+            if (entry && entry.item && String(entry.item.id) === key) return Number(entry.at) || 0;
+        }
+    }
+    return 0;
+}
+
+/**
+ * Move on without answering: the row in hand is already in the ledger.
+ *
+ * The forward door of an already-answered card. It is the same step an answer takes
+ * (`_auditAdvancePastAnswered`), so a one-card view goes back to its sheet (the camera on the next
+ * box, the search field empty) exactly as a real answer does — but it counts nothing.
+ */
+function _auditNext() {
+    if (!_audit) return;
+    _auditAdvancePastAnswered();
+    _auditRender();
 }
 
 /**
@@ -1965,8 +2063,60 @@ function _auditItemSaved(id) {
  * «Finito»/«Andato a male» empties them all (one queued write per pack, because the API empties
  * one row per call). Another SHELF is another question, and stays one.
  */
+/**
+ * «Aperto» — the one question a medicine deserves in a stocktake.
+ *
+ * «Andato a male» is not a state a box of tablets has: what changes a medicine's date is the seal
+ * being broken, and the server already knows the rule (`med_open` → opened_at + `med_pao_days`,
+ * stored as a user date so a later rescan cannot undo it). The answer counts like any other — the
+ * pack IS on the shelf, it is simply open now — so the ledger gets a «there» once the write is done.
+ *
+ * Called with no argument it ASKS since when (the chips), because a box marked open three weeks
+ * late must not get a date three weeks too far.
+ */
+async function _auditMedOpen(days) {
+    if (!_audit || _audit.finished) return;
+    if (days === undefined) {
+        _audit.medDaysAsk = true;
+        _auditRender();
+        return;
+    }
+    const it = _audit.items && _audit.items[_audit.index];
+    if (!it) return;
+    const invId = Number(it.id) || 0;
+    if (!invId) return;
+    _audit.medDaysAsk = false;
+    let res = null;
+    try {
+        res = await api('med_open', { inventory_id: invId, days_ago: Number(days) || 0 });
+    } catch (e) {
+        showToast(t('audit.med_opened_error'), 'error');
+        _auditRender();
+        return;
+    }
+    const pao = Number(res && res.pao_days) || 0;
+    if (pao > 0 && res && res.expiry_date) {
+        it.opened_at = res.opened_at || it.opened_at;
+        it.expiry_date = res.expiry_date;
+        showToast(t('audit.med_opened_toast', { date: formatDate(res.expiry_date) }), 'success');
+    } else {
+        // No PAO on the product: the row is opened and the date is left alone (nothing is
+        // invented), but the household is told what is missing and where to fix it.
+        showToast(t('audit.med_opened_no_pao'), 'warning', 6000);
+    }
+    _auditAnswer('there');
+}
+
+/** Take the «da quanti giorni?» question away, leaving the pack exactly as it was. */
+function _auditMedDaysCancel() {
+    if (!_audit) return;
+    _audit.medDaysAsk = false;
+    _auditRender();
+}
+
 function _auditAnswer(kind) {
     if (!_audit || _audit.finished) return;
+    _audit.medDaysAsk = false;   // any real answer closes the «da quanti giorni?» question
     const it = _audit.items[_audit.index];
     if (!it) return;
     // ONE answer per row per stocktake. The same product can reach a card twice — the barcode of a
@@ -1983,6 +2133,9 @@ function _auditAnswer(kind) {
         item: { ...it },
         index: _audit.index,
         kind,
+        // WHEN it was answered: an already-answered card prints its own clock («✓ Già confermato
+        // 14:32»), and a stocktake carried on by another device needs the moment to say that.
+        at: Date.now(),
         previousQuantity: parseFloat(it.quantity) || 0,
         row: null,
         rows: [],
@@ -2039,6 +2192,40 @@ function _auditAdvancePastAnswered() {
 }
 
 /**
+ * Put the shelf back for ONE answer: revert the writes it already sent, drop the ones still in the
+ * batch queue, remove its rows from the ledger and the tally. `true` when the shelf is as it was.
+ *
+ * Shared by «Indietro» (the last answer) and «Cambia risposta» (any answer of this stocktake): the
+ * two must revert the same things, or a correction would leave half an answer behind. An answer
+ * that covered several packs of the same article has several writes and several `answered` entries,
+ * so the WHOLE answer is reverted, never half a shelf.
+ */
+async function _auditRevertEntry(entry) {
+    const state = _audit;
+    if (!state || !entry || !entry.item) return false;
+    const rows = (Array.isArray(entry.rows) && entry.rows.length) ? entry.rows.filter(Boolean)
+        : (entry.row ? [entry.row] : []);
+    const stillQueued = rows.filter(r => state.queue.indexOf(r) >= 0);
+    if (stillQueued.length !== rows.length) {
+        // At least one write already reached the server: revert the sent ones, and keep the queued
+        // ones out of the next flush.
+        const sent = rows.filter(r => state.queue.indexOf(r) < 0);
+        for (const row of sent) {
+            if (!(await _auditUndoSent(entry, row))) return false;
+        }
+    }
+    rows.forEach(r => {
+        const at = state.queue.indexOf(r);
+        if (at >= 0) state.queue.splice(at, 1);
+    });
+    const ledger = state.answered || {};
+    delete ledger[String(entry.item.id)];
+    (entry.siblings || []).forEach(id => { delete ledger[String(id)]; });
+    if (state.counts[entry.kind] > 0) state.counts[entry.kind]--;
+    return true;
+}
+
+/**
  * Step back one card: reopen the last answered item and put the shelf back when
  * that answer already reached the server. A row still sitting in the batch queue
  * is simply dropped; a sent one is reverted (quantity update, or the transaction
@@ -2052,30 +2239,11 @@ async function _auditUndo() {
         try { await state.flushPromise; } catch (_e) { /* counted by the flush */ }
     }
     const entry = state.history[state.history.length - 1];
-    // An answer that covered several packs of the same article has several writes (and several
-    // `answered` entries): undo the WHOLE answer, never half a shelf.
-    const rows = (Array.isArray(entry.rows) && entry.rows.length) ? entry.rows.filter(Boolean)
-        : (entry.row ? [entry.row] : []);
-    const stillQueued = rows.filter(r => state.queue.indexOf(r) >= 0);
-    if (stillQueued.length !== rows.length) {
-        // At least one write already reached the server: revert the sent ones, and keep the queued
-        // ones out of the next flush.
-        const sent = rows.filter(r => state.queue.indexOf(r) < 0);
-        for (const row of sent) {
-            if (!(await _auditUndoSent(entry, row))) {
-                showToast(t('audit.undo_failed'), 'error');
-                return;
-            }
-        }
+    if (!(await _auditRevertEntry(entry))) {
+        showToast(t('audit.undo_failed'), 'error');
+        return;
     }
-    rows.forEach(r => {
-        const at = state.queue.indexOf(r);
-        if (at >= 0) state.queue.splice(at, 1);
-    });
     state.history.pop();
-    delete state.answered[String(entry.item.id)];
-    (entry.siblings || []).forEach(id => { delete state.answered[String(id)]; });
-    if (state.counts[entry.kind] > 0) state.counts[entry.kind]--;
     state.finished = false;
     let idx = state.items.findIndex(x => x.id == entry.item.id);
     if (idx < 0) {
@@ -2088,6 +2256,52 @@ async function _auditUndo() {
     _auditPersist();
     _auditRender();
     showToast(t('audit.undo_done'), 'info');
+}
+
+/**
+ * Answer AGAIN a row this stocktake already answered — the door of the already-answered card.
+ *
+ * A decision can be wrong: a box confirmed «c'è» that has in fact been eaten, or the other way
+ * round. Until now the only way back was «Indietro», which reopens the LAST answer — no use for a
+ * card opened by a barcode halfway through a shelf. This reverts the answer it finds (its queued
+ * writes, or the ones already sent, through `_auditUndoSent`), takes it out of the ledger and the
+ * tally, and puts the question back on screen. When the answer came from another device there is
+ * no write of ours to revert — only the ledger entry, which is cleared the same way.
+ */
+async function _auditReopen(invId) {
+    const state = _audit;
+    if (!state) return;
+    const key = String(invId);
+    if (state.flushPromise) {
+        try { await state.flushPromise; } catch (_e) { /* counted by the flush */ }
+    }
+    const lists = [state.history, _auditSession && _auditSession.history].filter(Array.isArray);
+    let entry = null;
+    let owner = null;
+    for (const list of lists) {
+        if (!Array.isArray(list)) continue;
+        const found = list.find(e => e && e.item && String(e.item.id) === key);
+        if (found) { entry = found; owner = list; break; }
+    }
+    if (entry) {
+        if (!(await _auditRevertEntry(entry))) {
+            showToast(t('audit.undo_failed'), 'error');
+            return;
+        }
+        const at = owner.indexOf(entry);
+        if (at >= 0) owner.splice(at, 1);
+    } else {
+        // The answer travelled from another device (the ledger did, the undo chain did not): there is
+        // nothing of ours on the shelf, only the entry that says "answered".
+        delete state.answered[key];
+        if (_auditSession && _auditSession.answered) delete _auditSession.answered[key];
+    }
+    state.finished = false;
+    const idx = state.items.findIndex(x => String(x.id) === key);
+    if (idx >= 0) state.index = idx;
+    _auditPersist();
+    _auditRender();
+    showToast(t('audit.reopen_done'), 'info');
 }
 
 /** Revert one already-sent write of an answer; true when the shelf is back as it was. */

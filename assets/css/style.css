@@ -1223,6 +1223,11 @@ body.is-booting.is-revealing .bottom-nav {
     transition: background 0.15s;
 }
 .offline-banner-retry:hover { background: rgba(255,255,255,0.38); }
+/* A green «Sincronizzato!» has nothing left to retry: the button belongs to the orange
+   strip. `_paintOfflineStrip()` also hides it in JS — this keeps the two in step even if
+   a stylesheet is the only thing that loads. */
+.offline-banner.is-synced .offline-banner-retry,
+.offline-banner-retry[hidden] { display: none; }
 
 /* Pulsing dot shown in the banner while the offline cache is being read */
 .offline-banner-dot {
@@ -14324,6 +14329,49 @@ body.offline-mode #smart-shopping {
     cursor: pointer;
 }
 .audit-cell:active { background: var(--bg-app, #f1f5f9); }
+/* ── The card of a row this stocktake ALREADY answered ───────────────────────
+   A barcode re-scanned, a pack line of «Anche in», a name picked a second time: the card
+   used to look exactly like an open one — the emerald «Confermo …» included — and answering
+   it counted nothing and closed the sheet, which reads as the app ignoring the tap. The line
+   says what happened (and when, when the answer is ours) and the two doors are neutral, because
+   nothing is wrong: the question is simply already in the ledger. Mint, never alarm colours. */
+.audit-answered {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 10px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary, #059669) 32%, transparent);
+    background: #F0FDF4;
+    color: var(--text-main, inherit);
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+.audit-answered-ico { flex: 0 0 auto; font-size: 1rem; line-height: 1; }
+.audit-answered-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.audit-answered-time {
+    flex: 0 0 auto;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--text-muted, #64748b);
+}
+/* The two doors replace the primary and the 2×2: same grid grammar, wrapping on a phone. */
+.audit-answered-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+}
+.audit-answer-again {
+    border-color: color-mix(in srgb, var(--brand-primary, #059669) 45%, transparent);
+}
+.audit-answer-next { color: var(--text-muted, #64748b); }
+/* A pack of «Anche in» that this stocktake already answered: a mint ✓ on its own line. */
+.audit-pack-done { flex: 0 0 auto; color: var(--brand-primary, #059669); font-weight: 800; }
+.audit-pack-line.is-answered .audit-pack-qty,
+.audit-pack-line.is-answered .audit-pack-date { color: var(--text-muted, #64748b); }
 .audit-product-row {
     display: flex;
     align-items: center;
@@ -15459,3 +15507,35 @@ body.cooking-mode-active #shelfy-intro { z-index: 100001; }
     background: var(--bg-card, #1e293b);
     border-color: #334155;
 }
+
+
+/* ── Stocktake: «da quanti giorni è aperto?» (medicines) ───────────────────
+   «Aperto» is two facts: that it is open and since when. The card asks the second one in place,
+   hiding the confirm it can no longer answer honestly (a box marked open three weeks late must
+   not get a PAO date three weeks too far). Same mint pills as the rest of the card. */
+.audit-panel.is-med-days-ask .audit-there,
+.audit-panel.is-med-days-ask .audit-grid { display: none; }
+.audit-med-days-panel { margin-top: 12px; }
+.audit-med-days-q {
+    margin: 0 0 8px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+.audit-med-days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.audit-med-days .audit-med-day {
+    flex: 1 1 auto;
+    min-width: 76px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid #86efac;
+    background: #f0fdf4;
+    color: #14532d;
+    font-weight: 800;
+}
+.audit-med-days-panel .audit-skip { margin-top: 8px; }

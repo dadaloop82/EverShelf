@@ -649,3 +649,64 @@ function medicalCodeMatches(array $def, string $code, string $digits): bool
     }
     return true;
 }
+
+/**
+ * The PAO rule table (`data/medical_pao.json`), read once per request.
+ *
+ * The vocabulary is DATA, not code: the form words of a medicine (collirio, sciroppo, crema…)
+ * belong next to the other product words, and `scripts/…` counts any that sneak back into the
+ * logic files. Each rule is an ordered list of words: the first one the name contains wins, so
+ * "unguento oftalmico" is listed before the generic "unguento".
+ */
+function medicalPaoRules(): array
+{
+    static $rules = null;
+    if ($rules !== null) {
+        return $rules;
+    }
+    $rules = [];
+    $path = dirname(__DIR__, 2) . '/data/medical_pao.json';
+    $raw = is_file($path) ? (string)file_get_contents($path) : '';
+    $data = $raw !== '' ? json_decode($raw, true) : null;
+    foreach ((array)($data['rules'] ?? []) as $rule) {
+        $words = [];
+        foreach ((array)($rule['match'] ?? []) as $word) {
+            $w = trim((string)$word);
+            if ($w === '') {
+                continue;
+            }
+            $words[] = function_exists('mb_strtolower') ? mb_strtolower($w) : strtolower($w);
+        }
+        if (!$words) {
+            continue;
+        }
+        $rules[] = ['match' => $words, 'days' => max(0, min(365, (int)($rule['days'] ?? 0)))];
+    }
+    return $rules;
+}
+
+/**
+ * The PAO suggested for a medicine, from the FORM its name (or its pack notes) declares.
+ *
+ * The notes matter as much as the name: the cabinet stores «Fastum» with «gel 2,5% 25 mg/g tubo
+ * 50 g» in `products.notes`, and the first run of the migration filled nothing because it only
+ * looked at the title. 0 means "opening changes nothing" (tablets, capsules, suppositories) or
+ * "nothing recognised" — in both cases nothing is written. It is a SUGGESTION: `med_classify`
+ * uses it only when the household left the field empty, and the migration that applies it to the
+ * existing cabinet never overwrites a typed value.
+ */
+function medicalPaoDaysForName(string $name, string $notes = ''): int
+{
+    $hay = trim(function_exists('mb_strtolower') ? mb_strtolower($name . ' ' . $notes) : strtolower($name . ' ' . $notes));
+    if ($hay === '') {
+        return 0;
+    }
+    foreach (medicalPaoRules() as $rule) {
+        foreach ($rule['match'] as $word) {
+            if ($word !== '' && str_contains($hay, $word)) {
+                return (int)$rule['days'];
+            }
+        }
+    }
+    return 0;
+}

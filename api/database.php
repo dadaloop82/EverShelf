@@ -1621,6 +1621,47 @@ function recipesBackfillAndDedupByHash(PDO $db): void {
         }
     }
 
+    // --- A medicine with no PAO cannot answer "and now how long does it keep?" ---------------
+    // `med_open` marks a row open; without a PAO it must leave the date alone, which leaves the
+    // household with a box that never expires. The FORM the name declares suggests the number
+    // (data/medical_pao.json: a collirio keeps 28 days, a syrup 30, tablets nothing), and this
+    // pass fills the cabinet that is already in the database. It only fills EMPTY values — a number
+    // the household typed is never overwritten — and it runs once per database.
+    $paoFlag = 'migration_med_pao_default_v1';
+    $paoDone = $db->query("SELECT value FROM app_settings WHERE key = '{$paoFlag}'")->fetchColumn();
+    if ($paoDone === false) {
+        $paoFilled = 0;
+        try {
+            if (!function_exists('medicalPaoDaysForName')) {
+                require_once __DIR__ . '/lib/medical.php';
+            }
+            $paoRows = $db->query("SELECT id, name, notes FROM products
+                                    WHERE is_medical = 1
+                                      AND (med_pao_days IS NULL OR med_pao_days = 0)")->fetchAll(PDO::FETCH_ASSOC);
+            $paoUpd = $db->prepare('UPDATE products SET med_pao_days = ? WHERE id = ?');
+            foreach ($paoRows as $paoRow) {
+                // The form is in the pack notes as often as in the title ("Fastum" + "gel 2,5%…").
+                $paoDays = medicalPaoDaysForName((string)($paoRow['name'] ?? ''), (string)($paoRow['notes'] ?? ''));
+                if ($paoDays > 0) {
+                    $paoUpd->execute([$paoDays, (int)$paoRow['id']]);
+                    $paoFilled++;
+                }
+            }
+        } catch (Throwable $e) {
+            $paoFilled = 0;
+        }
+        $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+                      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+           ->execute([$paoFlag, '1']);
+        if ($paoFilled > 0 && class_exists('EverLog')) {
+            EverLog::info('Suggested PAO applied to medicines without one', [
+                'event'    => 'med_pao_backfill',
+                'products' => $paoFilled,
+                'rule'     => 'data/medical_pao.json',
+            ]);
+        }
+    }
+
     // --- Hot-path indexes (audit D1/G2) ---------------------------------------
     // These statements are hit on every dashboard rebuild and by the 5-minute
     // shopping cron, on columns that had no index. Created here as well as in

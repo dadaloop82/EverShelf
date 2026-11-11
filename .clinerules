@@ -145,11 +145,51 @@ runtime/binary files — if a task truly needs one, ask first.
   one vocabulary for the daily-rate guard, the coverage rule and `SMART_PACK_REF_QTY_MAX` — without
   the `conf` branch a gram log written as `conf` (597 consumed, 86 per purchase) made «Panna da
   cucina» read `near_empty:6 · ends_in:0` with SIX packs on the shelf.
+- **The plan says HOW MUCH, the trip says WHEN.** `plan_days` (`shopping_plan_days`, the
+  «quantità calcolate per 30 giorni» number) is a QUANTITY horizon. It was also used as the
+  urgency window, so a pantry planned for a month was told «🟠 Presto» about everything that
+  would be finished within a month: 5 apples, 6 tomatoes, 6 packs of cornstarch, 500 g of
+  honey, a 30-day muesli. `smartShopping()` now flags at `$signalDays` — the household's own
+  trip cycle (`smartDefaultPlanDays()`, the inferred spesa rhythm), floored at 7, capped by
+  the plan, 14 with no evidence — in the high-use rule, the predictive block, the buy-cycle
+  block and (now one block instead of the 28/21-day staple radar) the "on the radar" one.
+  A row also answers for the ARTICLE: `days_left` is `familyUsableQty / dailyRate` when the
+  family holds more than the row (two tomato rows are six tomatoes, not «ends_in:5»), while
+  what EXPIRES keeps the row's own number (`$daysLeftOwn`). Measured on a real pantry:
+  31 → 18 suggested rows, and the six reported (avocado, tomatoes, apples, cornstarch,
+  honey, muesli) are gone.
+- **A family is measured AND counted.** `evershelfFamilyUsableStockQty()` (and the
+  `smartShopping()` map it reads) answers twice and keeps the larger: MEASURED (packages
+  expanded with `evershelfBaseQty()`: 4.5 avocados × 160 g = 720 g) and COUNTED
+  (`shoppingUnitIsPack()`: packs and pieces as such). `default_quantity` on a `pz` row is
+  often what ONE piece weighs, so the expanded grams left «Avocado Hass» at 0 of every unit
+  while 4.5 avocados sat in the fridge, and 2 mozzarellas could not cover a 1 kg pack. The
+  family is still the stored `shopping_name` and nothing wider — a title word is not proof
+  (a «Muesli … e miele» box must not answer for the honey), and `productMatchesShoppingFamily()`
+  accepts a generic and its own truncation («Pan» / «Pane»), because an exact comparison
+  threw 23 slices of bread out of the «Pane» family.
+- **«🛒 Esaurito» is a decision, and a refilled shelf ends it.** `bringAddDepletedProduct()`
+  always adds when the household says "I finished it", and `evershelfSpecIsDeliberate()`
+  keeps that row from every prediction. It was kept even after the same article came BACK
+  into the pantry, so «Banane · 🛒 Esaurito» sat next to three bananas and «Burro · 🛒 Esaurito»
+  next to a pack of butter. Both prune paths (`internalShoppingPruneCovered()` on every read,
+  `internalShoppingCleanupObsolete()` in the cron) now ask `evershelfFamilyBackInStock()` —
+  the family's own scale, one whole pack (or half a package for g/ml), fresh and above the
+  trace threshold — and clear the row on that evidence, logging
+  `shopping_finished_row_cleared`. A prediction never removes it; a shelf does.
 - **A write that dies in flight is queued, never dropped.** `api()` hands a failed write to the
   offline queue (`_queueWriteAfterNetworkFail`), so a purchase marked while the phone was
   offline survives; `_syncOfflineQueue()` replays it at boot, on `online` and when offline
   mode is left. One list (`_OFFLINE_QUEUEABLE_ACTIONS`) for both paths.
+- **A strip that says «Sincronizzato!» carries no «Riprova».** `_paintOfflineStrip()` paints
+  the orange «sei offline» state and the green «sincronizzato» one; the retry button asks the
+  server again, so it belongs to the ORANGE strip only. It used to come back exactly on the
+  green one: `_exitOfflineMode()` removes `body.offline-mode` (whose CSS was the only thing
+  hiding it) *before* the green state is painted. `_paintOfflineStrip()` now sets
+  `hidden` on `.offline-banner-retry` for `synced` (and `_renderOfflineBanner()` restores it
+  for `down`), with `.offline-banner.is-synced .offline-banner-retry` as the CSS twin.
 - **The stocktake asks each ARTICLE once per SHELF, not once per pack.** 17 groups of the same product in the same place exist in a real pantry (Amido ×3, Limone ×3, il tonno, i dadi…), and one card per ROW asked the same name twice («poi mi richiede le stesse cose che ho già confermato»). `_auditAnswer()` stamps every pack of that article in that place (`entry.siblings`), queues ONE write per pack for «Finito»/«Andato a male» (`inventory_use` empties one row per call), counts ONE answer, advances past the packs it covered (`_auditAdvancePastAnswered`) and `_auditUndo()` reverts the whole answer (`entry.rows`). Another SHELF stays another question.
+- **A card of a row already answered says so, and is not a question.** A barcode read twice, a pack line of «Anche in» (`_auditOpenPack`) or a name picked again (`_auditSearchPick`) opens the card of a row that IS in the ledger; it used to look identical to an open one — emerald «Confermo …» and all — and pressing it counted nothing and closed the sheet, which the household reads as "the app ignored my tap". `_auditRender()` now paints `_auditAnsweredHtml(kind, at)` (mint line: the ANSWER KIND + the hour from `entry.at`) and gives the card two doors only: «↩ Cambia risposta» → `_auditReopen(id)` (reverts that answer through `_auditRevertEntry()` — shared with `_auditUndo()`, so queued/sent writes, siblings, ledger and tally are undone the same way — then puts the question back) and «Avanti →» → `_auditNext()` (the step a real answer takes, counting nothing). «Salta» and «Indietro» are hidden there: they would duplicate the forward door or undo a DIFFERENT row. `_auditOtherPacksHtml()` marks the answered packs with a mint ✓, because «Amido di mais ×3» opens three cards.
 - **A barcode points at an ARTICLE, not at a package.** A product standing in several packs must never show only the one on screen: the product sheet's «Anche in» block (`_itemDetailOtherPlacesHtml`) reads the WHOLE pantry (`_allInventoryCache`, never the place the list is filtered to), one line per ROW with place, stock and expiry, the line itself opens that pack's sheet (`_itemDetailSwitchPack`) and the ✏️ edits that row; the head adds the total across the packs (`_itemDetailTotalPacksHtml`). The stocktake card lists them too (`_auditOtherPacksHtml` → `_auditOpenPack`, mode `pack`) and `_auditFinish` returns to the run instead of closing it. «6 pz» on a shelf that also holds a 30-pack is half the answer (report: i dadi di brodo).
 - **One discard sheet.** `openWasteSheet()` → `_showWasteRecordModal()` (quantity + the four
   reasons) is every "Butta": row, banner, swipe, action page. A medicine keeps its short

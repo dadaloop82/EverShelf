@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "note": "Period after opening (PAO) suggested for a medicine, taken from the FORM its name declares. 0 means opening changes nothing (tablets, capsules, suppositories: the pack date rules). Sources: the PAO symbol printed on the pack (an open jar with the number of months) and standard pharmacy practice for the forms that carry one. A SUGGESTION the household can always edit; the app never gives therapies.",
+  "rules": [
+    {
+      "match": [
+        "collirio",
+        "colliri",
+        "gocce oftalmiche",
+        "oculare",
+        "oculari",
+        "unguento oftalmico",
+        "pomata oftalmica",
+        "crema oftalmica",
+        "eye drop",
+        "eye drops",
+        "augentropfen",
+        "augensalbe"
+      ],
+      "days": 28
+    },
+    {
+      "match": [
+        "sciroppo",
+        "sciroppi",
+        "sospensione orale",
+        "sospensione",
+        "soluzione orale",
+        "gocce orali",
+        "syrup",
+        "saft",
+        "suspension",
+        "gocce"
+      ],
+      "days": 30
+    },
+    {
+      "match": [
+        "spray nasale",
+        "gocce nasali",
+        "nasenspray",
+        "nasal spray",
+        "balsamo",
+        "balm",
+        "spray"
+      ],
+      "days": 90
+    },
+    {
+      "match": [
+        "crema",
+        "gel",
+        "unguento",
+        "pomata",
+        "emulsione",
+        "lozione",
+        "cream",
+        "ointment",
+        "salbe",
+        "balsamo",
+        "balm",
+        "spray"
+      ],
+      "days": 90
+    },
+    {
+      "match": [
+        "supposta",
+        "supposte",
+        "ovulo",
+        "ovuli",
+        "gocce"
+      ],
+      "days": 30
+    },
+    {
+      "match": [
+        "fiala",
+        "fiale",
+        "monodose",
+        "flaconcino",
+        "siringa preriempita"
+      ],
+      "days": 1
+    },
+    {
+      "match": [
+        "compresse",
+        "compressa",
+        "capsule",
+        "capsula",
+        "pastiglie",
+        "pastiglia",
+        "bustine",
+        "granulato",
+        "tablet",
+        "tablets",
+        "tablette"
+      ],
+      "days": 0
+    }
+  ]
+}
