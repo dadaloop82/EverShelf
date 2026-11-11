@@ -5107,3 +5107,41 @@ button.scan-med-name-hit:focus-visible {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* ── Medicine facts, in the food sheet's grammar (and shorter) ────────────
+   The sheet used to carry a two-column table (label — value): labels wrapped, each fact took a
+   line of its own and a medicine sheet was twice as tall as a food one. A fact is a pill now:
+   icon + text, ONE line, wrapping as a whole unit; the label (and the whole sentence) is the
+   tooltip. Nothing half-words, nothing on two lines that fits on one. */
+.item-detail-med-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 6px 0 2px;
+}
+.med-fact {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, #6366f1 26%, var(--surface-border));
+    background: color-mix(in srgb, #6366f1 6%, var(--surface-bg));
+    color: var(--text-main);
+    font-size: 0.79rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.med-fact.is-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.02em;
+}
+
+/* The medicine edit sheet, condensed like a food one: 6 px between groups, labels tight. */
+#modal-content .form.is-medical-edit .form-group { margin-bottom: 8px; }
+#modal-content .form.is-medical-edit label { margin-bottom: 2px; }
+#modal-content .form.is-medical-edit .form-input { padding-top: 7px; padding-bottom: 7px; }

@@ -15251,11 +15251,11 @@ function formatQuantityParts(qty, unit, defaultQty, packageUnit, opts) {
         const fractionalConf = Math.round((n - wholeConf) * 1000) / 1000;
 
         if (fractionalConf < 0.01) {
-            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${pkgMark}${defaultQty}${pkgLabel}`, fraction: '' };
+            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${pkgMark}${defaultQty} ${pkgLabel}`, fraction: '' };
         }
         const remainderText = formatSubRemainder(fractionalConf * defaultQty, packageUnit, { approx });
         if (wholeConf > 0) {
-            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${pkgMark}${defaultQty}${pkgLabel}`, fraction: `+ ${remainderText}` };
+            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${pkgMark}${defaultQty} ${pkgLabel}`, fraction: `+ ${remainderText}` };
         }
         return { mainQty: remainderText, unitLabel: '', packageDetail: '', fraction: '' };
     }
@@ -17199,9 +17199,15 @@ function _itemDetailScaleWeightText(grams, unit) {
     return `${_itemDetailFmtQty(grams)} ${unit}`;
 }
 
-/** Medicine insert-time facts shown above the consume controls (not food vacuum / recipe). */
+/** Medicine insert-time facts, in the FOOD sheet's grammar (and shorter).
+ *
+ * It used to be a two-column table («Etichetta — valore»): labels wrapped, every fact took its own
+ * line and the medicine sheet grew to twice the height of a food one. Now each fact is a compact
+ * pill that wraps as a WHOLE unit, one line each, the full sentence in its tooltip — exactly what
+ * the food sheet does with place, quantity and date.
+ */
 function _itemDetailMedSummaryHtml(item) {
-    const rows = [];
+    const facts = [];
     const tags = String(item.med_tags || '').split(',').map(s => s.trim()).filter(Boolean);
     if (tags.length) {
         const cats = (_medStatus && _medStatus.categories) || [];
@@ -17209,25 +17215,36 @@ function _itemDetailMedSummaryHtml(item) {
             const cat = cats.find(c => c.slug === slug);
             return cat && cat.label_key ? t(cat.label_key) : slug;
         });
-        rows.push(`<div class="item-detail-med-row"><span class="item-detail-med-k">${escapeHtml(t('medical.detail_categories'))}</span><span>${escapeHtml(labels.join(' · '))}</span></div>`);
+        facts.push({ icon: '💊', label: t('medical.detail_categories'), text: labels.join(' · ') });
     }
     if (item.med_ingredient) {
-        rows.push(`<div class="item-detail-med-row"><span class="item-detail-med-k">${escapeHtml(t('medical.detail_ingredient'))}</span><span>${escapeHtml(item.med_ingredient)}</span></div>`);
+        facts.push({ icon: '🧪', label: t('medical.detail_ingredient'), text: item.med_ingredient });
     }
     const pack = parseFloat(item.default_quantity) || 0;
     if (pack > 0) {
         const packUnit = item.package_unit || item.unit || 'pz';
-        rows.push(`<div class="item-detail-med-row"><span class="item-detail-med-k">${escapeHtml(t('medical.detail_pack'))}</span><span>${escapeHtml(stripHtml(formatQuantity(pack, packUnit === 'conf' ? 'pz' : packUnit, 0, '', { approx: true })))}</span></div>`);
+        facts.push({
+            icon: '📦',
+            label: t('medical.detail_pack'),
+            text: stripHtml(formatQuantity(pack, packUnit === 'conf' ? 'pz' : packUnit, 0, '', { approx: true })),
+        });
     }
     if (item.barcode) {
-        rows.push(`<div class="item-detail-med-row"><span class="item-detail-med-k">${escapeHtml(t('medical.form_code_label'))}</span><span class="item-detail-mono">${escapeHtml(item.barcode)}</span></div>`);
+        facts.push({ icon: '🔖', label: t('medical.form_code_label'), text: item.barcode, mono: true });
     }
     const pao = Number(item.med_pao_days) || 0;
     if (pao > 0) {
-        rows.push(`<div class="item-detail-med-row"><span class="item-detail-med-k">${escapeHtml(t('medical.pao_label'))}</span><span>${pao}</span></div>`);
+        facts.push({
+            icon: '⏳',
+            label: t('medical.pao_label'),
+            text: t('dashboard.days_short').replace('{n}', pao),
+        });
     }
-    if (!rows.length) return '';
-    return `<div class="item-detail-med-summary">${rows.join('')}</div>`;
+    if (!facts.length) return '';
+    return '<div class="item-detail-med-facts">' + facts.map(f =>
+        `<span class="med-fact${f.mono ? ' is-mono' : ''}" title="${escapeAttr(f.label + ': ' + f.text)}">`
+        + `<span aria-hidden="true">${f.icon}</span> ${escapeHtml(f.text)}</span>`
+    ).join('') + '</div>';
 }
 
 /**
@@ -20570,7 +20587,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111i';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111j';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20580,7 +20597,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261111i';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261111j';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
