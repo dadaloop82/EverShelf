@@ -1900,7 +1900,7 @@ function _auditRender() {
             ask.innerHTML = `<p class="audit-med-days-q">${escapeHtml(t('audit.med_days_q'))}</p>
                 <div class="audit-med-days">
                     ${chip(0, t('audit.med_days_today'))}
-                    ${[2, 7, 14, 30].map(n => chip(n, `${n} ${t('dashboard.days_short')}`)).join('')}
+                    ${[2, 7, 14, 30].map(n => chip(n, t('dashboard.days_short').replace('{n}', n))).join('')}
                 </div>
                 <button type="button" class="audit-skip" onclick="_auditMedDaysCancel()">${escapeHtml(t('btn.cancel'))}</button>`;
             panel.appendChild(ask);

@@ -46,6 +46,27 @@ farmaci attualmente in database».
   (Oggi · 2 · 7 · 14 · 30 gg): the date becomes opened_at + PAO, so a box marked open three weeks
   late no longer gets a date three weeks too far.
 
+### Five things the wall and the phone showed
+- **«2 {n}gg»** on the stocktake chips: `dashboard.days_short` already carries `{n}` (`«{n}gg»`), so the
+  chip printed the placeholder next to the number. It is `.replace('{n}', n)` now.
+- **Food in the pharmacy.** `_inventoryVisibleItems()` filtered by the macro domain only when no
+  place was open, so a food row that ended up in the cabinet was listed among the medicines. The
+  cabinet is a domain, not a shelf: in the medical context the list keeps `_isMedicalRow()` rows only.
+- **A row that exploded on a phone.** `nowrap` on `.inv-name` (a `display:-webkit-box` element, and
+  overridden by the stronger `.inv-name-row .inv-name` rule) made the card grow and squeezed the
+  ingredient subtitle to one character per line. The name is a one-line clamp without
+  letter-breaking, the medicine subtitle is a single ellipsised line, and the mobile selector now
+  wins over the desktop rule. Measured with the real stylesheets in headless Chromium: **132 px**,
+  name 20 px, subtitle 16 px at 500 px and at a 360 px column (was 159/163 px with a vertical
+  ingredient).
+- **«10 ~g»** in the product/recipe chips: `_itemDetailUnitLabel()` put the approximate mark on the
+  UNIT, and the sheet put it again on the number (`~10 ~g`). The mark belongs to the number, one
+  space before the unit (`~10 g`), in the chips and in the «Tutto (… )» label.
+- **The medicine edit sheet** lost its band of empty space (`.edit-modal-header` margins + heading
+  line-height) and gained the question it was missing: **«Da quanti giorni è aperto?»** with the
+  same five chips as the stocktake, writing `med_open` with `days_ago` and updating its own state
+  line in place.
+
 ## [Kiosk 1.7.38] - 2026-11-11
 
 Kiosk APK only.

@@ -14966,6 +14966,10 @@ function _renderInventoryTagFilter() {
 
 function _inventoryVisibleItems(items) {
     let out = (items || []).filter(i => !isInventoryDepleted(i));
+    // The cabinet is a DOMAIN, not a shelf: a food row that ended up there (a legacy row, an
+    // import, a product whose flag was cleared) must never be listed among the medicines —
+    // «nell'inventario dei farmaci devo vedere SOLO i farmaci, mai e poi mai il cibo».
+    if (_inventoryIsMedicalContext()) out = out.filter(i => _isMedicalRow(i));
     // Macro context: with no specific place selected, "Tutte le locazioni cucina" never
     // mixes medicines into the food list (and the pharmacy tab is only the cabinet).
     if (!currentLocation) {
@@ -17069,8 +17073,9 @@ function _itemDetailUnitLabel() {
     if (_itemDetailPackEntry()) return q.pack.unit;
     if (q.unit === 'conf') return t('units.conf');
     if (q.unit === 'pz') return t('units.pz');
-    // Medicine creams/syrups are approximate — never a scale reading.
-    return _qtyApproxMark(q.unit, !!q.isMedical) + q.unit;
+    // The unit is the unit. The approximate mark belongs to the NUMBER («~10 g», never
+    // «10 ~g»): on the unit label it printed «10 ~g» in every chip and «~10 ~g» in the sheet.
+    return q.unit;
 }
 
 /** Locale decimal for the product sheet (it → 101,5 · en → 101.5). */
@@ -17492,16 +17497,20 @@ function _fractionChipOptions(spec) {
 function _itemDetailFractionOptions(item) {
     const q = _itemDetailQty;
     const packEntry = _itemDetailPackEntry();
+    // A medicine's g/ml are an estimate: the tilde goes on the NUMBER, with one space before the
+    // unit — the chips printed «10 ~g» because the mark lived on the unit label.
+    const approxMark = (!packEntry && _qtyApproxMark(q.unit, !!q.isMedical)) || '';
+    const fmtQty = (n) => `${approxMark}${_itemDetailFmtQty(n)}`;
     return _fractionChipOptions({
         unit: q.unit,
         maxEntry: _itemDetailEntryMax(),
         packBase: packEntry ? q.pack.base : 0,
         packUnit: packEntry ? q.pack.unit : '',
         measureLabel: _itemDetailUnitLabel(),
-        format: _itemDetailFmtQty,
+        format: fmtQty,
         allLabel: (n, label, kind) => (kind === 'count'
-            ? t('inventory.detail_chip_all', { n: _itemDetailFmtQty(n) })
-            : t('inventory.detail_chip_all_stock', { n: _itemDetailFmtQty(n), unit: label })),
+            ? t('inventory.detail_chip_all', { n: fmtQty(n) })
+            : t('inventory.detail_chip_all_stock', { n: fmtQty(n), unit: label })),
     });
 }
 
@@ -18678,10 +18687,11 @@ function _pfMedicalPayload() {
 }
 
 /** "Segna come aperto": the operational expiry becomes today + the N days of the box. */
-async function _medMarkOpened(invId) {
+async function _medMarkOpened(invId, days) {
     if (!invId) return;
     try {
-        const r = await api('med_open', {}, 'POST', { inventory_id: invId });
+        // «Da quanti giorni è aperto?»: opened_at = today − N, expiry = opened_at + PAO.
+        const r = await api('med_open', {}, 'POST', { inventory_id: invId, days_ago: Number(days) || 0 });
         if (!r || !r.success) {
             showToast(t('medical.classify_error'), 'error');
             return;
@@ -18689,8 +18699,14 @@ async function _medMarkOpened(invId) {
         showToast(r.pao_days > 0
             ? t('medical.opened_expiry').replace('{date}', formatDate(r.expiry_date))
             : t('medical.opened_no_pao'), r.pao_days > 0 ? 'success' : 'info');
+        // The edit sheet says what it just did instead of closing under the household's finger.
+        const hint = document.querySelector('.modal-header.edit-modal-header + .form .settings-hint');
+        if (hint) hint.textContent = `${t('medical.state_opened')} · ${formatDate(r.opened_at)}`;
+        const ask = document.querySelector('.med-open-since');
+        if (ask) ask.remove();
         _renderMedClassify();
         loadDashboard();
+        if (typeof loadInventory === 'function') loadInventory();
     } catch (e) {
         showToast(t('medical.classify_error'), 'error');
     }
@@ -19918,7 +19934,13 @@ function _editMedicalInventoryItem(item) {
                 <label>${escapeHtml(t('medical.pao_label'))}</label>
                 <input type="number" id="edit-med-pao" class="form-input" min="0" step="1" value="${Number(item.med_pao_days) || 0}">
             </div>
-            ${!item.opened_at ? `<button type="button" class="btn btn-secondary full-width" onclick="_medMarkOpened(${item.id})">${escapeHtml(t('medical.mark_opened'))}</button>` : ''}
+            ${!item.opened_at ? `<div class="med-open-since">
+                <p class="settings-hint">${escapeHtml(t('audit.med_days_q'))}</p>
+                <div class="med-open-since-chips">
+                    <button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, 0)">${escapeHtml(t('audit.med_days_today'))}</button>
+                    ${[2, 7, 14, 30].map(n => `<button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, ${n})">${escapeHtml(t('dashboard.days_short').replace('{n}', n))}</button>`).join('')}
+                </div>
+            </div>` : ''}
             <button type="submit" class="btn btn-large btn-primary full-width mt-2">${t('btn.save')}</button>
         </form>
     `;
@@ -20454,7 +20476,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111d';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111e';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20464,7 +20486,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261111d';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261111e';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

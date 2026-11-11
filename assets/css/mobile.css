@@ -81,12 +81,27 @@
        «Connettivin a plus» took two lines and «Destrometorfano bromidrato della» four, and the
        row grew until its badges were pushed under the text — the "disordine" a phone showed.
        The whole name is in the product sheet, one tap away. */
-    .inv-name {
+    /* ONE line, then an ellipsis — and never one letter per line: `nowrap` on a
+       `display: -webkit-box` element made the row explode (the ingredient under the name was
+       squeezed to ~1 character and printed vertically, the card grew to half the screen).
+       Keeping the box + clamping to one line is the same model as before, one line shorter. */
+    .inventory-item .inv-name-row .inv-name {
+        white-space: normal;
+        overflow-wrap: normal;
+        word-break: normal;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 1;
+        overflow: hidden;
+        line-height: 1.3;
+    }
+    /* The medicine subtitle (ingredient · company) is a single ellipsised line: with
+       `overflow-wrap: anywhere` and a narrow column it printed one letter per row. */
+    .inv-med-sub {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
         overflow-wrap: normal;
-        line-height: 1.3;
     }
     /* The medicine filter chips above the cabinet list are a desktop convenience: on a phone
        they take a row of the little height there is (the macro pills and the room menu already

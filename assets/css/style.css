@@ -15539,3 +15539,18 @@ body.cooking-mode-active #shelfy-intro { z-index: 100001; }
     font-weight: 800;
 }
 .audit-med-days-panel .audit-skip { margin-top: 8px; }
+
+/* ── The medicine edit sheet, condensed ───────────────────────────────────
+   «Modifica farmaco Connettivina plus» and «Già aperta · 29/10/2026 01:00» were separated by a
+   band of empty space (the heading carried its own line-height and the header its own margin):
+   on a phone that is a third of the sheet. Prefix + name on one line, the state right under it. */
+.modal-header.edit-modal-header { margin-bottom: 6px; padding-bottom: 4px; }
+.modal-header.edit-modal-header .edit-modal-heading { margin: 0; line-height: 1.25; }
+.modal-header.edit-modal-header .edit-modal-prefix { margin-right: 6px; }
+.form.is-medical-edit > .settings-hint:first-of-type { margin-top: 0; }
+
+/* «Da quanti giorni è aperto?» — the same five answers as the stocktake, in the edit sheet. */
+.med-open-since { margin: 0 0 12px; }
+.med-open-since .settings-hint { margin: 0 0 6px; }
+.med-open-since-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.med-open-since-chips .btn { min-height: 40px; }
