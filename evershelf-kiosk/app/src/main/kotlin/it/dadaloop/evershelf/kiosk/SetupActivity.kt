@@ -940,7 +940,18 @@ class SetupActivity : AppCompatActivity() {
      * After the server is reachable: if it already has settings, ask keep vs reset.
      * All feature choices still write through save_settings at the end.
      */
+    /**
+     * "Keep the settings" is asked ONCE per wizard run.
+     *
+     * The offer used to come back from all three places that discover the server — pairing-next,
+     * the auto-skipped pairing step and the moment a pairing code is consumed — so the household
+     * answered the same question up to three times in one run and could never tell whether the
+     * answer had been applied.
+     */
+    private var settingsOfferShown = false
+
     private fun loadServerSettingsOffer(base: String) {
+        if (settingsOfferShown) return
         Thread {
             val token = prefs.getString(KEY_API_TOKEN, "") ?: ""
             val settings = fetchServerSettings(base, token)
@@ -960,6 +971,9 @@ class SetupActivity : AppCompatActivity() {
             if (configured.isEmpty()) return@Thread
 
             runOnUiThread {
+                // One dialog per run: the three call sites share this flag (see `settingsOfferShown`).
+                if (settingsOfferShown) return@runOnUiThread
+                settingsOfferShown = true
                 AlertDialog.Builder(this)
                     .setTitle(getString(R.string.setup_existing_title))
                     .setMessage(getString(R.string.setup_existing_message, configured.joinToString("\n• ", prefix = "• ")))

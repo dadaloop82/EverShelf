@@ -5,6 +5,19 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Kiosk 1.7.37] - 2026-11-11
+
+Kiosk APK only.
+
+### "Keep the settings" is asked once, and it means it
+The offer came back from all three places that discover the server (pairing-next, the auto-skipped
+pairing step, the moment a code is consumed), so the household answered the same question up to
+three times in one run and could not tell whether the answer had been applied. `settingsOfferShown`
+shows it once per run; "Mantieni" still applies everything `get_settings` knows (screensaver,
+prices, meal plan, zero-waste tips, the support answer, and "Gemini/Bring already configured **on
+the server**" so those steps are skipped), and `finishSetup()` only writes what it really has — it
+cannot undo the kept values.
+
 ## [Kiosk 1.7.36] - 2026-11-11
 
 Kiosk APK only.

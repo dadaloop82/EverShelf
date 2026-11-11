@@ -8,7 +8,7 @@ The EverShelf Kiosk app turns any Android tablet into a dedicated, locked-down k
 
 **[⬇ Download latest APK](https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk)**
 
-> Current version: **v1.7.34** (versionCode 37) — requires Android 7.0+
+> Current version: **v1.7.34** (versionCode 38) — requires Android 7.0+
 >
 > Use the `kiosk-latest` tag (not GitHub’s “Latest” release — that tracks the web app and has no APK).
 > On a phone already on the EverShelf LAN, Settings → EverShelf Kiosk → **Scarica APK da questo server** serves `releases/evershelf-kiosk.apk` from your instance.
@@ -19,18 +19,18 @@ The EverShelf Kiosk app turns any Android tablet into a dedicated, locked-down k
 
 ## Which version is running?
 
-Both numbers are printed **on every boot**, because a tablet on a wall has no console:
+The version is printed on every boot, because a tablet on a wall has no console:
 
 | Where | What it says | Where it comes from |
 |---|---|---|
-| Native **Toast** at launch (before the page loads) | `EverShelf Kiosk 1.7.36 (37)` | `KioskActivity.launchWebView()` → `appVersionName()` |
-| **Boot banner** in the page (bottom, ✕ to dismiss, gone after 9 s) | `Chiosco 1.7.36 (37) · app v1.31.27` | `_showKioskBootVersion()` in `app.js` |
-| **Boot log line** in `data/logs/kiosk-YYYY-MM-DD.log` | `[KIOSK] boot version apk=1.7.36 (37) app=v1.31.27` | `remoteLog()` from the same function |
-| **Server log** at every boot | `"app_version":"1.7.36 (37)"` in the `mem` / `Boot memory snapshot` report | `KioskActivity` → `ErrorReporter` |
+| Native **Toast** at launch (before the page loads) | `EverShelf Kiosk 1.7.37 (38)` | `KioskActivity.launchWebView()` → `appVersionName()` |
+| **Boot log line** in `data/logs/kiosk-YYYY-MM-DD.log` | `[KIOSK] apk=1.7.37 (38) app=v1.31.28` | `remoteLog()` from the same function |
+| **Server log** at every boot | `"app_version":"1.7.37 (38)"` in the `mem` / `Boot memory snapshot` report | `KioskActivity` → `ErrorReporter` |
 
-The header also carries `kiosk 1.7.36 (37)` next to the app version, but it is the **first thing
-the header gives up** when the row is narrow — which is why the boot banner exists and why it is
-shown every time, never once per device.
+The header carries `kiosk 1.7.37 (38)` next to the app version. It is the **first thing the header
+gives up** when the row is narrow, which is why the native Toast at launch exists — and why the boot
+**log** line carries both numbers, never a floating banner over the page (`_showKioskBootVersion()`
+was removed on request: the header and the Toast are enough).
 
 ---
 
