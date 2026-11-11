@@ -20039,6 +20039,7 @@ function _editMedicalInventoryItem(item) {
                 </div>
                 <input type="hidden" id="edit-loc" value="${item.location}">
             </div>
+            <div class="med-edit-pair">
             <div class="form-group">
                 <label>${escapeHtml(t('medical.expiry_label'))}</label>
                 <div class="med-expiry-pickers" style="display:flex;gap:8px">
@@ -20046,23 +20047,6 @@ function _editMedicalInventoryItem(item) {
                     <input type="number" id="edit-med-expiry-year" class="form-input" style="flex:1" min="2020" max="2099" inputmode="numeric" placeholder="AAAA">
                 </div>
                 <input type="hidden" id="edit-expiry" value="${escapeAttr(item.expiry_date || '')}">
-            </div>
-            <div class="form-group">
-                <label>${escapeHtml(t('medical.detail_categories'))}</label>
-                ${_isMobileUi()
-                    ? `<select id="edit-med-cat-select" class="form-input">
-                           <option value="">${escapeHtml(t('medical.pick_category'))}</option>
-                           ${cats.map(c => `<option value="${escapeAttr(c.slug)}"${selectedTags.includes(c.slug) ? ' selected' : ''}>${escapeHtml(t(c.label_key))}</option>`).join('')}
-                       </select>`
-                    : `<div id="edit-med-cats" class="med-cat-chips">${catChips || `<p class="settings-hint">${escapeHtml(t('medical.pick_category'))}</p>`}</div>`}
-            </div>
-            <div class="form-group">
-                <label>${escapeHtml(t('medical.detail_ingredient'))}</label>
-                <input type="text" id="edit-med-ingredient" class="form-input" value="${escapeAttr(item.med_ingredient || '')}" placeholder="${escapeAttr(t('medical.ingredient_placeholder'))}">
-            </div>
-            <div class="form-group">
-                <label>${escapeHtml(t('medical.pao_label'))}</label>
-                <input type="number" id="edit-med-pao" class="form-input" min="0" step="1" value="${Number(item.med_pao_days) || 0}">
             </div>
             <div class="med-open-since">
                 <p class="settings-hint">${escapeHtml(item.opened_at ? t('medical.opened_since_change') : t('audit.med_days_q'))}</p>
@@ -20078,6 +20062,24 @@ function _editMedicalInventoryItem(item) {
                            <button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, 0)">${escapeHtml(t('audit.med_days_today'))}</button>
                            ${[2, 7, 14, 30, 60, 90].map(n => `<button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, ${n})">${escapeHtml(t('dashboard.days_short').replace('{n}', n))}</button>`).join('')}
                        </div>`}
+            </div>
+            </div>
+            <div class="form-group">
+                <label>${escapeHtml(t('medical.detail_categories'))}</label>
+                ${_isMobileUi()
+                    ? `<select id="edit-med-cat-select" class="form-input">
+                           <option value="">${escapeHtml(t('medical.pick_category'))}</option>
+                           ${cats.map(c => `<option value="${escapeAttr(c.slug)}"${selectedTags.includes(c.slug) ? ' selected' : ''}>${escapeHtml(t(c.label_key))}</option>`).join('')}
+                       </select>`
+                    : `<div id="edit-med-cats" class="med-cat-chips">${catChips || `<p class="settings-hint">${escapeHtml(t('medical.pick_category'))}</p>`}</div>`}
+            </div>
+            ${/* The active ingredient is one of the FACTS above (the pill row): asking for it again
+                 was a row of the sheet for nothing. The hidden field keeps the value and the two
+                 save paths (they read #edit-med-ingredient) untouched. */''}
+            <input type="hidden" id="edit-med-ingredient" value="${escapeAttr(item.med_ingredient || '')}">
+            <div class="form-group">
+                <label>${escapeHtml(t('medical.pao_label'))}</label>
+                <input type="number" id="edit-med-pao" class="form-input" min="0" step="1" value="${Number(item.med_pao_days) || 0}">
             </div>
             <button type="submit" class="btn btn-large btn-primary full-width mt-2">${t('btn.save')}</button>
         </form>
@@ -20618,7 +20620,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111l';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111m';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20628,7 +20630,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261111l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261111m';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

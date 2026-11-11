@@ -261,4 +261,19 @@
     #modal-content .form.is-medical-edit .med-open-since { margin-bottom: 6px; }
     #modal-content .form.is-medical-edit .med-open-since .settings-hint { margin: 0 0 2px; }
     #modal-content .form.is-medical-edit .btn-large { min-height: 44px; }
+
+    /* «Scade» + «Aperto da» on ONE row (asked for): two short controls that were two rows. The
+       label of the second one is ellipsised on a half column, the full sentence in the title. */
+    .med-edit-pair { display: flex; gap: 8px; }
+    .med-edit-pair > * { flex: 1 1 0; min-width: 0; }
+    .med-edit-pair .form-group { margin-bottom: 5px; }
+    .med-edit-pair .med-open-since { margin: 0 0 5px; }
+    .med-edit-pair .med-expiry-pickers { gap: 4px !important; }
+    .med-edit-pair .med-open-since .settings-hint {
+        margin: 0 0 2px;
+        font-size: 0.72rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 }

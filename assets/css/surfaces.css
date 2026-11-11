@@ -5147,3 +5147,7 @@ button.scan-med-name-hit:focus-visible {
 #modal-content .form.is-medical-edit .form-group { margin-bottom: 8px; }
 #modal-content .form.is-medical-edit label { margin-bottom: 2px; }
 #modal-content .form.is-medical-edit .form-input { padding-top: 7px; padding-bottom: 7px; }
+
+/* «Scade» and «Aperto da» are one row on a phone (see mobile.css); on a desk the chips need
+   the full width, so the pair is a plain block here. */
+.med-edit-pair { display: block; }
