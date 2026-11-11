@@ -5,6 +5,47 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Kiosk 1.7.34] - 2026-11-11
+
+Kiosk APK only.
+
+### A fresh install asked three permissions from inside the kiosk lock, and died there
+Reported on a real wall right after a reinstall (permissions are the one thing Android does
+**not** restore with the app's data, so the dialogs appear again): files, microphone, then
+camera — granting the camera ended the process, the media dialog stayed on screen with no app
+behind it, and only a tablet reboot cleared it. The server log proves where it died: three
+`report_error` POSTs (`kiosk-create`, `onResume`, `mem` — the last one is written right after
+`webView.loadUrl()`) and **not a single `index.html` request**, i.e. the app was gone before the
+page existed. No `uncaught-exception` (a Java throw would be caught and re-sent on the next
+start) and no `renderer-crashed` (a renderer needs a live Activity): a native kill inside the
+permission window.
+- **The launch permissions are asked BEFORE the kiosk lock and before the WebView exists**
+  (`startWhenPermissionsSettled()` → `PERMISSIONS_REQUEST_LAUNCH`): a pinned activity cannot host
+  the system's permission window, which is the same lesson the installer taught us. The kiosk
+  starts when the dialog is answered — **denied camera starts it anyway** (`no scanner` is not
+  `no app`), and a request that never reaches the system is reported instead of freezing on the
+  splash.
+- **The launch asks for the camera only.** The microphone is not needed at launch (a WebView has
+  no Web Speech — the wall says so) and a file chooser goes through SAF; three dialogs in a row
+  were the sequence that killed the app.
+- **A page that asks for the camera suspends the pin** for the duration of the dialog and is
+  re-pinned when the answer lands, and `grant()`/`deny()` on a `PermissionRequest` that outlived
+  its page (a reload, a renderer restart) is now guarded instead of throwing
+  `IllegalStateException` on the main thread — the other way the wall disappeared mid-camera.
+- **Every death is named now**: `detectPreviousCrash()` also reports `REASON_SIGNALED` (a kill by
+  signal leaves no Java trace, which is why this one was invisible), and a new `exit-history`
+  line describes the last five exits — reason number, timestamp, status, Android's description —
+  on **every boot**.
+
+### The wall always says which version it is running
+- `KioskActivity.launchWebView()` shows a Toast — `EverShelf Kiosk 1.7.34 (35)` — on every
+  launch, and the page prints both numbers in a boot banner (`_showKioskBootVersion()`): the
+  installed APK from `getAppVersion()` and the web app version from `.header-version`. Shown on
+  every boot, dismissible with a 44 px ✕, gone by itself after 9 s, painted with `textContent`.
+- The boot log line carries both values (`[KIOSK] boot version apk=… app=…`).
+- This release also carries 1.7.32 (console tail + `camera_permission` + `restarts_10min` in a
+  dead renderer's report), which no published APK had before 1.7.33.
+
 ## [Kiosk 1.7.33] - 2026-11-11
 
 Kiosk APK only.

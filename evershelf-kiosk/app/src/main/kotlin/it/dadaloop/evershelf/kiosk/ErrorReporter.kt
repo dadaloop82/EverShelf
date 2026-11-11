@@ -84,6 +84,9 @@ object ErrorReporter {
         // Detect ANR / OOM / native crashes from the previous run
         detectPreviousCrash()
 
+        // …and say, every boot, how the last runs really ended — numbered reasons included.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) reportExitHistory()
+
         // Install a global UncaughtExceptionHandler so ANY unhandled crash is reported
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
@@ -203,7 +206,12 @@ object ErrorReporter {
                 ApplicationExitInfo.REASON_CRASH,
                 ApplicationExitInfo.REASON_CRASH_NATIVE,
                 ApplicationExitInfo.REASON_ANR,
-                ApplicationExitInfo.REASON_LOW_MEMORY
+                ApplicationExitInfo.REASON_LOW_MEMORY,
+                // A process killed by a SIGNAL leaves no Java trace and no tombstone in this API,
+                // and filtering it out is exactly why the wall's death on the camera-permission
+                // grant looked like "the app just disappeared": three reports, no `index.html`,
+                // and nothing in the server log that said why.
+                ApplicationExitInfo.REASON_SIGNALED
             )
 
             var newestTs = lastReportedTs
@@ -216,6 +224,7 @@ object ErrorReporter {
                     ApplicationExitInfo.REASON_CRASH_NATIVE -> "crash-native"
                     ApplicationExitInfo.REASON_ANR          -> "anr"
                     ApplicationExitInfo.REASON_LOW_MEMORY   -> "oom-kill"
+                    ApplicationExitInfo.REASON_SIGNALED     -> "killed-signal"
                     else                                    -> "exit-${exit.reason}"
                 }
                 val msg = exit.description?.takeIf { it.isNotEmpty() }
@@ -242,6 +251,49 @@ object ErrorReporter {
             if (newestTs > lastReportedTs) {
                 prefs.edit().putLong(KEY_LAST_EXIT_TS, newestTs).apply()
             }
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * One line per boot describing how the last few runs really ended, whatever the reason.
+     *
+     * `detectPreviousCrash()` only speaks about the deaths it can name, and a wall that dies
+     * **before it loads the page** has no other witness: `renderer-crashed` needs a live Activity,
+     * the UncaughtExceptionHandler needs a Java throw, and the page's own log needs a page. That
+     * is exactly the hole a fresh install fell into (three `report_error` POSTs, no `index.html`,
+     * nothing in the log that said why), so the reason number, the timestamp, the status and
+     * Android's own description of the last five exits go to the server on every boot.
+     */
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun reportExitHistory() {
+        try {
+            val am = appContext.getSystemService(ActivityManager::class.java) ?: return
+            val exits = am.getHistoricalProcessExitReasons(null, 0, 5)
+            if (exits.isEmpty()) return
+            val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+            val line = exits.joinToString(" | ") { e ->
+                val name = when (e.reason) {
+                    ApplicationExitInfo.REASON_CRASH           -> "crash-java"
+                    ApplicationExitInfo.REASON_CRASH_NATIVE    -> "crash-native"
+                    ApplicationExitInfo.REASON_ANR             -> "anr"
+                    ApplicationExitInfo.REASON_LOW_MEMORY      -> "oom-kill"
+                    ApplicationExitInfo.REASON_SIGNALED        -> "killed-signal"
+                    ApplicationExitInfo.REASON_USER_REQUESTED  -> "user-requested"
+                    ApplicationExitInfo.REASON_OTHER           -> "other"
+                    else                                       -> "reason-${e.reason}"
+                }
+                val desc = (e.description ?: "").replace("\n", " ").take(90)
+                val proc = if (e.processName.isNullOrEmpty()) "" else " proc=${e.processName}"
+                "$name(${e.reason}) at=${fmt.format(Date(e.timestamp))} status=${e.status}" +
+                    (if (desc.isNotEmpty()) " ($desc)" else "") + proc
+            }
+            reportAsync(
+                type    = "exit-history",
+                message = "Last exits: $line",
+                stack   = "",
+                context = mapOf("device" to deviceInfo, "count" to exits.size),
+                level   = "info"
+            )
         } catch (_: Exception) {}
     }
 

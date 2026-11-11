@@ -152,6 +152,15 @@ class KioskActivity : AppCompatActivity() {
     private var pendingWebPermission: PermissionRequest? = null
 
     /**
+     * True while the launch gate is waiting for the permission dialogs.
+     *
+     * The kiosk asks its own permissions **before** `startLockTask()` and before the WebView
+     * exists (see `startWhenPermissionsSettled()`), so this flag is what tells
+     * `onRequestPermissionsResult()` that the answers belong to the launch, not to a page.
+     */
+    private var pendingStartAfterPermissions = false
+
+    /**
      * The last console lines, whatever their level.
      *
      * A killed renderer takes its console with it, and what the page was DOING at that moment is
@@ -288,6 +297,10 @@ class KioskActivity : AppCompatActivity() {
         private const val INSTALL_CONFIRM_REQUEST = 1005
         private const val UNINSTALL_REQUEST       = 1006
         private const val SETUP_REQUEST           = 1007
+        // A code of its own: the launch gate and a page asking for the camera are two different
+        // questions, and answering one with the other's results is how a kiosk ends up with a
+        // granted camera it never uses (or a pending request nobody ever grants).
+        private const val PERMISSIONS_REQUEST_LAUNCH = 1010
         private const val PREFS_NAME = "evershelf_kiosk"
         private const val KEY_URL = "evershelf_url"
         private const val KEY_CACHE_VERSION = "cache_version"
@@ -371,10 +384,18 @@ class KioskActivity : AppCompatActivity() {
             @Suppress("DEPRECATION")
             startActivityForResult(Intent(this, SetupActivity::class.java), SETUP_REQUEST)
         } else {
-            enableKioskLock()
+            // Permissions FIRST — before `startLockTask()` and before a WebView exists.
+            //
+            // Asking them from inside the pin is what killed a freshly installed wall: the app
+            // showed the camera / microphone / photos dialogs, the camera grant ended the process
+            // before the page had asked the server for a single byte (measured in the server log:
+            // three `report_error` POSTs, no `index.html`), the media dialog stayed on screen with
+            // no app behind it, and only a reboot cleared it. A pinned activity cannot host the
+            // system's permission window — the same lesson the installer taught us (`lock task is
+            // suspended for the duration of the confirmation`).
             Handler(Looper.getMainLooper()).postDelayed({
                 splashContainer.visibility = View.GONE
-                launchWebView()
+                startWhenPermissionsSettled()
             }, SPLASH_DURATION)
         }
     }
@@ -410,34 +431,99 @@ class KioskActivity : AppCompatActivity() {
         }
     }
 
-    // ── Runtime Permissions (for WebView camera/mic) ─────────────────────
+    // ── Runtime Permissions ───────────────────────────────────────────────
+    //
+    // Asked BEFORE the kiosk lock and before the WebView exists. Two things used to be wrong
+    // here, and together they made a freshly installed wall unusable:
+    //   1. three dialogs (camera + microphone + photos) were requested from inside
+    //      `startLockTask()`, where a system window cannot be hosted;
+    //   2. the answers were shared with the WebView's own request (same request code), so an
+    //      answer for one could be applied to the other.
+    // The microphone is not needed at launch at all (a WebView has no Web Speech, SHELFY says so
+    // on the wall) and a file chooser goes through SAF — the camera is the only one the scanner
+    // cannot live without, so that is the only one the gate asks.
 
-    private fun requestAllPermissions() {
+    private fun launchPermissionsMissing(): List<String> {
         val needed = mutableListOf<String>()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
             needed.add(Manifest.permission.CAMERA)
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-            needed.add(Manifest.permission.RECORD_AUDIO)
-        if (Build.VERSION.SDK_INT >= 33) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED)
-                needed.add(Manifest.permission.READ_MEDIA_IMAGES)
-        } else {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
-                needed.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+        return needed
+    }
+
+    /**
+     * Start the kiosk as soon as its own permissions are settled.
+     *
+     * Nothing is pinned and no WebView exists while the dialog is up; `onRequestPermissionsResult()`
+     * completes the start. A denied camera starts the app anyway — that is "no scanner", not
+     * "no app", and refusing to boot on a denial would leave the household with a black wall.
+     */
+    private fun startWhenPermissionsSettled() {
+        val needed = launchPermissionsMissing()
+        if (needed.isEmpty()) {
+            enableKioskLock()
+            launchWebView()
+            return
         }
-        if (needed.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, needed.toTypedArray(), PERMISSION_REQUEST_CODE)
+        pendingStartAfterPermissions = true
+        try {
+            ActivityCompat.requestPermissions(this, needed.toTypedArray(), PERMISSIONS_REQUEST_LAUNCH)
+        } catch (e: Exception) {
+            // A request that never reaches the system must not leave the splash on screen
+            // forever: report it and start with what we have.
+            ErrorReporter.reportMessage(
+                type    = "permission-request-failed",
+                message = e.message ?: "requestPermissions threw",
+                extra   = mapOf("needed" to needed.joinToString(","), "lock_task" to lockTaskState()),
+                forceReport = true,
+                level   = "error"
+            )
+            pendingStartAfterPermissions = false
+            enableKioskLock()
+            launchWebView()
         }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        // The launch gate. The short delay lets the system dialog really go away before the
+        // activity is pinned again: re-pinning under a dying window is the other way this left a
+        // dialog on screen with a dead app behind it.
+        if (requestCode == PERMISSIONS_REQUEST_LAUNCH && pendingStartAfterPermissions) {
+            pendingStartAfterPermissions = false
+            val granted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            Handler(Looper.getMainLooper()).postDelayed({
+                enableKioskLock()
+                launchWebView()
+            }, if (granted) 350L else 150L)
+            return
+        }
+
         if (requestCode == PERMISSION_REQUEST_CODE) {
-            pendingWebPermission?.let { req ->
-                if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) req.grant(req.resources)
-                else req.deny()
-                pendingWebPermission = null
+            val req = pendingWebPermission
+            pendingWebPermission = null
+            if (req != null) {
+                // A PermissionRequest dies with the page that asked for it (a reload, a
+                // navigation, a renderer restart) and `grant()` on a dead one throws
+                // IllegalStateException on the main thread — i.e. the app disappears the instant
+                // the household allows the camera. It must never be able to do that.
+                try {
+                    if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED })
+                        req.grant(req.resources)
+                    else req.deny()
+                } catch (e: Exception) {
+                    ErrorReporter.reportMessage(
+                        type    = "permission-grant-stale",
+                        message = e.message ?: "PermissionRequest was no longer valid",
+                        extra   = mapOf("granted" to grantResults.joinToString(","), "path" to "result"),
+                        forceReport = true,
+                        level   = "warn"
+                    )
+                }
             }
+            // The page's request suspended the pin (a pinned activity cannot host the system
+            // dialog): put it back now that the dialog is gone.
+            enableKioskLock()
         }
     }
 
@@ -506,7 +592,8 @@ class KioskActivity : AppCompatActivity() {
 
         // Ensure kiosk lock and permissions are active
         enableKioskLock()
-        requestAllPermissions()
+        // The launch gate already asked for what was missing (`startWhenPermissionsSettled()`,
+        // with no lock task and no WebView alive). Asking again from here was the crash.
         // The wall says which version it is RUNNING, on every launch. The permission dialog is
         // the first thing a fresh install shows and the header label belongs to the page (which
         // drops it the moment the row is narrow), so "ho preso l'ultima versione?" was only
@@ -638,9 +725,26 @@ class KioskActivity : AppCompatActivity() {
                         }
                     }
                     if (needed.isEmpty()) {
-                        request.grant(request.resources)
+                        // The page asked for something the OS already allows. `grant()` on a
+                        // PermissionRequest whose page is gone (a reload, a renderer restart)
+                        // throws IllegalStateException — never let a camera request kill the wall.
+                        try {
+                            request.grant(request.resources)
+                        } catch (e: Exception) {
+                            ErrorReporter.reportMessage(
+                                type    = "permission-grant-stale",
+                                message = e.message ?: "PermissionRequest was no longer valid",
+                                extra   = mapOf("path" to "already-granted"),
+                                forceReport = false,
+                                level   = "warn"
+                            )
+                        }
                     } else {
                         pendingWebPermission = request
+                        // A pinned activity cannot bring the system's permission window to the
+                        // front: unpin for the duration of the dialog (the installer taught us the
+                        // same lesson) and re-pin in `onRequestPermissionsResult()`.
+                        disableKioskLock()
                         ActivityCompat.requestPermissions(this@KioskActivity, needed.toTypedArray(), PERMISSION_REQUEST_CODE)
                     }
                 }
