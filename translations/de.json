@@ -2458,6 +2458,7 @@
     "yesterday": "📅 Gestern"
   },
   "scanner": {
+    "camera_unavailable": "Kamera auf diesem Gerät nicht verfügbar: prüfe die Kameraberechtigung in den Systemeinstellungen (oder suche das Produkt von Hand).",
     "title_barcode": "🔖 Barcode scannen",
     "barcode_hint": "Produktbarcode einrahmen",
     "barcode_manual_placeholder": "Oder manuell eingeben...",

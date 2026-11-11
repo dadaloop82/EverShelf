@@ -283,14 +283,17 @@ function _auditModeSwitchHtml() {
             title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}"
             onclick="_auditSetMode('${mode}')"><span class="audit-mode-icon" aria-hidden="true">${icon}</span><span class="audit-mode-label">${escapeHtml(label)}</span></button>`;
     };
-    // No camera → no «Scansiona» tab: a stocktake mode that can only open a grey box is not a way in.
-    const canScan = (typeof _cameraUsable !== 'function') || _cameraUsable();
-    return `<div class="audit-modes" role="tablist">${tab('propose', '🃏', t('audit.mode_propose'))}${tab('search', '🔎', t('audit.mode_search'))}${canScan ? tab('scan', '📷', t('audit.mode_scan')) : ''}</div>`;
+    // The tab stays VISIBLE on a device without a camera (it wears the ✕ like every other camera
+    // entry); tapping it says why instead of switching to a mode that cannot work.
+    return `<div class="audit-modes" role="tablist">${tab('propose', '🃏', t('audit.mode_propose'))}${tab('search', '🔎', t('audit.mode_search'))}${tab('scan', '📷', t('audit.mode_scan'))}</div>`;
 }
 
 function _auditSetMode(mode) {
-    // A mode stored on a device that has no camera falls back to the one that needs none.
-    if (mode === 'scan' && typeof _cameraUsable === 'function' && !_cameraUsable()) mode = 'propose';
+    // A device without a camera says so instead of switching to a mode that cannot work.
+    if (mode === 'scan' && typeof _cameraUsable === 'function' && !_cameraUsable()) {
+        if (typeof _explainCameraUnavailable === 'function') _explainCameraUnavailable();
+        return;
+    }
     _auditMode = (mode === 'search' || mode === 'scan') ? mode : 'propose';
     try { localStorage.setItem(AUDIT_MODE_KEY, _auditMode); } catch (_e) { /* ignore */ }
     // Back to «Uno alla volta» with a session open means back to ITS card: the three ways are one

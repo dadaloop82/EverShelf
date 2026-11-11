@@ -9102,6 +9102,13 @@ function refreshAppDataAfterMutation() {
 }
 
 function showPage(pageId, param = null, options = {}) {
+    // A device that cannot use its camera still shows the 📷 (asked for: «meglio mettere una X
+    // sulla fotocamera quando non è disponibile, e se la clicchi viene fuori il messaggio»), so
+    // the tap must SAY why instead of opening a page whose only content is a grey box.
+    if (pageId === 'scan' && typeof _cameraUsable === 'function' && !_cameraUsable()) {
+        _explainCameraUnavailable();
+        return;
+    }
     if (!options.skipAddGuard && pageId !== 'add' && _isAddFormLeaveGuardActive()) {
         _promptAddFormLeave(() => showPage(pageId, param, { ...options, skipAddGuard: true }));
         return;
@@ -10650,6 +10657,12 @@ function _applyCameraChrome() {
     try { document.documentElement.classList.toggle('no-camera', !_cameraUsable()); } catch (e) {}
 }
 
+/** One sentence, the same one the scanner prints, plus a log line: no grey box, no silence. */
+function _explainCameraUnavailable() {
+    try { showToast(t('scanner.camera_unavailable'), 'warning', 7000); } catch (e) {}
+    try { remoteLog('CAM', 'tap on a camera entry with no camera'); } catch (e) {}
+}
+
 function _markCameraBlocked(reason) {
     if (_cameraBlocked) return;
     _cameraBlocked = true;
@@ -10667,7 +10680,15 @@ function _detectCameraAvailability() {
         if (navigator.permissions && navigator.permissions.query) {
             navigator.permissions.query({ name: 'camera' }).then((st) => {
                 if (st.state === 'denied') _markCameraBlocked('permission denied');
-                st.onchange = () => { if (st.state === 'denied') _markCameraBlocked('permission denied'); };
+                // The permission can come back (Android settings): the 📷 works again without a reload.
+                st.onchange = () => {
+                    if (st.state === 'denied') {
+                        _markCameraBlocked('permission denied');
+                    } else if (_cameraBlocked) {
+                        _cameraBlocked = false;
+                        _applyCameraChrome();
+                    }
+                };
             }).catch(() => { /* Safari answers "unsupported name" */ });
         }
     } catch (e) { /* never blocks the boot */ }
@@ -20549,7 +20570,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111h';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111i';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20559,7 +20580,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261111h';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261111i';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

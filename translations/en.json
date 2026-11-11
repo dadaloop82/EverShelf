@@ -2455,6 +2455,7 @@
     "yesterday": "📅 Yesterday"
   },
   "scanner": {
+    "camera_unavailable": "Camera not available on this device: check the camera permission in the system settings (or search for the product by hand).",
     "title_barcode": "🔖 Scan Barcode",
     "barcode_hint": "Frame the product barcode",
     "barcode_manual_placeholder": "Or enter manually...",

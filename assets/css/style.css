@@ -15564,11 +15564,41 @@ body.cooking-mode-active #shelfy-intro { z-index: 100001; }
    no getUserMedia, the permission already refused, or a camera that just failed — and every scan
    entry point disappears: the inline handlers are matched by attribute, so a button added later
    is covered without touching it. */
+/* Kept VISIBLE, wearing the ✕ (asked for: «meglio mettere una X sulla fotocamera quando non è
+   disponibile, e se la clicchi viene fuori il messaggio»): hiding the button left the household
+   wondering where the scanner went, while a grey box answered "impossibile accedere". The tap
+   goes through `showPage('scan')`, which now explains instead of navigating. */
+html.no-camera #btn-header-scan,
+html.no-camera #pf-barcode-scan-btn,
+html.no-camera #screensaver-scan-btn,
 html.no-camera [onclick*="showPage('scan')"],
-html.no-camera [onclick*='showPage("scan")'],
 html.no-camera [onclick*="_medGoToCabinetScan"],
 html.no-camera [onclick*="startSpesaMode"],
-html.no-camera [data-camera-only] { display: none !important; }
+html.no-camera [onclick*="_auditSetMode('scan')"],
+html.no-camera [data-camera-only] { position: relative; opacity: 0.6; }
+
+html.no-camera #btn-header-scan::after,
+html.no-camera #pf-barcode-scan-btn::after,
+html.no-camera #screensaver-scan-btn::after,
+html.no-camera [onclick*="showPage('scan')"]::after,
+html.no-camera [onclick*="_medGoToCabinetScan"]::after,
+html.no-camera [onclick*="startSpesaMode"]::after,
+html.no-camera [onclick*="_auditSetMode('scan')"]::after {
+    content: '✕';
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 15px;
+    height: 15px;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 15px;
+    text-align: center;
+    pointer-events: none;
+}
 
 /* A stocktake answer that is already given cannot be given again. */
 .audit-cell[disabled],

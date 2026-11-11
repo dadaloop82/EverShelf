@@ -2455,6 +2455,7 @@
     "yesterday": "📅 昨天"
   },
   "scanner": {
+    "camera_unavailable": "此设备无法使用相机：请在系统设置中检查相机权限（或手动搜索商品）。",
     "title_barcode": "🔖 扫描条形码",
     "barcode_hint": "将商品条形码放入取景框",
     "barcode_manual_placeholder": "或手动输入…",

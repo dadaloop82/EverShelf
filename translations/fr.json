@@ -2455,6 +2455,7 @@
     "yesterday": "📅 Hier"
   },
   "scanner": {
+    "camera_unavailable": "Appareil photo indisponible sur cet appareil : vérifiez l'autorisation dans les réglages du système (ou cherchez le produit à la main).",
     "title_barcode": "🔖 Scanner le code-barres",
     "barcode_hint": "Cadrez le code-barres du produit",
     "barcode_manual_placeholder": "Ou entrez manuellement...",
