@@ -5,6 +5,28 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Kiosk 1.7.38] - 2026-11-11
+
+Kiosk APK only.
+
+### The installer's result was thrown away: every update said "APK incompatibile"
+The wall's own log named it on the first try:
+`install_download_ok → install_start (signer_match:true, can_install_unknown:true, vc 37→38) →
+install_session → install_result status=1 … msg:"" … extras:""` — a generic failure with **no
+message at all**, on every update since 1.7.26, with a matching signer, a higher `versionCode` and
+"unknown sources" already granted.
+- **The cause is one flag**: the result `PendingIntent` was built with `FLAG_IMMUTABLE`, so the
+  platform could not write `EXTRA_STATUS` / `EXTRA_STATUS_MESSAGE` / `EXTRA_INTENT` into it. The
+  broadcast arrived empty, the receiver fell back to `STATUS_FAILURE` (1), and the UI translated 1
+  into "APK incompatibile con questo dispositivo o versione Android" — a diagnosis invented from a
+  missing extra. It is `FLAG_MUTABLE` on Android 12+ now (immutability is the flag that breaks it).
+- **The kiosk lock is suspended for the whole install**, not only when the system asks for a
+  confirmation: a pinned activity cannot bring the installer to the front, and the `status=1` was
+  also hiding that (`lock_task:2` in the report). The wall is re-pinned if the attempt fails
+  (`repinAfterInstallFailure()`), and the success path replaces the app anyway.
+- Reports gained `install_suspend_lock` and `lock-repin-after-install`, so the next failure says
+  which side it came from.
+
 ## [Kiosk 1.7.37] - 2026-11-11
 
 Kiosk APK only.
