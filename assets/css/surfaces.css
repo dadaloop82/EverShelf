@@ -1850,7 +1850,9 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
 .item-detail-qty-field {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    /* The unit is a badge beside the number, not part of it: 2 px read as «10g» on a phone
+       (asked for: «l'unità di misura è troppo vicina all'input della quantità»). */
+    gap: 6px;
     min-width: 0;
     border: 1px solid var(--surface-border);
     border-radius: 10px;

@@ -16846,7 +16846,7 @@ function showItemDetail(inventoryId, productId, presetQty) {
                         <input type="text" id="item-detail-qty-input" class="item-detail-qty-input qty-input"
                                value="${_itemDetailQtyNumber()}" inputmode="decimal" autocomplete="off"
                                oninput="_itemDetailOnQtyInput()">
-                        <span class="item-detail-qty-unit" id="item-detail-qty-unit">${escapeHtml(_itemDetailUnitLabel())}</span>
+                        <span class="item-detail-qty-unit qty-unit-badge" id="item-detail-qty-unit">${escapeHtml(_itemDetailUnitLabel())}</span>
                     </div>
                     <button type="button" class="item-detail-step" onclick="_itemDetailStep(1)" aria-label="${escapeAttr(t('inventory.detail_more_qty'))}">+</button>
                 </div>
@@ -19950,6 +19950,24 @@ function _editOnCategoryChange() {
 /**
  * Medicine edit sheet: pack / PAO / categories / month-year expiry — never vacuum, scale or recipe.
  */
+/** Is this UI running on a phone? (the same breakpoint mobile.css uses) */
+function _isMobileUi() {
+    try { return window.matchMedia('(max-width: 640px)').matches; } catch (e) { return false; }
+}
+
+/**
+ * The categories the edit sheet has selected — from the chips, or from the <select> a phone shows.
+ *
+ * Asked for: «al posto di mostrare così le categorie mostrale con un select se siamo in mobile»:
+ * eight chips over two or three rows cost a third of the sheet, and a native picker costs one line.
+ * One reader for both, so a save cannot depend on which of the two the household saw.
+ */
+function _medEditSelectedTags() {
+    const sel = document.getElementById('edit-med-cat-select');
+    if (sel) return sel.value ? [String(sel.value)] : [];
+    return Array.from(document.querySelectorAll('#edit-med-cats input:checked')).map(i => i.value);
+}
+
 function _editMedicalInventoryItem(item) {
     const editLocs = _locationsForEdit(true, item.location);
     const selectedTags = String(item.med_tags || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -20031,7 +20049,12 @@ function _editMedicalInventoryItem(item) {
             </div>
             <div class="form-group">
                 <label>${escapeHtml(t('medical.detail_categories'))}</label>
-                <div id="edit-med-cats" class="med-cat-chips">${catChips || `<p class="settings-hint">${escapeHtml(t('medical.pick_category'))}</p>`}</div>
+                ${_isMobileUi()
+                    ? `<select id="edit-med-cat-select" class="form-input">
+                           <option value="">${escapeHtml(t('medical.pick_category'))}</option>
+                           ${cats.map(c => `<option value="${escapeAttr(c.slug)}"${selectedTags.includes(c.slug) ? ' selected' : ''}>${escapeHtml(t(c.label_key))}</option>`).join('')}
+                       </select>`
+                    : `<div id="edit-med-cats" class="med-cat-chips">${catChips || `<p class="settings-hint">${escapeHtml(t('medical.pick_category'))}</p>`}</div>`}
             </div>
             <div class="form-group">
                 <label>${escapeHtml(t('medical.detail_ingredient'))}</label>
@@ -20041,13 +20064,13 @@ function _editMedicalInventoryItem(item) {
                 <label>${escapeHtml(t('medical.pao_label'))}</label>
                 <input type="number" id="edit-med-pao" class="form-input" min="0" step="1" value="${Number(item.med_pao_days) || 0}">
             </div>
-            ${!item.opened_at ? `<div class="med-open-since">
-                <p class="settings-hint">${escapeHtml(t('audit.med_days_q'))}</p>
+            <div class="med-open-since">
+                <p class="settings-hint">${escapeHtml(item.opened_at ? t('medical.opened_since_change') : t('audit.med_days_q'))}</p>
                 <div class="med-open-since-chips">
                     <button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, 0)">${escapeHtml(t('audit.med_days_today'))}</button>
                     ${[2, 7, 14, 30, 60, 90].map(n => `<button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, ${n})">${escapeHtml(t('dashboard.days_short').replace('{n}', n))}</button>`).join('')}
                 </div>
-            </div>` : ''}
+            </div>
             <button type="submit" class="btn btn-large btn-primary full-width mt-2">${t('btn.save')}</button>
         </form>
     `;
@@ -20246,7 +20269,7 @@ async function submitEditInventory(e, id, productId) {
         }
 
         if (isMedEdit) {
-            const tags = Array.from(document.querySelectorAll('#edit-med-cats input:checked')).map(i => i.value);
+            const tags = _medEditSelectedTags();
             const ingredient = String(document.getElementById('edit-med-ingredient')?.value || '').trim();
             const pao = Number(document.getElementById('edit-med-pao')?.value) || 0;
             const classified = await api('med_classify', {}, 'POST', {
@@ -20283,7 +20306,7 @@ async function submitEditInventory(e, id, productId) {
             patch.default_quantity = payload.package_size || payload.default_quantity;
         }
         if (isMedEdit) {
-            patch.med_tags = Array.from(document.querySelectorAll('#edit-med-cats input:checked')).map(i => i.value).join(',');
+            patch.med_tags = _medEditSelectedTags().join(',');
             patch.med_ingredient = String(document.getElementById('edit-med-ingredient')?.value || '').trim();
             patch.med_pao_days = Number(document.getElementById('edit-med-pao')?.value) || 0;
             patch.is_medical = 1;
@@ -20587,7 +20610,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111j';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111k';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20597,7 +20620,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261111j';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261111k';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

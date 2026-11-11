@@ -3134,6 +3134,7 @@
     "api_aifa": "The Italian national medicine catalogue (AIFA open data): commercial name, active ingredient and pack for every AIC, imported once into your instance."
   },
   "medical": {
+    "opened_since_change": "Open for (tap to correct)",
     "title": "💊 Medicines and cabinet",
     "hint": "Optional module: it keeps medicines apart from food and answers “what do I have for…” with your own products, not with advice. Off until you turn it on.",
     "enable": "Enable medicines and medicine cabinet",

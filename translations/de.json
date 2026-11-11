@@ -3137,6 +3137,7 @@
     "api_aifa": "Der italienische Arzneimittelkatalog (AIFA-Open-Data): Handelsname, Wirkstoff und Packung zu jeder AIC, einmal in deine Instanz importiert."
   },
   "medical": {
+    "opened_since_change": "Geöffnet seit (zum Korrigieren tippen)",
     "title": "💊 Medikamente und Schrank",
     "hint": "Optionales Modul: trennt Medikamente vom Essen und beantwortet „Was habe ich für …“ mit deinen eigenen Produkten, nicht mit Ratschlägen. Aus, bis du es einschaltest.",
     "enable": "Medikamente und Hausapotheke verwalten",

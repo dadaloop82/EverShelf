@@ -3134,6 +3134,7 @@
     "api_aifa": "Le catalogue national italien des médicaments (open data AIFA) : nom commercial, principe actif et conditionnement pour chaque AIC, importé une fois dans ton instance."
   },
   "medical": {
+    "opened_since_change": "Ouvert depuis (touchez pour corriger)",
     "title": "💊 Médicaments et armoire",
     "hint": "Module optionnel : il sépare les médicaments de l’alimentation et répond à « qu’est-ce que j’ai pour… » avec vos propres produits, pas avec des conseils. Désactivé jusqu’à ce que vous l’activiez.",
     "enable": "Activer la gestion des médicaments et de l’armoire",
