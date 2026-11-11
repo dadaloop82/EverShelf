@@ -20066,10 +20066,18 @@ function _editMedicalInventoryItem(item) {
             </div>
             <div class="med-open-since">
                 <p class="settings-hint">${escapeHtml(item.opened_at ? t('medical.opened_since_change') : t('audit.med_days_q'))}</p>
-                <div class="med-open-since-chips">
-                    <button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, 0)">${escapeHtml(t('audit.med_days_today'))}</button>
-                    ${[2, 7, 14, 30, 60, 90].map(n => `<button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, ${n})">${escapeHtml(t('dashboard.days_short').replace('{n}', n))}</button>`).join('')}
-                </div>
+                ${_isMobileUi()
+                    // A phone gets the native picker (one line), like the categories: seven chips
+                    // wrapped onto two rows and cost ~70 px of a sheet that is already a scroll.
+                    ? `<select class="form-input" onchange="if(this.value!=='')_medMarkOpened(${item.id}, this.value)">
+                           <option value="">—</option>
+                           <option value="0">${escapeHtml(t('audit.med_days_today'))}</option>
+                           ${[2, 7, 14, 30, 60, 90].map(n => `<option value="${n}">${escapeHtml(t('dashboard.days_short').replace('{n}', n))}</option>`).join('')}
+                       </select>`
+                    : `<div class="med-open-since-chips">
+                           <button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, 0)">${escapeHtml(t('audit.med_days_today'))}</button>
+                           ${[2, 7, 14, 30, 60, 90].map(n => `<button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, ${n})">${escapeHtml(t('dashboard.days_short').replace('{n}', n))}</button>`).join('')}
+                       </div>`}
             </div>
             <button type="submit" class="btn btn-large btn-primary full-width mt-2">${t('btn.save')}</button>
         </form>
@@ -20610,7 +20618,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111k';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111l';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20620,7 +20628,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261111k';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261111l';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

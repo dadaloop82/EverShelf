@@ -236,4 +236,29 @@
     .inv-qty-right {
         max-width: 40%;
     }
+
+    /* ── The medicine edit sheet, compact ─────────────────────────────────
+       Nine rows of form on a phone is a scroll even after the header was condensed. Three moves,
+       all inside the phone breakpoint: the read-only facts become ONE scrollable line instead of
+       a 97 px block, the groups breathe 5 px instead of 8, and the controls lose the padding a
+       desktop mouse needs. The categories and «da quanti giorni» are native <select>s already. */
+    .item-detail-med-facts {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 2px;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .item-detail-med-facts::-webkit-scrollbar { display: none; }
+    .med-fact { flex: 0 0 auto; }
+
+    #modal-content .form.is-medical-edit > .settings-hint { margin: 0 0 4px; font-size: 0.8rem; }
+    #modal-content .form.is-medical-edit .form-group { margin-bottom: 5px; }
+    #modal-content .form.is-medical-edit label { font-size: 0.78rem; margin-bottom: 1px; }
+    #modal-content .form.is-medical-edit .form-input,
+    #modal-content .form.is-medical-edit .qty-input { padding: 5px 8px; font-size: 0.92rem; }
+    #modal-content .form.is-medical-edit .qty-btn { height: 36px; width: 36px; }
+    #modal-content .form.is-medical-edit .med-open-since { margin-bottom: 6px; }
+    #modal-content .form.is-medical-edit .med-open-since .settings-hint { margin: 0 0 2px; }
+    #modal-content .form.is-medical-edit .btn-large { min-height: 44px; }
 }
