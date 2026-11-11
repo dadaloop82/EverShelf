@@ -160,6 +160,9 @@ class KioskActivity : AppCompatActivity() {
      */
     private var pendingStartAfterPermissions = false
 
+    /** True once the pin has been requested in this launch (`enterKioskLockOnce()`). */
+    private var lockEnterRequested = false
+
     /**
      * The last console lines, whatever their level.
      *
@@ -458,13 +461,14 @@ class KioskActivity : AppCompatActivity() {
      * "no app", and refusing to boot on a denial would leave the household with a black wall.
      */
     private fun startWhenPermissionsSettled() {
+        ErrorReporter.step("perm-gate")
         val needed = launchPermissionsMissing()
         if (needed.isEmpty()) {
-            enableKioskLock()
             launchWebView()
             return
         }
         pendingStartAfterPermissions = true
+        ErrorReporter.step("perm-asked:" + needed.joinToString(","))
         try {
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), PERMISSIONS_REQUEST_LAUNCH)
         } catch (e: Exception) {
@@ -478,7 +482,6 @@ class KioskActivity : AppCompatActivity() {
                 level   = "error"
             )
             pendingStartAfterPermissions = false
-            enableKioskLock()
             launchWebView()
         }
     }
@@ -492,8 +495,8 @@ class KioskActivity : AppCompatActivity() {
         if (requestCode == PERMISSIONS_REQUEST_LAUNCH && pendingStartAfterPermissions) {
             pendingStartAfterPermissions = false
             val granted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            ErrorReporter.step(if (granted) "perm-granted" else "perm-denied")
             Handler(Looper.getMainLooper()).postDelayed({
-                enableKioskLock()
                 launchWebView()
             }, if (granted) 350L else 150L)
             return
@@ -521,9 +524,10 @@ class KioskActivity : AppCompatActivity() {
                     )
                 }
             }
-            // The page's request suspended the pin (a pinned activity cannot host the system
-            // dialog): put it back now that the dialog is gone.
-            enableKioskLock()
+            // No re-pin here any more: the pin happens ONCE, after the page is on screen
+            // (`enterKioskLockOnce()`). Re-pinning from this callback — while the system dialog
+            // that just closed is still going away — is the other half of the SIGKILL the wall
+            // recorded at the kiosk-mode transition.
         }
     }
 
@@ -531,8 +535,52 @@ class KioskActivity : AppCompatActivity() {
 
     private fun enableKioskLock() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            startLockTask()
+            try {
+                startLockTask()
+            } catch (e: Exception) {
+                // Already pinned, not allowed, or a ROM that refuses the request: the pin is a
+                // convenience, the page is the appliance. It must never end the process.
+                ErrorReporter.reportMessage(
+                    type    = "lock-task-failed",
+                    message = e.message ?: "startLockTask threw",
+                    extra   = mapOf("state" to lockTaskState()),
+                    forceReport = false,
+                    level   = "warn"
+                )
+            }
         }
+    }
+
+    /**
+     * Pin the wall **once**, once the page is on screen.
+     *
+     * Without Device Owner `startLockTask()` shows the system's "pin the app?" confirmation, and
+     * that dialog PAUSES the activity. Asking for it while the very first page is still loading —
+     * three times inside one second, from the launch gate, from the permission result and from
+     * `launchWebView()` — is what the wall recorded as `killed-signal(2) status=9`: a SIGKILL with
+     * no Java trace, no tombstone and no renderer report, right after the page had booted.
+     * One request, after `onPageFinished`, its state read back and reported; a pin that does not
+     * take leaves the wall usable and says so in the log.
+     */
+    private fun enterKioskLockOnce() {
+        if (lockEnterRequested) return
+        val state = lockTaskState()
+        if (state == ActivityManager.LOCK_TASK_MODE_PINNED || state == ActivityManager.LOCK_TASK_MODE_LOCKED) {
+            lockEnterRequested = true
+            return
+        }
+        lockEnterRequested = true
+        ErrorReporter.step("lock-enter")
+        enableKioskLock()
+        Handler(Looper.getMainLooper()).postDelayed({
+            ErrorReporter.reportMessage(
+                type    = "lock-task",
+                message = "Lock task state after start: ${lockTaskState()}",
+                extra   = mapOf("state_before" to state, "state_after" to lockTaskState()),
+                forceReport = false,
+                level   = "info"
+            )
+        }, 2500L)
     }
 
     private fun disableKioskLock() {
@@ -586,15 +634,16 @@ class KioskActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun launchWebView() {
+        ErrorReporter.step("webview-start")
         // Start BLE gateway service BEFORE entering kiosk lock — in lock task mode Android blocks
         // startForegroundService() for foreground services, so we must start before lockTask.
         startGatewayService()
 
-        // Ensure kiosk lock and permissions are active
-        enableKioskLock()
         // The launch gate already asked for what was missing (`startWhenPermissionsSettled()`,
         // with no lock task and no WebView alive). Asking again from here was the crash.
-        // The wall says which version it is RUNNING, on every launch. The permission dialog is
+        // The PIN is asked once, from `onPageFinished()`: the pinning confirmation pauses the
+        // activity, and pausing it while this very first page is loading is what got the process
+        // SIGKILLed. The wall says which version it is RUNNING, on every launch. The permission dialog is
         // the first thing a fresh install shows and the header label belongs to the page (which
         // drops it the moment the row is narrow), so "ho preso l'ultima versione?" was only
         // answerable from a screenshot — and a reinstall that installed nothing looked exactly
@@ -701,8 +750,11 @@ class KioskActivity : AppCompatActivity() {
             }
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                ErrorReporter.step("page-finished")
                 injectNativeApiToken()
                 injectKioskOverlay()
+                // The page is up: now it is worth pinning the wall (see `enterKioskLockOnce()`).
+                enterKioskLockOnce()
                 checkForUpdates(forceCheck = false)
             }
         }
@@ -740,12 +792,25 @@ class KioskActivity : AppCompatActivity() {
                             )
                         }
                     } else {
-                        pendingWebPermission = request
-                        // A pinned activity cannot bring the system's permission window to the
-                        // front: unpin for the duration of the dialog (the installer taught us the
-                        // same lesson) and re-pin in `onRequestPermissionsResult()`.
-                        disableKioskLock()
-                        ActivityCompat.requestPermissions(this@KioskActivity, needed.toTypedArray(), PERMISSION_REQUEST_CODE)
+                        // NEVER ask a runtime permission from a pinned activity, and never unpin to
+                        // ask: a system window cannot be hosted in lock task, and the unpin/re-pin
+                        // dance is what ended the process on the wall (`killed-signal(2)`).
+                        // The launch gate asks again at the next start, with no pin and no WebView
+                        // alive — that is the only place a dialog belongs.
+                        ErrorReporter.reportMessage(
+                            type    = "permission-needed-pinned",
+                            message = "The page asked for " + needed.joinToString(",") + " while pinned — denied",
+                            extra   = mapOf("lock_task" to lockTaskState(), "resources" to request.resources.size),
+                            forceReport = true,
+                            level   = "warn"
+                        )
+                        ErrorReporter.step("perm-denied-pinned")
+                        try { request.deny() } catch (_: Exception) {}
+                        Toast.makeText(
+                            this@KioskActivity,
+                            "EverShelf: allow the camera in Android settings, then restart",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                 }
             }
@@ -955,6 +1020,7 @@ class KioskActivity : AppCompatActivity() {
             webView.clearCache(true)
             prefs.edit().putString(KEY_CACHE_VERSION, cacheFor).apply()
         }
+        ErrorReporter.step("url-loaded")
         webView.loadUrl(url)
 
         // One line per boot saying what the tablet has left. The renderer died at a `priority=2`
@@ -1847,7 +1913,6 @@ class KioskActivity : AppCompatActivity() {
             if (resultCode == RESULT_OK) {
                 val newUrl = prefs.getString(KEY_URL, "") ?: ""
                 ErrorReporter.init(this, newUrl)
-                enableKioskLock()
                 launchWebView()
             } else {
                 // User exited setup without completing — close app

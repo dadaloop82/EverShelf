@@ -46,6 +46,8 @@ object ErrorReporter {
     private const val KEY_PENDING     = "pending_crash_json"
     private const val KEY_WAS_RUNNING = "was_running_dirty"
     private const val KEY_LAST_EXIT_TS = "last_reported_exit_ts"
+    private const val KEY_LAST_STEP   = "last_step"
+    private const val KEY_LAST_STEP_TS = "last_step_ts"
 
     private val executor = Executors.newSingleThreadExecutor()
 
@@ -56,6 +58,55 @@ object ErrorReporter {
     private var appVersion: String = ""
     private var deviceInfo: String = ""
     private lateinit var appContext: Context
+
+    /**
+     * Leave a breadcrumb of the step the app is in.
+     *
+     * Written to SharedPreferences **before** the step runs, so it survives anything: a
+     * `SIGKILL` from the system (which is what the wall recorded at the kiosk-mode transition —
+     * `killed-signal(2) status=9`, no Java trace, no tombstone, no renderer report) takes the
+     * console, the buffered HTTP queue and the pending report with it, but not a value on disk.
+     * The next start reports it (`reportLastRun()`) and the wall finally names the step it died in.
+     *
+     * Cheap and silent: one `apply()` per call, no I/O on the main thread beyond that.
+     */
+    fun step(name: String) {
+        if (!::appContext.isInitialized) return
+        try {
+            appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+                .putString(KEY_LAST_STEP, name.take(80))
+                .putLong(KEY_LAST_STEP_TS, System.currentTimeMillis())
+                .apply()
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * At boot: if the previous run never stopped cleanly, say which step it was in.
+     *
+     * Must be called **before** `detectPreviousCrash()`, which marks this launch as running.
+     */
+    private fun reportLastRun() {
+        try {
+            val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val wasRunning = prefs.getBoolean(KEY_WAS_RUNNING, false)
+            val step = prefs.getString(KEY_LAST_STEP, null) ?: return
+            if (!wasRunning || step == "clean") return
+            val ts = prefs.getLong(KEY_LAST_STEP_TS, 0L)
+            val age = if (ts > 0) ((System.currentTimeMillis() - ts) / 1000) else -1
+            reportAsync(
+                type    = "last-run",
+                message = "Previous run died after step '$step' (${age}s later)",
+                stack   = "",
+                context = mapOf(
+                    "device" to deviceInfo,
+                    "step"   to step,
+                    "step_age_s" to age,
+                    "note"   to "Breadcrumb written before the step; survives a SIGKILL"
+                ),
+                level   = "warn"
+            )
+        } catch (_: Exception) {}
+    }
 
     /**
      * Call once (e.g. in KioskActivity.onCreate) before reporting any errors.
@@ -80,6 +131,9 @@ object ErrorReporter {
 
         // Send any crash that was saved to prefs during a previous session
         sendPendingCrash()
+
+        // …and, if the previous run never got to stop cleanly, the step it was in
+        reportLastRun()
 
         // Detect ANR / OOM / native crashes from the previous run
         detectPreviousCrash()
@@ -116,6 +170,7 @@ object ErrorReporter {
             appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().putBoolean(KEY_WAS_RUNNING, false).apply()
         }
+        step("clean")
     }
 
     /**

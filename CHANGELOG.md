@@ -5,6 +5,34 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Kiosk 1.7.35] - 2026-11-11
+
+Kiosk APK only.
+
+### The pin is asked once, when the page is already on screen
+1.7.34 fixed the permission half and the wall booted — then died at the kiosk-mode transition.
+The new reporting named it on the first try: `killed-signal(2) status=9`, i.e. **SIGKILL**, with
+no Java trace, no tombstone and no renderer report, nine seconds after the page booted (the page's
+`[PAGEHIDE] unload` is when the process started to go away, the "keeps stopping" dialog is what the
+household then closed).
+`startLockTask()` without Device Owner shows the system's "pin the app?" confirmation, and that
+dialog **pauses** the activity — the app asked for it three times inside one second (launch gate,
+permission result, `launchWebView()`) while the very first page was still loading.
+- **One request, from `onPageFinished()`** (`enterKioskLockOnce()`): it returns immediately when the
+  wall is already pinned, reads the state back 2.5 s later and reports it (`lock-task`), and a pin
+  that does not take leaves the app running — the pin is a convenience, the page is the appliance.
+- **Nothing unpins to ask a permission any more.** A pinned activity cannot host a system window,
+  so a page that asks for the camera when the OS grant is missing is now **denied** with a one-line
+  Toast ("allow the camera in Android settings, then restart") and a `permission-needed-pinned`
+  report; the launch gate asks again at the next start, with no pin and no WebView alive.
+- `enableKioskLock()` is guarded: `startLockTask()` can throw (already pinned, not allowed, a ROM
+  that refuses) and that must never end the process (`lock-task-failed`).
+- **Breadcrumbs that survive a SIGKILL**: `ErrorReporter.step()` writes the current step
+  (`perm-gate`, `perm-asked:…`, `perm-granted`, `webview-start`, `url-loaded`, `lock-enter`,
+  `page-finished`, …) to SharedPreferences *before* the step runs, and the next start reports the
+  last one when the previous run did not stop cleanly (`last-run`). A kill takes the console, the
+  buffered HTTP queue and the pending report with it — it does not take a value on disk.
+
 ## [Kiosk 1.7.34] - 2026-11-11
 
 Kiosk APK only.

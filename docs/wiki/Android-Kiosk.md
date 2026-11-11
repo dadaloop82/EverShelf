@@ -8,7 +8,7 @@ The EverShelf Kiosk app turns any Android tablet into a dedicated, locked-down k
 
 **[⬇ Download latest APK](https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk)**
 
-> Current version: **v1.7.34** (versionCode 35) — requires Android 7.0+
+> Current version: **v1.7.34** (versionCode 36) — requires Android 7.0+
 >
 > Use the `kiosk-latest` tag (not GitHub’s “Latest” release — that tracks the web app and has no APK).
 > On a phone already on the EverShelf LAN, Settings → EverShelf Kiosk → **Scarica APK da questo server** serves `releases/evershelf-kiosk.apk` from your instance.
@@ -23,12 +23,12 @@ Both numbers are printed **on every boot**, because a tablet on a wall has no co
 
 | Where | What it says | Where it comes from |
 |---|---|---|
-| Native **Toast** at launch (before the page loads) | `EverShelf Kiosk 1.7.34 (35)` | `KioskActivity.launchWebView()` → `appVersionName()` |
-| **Boot banner** in the page (bottom, ✕ to dismiss, gone after 9 s) | `Chiosco 1.7.34 (35) · app v1.31.27` | `_showKioskBootVersion()` in `app.js` |
-| **Boot log line** in `data/logs/kiosk-YYYY-MM-DD.log` | `[KIOSK] boot version apk=1.7.34 (35) app=v1.31.27` | `remoteLog()` from the same function |
-| **Server log** at every boot | `"app_version":"1.7.34 (35)"` in the `mem` / `Boot memory snapshot` report | `KioskActivity` → `ErrorReporter` |
+| Native **Toast** at launch (before the page loads) | `EverShelf Kiosk 1.7.35 (36)` | `KioskActivity.launchWebView()` → `appVersionName()` |
+| **Boot banner** in the page (bottom, ✕ to dismiss, gone after 9 s) | `Chiosco 1.7.35 (36) · app v1.31.27` | `_showKioskBootVersion()` in `app.js` |
+| **Boot log line** in `data/logs/kiosk-YYYY-MM-DD.log` | `[KIOSK] boot version apk=1.7.35 (36) app=v1.31.27` | `remoteLog()` from the same function |
+| **Server log** at every boot | `"app_version":"1.7.35 (36)"` in the `mem` / `Boot memory snapshot` report | `KioskActivity` → `ErrorReporter` |
 
-The header also carries `kiosk 1.7.34 (35)` next to the app version, but it is the **first thing
+The header also carries `kiosk 1.7.35 (36)` next to the app version, but it is the **first thing
 the header gives up** when the row is narrow — which is why the boot banner exists and why it is
 shown every time, never once per device.
 
@@ -195,6 +195,17 @@ The WebView accepts self-signed certificates automatically. No configuration nee
 ### Screen pinning / back button not working
 - Screen pinning requires the app to be set as Device Owner or the user to confirm the pin prompt
 - Some Android skins (Samsung, Xiaomi) may require additional accessibility permissions
+
+### The app dies when it enters kiosk mode (screen pinning)
+`1.7.34` booted and then died at the transition: the wall logged `killed-signal(2) status=9` — a
+**SIGKILL**, with no Java trace and no tombstone — nine seconds after the page appeared.
+`startLockTask()` without Device Owner shows the system's "pin the app?" confirmation, which pauses
+the activity; asking for it while the first page was still loading (three times in one second) is
+what ended the process.
+`1.7.35` asks **once**, from `onPageFinished()`, never unpins to ask a permission (a page request
+for a missing OS grant is denied with a Toast and retried at the next launch, before the pin), and
+leaves breadcrumbs (`ErrorReporter.step()` → `last-run` on the next boot) that survive a kill — so
+a wall that still dies names the step it died in instead of vanishing.
 
 ### The app dies while asking for permissions (fresh install / update)
 Reported on a real wall: the files → microphone → camera dialogs appear, and granting the camera
