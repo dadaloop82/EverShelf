@@ -1507,6 +1507,14 @@ class KioskActivity : AppCompatActivity() {
         installWithPackageInstaller(file, targetPkg)
     }
 
+    /** Re-pin the wall after a failed attempt (a successful install replaces the app). */
+    private fun repinAfterInstallFailure() {
+        if (lockTaskState() == ActivityManager.LOCK_TASK_MODE_NONE) {
+            ErrorReporter.step("lock-repin-after-install")
+            enableKioskLock()
+        }
+    }
+
     private fun installWithPackageInstaller(file: java.io.File, targetPkg: String) {
         try {
             val pi     = packageManager.packageInstaller
@@ -1607,6 +1615,7 @@ class KioskActivity : AppCompatActivity() {
                         PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
                         PackageInstaller.STATUS_FAILURE_CONFLICT -> {
                             unregisterReceiver(this)
+                            repinAfterInstallFailure()
                             val msg = intent?.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: ""
                             val diag = pendingInstallDiag + mapOf(
                                 "status" to status,
@@ -1653,6 +1662,7 @@ class KioskActivity : AppCompatActivity() {
                         }
                         else -> {
                             unregisterReceiver(this)
+                            repinAfterInstallFailure()
                             val msg = intent?.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: ""
                             val deviceLabel = buildDeviceLabel()
                             val diagInfo = buildString {
@@ -1711,11 +1721,32 @@ class KioskActivity : AppCompatActivity() {
             }
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) RECEIVER_NOT_EXPORTED else 0
             registerReceiver(resultReceiver, IntentFilter(action), flags)
+            // ★ MUTABLE, and this is the whole bug: the platform WRITES the result into this
+            // PendingIntent (EXTRA_STATUS, EXTRA_STATUS_MESSAGE, EXTRA_INTENT). With
+            // FLAG_IMMUTABLE those extras are silently dropped, the broadcast arrives empty, our
+            // receiver falls back to STATUS_FAILURE (1) and the wall says "APK incompatibile con
+            // questo dispositivo" — while the signer, the version and "unknown sources" are all
+            // fine. Measured on the wall: `install_result … status=1 … msg:"" … extras:""` for
+            // EVERY update since 1.7.26, with `signer_match:true`.
+            val piFlags = PendingIntent.FLAG_UPDATE_CURRENT or
+                (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0)
             val pi2 = PendingIntent.getBroadcast(
                 this, sessionId,
                 Intent(action).setPackage(packageName),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                piFlags
             )
+            // The system installer is another app: a pinned activity cannot let it come to the
+            // front. Leave lock task for the whole install and re-enter it if the attempt fails
+            // (the success path replaces the app anyway).
+            if (lockTaskState() != ActivityManager.LOCK_TASK_MODE_NONE) {
+                ErrorReporter.reportMessage(
+                    "install_suspend_lock",
+                    "Suspending the kiosk lock for the installer",
+                    pendingInstallDiag + mapOf("lock_task" to lockTaskState()),
+                    forceReport = true
+                )
+                disableKioskLock()
+            }
             session.commit(pi2.intentSender)
             setInstallUI("\u23F3", getString(R.string.install_installing), getString(R.string.install_installing), 0xFF94a3b8.toInt(), btnEnabled = false, progress = -1)
         } catch (e: Exception) {
