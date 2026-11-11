@@ -107,9 +107,7 @@ html.is-touch-tablet .inv-image {
 }
 
 html.is-kiosk .inv-name-row .inv-name,
-html.is-kiosk .inventory-item.is-medical-row .inv-name,
-html.is-touch-tablet .inv-name-row .inv-name,
-html.is-touch-tablet .inventory-item.is-medical-row .inv-name {
+html.is-touch-tablet .inv-name-row .inv-name {
     font-size: var(--es-text-body);
     font-weight: 650;
     white-space: normal;

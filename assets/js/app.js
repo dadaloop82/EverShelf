@@ -350,6 +350,18 @@ function _medCardSubtitleHtml(item) {
     return `<div class="inv-med-sub">${escapeHtml(bits.join(' · '))}</div>`;
 }
 
+/** The closed categories of a medicine as ONE text line — the row's meta line, next to the
+ *  place, exactly where a food row prints its category. */
+function _medCategoryLabels(item) {
+    const tags = String((item && item.med_tags) || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (!tags.length) return '';
+    const cats = (_medStatus && _medStatus.categories) || [];
+    return tags.map(slug => {
+        const cat = cats.find(c => c && c.slug === slug);
+        return cat && cat.label_key ? t(cat.label_key) : slug;
+    }).join(' · ');
+}
+
 /**
  * Form-aware emoji for a medicine without a box photo.
  * ml → drops/syrup, g → cream/gel, spray → spray, else tablets/sachets.
@@ -15435,8 +15447,14 @@ function renderInventoryItem(item, opts = {}) {
     if (!medRow && locInfo.label) metaBits.push(`${locInfo.icon || '📍'} ${escapeHtml(locInfo.label)}`);
     if (catLabel) metaBits.push(catLabel);
     if (medRow) {
-        const medCats = _medCategoryBadgesHtml(item);
-        if (medCats) metaBits.push(medCats);
+        // ONE row grammar for both cabinets: where it is and what it is, like a food row
+        // (“📍 Dispensa · 🥫 Conserve”). The category pills and the ingredient block
+        // made a medicine a different animal in the same list.
+        if (locInfo.label) metaBits.push(`${locInfo.icon || '📍'} ${escapeHtml(locInfo.label)}`);
+        const medCatLabels = _medCategoryLabels(item);
+        if (medCatLabels) metaBits.push(`💊 ${escapeHtml(medCatLabels)}`);
+        const ing = String(item.med_ingredient || '').trim();
+        if (ing) metaBits.push(escapeHtml(ing));
         // Opened/sealed state lives on the PAO / expiry badge — not repeated here.
     }
     if (!medRow && item.vacuum_sealed) metaBits.push(escapeHtml(t('inventory.vacuum_badge')));
@@ -15453,8 +15471,9 @@ function renderInventoryItem(item, opts = {}) {
     const menuKey = t('dashboard.row_actions');
     const locJs = String(item.location || 'dispensa').replace(/'/g, "\\'");
     // Medicines: commercial name bold + ingredient · short company under it — never the legal SPA/SRL run.
+    const medBrand = medRow ? _medShortCompany(item.brand) : '';
     const nameBlock = medRow
-        ? `<div class="inv-name">${escapeHtml(_medCommercialName(item))}</div>${_medCardSubtitleHtml(item)}`
+        ? `<div class="inv-name">${escapeHtml(_medCommercialName(item))}${medBrand ? ` <span class="inv-brand-inline">(${escapeHtml(medBrand)})</span>` : ''}</div>`
         : `<div class="inv-name">${escapeHtml(item.display_name || item.name)}${item.brand ? ` <span class="inv-brand-inline">(${escapeHtml(item.brand)})</span>` : ''}</div>`;
 
     return `
@@ -20484,7 +20503,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111f';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111g';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20494,7 +20513,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261111f';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261111g';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

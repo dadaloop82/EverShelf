@@ -10240,11 +10240,9 @@ body.cooking-mode-active .app-header {
     -webkit-line-clamp: 4;
     overflow: hidden;
 }
-.inventory-item.is-medical-row .inv-name {
-    font-size: 0.94rem;
-    font-weight: 700;
-    -webkit-line-clamp: 4;
-}
+/* A medicine wears the SAME name as a food row: the size, the weight and the two-line clamp
+   come from `.inv-name-row .inv-name`. The old medical override (0.94rem, 700, four lines) was
+   a second grammar inside the same list — the two cabinets must be read at the same speed. */
 .inv-med-sub {
     margin-top: 1px;
     font-size: 0.75rem;
