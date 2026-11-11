@@ -15188,6 +15188,8 @@ function formatQuantityParts(qty, unit, defaultQty, packageUnit, opts) {
     let mainQty;
     if (n === Math.floor(n)) mainQty = `${mark}${Math.floor(n)}`;
     else if (unit === 'pz') mainQty = _pzFractionLabel(n);
+    // A medicine is not weighed: its g/ml are written whole («~14 g», never «~14.2 g»).
+    else if (approx && _isWeightVolumeUnit(unit)) mainQty = `${mark}${Math.round(n)}`;
     else mainQty = `${mark}${n.toFixed(1)}`;
     
     let packageDetail = '';
@@ -15346,7 +15348,13 @@ function _inventoryExpiryBadgeHtml(item) {
                 const over = daysOpen >= max;
                 const key = over ? 'medical.pao_opened_over' : 'medical.pao_opened';
                 const cls = over ? 'inv-time-expired' : (daysOpen >= Math.max(1, max - 7) ? 'inv-time-urgent' : 'inv-time-opened');
-                return `<span class="inv-time ${cls}">⚠️ ${escapeHtml(t(key, { n: daysOpen, max }))}</span>`;
+                // COMPACT BY CONSTRUCTION, like every other badge of this strip: the sentence
+                // («Aperto da 30 gg · consigliato max 9 gg») lives in the tooltip. It is what
+                // collapsed every opened medicine's row — the action strip is `flex: 0 0 auto`,
+                // so a ~300 px badge left the name column 0 px wide and the card showed no text.
+                const long = t(key, { n: daysOpen, max });
+                const compact = t('dashboard.days_short').replace('{n}', daysOpen);
+                return `<span class="inv-time ${cls}" title="${escapeAttr(long)}">🕓 ${escapeHtml(compact)}</span>`;
             }
             return _openedAgeHtml(daysOpen);
         }
@@ -20476,7 +20484,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111e';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111f';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20486,7 +20494,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261111e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261111f';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

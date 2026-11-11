@@ -15544,10 +15544,14 @@ body.cooking-mode-active #shelfy-intro { z-index: 100001; }
    «Modifica farmaco Connettivina plus» and «Già aperta · 29/10/2026 01:00» were separated by a
    band of empty space (the heading carried its own line-height and the header its own margin):
    on a phone that is a third of the sheet. Prefix + name on one line, the state right under it. */
-.modal-header.edit-modal-header { margin-bottom: 6px; padding-bottom: 4px; }
-.modal-header.edit-modal-header .edit-modal-heading { margin: 0; line-height: 1.25; }
-.modal-header.edit-modal-header .edit-modal-prefix { margin-right: 6px; }
-.form.is-medical-edit > .settings-hint:first-of-type { margin-top: 0; }
+/* The ✕ button sets the header's height (44 px) and the modal's own 16 px margin stacked on
+   top of it: on a phone that is a band of empty space before the first line of the form. The
+   id makes these win over corporate.css `.modal-header`, which loads later. */
+#modal-content .modal-header.edit-modal-header { margin-bottom: 4px; padding-bottom: 0; align-items: flex-start; }
+#modal-content .modal-header.edit-modal-header .edit-modal-heading { margin: 0; line-height: 1.2; }
+#modal-content .modal-header.edit-modal-header .edit-modal-prefix { margin-right: 6px; }
+#modal-content .form.is-medical-edit > .settings-hint { margin: 0 0 8px; }
+#modal-content .form.is-medical-edit .item-detail-med-summary { margin-top: 0; }
 
 /* «Da quanti giorni è aperto?» — the same five answers as the stocktake, in the edit sheet. */
 .med-open-since { margin: 0 0 12px; }

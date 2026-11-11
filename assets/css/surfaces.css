@@ -5095,3 +5095,15 @@ button.scan-med-name-hit:focus-visible {
     box-shadow: none;
 }
 .urgency-head { margin-bottom: 10px; }
+
+/* ── A badge in the action strip can be clipped, never allowed to eat the row ──
+   The strip is `flex: 0 0 auto`: one long badge (the medical PAO sentence, «Aperto da 30 gg ·
+   consigliato max 9 gg», ~300 px) left the name column 0 px wide and every opened medicine lost
+   its title. Badges are compact by construction now; this is the belt — a badge ellipsises at
+   55% of the strip instead of starving the title. */
+.inventory-item .inv-row-content .inv-card-bottom > .inv-time {
+    min-width: 0;
+    max-width: 55%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
