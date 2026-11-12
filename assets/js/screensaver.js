@@ -22,7 +22,7 @@
  */
 
 const SS_VIEWS = ['meal', 'alerts', 'nutrition', 'fact'];
-const SS_DEFAULT_INTERVAL_SEC = 20;
+const SS_DEFAULT_INTERVAL_SEC = 30;
 const SS_MIN_INTERVAL_SEC = 10;
 const SS_MAX_INTERVAL_SEC = 300;
 /** The whole stage drifts a few pixels: a wall showing the same clock for hours burns in. */
@@ -30,6 +30,8 @@ const SS_PIXEL_SHIFT_MS = 150000;
 const SS_PIXEL_SHIFT_PX = 5;
 const SS_DATA_TTL_MS = 4 * 60 * 1000;
 const SS_TAP_SLOP = 14;
+/** How long the outgoing card takes to leave — must match `.ss-card` in style.css. */
+const SS_CARD_OUT_MS = 420;
 const SS_SWIPE_MIN = 55;
 
 let _ssRunning = false;
@@ -580,18 +582,40 @@ function _ssNextFrame(fn) {
     setTimeout(run, 150);
 }
 
+/**
+ * Swap the card: the old one dissolves going UP and the new one comes back DOWN from the top,
+ * its blocks settling one after the other. Two phases on purpose (`is-out` → swap → `is-pre`
+ * removed on the next frame): a single class swap would make the browser interpolate from a
+ * state it never painted, and the card would just pop.
+ */
 function _ssPaint(built) {
     _ssView = built.view;
     const core = document.getElementById('screensaver-core');
     if (!core) return;
-    core.classList.add('is-out');
-    _ssNextFrame(() => {
-        core.innerHTML = `<section class="ss-card" data-view="${escapeAttr(built.view)}" data-accent="${escapeAttr(built.accent || 'emerald')}">${built.html}</section>`;
+    const html = `<section class="ss-card" data-view="${escapeAttr(built.view)}" data-accent="${escapeAttr(built.accent || 'emerald')}">${built.html}</section>`;
+    const settle = () => {
+        core.innerHTML = html;
+        // The new card is laid out in its "before" pose, then released on the next frame: that
+        // is what turns the change into a movement instead of a cut.
+        core.classList.add('is-pre');
+        void core.offsetWidth;
         core.classList.remove('is-out');
+        core.classList.remove('is-pre');
         _ssRefreshFooter();
         _ssPaintHead();
         if (typeof _syncScreensaverPinUi === 'function') _syncScreensaverPinUi();
-    });
+    };
+    // Nothing to dissolve into on the very first card: it simply arrives from the top.
+    if (!core.querySelector('.ss-card')) { settle(); return; }
+    core.classList.remove('is-pre');
+    core.classList.add('is-out');
+    setTimeout(settle, SS_CARD_OUT_MS);
+    // Safety net: a renderer that never runs a transition must still end up with a VISIBLE
+    // card. Cheap, and an invisible wall is the one bug nobody can work around.
+    setTimeout(() => {
+        if (!core.querySelector('.ss-card')) settle();
+        core.classList.remove('is-out', 'is-pre');
+    }, SS_CARD_OUT_MS + 700);
 }
 
 
@@ -852,7 +876,7 @@ function _ssEngineStop() {
     const core = document.getElementById('screensaver-core');
     if (core) {
         core.innerHTML = '';
-        core.classList.remove('is-out');
+        core.classList.remove('is-out', 'is-pre');
     }
     const hint = document.getElementById('screensaver-hint');
     if (hint) hint.remove();

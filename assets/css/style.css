@@ -11801,7 +11801,59 @@ body.cooking-mode-active .app-header {
     color: var(--ss-text);
     transition: opacity 0.28s ease, transform 0.28s ease;
 }
-.ss-core.is-out .ss-card { opacity: 0; transform: translateY(6px); }
+/* ── the change of card ──────────────────────────────────────────────────────
+   The old card dissolves going UP, the new one comes back DOWN from the top and its blocks
+   settle one after the other (a `transition-delay` per child, no keyframes: an animation with
+   `fill: both` would fight the exit transition of the next change). `is-pre` is the pose the
+   new card is laid out in for one frame; removing it is what starts the movement. */
+.ss-card {
+    transition: opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+                filter 0.42s ease;
+}
+.ss-core.is-out .ss-card {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.985);
+    filter: blur(5px);
+}
+.ss-core.is-out .ss-card > * {
+    transition-duration: 0.22s;
+    transition-delay: 0ms !important;
+}
+.ss-card > * {
+    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.22, 0.8, 0.28, 1);
+    transition-delay: var(--ss-el-delay, 0ms);
+}
+.ss-core.is-pre .ss-card,
+.ss-core.is-pre .ss-card > * { transition: none; }
+.ss-core.is-pre .ss-card {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.985);
+    filter: blur(5px);
+}
+.ss-core.is-pre .ss-card > * {
+    opacity: 0;
+    transform: translateY(-14px);
+}
+/* The cascade: the eyebrow first, then the title, the facts, the numbers and the action. */
+.ss-core .ss-card > *:nth-child(1) { --ss-el-delay: 110ms; }
+.ss-core .ss-card > *:nth-child(2) { --ss-el-delay: 170ms; }
+.ss-core .ss-card > *:nth-child(3) { --ss-el-delay: 230ms; }
+.ss-core .ss-card > *:nth-child(4) { --ss-el-delay: 290ms; }
+.ss-core .ss-card > *:nth-child(5) { --ss-el-delay: 350ms; }
+/* A wall is left alone for hours: the movement is welcome once every 30 s, never at the cost
+   of a low-end renderer. Who asks for less motion gets a plain, quick fade. */
+@media (prefers-reduced-motion: reduce) {
+    .ss-card,
+    .ss-card > * {
+        transition: opacity 0.2s linear !important;
+        filter: none !important;
+        transform: none !important;
+    }
+    .ss-core.is-out .ss-card { opacity: 0; }
+    .ss-core.is-pre .ss-card,
+    .ss-core.is-pre .ss-card > * { opacity: 0; }
+}
 .ss-card[data-accent="emerald"] { --ss-accent: var(--ss-emerald); }
 .ss-card[data-accent="amber"]   { --ss-accent: var(--ss-amber); }
 .ss-card[data-accent="coral"]   { --ss-accent: var(--ss-coral); }

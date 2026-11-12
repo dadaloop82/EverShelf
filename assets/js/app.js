@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112zg'; // bump when translations change
+const _I18N_VERSION = '20261112zh'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7995,11 +7995,11 @@ function _applyScreensaverViewSettings(s) {
     });
     const pace = document.getElementById('setting-screensaver-interval');
     if (pace) {
-        pace.value = String(s.screensaver_interval || 20);
+        pace.value = String(s.screensaver_interval || 30);
         // A value the select does not offer (an .env hand edit, an older install) would leave
         // the field EMPTY: fall back to the nearest option, never to a blank control.
         if (!pace.value && pace.options.length) {
-            const want = parseInt(s.screensaver_interval, 10) || 20;
+            const want = parseInt(s.screensaver_interval, 10) || 30;
             const opts = [...pace.options].map(o => parseInt(o.value, 10)).filter(Number.isFinite);
             const near = opts.reduce((a, b) => (Math.abs(b - want) < Math.abs(a - want) ? b : a), opts[0]);
             pace.value = String(near);
@@ -8270,7 +8270,7 @@ async function _saveSettingsInner(opts = {}) {
     const viewIds = SS_VIEW_IDS.filter(id => document.getElementById(`setting-screensaver-view-${id}`)?.checked);
     if (viewIds.length) s.screensaver_views = viewIds.join(',');
     const ssIntervalEl = document.getElementById('setting-screensaver-interval');
-    if (ssIntervalEl) s.screensaver_interval = Math.max(10, Math.min(300, parseInt(ssIntervalEl.value, 10) || 20));
+    if (ssIntervalEl) s.screensaver_interval = Math.max(10, Math.min(300, parseInt(ssIntervalEl.value, 10) || 30));
     const vacuumExtensionEl = document.getElementById('setting-vacuum-expiry-extension-days');
     if (vacuumExtensionEl) {
         const v = parseInt(vacuumExtensionEl.value, 10);
@@ -8330,7 +8330,7 @@ async function _saveSettingsInner(opts = {}) {
             screensaver_enabled: s.screensaver_enabled,
             screensaver_timeout: s.screensaver_timeout || 5,
             screensaver_views: s.screensaver_views || '',
-            screensaver_interval: s.screensaver_interval || 20,
+            screensaver_interval: s.screensaver_interval || 30,
             // Only persist once the user has decided (touched the toggle or already set).
             ...(((_serverSettings && _serverSettings.zerowaste_tips_set)
                 || document.getElementById('setting-zerowaste-tips')?.dataset.touched === '1')
@@ -21762,7 +21762,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zg';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zh';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21772,7 +21772,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112zg';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112zh';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

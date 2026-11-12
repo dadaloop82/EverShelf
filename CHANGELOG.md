@@ -34,9 +34,18 @@ became a dashboard that reads the household's own database.
 - **Burn-in**: the whole stage drifts a few pixels every 2.5 minutes (`transform` only) and the
   card is the only thing that changes, so a wall showing the clock for hours stays even.
 - **Configurable under Aspetto**: four switches (meal / alerts / nutrition / fact) and the pace
-  (15 · 20 · 30 · 60 s, default 20) — `SCREENSAVER_VIEWS` + `SCREENSAVER_INTERVAL`, stored with
-  the rest and shown in the same card as the timeout, with a nearest-option fallback so a value
-  coming from `.env` never leaves the field blank.
+  (15 · 20 · 30 · 45 · 60 · 90 s, **default 30**) — `SCREENSAVER_VIEWS` + `SCREENSAVER_INTERVAL`,
+  stored with the rest and shown in the same card as the timeout, with a nearest-option fallback
+  so a value coming from `.env` never leaves the field blank.
+- **The change of card is a movement, not a cut** («vorrei una bellissima animazione di
+  dissolvenza dall'alto»): the outgoing card dissolves going **up** (opacity + `translateY(-30px)`
+  + a 5 px blur, 420 ms) and the new one comes back **down from the top**, its blocks settling one
+  after the other (`--ss-el-delay` 110 → 350 ms). Two phases in JavaScript (`is-out` → swap →
+  `is-pre` released on the next frame with a forced reflow): one class swap would interpolate
+  from a state the browser never painted, and the card would pop. `prefers-reduced-motion` falls
+  back to a 200 ms fade with no transform and no blur, and a 700 ms safety timer clears the
+  states anyway, because an invisible wall is the one bug nobody can work around. The pace also
+  went up to 30 s by default: 20 s was too quick to read a card.
 - **The forced run keeps working and gets easier**: `?screensaver[=N]` and «▶️ Anteprima 30 s»
   still show it for N seconds without touching a setting; the pin bar's ⏭ now names the next
   card (`_ssNextViewLabel`) and its ✕ still prints the time left.
