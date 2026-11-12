@@ -9,9 +9,10 @@
  * previous look.
  *
  * Scope notes (why some things are deliberately *not* here):
- *   - Swipe colours (`.inv-swipe-bg*`, `.shop-row-visual-bg--cat*`), the
- *     urgency ramp (`.shop-row-urgency-*`) and `.shop-row`'s 5px left border
- *     encode meaning — they are left untouched.
+ *   - Swipe colours (`.inv-swipe-bg*`, `.shop-row-visual-bg--cat*`) encode
+ *     meaning and are left untouched; the urgency is a PILL now
+ *     (`.shop-row-badge`, `surfaces.css`), so there is no coloured rail to
+ *     re-skin.
  *   - `--nav-height` keeps its value: `.toast`, `.app-content` min-height,
  *     `#tab-panel-acquisto`'s viewport and the notched-phone safe-area rules
  *     all derive from it.
@@ -273,43 +274,18 @@ body {
 
 .inv-row-content { padding: 15px 14px; }
 
-/* `.shop-row` keeps its 5px urgency rail — only geometry is re-skinned.
-   The corporate layer already flattened it once (`.shop-row { border: 1px … }`
-   at equal specificity, later in the cascade), so the rail is re-declared here
-   *and* the four urgency colours after it, to win the cascade again. */
+/* `.shop-row` is the card of the pantry and the Home (`surfaces.css`): no urgency rail — the
+   state pill carries it. Only the theme's own tokens are applied here, so the corner and the
+   shadow stay the ones this layer gives every other card. */
 .shop-row {
-    border-radius: var(--radius);
-    border-left-width: 5px;
-    border-left-style: solid;
-    border-left-color: transparent;
+    border-radius: var(--es-radius-card, var(--radius));
     box-shadow: var(--es-shadow-card);
 }
 
-.shop-row-urgency-critical { border-left-color: #ef4444; }
-.shop-row-urgency-high { border-left-color: #f97316; }
-.shop-row-urgency-medium { border-left-color: #eab308; }
-.shop-row-urgency-low { border-left-color: #22c55e; }
-
-/* `style.css` only re-declares the *background* for dark mode, while
-   `corporate.css` repaints the whole border with `[data-theme="dark"]
-   .shop-row` (specificity 0,1,1) — that outranks the plain urgency classes
-   above (0,1,0) and turns all four rails the same grey. Re-assert the ramp
-   with matching attribute specificity so the colour keeps its meaning. */
-[data-theme="dark"] .shop-row-urgency-critical,
-.dark .shop-row-urgency-critical { border-left-color: #ef4444; }
-
-[data-theme="dark"] .shop-row-urgency-high,
-.dark .shop-row-urgency-high { border-left-color: #f97316; }
-
-[data-theme="dark"] .shop-row-urgency-medium,
-.dark .shop-row-urgency-medium { border-left-color: #eab308; }
-
-[data-theme="dark"] .shop-row-urgency-low,
-.dark .shop-row-urgency-low { border-left-color: #22c55e; }
-
+/* The moving layer is transparent: the card itself is the paper now. */
 .shop-row-content {
-    padding: 15px 14px;
-    min-height: 64px;
+    padding: 0;
+    min-height: 0;
 }
 
 .appliance-item {

@@ -196,6 +196,7 @@ body {
    - `pointer-events: none`: the row's tap/hold/swipe grammar is untouched. */
 .inventory-item .inv-row-content .inv-image,
 .alert-item .product-thumb,
+.shop-row .product-thumb,
 .item-detail-header-row .item-detail-image {
     position: absolute;
     left: 0;
@@ -443,6 +444,143 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     text-overflow: ellipsis;
     max-width: 100%;
 }
+/* ── The shopping list wears the SAME row grammar as «In scadenza» ─────────────
+   Asked for: «puoi fare il layout di "liste" uguale a quello di "in scadenza" adattandolo alla
+   situazione? Tutte le liste devono avere lo stesso layout e stile!». A shopping row was its own
+   design — a 52 px pastel square, a title line carrying the badges, a subtitle and a reason
+   sentence. It is now the card of the pantry and the Home, down to the pixel:
+   `[photo strip] [name + brand / 📦 stock · 🛒 qty · 🍃 waste · 💶 price] [state] [✓] [✕]`,
+   62 px text block and a 34 px action line, so both lists measure 132 px.
+   The padding lives on `.shop-row-main`, not on the card: the strip is absolutely positioned
+   against `.shop-row-content`, which must be the full card interior — with the padding on the
+   card the photo would float 12 px inside its own corner. */
+.shop-row {
+    position: relative;
+    overflow: hidden;
+    --row-photo-w: 18%;
+    background: var(--bg-card);
+    border: 1px solid var(--surface-border, var(--border));
+    border-radius: var(--es-radius-card, var(--radius));
+    box-shadow: var(--es-shadow-card, var(--shadow));
+    margin-bottom: 10px;
+    padding: 0;
+}
+@media (max-width: 1023px) { .shop-row { --row-photo-w: 14%; } }
+@media (max-width: 767px)  { .shop-row { --row-photo-w: 10%; } }
+@media (max-width: 480px)  { .shop-row { --row-photo-w: 5%; } }
+/* The moving layer of the swipe: transparent, because the card itself is the paper now. */
+.shop-row > .shop-row-content {
+    position: relative;
+    z-index: 1;
+    padding: 0;
+    min-height: 0;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    will-change: transform;
+}
+[data-theme="dark"] .shop-row > .shop-row-content,
+.dark .shop-row > .shop-row-content { background: transparent; }
+.shop-row .shop-row-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    row-gap: 10px;
+    padding: 12px;
+}
+.shop-row .alert-item-info {
+    flex: 1 1 100%;
+    min-height: 62px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+.shop-row .alert-item-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 100%;
+    min-height: 34px;
+    margin-left: 0;
+    max-width: none;
+}
+.shop-row .alert-item-info,
+.shop-row .alert-item-badges { padding-left: calc(var(--row-photo-w, 18%) + 1%); }
+/* The text: the same two lines, at the same sizes, as a Home row. */
+.shop-row .alert-item-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 auto; }
+.shop-row .alert-item-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; min-width: 0; }
+.shop-row .alert-item-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    min-width: 0;
+}
+.shop-row .alert-item-brand { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); }
+.shop-row .alert-item-qty {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 2px;
+    font-size: 0.84rem;
+    font-weight: 650;
+    line-height: 1.35;
+    color: var(--text-muted);
+    min-width: 0;
+}
+.shop-row .alert-item-qty > * { white-space: nowrap; }
+/* The quantity is a tap target (it opens the micro-popover): a mint pill, like the pantry's. */
+.shop-row .shop-row-qty-tap {
+    min-height: 22px;
+    padding: 0 8px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 35%, var(--surface-border));
+    border-radius: 999px;
+    background: var(--brand-surface);
+    color: var(--brand-primary);
+    font-size: 0.82rem;
+    font-weight: 800;
+    font-family: inherit;
+    cursor: pointer;
+}
+.shop-row .shop-row-qty-tap:active { filter: brightness(0.96); }
+.shop-row .shop-row-dot { color: var(--text-muted); opacity: 0.7; }
+/* The state pill: `.alert-item-badge` metrics, the urgency's own colour. */
+.shop-row-badge { flex-shrink: 0; }
+.shop-row-badge--critical { background: var(--tone-danger); color: #fff; }
+.shop-row-badge--high     { background: #F97316; color: #fff; }
+.shop-row-badge--medium   { background: #EAB308; color: #422006; }
+.shop-row-badge--low      { background: color-mix(in srgb, var(--brand-primary) 16%, transparent); color: var(--brand-primary); }
+/* The price rides the meta line now: same size as the text around it, tappable. */
+.shop-row .shop-row-price { min-width: 0; text-align: inherit; align-self: auto; font-weight: 800; color: var(--text-main); cursor: pointer; }
+.shop-row .shop-row-price .price-col-main { font-size: 0.88rem; font-weight: 800; color: inherit; }
+.shop-row .shop-row-price .price-col-unit { display: none; }
+/* The two actions are the Home's: ✓ writes the outcome, ✕ is the neutral second answer. */
+.shop-row .alert-item-badges .row-use-btn,
+.shop-row .alert-item-menu {
+    min-height: 34px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+.shop-row .alert-item-menu {
+    min-width: 34px;
+    padding: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 1rem;
+}
+.shop-row .alert-item-badges .row-use-btn { background: var(--brand-primary); color: #fff; }
+.shop-row .alert-item-badges .row-use-btn .row-use-label { display: none; }
+@media (min-width: 520px) {
+    .shop-row .alert-item-badges .row-use-btn .row-use-label { display: inline; }
+}
+
 /* The pantry's `✓ Usa` becomes a bare check below 520 px, exactly like the Home's
    (`.row-use-btn .row-use-label`): the same width, the same behaviour, one gesture. */
 .inv-card-bottom .inv-quick-use-label { display: none; }
@@ -487,6 +625,7 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
 /* The photo (and the emoji) dissolve: a long ramp, gone before the first letter. */
 .inventory-item .inv-image img,
 .alert-item .product-thumb-img,
+.shop-row .product-thumb-img,
 .item-detail-header-row .item-detail-image img {
     width: 150%;
     max-width: none;
@@ -506,12 +645,14 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
    sized from the strip, not from the viewport: a 40 px face inside a 19 px window was two
    halves of an emoji with a hard cut through the middle. */
 .inventory-item .inv-image:not(:has(img)),
-.alert-item .product-thumb.is-icon {
+.alert-item .product-thumb.is-icon,
+.shop-row .product-thumb.is-icon {
     font-size: clamp(14px, 3.4vw, 30px);
 }
 .inventory-item .inv-image:not(:has(img)),
 .item-detail-header-row .item-detail-image:not(:has(img)),
-.alert-item .product-thumb.is-icon {
+.alert-item .product-thumb.is-icon,
+.shop-row .product-thumb.is-icon {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -527,6 +668,7 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
 }
 .inventory-item .inv-image .product-thumb-emoji,
 .alert-item .product-thumb-emoji,
+.shop-row .product-thumb-emoji,
 .item-detail-header-row .item-detail-image .product-thumb-emoji { font-size: inherit; }
 
 /* ── The medicine mark ───────────────────────────────────────────────────────

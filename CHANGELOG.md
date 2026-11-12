@@ -5,6 +5,33 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.34] - 2026-11-12
+
+### The shopping list wears the same row as «In scadenza»
+Asked for: «puoi fare il layout di "liste" uguale a quello di "in scadenza" adattandolo alla
+situazione? Tutte le liste devono avere lo stesso layout e stile!». The shopping row was its own
+design — a 52 px pastel square, a title line carrying the badges, a subtitle line and a reason
+sentence under it, two round buttons on the right.
+- It is now the card of the pantry and the Home, down to the pixel:
+  `[photo strip] [name + brand / 📦 stock · 🛒 qty · 🍃 waste · 💶 price] [state] [✓] [✕]`.
+  The strip is `_productThumbHtml()` (the same `--row-photo-w` ladder and dissolve, the category
+  emoji when there is no photo, the drawn medicine mark for a drug), the text is the same
+  0.95 rem / 0.8 rem pair, the text block has the same 62 px floor and the action line the same
+  34 px — so a shopping row and a pantry row are **132 px** in both lists (measured 360 / 393 /
+  420 / 800 px, light and dark).
+- The facts of an aisle live in the meta line: the shelf (`🪫 Esaurito` / `🟩 3 pz`), the quantity
+  to buy (still a tap target: it opens the micro-popover), the anti-waste chip and the price
+  (still tappable). Brand, frequency and the reason code travel in the line's tooltip.
+- The state is ONE pill (`_shopRowStateBadge()` → `.alert-item-badge` metrics, the urgency's own
+  colour) for every row, and the two actions are the Home's (`✓` writes the outcome, `✕` is the
+  neutral "not this time"): the coloured left rail is gone, because two lists that are "the same"
+  may not carry two different urgency languages.
+- The swipe is untouched (left = bought, right = not buying it) and so is every hook
+  (`_initShopRowActions` now listens for `[data-act]`), and the "Suggeriti" strip keeps its own
+  compact row. Dead CSS/JS went with the old shape (`_shopRowVisualHtml`,
+  `_shoppingRowSubtitle`, `_shopRowFrequencyHtml`, `.shop-row-urgency-*`, `.shop-quick-btn`,
+  `.shop-row-freq`, `.shop-spark`).
+
 ## [1.31.33] - 2026-11-12
 
 ### The Home lists wait with the same SHELFY animation as the shopping list

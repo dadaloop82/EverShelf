@@ -282,12 +282,6 @@ html.is-touch-tablet .shop-row-reason {
     line-height: 1.3;
 }
 
-html.is-kiosk .shop-row-urgency-badge,
-html.is-touch-tablet .shop-row-urgency-badge {
-    font-size: var(--es-text-micro);
-    padding: 3px 8px;
-}
-
 html.is-kiosk .shop-section-body,
 html.is-touch-tablet .shop-section-body {
     gap: 8px;

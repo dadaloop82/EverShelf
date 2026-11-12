@@ -154,6 +154,14 @@ runtime/binary files — if a task truly needs one, ask first.
   `_syncStockHub()` when the last list answers (empty → hidden, error → skeleton removed,
   `_stockHubSelect()` counts `.list-loading` as content). The boot's first-paint wait is bounded by
   `_SPLASH_DATA_WAIT_MS` (2.5 s), or a slow answer hides the animation behind the splash entirely.
+- **The shopping list wears the SAME row as the Home.** `[photo strip] [name + brand / 📦 stock ·
+  🛒 qty · 🍃 waste · 💶 price] [state] [✓] [✕]`, 132 px like the pantry: `_shopThumbHtml()` →
+  `_productThumbHtml()` (same `--row-photo-w` ladder, same dissolve), `_shopRowMetaHtml()` for the
+  text line (the qty stays a tap target for `_shopQtyPopover`, the price for `showPriceDetail`),
+  `_shopRowStateBadge()` for the ONE pill (`.alert-item-badge` metrics, every row has one) and the
+  Home's `✓` + `✕`. No coloured rail: the pill is the urgency. The padding lives on
+  `.shop-row-main`, so the strip fills the card's corner. Swipe untouched (left = bought, right =
+  not buying it); `_initShopRowActions` listens for `[data-act]`.
 - **A medicine in the shopping list is not a tomato.** It has its own shelf (`SHOPPING_SECTIONS`
   → **💊 Medicinali**, before «Altro», chosen by `getItemSection()` through `_shopRowIsMedical()`)
   and the notice strip's indigo tint (`.shop-row.is-medical` / `.smart-item.is-medical`, gradient

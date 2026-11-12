@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112w'; // bump when translations change
+const _I18N_VERSION = '20261112x'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -21308,7 +21308,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112w';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112x';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21318,7 +21318,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112w';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112x';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -32142,26 +32142,6 @@ function _shoppingRenderSignature() {
     return `${days}::${itemsSig}::${smartSig}::${collapsed}::${!!getSettings().price_enabled}`;
 }
 
-function _shopRowVisualHtml(item, smartData) {
-    const inv = _shoppingInventoryCache || [];
-    const rows = inv.length ? _shoppingFamilyInventoryRows(item, smartData, inv) : [];
-    const imageUrl = rows.find(r => r.image_url)?.image_url || smartData?.image_url || '';
-    const cat = smartData?.category || rows[0]?.category || '';
-    const name = smartData?.shopping_name || item?.name || '';
-    const catKey = mapToLocalCategory(cat, name);
-    if (imageUrl) {
-        return `<div class="shop-row-visual" aria-hidden="true">`
-            + `<div class="shop-row-visual-bg" style="background-image:url('${escapeHtml(imageUrl)}')"></div>`
-            + `<img class="shop-row-visual-img" src="${escapeAttr(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`
-            + `</div>`;
-    }
-    // No photo: a pastel square reads as a broken image. The aisle's own emoji, drawn
-    // big on the same neutral frame the pantry uses, is a picture of the CATEGORY —
-    // which is exactly what a household needs when the packaging is unknown.
-    const emoji = escapeHtml(_productCatIconHtml({ category: cat, name }) || '📦');
-    return `<div class="shop-row-visual shop-row-visual--emoji cat-${catKey}" aria-hidden="true"><span>${emoji}</span></div>`;
-}
-
 function _shopRowVisualHtmlFromSmart(item) {
     const name = item.shopping_name || item.name;
     const catKey = mapToLocalCategory(item.category || '', name);
@@ -32173,6 +32153,29 @@ function _shopRowVisualHtmlFromSmart(item) {
     const bg = `<div class="shop-row-visual-bg" style="background-image:url('${escapeHtml(imageUrl)}')"></div>`;
     const img = `<img class="shop-row-visual-img" src="${escapeAttr(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`;
     return `<div class="shop-row-visual" aria-hidden="true">${bg}${img}</div>`;
+}
+
+/**
+ * The photo strip of a shopping row — the SAME frame the pantry and the Home rows open with.
+ *
+ * A shopping row used to carry a 52 px pastel square; the household reads one list grammar, so
+ * the row now opens with `_productThumbHtml()` on the left quarter of the card (the strip, the
+ * dissolve and the category-emoji fallback are the same component, driven by `--row-photo-w`).
+ * A medicine keeps its drawn mark, not a food emoji.
+ */
+function _shopThumbHtml(item, smartData) {
+    const inv = _shoppingInventoryCache || [];
+    const rows = inv.length ? _shoppingFamilyInventoryRows(item, smartData, inv) : [];
+    const imageUrl = rows.find(r => r.image_url)?.image_url || smartData?.image_url || '';
+    const cat = smartData?.category || rows[0]?.category || '';
+    const name = smartData?.shopping_name || item?.name || '';
+    const medical = _shopRowIsMedical(smartData, name);
+    return _productThumbHtml({
+        image_url: imageUrl,
+        category: cat,
+        name,
+        is_medical: medical ? 1 : 0,
+    });
 }
 
 function _renderShoppingPlanDaysBar() {
@@ -33422,7 +33425,7 @@ function _initShopRowActions(container) {
             _shopQtyPopover(parseInt(qtyBtn.dataset.qtyOpen, 10), qtyBtn);
             return;
         }
-        const actBtn = ev.target.closest('.shop-quick-btn, .shop-row-btn');
+        const actBtn = ev.target.closest('.shop-quick-btn, .shop-row-btn, .shop-row [data-act], .shop-row-suggest [data-act]');
         if (actBtn) {
             ev.preventDefault();
             ev.stopPropagation();
@@ -33513,45 +33516,29 @@ function _shoppingListSubtitle(item, displayName) {
     return spec || '';
 }
 
-/**
- * The line under the generic name: which one, how often, and what is left.
- *
- * The card's title is the BUYABLE generic ("Cipolla"), so the second line says the
- * variety ("Cipolle rosse"), the rhythm (🔥 Quotidiano + its sparkline) and the shelf
- * (🪫 Esaurito). The stock lives HERE and only here: it used to be written twice — once
- * in the subtitle and once by the reason line under it — so every finished product read
- * "Esaurito Esaurito".
- */
-function _shoppingRowSubtitle(item, displayName, smartData) {
-    const parts = [];
-    const brand = String(smartData?.brand || item?.brand || '').trim();
-    const specific = _shoppingListSubtitle(item, displayName);
-    if (specific) parts.push(escapeHtml(specific));
-    else if (brand) parts.push(escapeHtml(brand));
-    const freq = _shopRowFrequencyHtml(smartData);
-    if (freq) parts.push(freq);
-    const stock = _shopRowStockHtml(smartData);
-    if (stock) parts.push(stock);
-    return parts.join(' <span class="shop-row-dot">·</span> ');
+/** The frequency as TEXT (the chip of the old subtitle is now the meta line's tooltip). */
+function _shopRowFrequencyLabel(smartData) {
+    const uses = Number(smartData?.uses_per_month) || 0;
+    if (uses >= 4) return `🔥 ${t('shopping.freq_daily')}`;
+    if (uses >= 2) return `⚡ ${t('shopping.freq_habit')}`;
+    if (uses >= 1) return `☕ ${t('shopping.freq_occasional')}`;
+    return '';
 }
 
-/** 🔥 Quotidiano / ⚡ Abituale / ☕ Occasionale + a four-step sparkline of the rhythm. */
-function _shopRowFrequencyHtml(smartData) {
-    const uses = Number(smartData?.uses_per_month) || 0;
-    let label = '';
-    let cls = 'freq-low';
-    if (uses >= 4) { label = t('shopping.freq_daily'); cls = 'freq-high'; }
-    else if (uses >= 2) { label = t('shopping.freq_habit'); cls = 'freq-med'; }
-    else if (uses >= 1) { label = t('shopping.freq_occasional'); cls = 'freq-low'; }
-    if (!label) return '';
-    // Sparkline: four bars, filled in proportion to the rhythm (a picture beats
-    // "~14/mese", which nobody can act on in an aisle).
-    const level = Math.max(1, Math.min(4, Math.round(uses / 4)));
-    let bars = '';
-    for (let i = 1; i <= 4; i++) {
-        bars += `<i class="shop-spark${i <= level ? ' on' : ''}"></i>`;
-    }
-    return `<span class="shop-row-freq ${cls}">${cls === 'freq-high' ? '🔥' : cls === 'freq-med' ? '⚡' : '☕'} ${escapeHtml(label)}<span class="shop-spark" aria-hidden="true">${bars}</span></span>`;
+/**
+ * The state badge of a shopping row — the SAME pill «In scadenza» wears.
+ *
+ * The urgency IS the state here: `critical` is a red pill, `high` orange, `medium` amber and
+ * `low` green, with the same metrics as `.alert-item-badge` (0.9 rem, 800 weight, 20 px radius),
+ * so a shopping row and a pantry row carry the same control in the same place.
+ */
+function _shopRowStateBadge(urgency) {
+    const key = ['critical', 'high', 'medium', 'low'].includes(urgency) ? urgency : 'low';
+    const icon = key === 'critical' ? '⚡' : key === 'high' ? '🟠' : key === 'medium' ? '🟡' : '🟢';
+    const label = t(key === 'critical' ? 'shopping.urgency_critical'
+        : key === 'high' ? 'shopping.urgency_high'
+            : key === 'medium' ? 'shopping.urgency_medium' : 'shopping.urgency_low');
+    return `<span class="alert-item-badge shop-row-badge shop-row-badge--${key}">${icon} ${escapeHtml(label)}</span>`;
 }
 
 /** The shelf as a battery — the word "Esaurito" appears once, next to its icon. */
@@ -33648,72 +33635,77 @@ function _shopWasteHintHtml(smartData) {
 }
 
 /**
- * The shopping row: one card, three answers.
+ * The text line of a shopping row: what is in the house, what to buy, and what it costs.
  *
- * The old card carried its actions in a line of 11 px text
- * ("← rimuovi · → a casa | scansiona") — on a wall-mounted tablet every one of those
- * taps was a miss, and the quantity was a passive purple string you could not touch.
- * This is the grammar of a shop: a picture, the generic name, the specific one under
- * it, a priority badge that means something, a stepper you can press and TWO buttons —
- * the emerald one that writes the outcome and the neutral one that says "not this time".
- * The swipe stays as a shortcut for whoever uses it; it is no longer the only way.
+ * The Home's meta line is «place · 📦 stock»; in an aisle the two facts are the SHELF
+ * («🪫 Esaurito» / «🟩 3 pz») and the QUANTITY to put in the trolley — and that quantity is a
+ * tap target (it opens the micro-popover), exactly like the number it replaces was. The price
+ * and the anti-waste chip ride the same line instead of owning a column of their own.
+ */
+function _shopRowMetaHtml(smartData, idx, opts = {}) {
+    const bits = [];
+    const stock = _shopRowStockHtml(smartData);
+    if (stock) bits.push(stock);
+    const buyQty = opts.buyQty || '';
+    if (buyQty) {
+        bits.push(`<button type="button" class="shop-row-qty-tap" data-qty-open="${idx}"`
+            + ` title="${escapeAttr(t('shopping.qty_edit'))}" aria-label="${escapeAttr(t('shopping.qty_edit'))}">🛒 ${escapeHtml(buyQty)}</button>`);
+    }
+    if (opts.wasteChip) bits.push(opts.wasteChip);
+    if (opts.priceCell) bits.push(opts.priceCell);
+    if (!bits.length) return '';
+    const title = opts.title || '';
+    return `<div class="alert-item-qty"${title ? ` title="${escapeAttr(title)}"` : ''}>${bits.join('<span class="shop-row-dot"> · </span>')}</div>`;
+}
+
+/**
+ * The shopping row — the SAME grammar as «In scadenza», adapted to an aisle.
+ *
+ * Asked for: «puoi fare il layout di "liste" uguale a quello di "in scadenza" adattandolo alla
+ * situazione? Tutte le liste devono avere lo stesso layout e stile!». The row used to be its own
+ * design: a 52 px pastel square, a title line carrying badges, a subtitle, a reason sentence and
+ * two round buttons. It is now the card of the Home and the pantry:
+ *
+ *     [photo strip] Nome  Marca
+ *                   📦 scorta · 🛒 da comprare · 🍃 spreco · 💶 prezzo
+ *                                     [stato] [✓ Comprato] [✕]
+ *
+ * — with the same 62 px text block, the same 34 px action line and the same tokens, so a shopping
+ * row and a pantry row are 132 px tall in both lists. The swipe (left = bought, right = not this
+ * time) is untouched, and so are the hooks `_initShopRowActions` listens for
+ * (`.shop-row-qty-tap`, `.shop-quick-btn[data-act]`).
  */
 function _shopRowInnerHtml({
     displayName,
-    subtitle = '',
-    reason = '',
-    priceCell = '',
-    visualHtml = '',
-    urgencyBadge = '',
+    brand = '',
+    thumbHtml = '',
+    metaHtml = '',
+    badge = '',
     idx = -1,
-    buyQty = '',
-    wasteChip = '',
-    wasteHint = '',
-    qtyStep = 1,
-    inList = true,
 }) {
-    // (subtitle arrives already escaped, because it carries the badges; reason does not)
-    const subHtml = subtitle
-        ? `<div class="shop-row-subtitle">${subtitle}</div>`
-        : '';
-    const reasonHtml = reason
-        ? `<div class="shop-row-reason">${escapeHtml(reason)}</div>`
-        : '';
-    // The quantity is CONFIRMED by default: it is a tap target, not a stepper. A row
-    // that carries [−] 3 pz [+] plus two 46 px buttons is 140 px tall, and 58 of them
-    // is a page nobody scrolls to the end of. Tap the number → a micro-popover.
-    const qtyHtml = buyQty
-        ? `<button type="button" class="shop-row-qty-tap" data-qty-open="${idx}"
-                   aria-label="${escapeAttr(t('shopping.qty_edit'))}">${escapeHtml(buyQty)}</button>`
-        : '';
+    const boughtKey = t('shopping.btn_bought');
+    const dismissKey = t('shopping.btn_dismiss');
     return `
     <!-- Two gestures, two meanings, nothing else. Swiping LEFT is "comprato" (it writes
          the stock and takes the row off the list), swiping RIGHT is "non lo compro" (a
-         dated dismiss that comes back on its own). The old right-hand side carried a
-         SECOND zone that opened the scanner, so a long swipe on a wall tablet started the
-         camera instead of buying something; the zones are gone. -->
+         dated dismiss that comes back on its own). -->
     <div class="shop-row-swipe-bg shop-row-swipe-bg-right">✕ ${escapeHtml(t('shopping.swipe_not_buying'))}</div>
     <div class="shop-row-swipe-bg shop-row-swipe-bg-left">✓ ${escapeHtml(t('shopping.swipe_bought'))}</div>
     <div class="shop-row-content">
         <div class="shop-row-main">
-            ${visualHtml || ''}
-            <div class="shop-row-text">
-                <div class="shop-row-title">
-                    <span class="shop-row-title-name">${escapeHtml(displayName)}</span>
-                    ${qtyHtml}
-                    ${wasteChip || ''}
-                    ${priceCell || ''}
-                    ${urgencyBadge}
+            <div class="alert-item-info">
+                ${thumbHtml}
+                <div class="alert-item-main">
+                    <div class="alert-item-head"><span class="alert-item-name">${escapeHtml(displayName)}${brand ? ` <span class="alert-item-brand">${escapeHtml(brand)}</span>` : ''}</span></div>
+                    ${metaHtml}
                 </div>
-                ${subHtml}
-                ${reasonHtml}
-                ${wasteHint || ''}
             </div>
-            <div class="shop-row-quick" aria-hidden="false">
-                <button type="button" class="shop-quick-btn shop-quick-btn--dismiss" data-act="dismiss" data-idx="${idx}"
-                        title="${escapeAttr(t('shopping.btn_dismiss'))}" aria-label="${escapeAttr(t('shopping.btn_dismiss'))}">✕</button>
-                <button type="button" class="shop-quick-btn shop-quick-btn--bought" data-act="bought" data-idx="${idx}"
-                        title="${escapeAttr(t('shopping.btn_bought'))}" aria-label="${escapeAttr(t('shopping.btn_bought'))}">✓</button>
+            <div class="alert-item-badges">
+                ${badge || ''}
+                <button type="button" class="row-use-btn" data-act="bought" data-idx="${idx}"
+                        title="${escapeAttr(boughtKey)}" aria-label="${escapeAttr(boughtKey)}">✓<span class="row-use-label">${escapeHtml(boughtKey)}</span></button>
+                <button type="button" class="alert-item-menu" data-act="dismiss" data-idx="${idx}"
+                        title="${escapeAttr(dismissKey)}" aria-label="${escapeAttr(dismissKey)}">✕</button>
             </div>
         </div>
     </div>`;
@@ -34092,32 +34084,41 @@ async function renderShoppingItems(force = false) {
 
         for (const { item, idx, smartData, urgency } of group.items) {
             const displayName = _shoppingListGenericTitle(item, smartData);
-            const visualHtml = _shopRowVisualHtml(item, smartData);
             const urgencyClass = _shopRowUrgencyClass(urgency);
-            // A medicine wears the medical tint of the notice strip (surfaces.css): the rail keeps
+            // A medicine wears the medical tint of the notice strip (surfaces.css): the pill keeps
             // saying HOW urgent it is, the paper says WHAT the row is.
             const medClass = _shopRowIsMedical(smartData, displayName) ? ' is-medical' : '';
-            const urgencyBadge = (urgency === 'critical' || urgency === 'high')
-                ? `<span class="shop-row-urgency-badge shop-row-urgency-badge--${urgency}">${urgency === 'critical' ? '⚡' : '🟠'} ${t(urgency === 'critical' ? 'shopping.urgency_critical' : 'shopping.urgency_high')}</span>`
-                : '';
+            // ONE badge per row, the same pill as «In scadenza»: the urgency IS the state of a
+            // shopping row, and every row has one (a missing badge made the list ragged).
+            const badge = _shopRowStateBadge(urgency);
             const priceCell = priceEnabled
-                ? `<div class="shop-row-price" id="price-badge-${idx}" onclick="event.stopPropagation();showPriceDetail(${idx})"><span class="price-col-loading">…</span></div>`
+                ? `<span class="shop-row-price" id="price-badge-${idx}" onclick="event.stopPropagation();showPriceDetail(${idx})"><span class="price-col-loading">…</span></span>`
                 : '';
+            // The facts a shopping row is read for, in the Home's meta line.
+            const brand = String(smartData?.brand || '').trim()
+                && String(smartData?.brand || '').trim().toLowerCase() !== displayName.toLowerCase()
+                ? String(smartData.brand).trim() : '';
+            const metaTitle = [
+                brand,
+                _shopRowFrequencyLabel(smartData),
+                _shopRowReasonText(item, displayName, smartData),
+            ].filter(Boolean).join(' · ');
+            const metaHtml = _shopRowMetaHtml(smartData, idx, {
+                buyQty: _shopRowBuyQtyLabel(item, smartData),
+                wasteChip: _shopWasteChipHtml(smartData),
+                priceCell,
+                title: metaTitle,
+            });
 
             html += `
             <div class="shop-row${urgencyClass}${medClass}" id="shop-item-${idx}" data-idx="${idx}" data-urgency="${urgency || ''}" data-urgent="${urgency === 'critical' || urgency === 'high' ? '1' : '0'}">
                 ${_shopRowInnerHtml({
                     displayName,
-                    subtitle: _shoppingRowSubtitle(item, displayName, smartData),
-                    reason: _shopRowReasonText(item, displayName, smartData),
-                    priceCell,
-                    visualHtml,
-                    urgencyBadge,
+                    brand,
+                    thumbHtml: _shopThumbHtml(item, smartData),
+                    metaHtml,
+                    badge,
                     idx,
-                    buyQty: _shopRowBuyQtyLabel(item, smartData),
-                    wasteChip: _shopWasteChipHtml(smartData),
-                    wasteHint: _shopWasteHintHtml(smartData),
-                    qtyStep: _shopRowQtyStep(smartData),
                 })}
             </div>`;
         }
