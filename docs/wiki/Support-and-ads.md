@@ -93,7 +93,13 @@ What a re-enable touches (the comments in the code name the same list):
 | 2. Un-comment the provider/banner helpers and the payload keys | `api/lib/support.php` |
 | 3. Un-comment the `.env` mapping + provider clamp in `save_settings` | `api/index.php` |
 | 4. Un-comment the `.env` block (`SUPPORT_BANNERS_AVAILABLE`, `ADS_*`) | `.env.example` |
-| 5. Un-comment the two `[data-ad-slot]` divs (dashboard + screensaver) | `index.html` |
+| 5. Un-comment the `[data-ad-slot]` div on the dashboard | `index.html` |
+
+> The idle screen has **no banner slot** any more: the 1.33.0 redesign renders one card at a
+> time in `assets/js/screensaver.js` and there is no place a third-party banner could sit
+> without covering the clock or the card. Bringing ads back means re-introducing a slot
+> there too (and the CSS rule that went with it), not only un-commenting the dashboard one.
+
 | 6. Un-comment the CSS block and the renderer + `online`/`offline` listeners | `assets/css/style.css`, `assets/js/core/support.js` |
 | 7. Un-comment the two radio buttons and the two branches | `evershelf-kiosk` (`activity_setup.xml`, `SetupActivity.kt`) |
 | 8. Put the banner assertions back | |

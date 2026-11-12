@@ -12,29 +12,29 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261112zi">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261112zi">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261112zi">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261112zj">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261112zj">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261112zj">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261112zi">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261112zj">
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
-    <link rel="stylesheet" href="assets/css/tablet.css?v=20261112zi">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261112zi">
+    <link rel="stylesheet" href="assets/css/tablet.css?v=20261112zj">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261112zj">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261112zi"></script>
-    <script src="assets/js/core/auth.js?v=20261112zi"></script>
-    <script src="assets/js/core/med.js?v=20261112zi"></script>
+    <script src="assets/js/core/dom.js?v=20261112zj"></script>
+    <script src="assets/js/core/auth.js?v=20261112zj"></script>
+    <script src="assets/js/core/med.js?v=20261112zj"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261112zi"></script>
+    <script src="assets/js/med/italy.js?v=20261112zj"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261112zi"></script>
+    <script src="assets/js/core/support.js?v=20261112zj"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -42,7 +42,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112zi';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112zj';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -51,13 +51,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zi';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zj';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261112zi"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261112zj"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -3004,12 +3004,14 @@
 
                     <!-- Protocol info -->
                     <div class="settings-hint" style="margin-top:16px;padding:10px;background:var(--bg-secondary,#f8fafc);border-radius:8px" data-i18n-html="settings.scale.ble_protocols">
-                        <p style="margin:0 0 6px;font-weight:600">🔌 Protocolli BLE supportati:</p>
+                        <!-- Fallback only: `translatePage()` replaces this innerHTML with the
+                             `settings.scale.ble_protocols` string of the active language. -->
+                        <p style="margin:0 0 6px;font-weight:600">🔌 Supported BLE protocols:</p>
                         <ul style="margin:0 0 0 16px;padding:0;font-size:0.8rem">
                             <li>Bluetooth SIG Weight Scale (0x181D)</li>
-                            <li>Bluetooth SIG Body Composition (0x181B) — peso, grasso, BMI</li>
+                            <li>Bluetooth SIG Body Composition (0x181B) — weight, fat, BMI</li>
                             <li>Xiaomi Mi Body Composition Scale 2</li>
-                            <li>Generico — heuristica automatica su 100+ modelli</li>
+                            <li>Generic — automatic heuristic on 100+ models</li>
                         </ul>
                     </div>
                 </div>
@@ -3294,18 +3296,20 @@
                 aria-label="Chiudi" data-i18n-aria="btn.close" data-i18n-title="btn.close" title="Chiudi">✕</button>
         <h3 id="ca-help-title" data-i18n="settings.security.ca_help_title">🔒 Installare il certificato CA</h3>
         <div class="settings-hint settings-cert-steps" data-i18n-html="settings.security.cert_instructions">
-            <strong>Istruzioni per Chrome (Android):</strong><br>
-            1. Scarica il certificato qui sopra<br>
-            2. Vai in <em>Impostazioni → Sicurezza e privacy → Altre impostazioni di sicurezza → Installa da archivio dispositivo</em><br>
-            3. Seleziona il file <em>EverShelf_CA.crt</em> scaricato<br>
-            4. Scegli "CA" e conferma<br>
-            5. Riavvia Chrome<br><br>
-            <strong>Istruzioni per Chrome (PC):</strong><br>
-            1. Scarica il certificato qui sopra<br>
-            2. Vai in <em>chrome://settings/certificates</em> (o Impostazioni → Privacy e sicurezza → Sicurezza → Gestisci certificati)<br>
-            3. Tab "Autorità" → Importa → seleziona il file<br>
-            4. Spunta "Considera attendibile per identificare siti web"<br>
-            5. Riavvia Chrome
+            <!-- Fallback only: `translatePage()` replaces this innerHTML with the
+                 `settings.security.cert_instructions` string of the active language. -->
+            <strong>Chrome instructions (Android):</strong><br>
+            1. Download the certificate above<br>
+            2. Open <em>Settings → Security &amp; privacy → More security settings → Install from device storage</em><br>
+            3. Pick the downloaded <em>EverShelf_CA.crt</em> file<br>
+            4. Choose "CA" and confirm<br>
+            5. Restart Chrome<br><br>
+            <strong>Chrome instructions (PC):</strong><br>
+            1. Download the certificate above<br>
+            2. Open <em>chrome://settings/certificates</em> (or Settings → Privacy and security → Security → Manage certificates)<br>
+            3. "Authorities" tab → Import → pick the file<br>
+            4. Tick "Trust this certificate for identifying websites"<br>
+            5. Restart Chrome
         </div>
         <div class="settings-form-actions">
             <a href="ca.crt" download="EverShelf_CA.crt" class="btn btn-accent"
@@ -3800,19 +3804,19 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261112zi"></script>
-<script src="assets/js/food_facts.generated.js?v=20261112zi"></script>
-<script src="assets/js/free_apis.generated.js?v=20261112zi"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261112zi"></script>
-<script src="assets/js/off_categories.generated.js?v=20261112zi"></script>
-<script src="assets/js/core/vocab.js?v=20261112zi"></script>
-<script src="assets/js/app.js?v=20261112zi"></script>
-<script src="assets/js/audit.js?v=20261112zi"></script>
-<script src="assets/js/receipt.js?v=20261112zi"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261112zi"></script>
-<script src="assets/js/settings_search.js?v=20261112zi"></script>
+<script src="assets/js/vocab.generated.js?v=20261112zj"></script>
+<script src="assets/js/food_facts.generated.js?v=20261112zj"></script>
+<script src="assets/js/free_apis.generated.js?v=20261112zj"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261112zj"></script>
+<script src="assets/js/off_categories.generated.js?v=20261112zj"></script>
+<script src="assets/js/core/vocab.js?v=20261112zj"></script>
+<script src="assets/js/app.js?v=20261112zj"></script>
+<script src="assets/js/audit.js?v=20261112zj"></script>
+<script src="assets/js/receipt.js?v=20261112zj"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261112zj"></script>
+<script src="assets/js/settings_search.js?v=20261112zj"></script>
     <!-- The idle screen: an ambient kitchen dashboard (its own file, like audit.js). -->
-    <script src="assets/js/screensaver.js?v=20261112zi"></script>
+    <script src="assets/js/screensaver.js?v=20261112zj"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

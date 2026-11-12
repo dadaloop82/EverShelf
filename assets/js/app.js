@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112zi'; // bump when translations change
+const _I18N_VERSION = '20261112zj'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -3878,9 +3878,9 @@ function getExpiredSafety(item, daysExpired) {
     // A place the household called 'Freezer garage' is a freezer for the verdict too.
     const inFreezer = storageKindOfLocation(item.location) === 'freezer';
 
-    // === FREEZER: il congelamento allunga molto la vita ===
-    // Carne/pesce in freezer: +3 mesi. Verdura/frutta: +6 mesi. Pane: +2 mesi.
-    // Latticini in freezer: +1-2 mesi. Tutto il resto: +3-6 mesi.
+    // === FREEZER: freezing buys a lot of time ===
+    // Meat/fish in the freezer: +3 months. Vegetables/fruit: +6. Bread: +2.
+    // Dairy: +1-2. Everything else: +3-6.
     if (inFreezer) {
         const highRiskFreezer = ['carne', 'pesce'];
         const medRiskFreezer = ['latticini', 'pane'];
@@ -7023,7 +7023,7 @@ async function loadSettingsUI() {
     const ssEl = document.getElementById('setting-screensaver-enabled');
     if (ssEl) ssEl.checked = s.screensaver_enabled === true;
     const ssTimeout = document.getElementById('setting-screensaver-timeout');
-    if (ssTimeout) ssTimeout.value = String(s.screensaver_timeout || 5);
+    if (ssTimeout) _selectNearestOption(ssTimeout, s.screensaver_timeout || 5);
     // Support card: the answer the household gave, and the way back into the dialog.
     if (typeof _renderSupportOptions === 'function') _renderSupportOptions();
     document.getElementById('setting-dietary').value = s.dietary || '';
@@ -7986,6 +7986,30 @@ function _applyProductRuleSettingsUI(s) {
  */
 /** The four views of the idle screen and its pace (assets/js/screensaver.js reads them). */
 const SS_VIEW_IDS = ['meal', 'alerts', 'nutrition', 'fact'];
+/**
+ * Set a `<select>` to the option closest to `want`.
+ *
+ * A value the list does not offer (an older `.env`, a hand edit) used to leave the field EMPTY —
+ * the household sees a blank control and the next save rewrites the setting with the default.
+ */
+function _selectNearestOption(select, want) {
+    if (!select || !select.options || !select.options.length) return;
+    const target = String(want);
+    select.value = target;
+    if (select.value) return;
+    const n = parseInt(target, 10);
+    if (!Number.isFinite(n)) { select.selectedIndex = 0; return; }
+    let best = null;
+    let bestDelta = Infinity;
+    [...select.options].forEach((opt) => {
+        const v = parseInt(opt.value, 10);
+        if (!Number.isFinite(v)) return;
+        const delta = Math.abs(v - n);
+        if (delta < bestDelta) { bestDelta = delta; best = v; }
+    });
+    select.value = String(best === null ? select.options[0].value : best);
+}
+
 function _applyScreensaverViewSettings(s) {
     const raw = String(s.screensaver_views || '').split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
     const on = raw.length ? raw : SS_VIEW_IDS.slice();
@@ -7994,17 +8018,7 @@ function _applyScreensaverViewSettings(s) {
         if (el) el.checked = on.includes(id);
     });
     const pace = document.getElementById('setting-screensaver-interval');
-    if (pace) {
-        pace.value = String(s.screensaver_interval || 30);
-        // A value the select does not offer (an .env hand edit, an older install) would leave
-        // the field EMPTY: fall back to the nearest option, never to a blank control.
-        if (!pace.value && pace.options.length) {
-            const want = parseInt(s.screensaver_interval, 10) || 30;
-            const opts = [...pace.options].map(o => parseInt(o.value, 10)).filter(Number.isFinite);
-            const near = opts.reduce((a, b) => (Math.abs(b - want) < Math.abs(a - want) ? b : a), opts[0]);
-            pace.value = String(near);
-        }
-    }
+    if (pace) _selectNearestOption(pace, s.screensaver_interval || 30);
 }
 
 function _applyRetentionSettingsUI(s) {
@@ -21762,7 +21776,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zi';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zj';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21772,7 +21786,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112zi';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112zj';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -28442,9 +28456,9 @@ let _useNormalUnit = 'pz'; // unit when not in conf mode
 let _useCurrentItems = []; // cached inventory items for the current product on the use page
 
 /**
- * Mostra un suggerimento giallo sotto le info inventario quando ci sono più
- * confezioni con scadenze diverse (o in posti diversi con scadenze diverse).
- * Es: "⚠️ Usa prima quella in Frigo — scade il 12/04 (tra 3 giorni)!"
+ * Paints the amber hint under the inventory info when the product stands in more than one
+ * pack with different dates (or in different places with different dates), naming the one to
+ * open first: "⚠️ Use the one in the fridge first — it expires on 12/04 (in 3 days)!".
  */
 function _renderUseExpiryHint(items) {
     const hintEl = document.getElementById('use-expiry-hint');
@@ -28460,17 +28474,17 @@ function _renderUseExpiryHint(items) {
     // Ignore tiny residual quantities to avoid misleading hints on near-zero leftovers.
     const withExpiry = items.filter(i => i.expiry_date && parseFloat(i.quantity) > 0.01);
 
-    // Serve almeno 2 item con scadenze diverse (o locazioni diverse con scadenze)
+    // At least two rows with different dates (or different places carrying a date)
     if (withExpiry.length < 2) { hintEl.style.display = 'none'; return; }
 
     const dates = withExpiry.map(i => i.expiry_date);
     const uniqueDates = new Set(dates);
     const uniqueLocs  = new Set(withExpiry.map(i => i.location));
 
-    // Mostra hint se scadenze diverse OPPURE stessa scadenza ma luoghi diversi
+    // Show it when the dates differ OR the date is the same but the places do not
     if (uniqueDates.size < 2 && uniqueLocs.size < 2) { hintEl.style.display = 'none'; return; }
 
-    // Trova il più vicino alla scadenza
+    // The pack that expires soonest
     withExpiry.sort((a, b) => {
         const da = parseLocalExpiryDate(a.expiry_date);
         const db = parseLocalExpiryDate(b.expiry_date);
@@ -28569,7 +28583,7 @@ async function loadUseInventoryInfo() {
         // ── Hero card meta: expiry badge + qty pill ──────────────────
         _updateUseHeroMeta(items);
 
-        // ── Suggerisci quale confezione usare per prima ──────────────────
+        // ── Name the pack to open first ──────────────────────────────────
         _renderUseExpiryHint(items);
         // ─────────────────────────────────────────────────────────────────
 
@@ -31389,7 +31403,8 @@ function _shoppingBuyQtyDisplay(smartData) {
 }
 
 /**
- * Comprato · a casa — solo rimuove dalla lista (inventario lo fai tu a casa).
+ * "Bought · already at home" — it only takes the row off the list: adding it to the pantry is
+ * the household's own step once the bag is unpacked.
  */
 async function markShoppingItemBoughtAtHome(idx) {
     loadShoppingList._lastUserInteraction = Date.now();
@@ -32737,10 +32752,10 @@ async function loadSmartShopping(forceRefresh = false) {
     }
 }
 
-/* ── "Non comprati": il cassetto di ciò che hai tolto ────────────────────────────────
- * `shopping_remove` con purchased:false registra un "non lo compro" datato (SHOPPING_DISMISS_DAYS);
- * il prodotto spariva dalla lista e non c'era modo di ripensarci. Qui si rilegge la mappa
- * (GET shopping_dismissed) e ogni riga ha Ripristina.
+/* ── "Not bought": the drawer of what the household removed ─────────────────────────
+ * `shopping_remove` with purchased:false stores a dated "not buying it" (SHOPPING_DISMISS_DAYS),
+ * so the row left the list with no way to think again. This reads the map back
+ * (GET shopping_dismissed) and every line carries a Restore.
  */
 function _renderShoppingDismissed(items) {
     const box = document.getElementById('shopping-dismissed');
@@ -34262,7 +34277,7 @@ function _initShopRowSwipe(container) {
             const idx = parseInt(row.dataset.idx, 10);
             if (!isNaN(idx)) {
                 // LEFT = comprato (writes the stock and leaves the list).
-                // RIGHT = non lo compro (a dated dismiss, it comes back on its own).
+                // RIGHT = “not buying it” (a dated dismiss, it comes back on its own).
                 // Nothing else: no third action, no camera behind a longer swipe.
                 if (dx <= -th.boughtMin) _shopRowBought(idx);
                 else if (dx >= th.notBuyingMin) removeBringItem(idx);
@@ -35916,10 +35931,11 @@ function _setRecipeArchiveFilter(id) {
     loadRecipeArchive();
 }
 
-/* ── Mealie: l'altra metà del ricettario ────────────────────────────────────────────
- * L'integrazione era a senso unico e invisibile: `mealie_list` e `mealie_import` esistevano sul
- * server e nessuno li chiamava. Questo pannello li accende — sfoglia il catalogo Mealie, importa
- * una o tutte, sincronizza la cache e rimanda a Mealie i piatti già cucinati (`mealie_push`).
+/* ── Mealie: the other half of the recipe book ───────────────────────────────────────
+ * The integration was one-way and invisible: `mealie_list` and `mealie_import` existed on the
+ * server and nothing called them. This panel turns them on — browse the Mealie catalogue,
+ * import one record or all of them, sync the cache, and push a cooked dish back
+ * (`mealie_push`).
  */
 let _mealieRows = [];
 
@@ -35999,7 +36015,7 @@ async function _mealieImport(idx, btn) {
     }
 }
 
-/** "Importa tutte": una alla volta, con il progresso sul bottone (niente raffica di richieste). */
+/** "Import all": one at a time, with the progress on the button (never a burst of requests). */
 async function _mealieImportAll(btn) {
     const rows = Array.from(document.querySelectorAll('#mealie-list .mealie-row'));
     const todo = rows
@@ -36049,10 +36065,11 @@ async function _mealiePushAll(btn) {
 }
 
 /**
- * "Le ricette già fatte vanno in automatico": dopo una cottura il piatto va a Mealie, una volta.
+ * "A cooked recipe is pushed automatically": after a cooking session the dish goes to Mealie,
+ * once.
  *
- * Non blocca mai il flusso: Mealie è uno specchio del ricettario, non la dispensa. Senza Mealie
- * configurato non parte nemmeno una richiesta.
+ * It never blocks the flow: Mealie is a mirror of the recipe book, not the pantry. With no
+ * Mealie configured not a single request leaves the app.
  */
 async function _mealiePushCooked(archiveId) {
     if (!_mealieAvailable) return;
@@ -36061,7 +36078,7 @@ async function _mealiePushCooked(archiveId) {
     try {
         const res = await api('mealie_push', {}, 'POST', { id }, {}, 60000);
         if (res && res.success && !res.skipped) showToast(t('recipes.mealie_pushed', { n: '1' }), 'success');
-    } catch (e) { /* mai bloccante */ }
+    } catch (e) { /* never blocking */ }
 }
 
 function _setRecipeArchiveView(view) {
@@ -36295,7 +36312,7 @@ function _recipeArchiveCardHtml(entry, archive, archiveIdx) {
 }
 
 async function loadRecipeArchive() {
-    // Sempre refetch: altrimenti altri device non vedono ricette create altrove
+    // Always refetch: another device does not see a recipe created elsewhere otherwise
     // finché non si ricarica tutta la pagina (cache in-memory).
     _recipeArchiveCache = null;
     const container = document.getElementById('recipe-archive');
@@ -39060,20 +39077,20 @@ function _cookingVoiceStopRec() {
 }
 
 /**
- * Riarmo automatico — **solo quando il microfono è stato acceso dall'utente**.
+ * Re-arming — **only when the household turned the microphone on**.
  *
- * `_cookingVoiceAuto` è falso all'apertura della modalità cucina: qui non si riarma nulla.
- * Quando il household tocca 🎤 (una volta), il ciclo riparte dopo ogni comando — il tempo di
- * far finire la voce di SHELFY, che altrimenti si ascolterebbe da sola — e resta vivo finché
- * non tocca di nuovo il pulsante o chiude la ricetta.
+ * `_cookingVoiceAuto` is false when cooking mode opens: nothing re-arms here. Once the household
+ * taps 🎤 (one tap), the loop restarts after every command — long enough to let SHELFY's own
+ * voice finish, or it would listen to itself — and stays alive until the button is tapped again
+ * or the recipe is closed.
  *
- * Non è un ascolto continuo: ogni sessione è una frase breve, e dopo `_COOKING_VOICE_RETRIES_MAX`
- * finali muti si ferma da sola — Chrome suona un bip a ogni `start()` e un microfono che trilla
- * per tutta la ricetta è peggio di un microfono spento.
+ * It is not a continuous listener: every session is one short sentence, and after
+ * `_COOKING_VOICE_RETRIES_MAX` silent finals it stops on its own — Chrome beeps on every
+ * `start()` and a microphone chirping through the whole recipe is worse than a muted one.
  */
 const _COOKING_VOICE_RETRY_MS = 1200;
 const _COOKING_VOICE_RETRIES_MAX = 3;
-/** Dopo un comando riuscito: il passo nuovo deve poter finire di essere letto ad alta voce. */
+/** After a recognised command: the new step must be allowed to finish being read aloud. */
 const _COOKING_VOICE_AFTER_CMD_MS = 2600;
 
 function _cookingVoiceArm(delayMs) {
@@ -39148,12 +39165,12 @@ function _cookingVoiceStart() {
     }
 }
 
-/* ── Il tutorial del microfono: 5 secondi, a ogni apertura ────────────────────────────
- * Un 🎤 non dice niente da solo, e qui parte SPENTO: quando la modalità cucina si apre, un
- * cartellino ancorato al pulsante spiega cosa dire — con le parole VERE che il riconoscitore
- * ascolta (le prime di vocabCookingVoice(), quindi nella lingua del dispositivo) — e che il
- * microfono lo accende il household, non l'app. Sparisce da solo dopo 5 secondi (e si chiude
- * con la ✕ o con un tocco fuori): un tutorial che resta è un ostacolo davanti ai fornelli.
+/* ── The microphone's tutorial: five seconds, on every open ───────────────────────────
+ * A 🎤 says nothing on its own, and here it starts OFF: when cooking mode opens, a card
+ * anchored to the button says what to say — with the REAL words the recogniser listens for
+ * (the first of vocabCookingVoice(), i.e. the device language) — and that the microphone is
+ * switched on by the household, not by the app. It disappears by itself after five seconds
+ * (and closes with ✕ or a tap outside): a tutorial that stays is an obstacle at the stove.
  */
 let _cookingVoiceHintTimer = 0;
 
@@ -39341,11 +39358,11 @@ function startCookingMode() {
     if (wheelEl) setTimeout(() => wheelEl.focus(), 20);
     try { screen.orientation?.lock('portrait').catch(() => {}); } catch (_) { /* ignore */ }
     renderCookingStep();
-    // ── Il microfono è SPENTO finché non lo accende il household ────────────────
-    // Un riconoscitore che parte da solo, 5 s dopo l'apertura, è un bip sopra la ricetta e
-    // un microfono che nessuno ha chiesto: davanti ai fornelli le mani sono occupate, non
-    // libere di parlare a un assistente. Un cartellino di 5 secondi spiega cosa fa il 🎤 (con
-    // le parole vere che ascolta) e resta lì l'unica via: il tocco sul pulsante.
+    // ── The microphone is OFF until the household turns it on ───────────────────
+    // A recogniser that starts by itself, 5 s after opening, is a beep over the recipe and a
+    // microphone nobody asked for: at the stove the hands are busy, not free to talk to an
+    // assistant. A five-second card says what the 🎤 does (in the real words it listens for)
+    // and leaves one way in: the tap on the button.
     _cookingVoiceAuto = false;
     _cookingVoiceTries = 0;
     _cookingVoiceStopRec();
@@ -41615,10 +41632,10 @@ function getSelectedSubType() {
 
 /** Show/hide the meal-plan badge hint + top banner in the recipe dialog. */
 /**
- * La ✕ della chip del piano: toglie il tag senza toccare le altre preferenze.
+ * The ✕ of the plan chip: it removes the tag without touching the other preferences.
  *
- * La chip resta nella griglia (grigia, riselezionabile) invece di sparire: il piano di oggi è
- * un'informazione, e nasconderne il controllo renderebbe impossibile rimetterlo.
+ * The chip stays in the grid (greyed out, selectable again) instead of disappearing: today's
+ * plan is information, and hiding its control would make putting it back impossible.
  */
 function _clearMealPlanChip() {
     const cb = document.getElementById('recipe-opt-mealplan');
@@ -43289,8 +43306,6 @@ function _triggerAutoHome() {
     showPage('dashboard');
 }
 let _screensaverClockInterval = null;
-let _screensaverFactInterval = null;
-const SCREENSAVER_FACT_DURATION = 5 * 60 * 1000; // 5 minutes per fact
 
 function _screensaverTimeoutMs() {
     const mins = parseInt(getSettings().screensaver_timeout || 5, 10);
@@ -43615,7 +43630,7 @@ function toggleSpesaModeFromCamera() {
     return toggleSpesaMode();
 }
 
-/** True se il prodotto sembra presente nella lista spesa in-memory. */
+/** True when the product looks present in the in-memory shopping list. */
 function _spesaModeHasShoppingItem(product) {
     if (!_spesaMode) return false;
     if (!product) return false;
@@ -46085,19 +46100,19 @@ async function _initApp() {
     }
 
     // ── Background intervals ───────────────────────────────────────────────
-    // 1) Ogni 5 min: ricarica la pagina corrente (scadenze, inventario, ecc.)
+    // 1) Every 5 minutes: reload the current page (expiries, inventory, …)
     setInterval(() => {
         if (!_screensaverActive) refreshCurrentPage();
     }, 5 * 60 * 1000);
 
-    // 1b) Ricette: poll più frequente mentre la tab è aperta (sync multi-device)
+    // 1b) Recipes: a faster poll while the tab is open (multi-device sync)
     setInterval(() => {
         if (!_screensaverActive && _currentPageId === 'recipe' && !document.hidden) {
             loadRecipeArchive();
         }
     }, 60 * 1000);
 
-    // 2) Ogni 5 min: contatore spesa (non ricaricare la lista se l'utente sta navigando)
+    // 2) Every 5 minutes: shopping counter (never reload the list under a scrolling finger)
     setInterval(() => {
         if (_currentPageId === 'shopping') {
             const idleMs = Date.now() - (loadShoppingList._lastUserInteraction || 0);
@@ -46114,7 +46129,7 @@ async function _initApp() {
         }
     }, 5 * 60 * 1000);
 
-    // 3) Tab visibile: refresh leggero solo se l'utente non sta usando la lista
+    // 3) Tab visible again: a light refresh, and only if nobody is using the list
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
             if (_currentPageId === 'shopping') {
@@ -46130,8 +46145,8 @@ async function _initApp() {
         }
     });
 
-    // 4) Background Bring sync ogni 5 min — completamente autonomo, non dipende
-    //    dalla pagina corrente. Aggiunge urgenti, aggiorna spec, rimuove risolti.
+    // 4) Background Bring sync every 5 minutes — fully autonomous, independent of the
+    //    current page. It adds what is urgent, refreshes the spec and removes what is done.
     _backgroundBringSync();
     setInterval(() => { if (!_screensaverActive) _backgroundBringSync(); }, 5 * 60 * 1000);
 

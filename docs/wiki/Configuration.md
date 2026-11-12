@@ -111,6 +111,26 @@ GH_ISSUE_TOKEN_KEY=
 REPORT_ENABLED=false
 
 # ─────────────────────────────────────────────
+# Idle screen (kiosk / wall tablet)
+# ─────────────────────────────────────────────
+
+# Show the ambient dashboard after a period of inactivity.
+SCREENSAVER_ENABLED=false
+
+# MINUTES of inactivity before it appears (1-60, default 5). Older installations
+# wrote this in SECONDS (300 = five minutes): a value above 60 is still read as
+# seconds and converted, so an existing .env keeps working unchanged.
+SCREENSAVER_TIMEOUT=5
+
+# Which cards it shows, in a comma list: meal, alerts, nutrition, fact.
+# Empty = all of them. A card with nothing to say is skipped by itself.
+SCREENSAVER_VIEWS=meal,alerts,nutrition,fact
+
+# Seconds between two cards (10-300, default 30). The old card dissolves upward
+# and the next one comes down from the top.
+SCREENSAVER_INTERVAL=30
+
+# ─────────────────────────────────────────────
 # Calendar feed (ICS / WebCal)
 # ─────────────────────────────────────────────
 
@@ -155,6 +175,7 @@ Most settings can also be configured from the browser via **Settings → ⚙️*
 | ntfy topic | `NTFY_TOPIC` | Secret: anyone who knows it can read and publish |
 | ntfy / webhook tokens | `NTFY_TOKEN`, `NOTIFY_WEBHOOK_TOKEN` | Write-only; the field shows `••••••••` when a token is stored |
 | Generic webhook URL | `NOTIFY_WEBHOOK_URL` | n8n, Node-RED, Gotify, Discord/Slack bridge… |
+| Idle screen on/off, timeout, cards, pace | `SCREENSAVER_ENABLED`, `SCREENSAVER_TIMEOUT`, `SCREENSAVER_VIEWS`, `SCREENSAVER_INTERVAL` | Settings → 🏠 General → Appearance; the timeout is in **minutes** |
 
 ### Where to find what
 

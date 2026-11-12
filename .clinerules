@@ -16,8 +16,8 @@ read `docs/wiki/Support-and-ads.md` before touching `SUPPORT_*` / `ADS_*`.
 
 | File | Size | How to navigate |
 |---|---|---|
-| `assets/js/app.js` | ~29 200 lines | `docs/INDEX-app-js.md` (function → line), then a ranged read |
-| `api/index.php` | ~20 600 lines | `docs/INDEX-api-index.md` |
+| `assets/js/app.js` | ~46 000 lines | `docs/INDEX-app-js.md` (function → line), then a ranged read |
+| `api/index.php` | ~25 100 lines | `docs/INDEX-api-index.md` |
 | `index.html` | ~2 770 lines | `grep -n` for the id you need |
 | `CHANGELOG.md` | ~2 280 lines | never read whole; `head` it or anchor an edit on the top heading |
 | `translations/*.json` | ~130 KB each | `python3 -c` + `grep` on the key, not the whole file |

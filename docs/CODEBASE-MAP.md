@@ -4,29 +4,36 @@
 > Line numbers are for the commit at the time of writing; regenerate the indexes
 > with `bash scripts/gen-code-index.sh` after large edits.
 >
-> Counts and line numbers below were measured for **v1.9.1** (`fe318b9`, 2026-10-05)
-> and are rounded.
+> Counts and line numbers below were measured on **v1.33.0** (branch
+> `refactor_25_10_2026`) and are rounded.
 
 ## 1. Top-level layout
 
 | Path | What it is | Size / notes |
 |---|---|---|
-| `index.html` | SPA shell, all pages as `<section>` + modals | ~2.6k lines |
-| `assets/js/app.js` | **Entire frontend logic** (single file) | ~27.1k lines, 974 fns |
+| `index.html` | SPA shell, all pages as `<section>` + modals | ~3.8k lines |
+| `assets/js/app.js` | **The frontend** (one file, everything that is not a module below) | ~46k lines, 1.7k fns |
+| `assets/js/audit.js` | The quick stocktake (three modes, one ledger) | ~2.7k lines, own file |
+| `assets/js/screensaver.js` | The idle screen's four cards, its gestures and its timers | ~900 lines, own file |
+| `assets/js/settings_search.js` | The settings search over the generated registry | own file |
+| `assets/js/receipt.js` | Paper-receipt OCR (parked, opt-in) | own file |
 | `assets/js/core/auth.js` | API token helpers (`getApiToken`, `apiAuthHeaders`) | loaded before app.js |
-| `assets/js/core/dom.js` | `escapeHtml` | loaded before app.js |
-| `assets/css/style.css` | All styles | ~10.8k lines |
+| `assets/js/core/dom.js` | `escapeHtml`, `escapeAttr` | loaded before app.js |
+| `assets/js/core/med.js` + `assets/js/med/italy.js` | Medicine code core + the Italy country module | data-driven |
+| `assets/js/core/vocab.js` | The vocabulary engine over `vocab.generated.js` | mirrors `api/lib/vocabulary.php` |
+| `assets/js/core/support.js` | The support/donations dialog (no ads) | own file |
+| `assets/css/style.css` | All styles (themes, surfaces, screensaver, idle screen) | ~16k lines |
 | `assets/css/corporate.css` | Corporate/"kiosk" theme overlay | ~640 lines |
 | `assets/css/elegant.css` | Third layer: the "elegant" restyle **and** the dark-mode repairs it caused | ~740 lines; loaded before `mobile.css`, deletes no selector |
 | `assets/css/mobile.css` | **Fourth layer: phone geometry only** (no colours) — list rows wrap instead of truncating, badges/quantities move under the text, buttons never break mid-word | ~200 lines; loaded **LAST** so the themes cannot override it; guarded by |
-| `api/index.php` | **Entire backend**: router + all handlers | ~19.6k lines, 409 fns |
+| `api/index.php` | **The backend**: router + all handlers | ~25k lines, 519 fns |
 | `api/bootstrap.php` | Shared init for HTTP + cron | requires every lib |
 | `api/database.php` | SQLite schema + migrations | ~845 lines |
 | `api/logger.php` | `EverLog` rotating file logger + `LoggingPDO` | |
 | `api/lib/*.php` | Domain libs (see §4) | |
 | `api/cron_*.php` | CLI jobs (smart shopping, mealie cache, barcode catalog) | run by cron |
 | `api/scale_*.php` | Kitchen-scale gateway relay/discovery | |
-| `translations/*.json` | 6 languages, nested keys | 2,184 leaf keys, 67 top-level groups |
+| `translations/*.json` | 6 languages, nested keys | 3,327 leaf keys each (identical sets) |
 | `data/` | Runtime DB + caches + logs (**HTTP denied** via `.htaccess`) | not all committed |
 | `scripts/*` | Maintenance CLIs: generators, i18n audits, importers | |
 | `mcp-server/` | Node MCP server exposing EverShelf API to agents | separate npm pkg |

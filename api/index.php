@@ -835,7 +835,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
         }
     }
 
-    // ── 11. Bring! — solo se EMAIL+PASSWORD sono impostate ───────────────────
+    // ── 11. Bring! — only when EMAIL + PASSWORD are set ──────────────────────
     // Se non configurata, l'utente ha scelto di non usarla → nessun check, nessun warning.
     $bringEmail    = $envGet('BRING_EMAIL');
     $bringPassword = $envGet('BRING_PASSWORD');
@@ -863,7 +863,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
     }
     // If Bring! not configured or SHOPPING_MODE != bring, skip entirely — not a warning, it is a deliberate user choice
 
-    // ── 12. TTS — solo se TTS_ENABLED ────────────────────────────────────────
+    // ── 12. TTS — only when TTS_ENABLED ──────────────────────────────────────
     if ($envGet('TTS_ENABLED') === 'true') {
         $ttsUrl = $envGet('TTS_URL');
         $checks['tts_url'] = [
@@ -873,7 +873,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
         ];
     }
 
-    // ── 13. Scale gateway — solo se SCALE_ENABLED ────────────────────────────
+    // ── 13. Scale gateway — only when SCALE_ENABLED ──────────────────────────
     if ($envGet('SCALE_ENABLED') === 'true') {
         $scaleUrl = $envGet('SCALE_GATEWAY_URL');
         $checks['scale_gateway'] = [
@@ -892,7 +892,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
         $checks['curl_ssl'] = ['ok' => false, 'optional' => true, 'hint_key' => 'startup.hint_curl_missing'];
     }
 
-    // ── 15. Internet — raggiungibilità API Gemini (solo se Gemini configurato) ─
+    // ── 15. Internet — can the Gemini API be reached (only when configured) ───
     if (!empty($geminiKey) && extension_loaded('curl')) {
         $ch = curl_init();
         curl_setopt_array($ch, [CURLOPT_URL => 'https://generativelanguage.googleapis.com/', CURLOPT_NOBODY => true,
@@ -9937,6 +9937,24 @@ function evershelfSetupLedgerValue(string $key): mixed
     return $decoded ?? (string)$raw;
 }
 
+/**
+ * The idle screen's timeout in MINUTES.
+ *
+ * `.env.example` documented `SCREENSAVER_TIMEOUT` in SECONDS for a long time ("300" = five
+ * minutes) while the Settings card, the select (1..60) and `_screensaverTimeoutMs()` all speak
+ * minutes: an install that followed the file waited five hours and the field showed up empty.
+ * Rather than invalidate those installations, a value above 60 is read as seconds and converted —
+ * the number keeps the meaning it was written with, and everything saved from now on is minutes.
+ */
+function screensaverTimeoutMinutes(): int {
+    $raw = (int)env('SCREENSAVER_TIMEOUT', '5');
+    if ($raw <= 0) {
+        return 5;
+    }
+    $minutes = $raw > 60 ? (int)round($raw / 60) : $raw;
+    return max(1, min(60, $minutes));
+}
+
 function getServerSettings(?PDO $db = null): void {
     EverLog::debug('getServerSettings');
     $bringEmail = env('BRING_EMAIL');
@@ -9994,7 +10012,7 @@ function getServerSettings(?PDO $db = null): void {
         'scale_gateway_url' => env('SCALE_GATEWAY_URL', ''),
         'meal_plan_enabled' => env('MEAL_PLAN_ENABLED', 'false') === 'true',
         'screensaver_enabled' => env('SCREENSAVER_ENABLED', 'false') === 'true',
-        'screensaver_timeout' => (int)env('SCREENSAVER_TIMEOUT', '5'),
+        'screensaver_timeout' => screensaverTimeoutMinutes(),
         'zerowaste_tips_enabled' => env('ZEROWASTE_TIPS_ENABLED', 'false') === 'true',
         'zerowaste_tips_set' => env('ZEROWASTE_TIPS_ENABLED', '') !== '',
         // Expiry calendar feed: the subscribe URL is minted by get_ics_settings, but
@@ -11364,7 +11382,14 @@ function saveSettings(): void {
     }
     foreach ($intMap as $inKey => $envKey) {
         if (array_key_exists($inKey, $input)) {
-            $envVars[$envKey] = (string)intval($input[$inKey]);
+            $value = intval($input[$inKey]);
+            // The idle screen's timeout is minutes, 1..60: the card cannot offer more, and a
+            // number outside that range would be read back as seconds (see
+            // `screensaverTimeoutMinutes()`), i.e. silently changed.
+            if ($inKey === 'screensaver_timeout') {
+                $value = max(1, min(60, $value));
+            }
+            $envVars[$envKey] = (string)$value;
         }
     }
     foreach ($floatMap as $inKey => $envKey) {
@@ -15159,17 +15184,17 @@ function generateRecipeStream(PDO $db): void {
         }
     }
 
-    // ── AGENTE PASSO 2: Selezione concetto (locale, nessuna chiamata AI) ────────
-    // Determina il concetto della ricetta in base agli ingredienti disponibili
-    // e ai parametri selezionati — senza consumare quote Gemini.
+    // ── AGENT STEP 2: concept selection (local, no AI call) ────────────────────
+    // Works out what the dish is about from the ingredients on hand and the chosen
+    // parameters — without spending a single Gemini token.
     $send('status', ['step' => 2, 'message' => recipeText($lang, 'status_evaluate_ingredients')]);
 
-    // Raccoglie i nomi degli ingredienti di maggiore priorità
+    // Collects the names of the highest-priority ingredients
     $conceptIngredients = [];
     foreach ([1, 2, 3, 5, 6] as $g) {
         foreach (array_slice($priorityGroups[$g] ?? [], 0, 4) as $line) {
             $name = trim(explode(':', ltrim($line, '- '))[0]);
-            // Rimuove emoji e flag di urgenza
+            // Strips the emoji and the urgency flags
             $name = trim(preg_replace('/\s*[\x{26A0}\x{1F534}\x{1F7E0}].*$/u', '', $name));
             $name = trim(preg_replace('/\s*\[.*\]/', '', $name));
             if ($name) $conceptIngredients[] = $name;
@@ -15177,20 +15202,20 @@ function generateRecipeStream(PDO $db): void {
         if (count($conceptIngredients) >= 6) break;
     }
 
-    // Costruisce un messaggio di stato informativo basato su ciò che verrà cucinato
+    // Builds an informative status line from what is about to be cooked
     $conceptMsg = recipeText($lang, 'status_preparing_recipe');
     if (!empty($mealPlanType) && isset($mealPlanTypeLabels[$mealPlanType]) && $mealPlanTypeLabels[$mealPlanType] !== '') {
-        // Tipo di pasto dal piano settimanale — mostra la categoria
+        // A meal type from the weekly plan: show its category
         $shortLabel = explode(' (', $mealPlanTypeLabels[$mealPlanType])[0];
         $conceptMsg = recipeText($lang, 'status_dish_based_on', ['type' => $shortLabel]);
-        // Aggiungi l'ingrediente principale se disponibile
+        // Add the main ingredient when there is one
         if (!empty($matchingItems)) {
             $firstMatch = ltrim(reset($matchingItems), '→ ');
             $fName = trim(explode(':', $firstMatch)[0]);
             if ($fName) $conceptMsg .= " ({$fName})";
         }
     } elseif (!empty($conceptIngredients)) {
-        // Mostra i primi 2 ingredienti più urgenti
+        // Show the two most urgent ingredients
         $shown = array_slice($conceptIngredients, 0, 2);
         $a = mb_strtolower($shown[0] ?? '');
         $b = mb_strtolower($shown[1] ?? '');
@@ -15338,7 +15363,7 @@ PROMPT;
             if ($httpCode !== 429 && $httpCode !== 503) break;
             if ($attempt >= $maxRetries) break;
 
-            // Calcola attesa: usa Retry-After se presente, altrimenti 30s (poi cambieremo modello)
+            // Back-off: honour Retry-After when the provider sends one, otherwise 30 s (then we switch model)
             $waitSec = $retryAfterHeader ?? 30;
             if ($body) {
                 $errData = json_decode($body, true);
@@ -15358,7 +15383,7 @@ PROMPT;
             $send('status', ['step' => 3, 'message' => recipeText($lang, 'status_retry_generation')]);
         }
 
-        // C: se primario esaurito dopo tutti i retry, cambia modello immediatamente
+        // C: the primary model is spent after every retry — switch model right away
         if (($httpCode === 429 || geminiModelUnavailable($httpCode, $result['data'] ?? null)) && $modelIdx < count($models) - 1) {
             $fallbackName = str_replace('gemini-', 'Gemini ', $models[$modelIdx + 1]);
             $send('status', ['step' => 3, 'message' => recipeText($lang, 'status_switch_model', ['model' => $fallbackName])]);

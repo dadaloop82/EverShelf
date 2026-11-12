@@ -95,6 +95,37 @@ became a dashboard that reads the household's own database.
 - Also: the old screensaver styles and the 500-line fact generator are gone, the nav index and
   the wiki describe the new engine, and the service worker caches the new file.
 
+### Merge preparation — the audit before `develop → main`
+
+- **One compatibility bug found and converted automatically.** `.env.example` documented
+  `SCREENSAVER_TIMEOUT` in **seconds** (`300` = five minutes) while the settings card, the
+  select (1…60) and `_screensaverTimeoutMs()` all speak **minutes**: an existing install waited
+  five hours and the field showed up empty (the next save then silently rewrote it as 5).
+  `screensaverTimeoutMinutes()` reads a value above 60 as seconds and converts it, clamps to
+  1…60 on write, `.env.example` states the unit, and `_selectNearestOption()` makes any select
+  fall back to the closest option instead of a blank field (`screensaver_timeout` and
+  `screensaver_interval` both use it).
+- **Translations verified, not assumed.** All six locales carry the same 3,327 keys (three
+  orphan `inventory.price_*` keys removed from `de`), `screensaver.js` is inside
+  `scripts/i18n-audit.py`, every static text node of the new markup carries `data-i18n`, and the
+  two `data-i18n-html` fallbacks (CA instructions, BLE protocols) are English now instead of
+  Italian.
+- **Comments and docs are English.** The remaining Italian prose comments in `api/index.php`,
+  `api/cron_smart_shopping.php`, `app.js` and `surfaces.css` were translated (quoted UI labels
+  and the household's own words stay quoted on purpose).
+- **README rewritten from scratch** — what the refactor changed and why, the last five releases
+  only, the repository in ten lines, install, privacy, contributing. `CODEBASE-MAP`,
+  `ARCHITECTURE`, `Configuration` (the four idle-screen keys), `Features` (the control panel),
+  `Home`, `ROADMAP`, `OPTIMIZATION-BACKLOG` and `Support-and-ads` (the idle screen has no banner
+  slot any more) all follow the code again.
+- **Dead code removed**: `SCREENSAVER_FACT_DURATION`, `_screensaverFactInterval`,
+  `_captureTurnLive()`, the `.screensaver-ad` rule (the markup it styled is gone).
+- Gates re-run on the final tree: 54 PHP files lint, every JS file (`node -c` / `--check`),
+  `shellcheck`, `gen-settings-schema --check`, `gen-code-index` (no drift), `i18n-audit` (0
+  missing), `i18n-value-audit`, settings coverage (0 undocumented), the generated files
+  (`vocab`, food facts, free APIs, OFF categories, storage actions — no diff), 0 duplicate ids,
+  balanced HTML/CSS, and `check-upgrade-migration` **48/48** from `origin/main`.
+
 ## [1.32.0] - 2026-11-12
 
 ### The settings panel is a control panel now — and it saves itself

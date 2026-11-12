@@ -359,7 +359,7 @@ if (function_exists('shell_exec')) {
     }
 }
 
-// ── Mealie: le ricette già fatte vanno in automatico ──────────────────────────
+// ── Mealie: a cooked recipe is pushed automatically ──────────────────────────
 // Every cooked archive recipe that is not in Mealie yet is pushed here, a few per run:
 // a bounded number of HTTP calls, never on a page load. Silent without Mealie.
 try {

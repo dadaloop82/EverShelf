@@ -155,8 +155,8 @@ Instead of only estimating a replacement cost: know what *you* paid, where.
 
 ## 🧊 Parked (feature built, deliberately switched off)
 
-* **Ad banner slots** (dashboard + screensaver) and the *keep the banners* / *both*
-  answers. The code is in the tree, commented, with a re-enabling checklist in the
+* **Ad banner slot** (the dashboard one; the idle screen has no slot since its 1.33.0
+  redesign) and the *keep the banners* / *both* answers. The code is in the tree, commented, with a re-enabling checklist in the
   wiki: [Support and ads](wiki/Support-and-ads.md#banner-slots-parked). EverShelf
   ships without advertising; the support dialog offers a donation or nothing.
 

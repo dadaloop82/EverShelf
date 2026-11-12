@@ -27,9 +27,11 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
 
 - **All** HTTP actions are dispatched by one `switch ($action)` in
   `api/index.php` (line **898**). See `docs/INDEX-actions.md` for action → handler.
-- Frontend is one file `assets/js/app.js` (~26.2k lines, 933 top-level functions).
+- Frontend is `assets/js/app.js` (~46k lines, ~1.7k top-level functions) plus a few focused
+  modules that own their own screen: `assets/js/audit.js` (the stocktake), `assets/js/screensaver.js`
+  (the idle screen), `assets/js/settings_search.js`, `assets/js/receipt.js`.
   See `docs/INDEX-app-js.md` for function → line.
-- Backend is one file `api/index.php` (~19.5k lines, 408 functions).
+- Backend is `api/index.php` (~25k lines, ~520 functions) over `api/lib/*.php`.
   See `docs/INDEX-api-index.md`.
 
 ## Golden rules (conventions already in the codebase)

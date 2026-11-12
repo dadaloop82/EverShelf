@@ -14146,10 +14146,7 @@ body.offline-mode #smart-shopping {
 .house-ad-text span { font-size: 0.8rem; line-height: 1.4; color: var(--text-muted); }
 .house-ad .btn { white-space: nowrap; }
 
-.screensaver-ad {
-    max-width: 90vw;
-    text-align: center;
-}
+
 .house-ad-screensaver {
     border-style: solid;
     border-color: rgba(255,255,255,0.18);
