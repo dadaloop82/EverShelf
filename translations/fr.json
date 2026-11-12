@@ -2458,7 +2458,10 @@
     "scan_long_hint": "Scanner un produit (appui long pour le mode courses)",
     "shopping_count": "articles",
     "exit": "Quitter",
-    "exit_pinned": "Quitter l'écran de veille"
+    "exit_pinned": "Quitter l'écran de veille",
+    "view_fact": "Anecdote",
+    "view_nutrition": "Graphiques",
+    "next_view_hint": "Afficher la vue suivante"
   },
   "days": {
     "mon": "Lundi",

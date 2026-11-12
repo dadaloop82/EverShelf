@@ -11817,15 +11817,26 @@ body.cooking-mode-active .app-header {
     gap: 16px;
     z-index: 10001;
 }
-/* The way out of a PINNED screensaver (`?screensaver…` / «Anteprima»): that clock does not
-   close on a tap — a wall would lose it at the first accidental touch — so it owns a small
-   control in the corner with the seconds it has left. Top-right: the shortcuts are
-   bottom-right and they must never sit under it. */
-.screensaver-exit-btn {
+/* Controls of a PINNED screensaver (`?screensaver…` / «Anteprima»), top-right: that clock
+   does not close on a tap — a wall would lose it at the first accidental touch — so it owns
+   its own controls, and the versions of the idle screen (a fact, then the nutrition charts)
+   can be scrolled without waiting the five minutes of the automatic rotation.
+   Top-right: the recipe/scan shortcuts are bottom-right and must never sit under them. */
+.screensaver-pin-bar {
     position: absolute;
     top: max(18px, env(safe-area-inset-top, 18px));
     right: 18px;
     z-index: 10002;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    max-width: calc(100vw - 36px);
+}
+
+.screensaver-pin-bar[hidden] { display: none; }
+
+.screensaver-pin-btn {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -11841,8 +11852,7 @@ body.cooking-mode-active .app-header {
     /* No backdrop-filter: a blur over the clock repaints every frame on a low-end wall. */
 }
 
-.screensaver-exit-btn[hidden] { display: none; }
-.screensaver-exit-btn:active { background: rgba(255, 255, 255, 0.2); }
+.screensaver-pin-btn:active { background: rgba(255, 255, 255, 0.2); }
 
 .screensaver-exit-count {
     font-variant-numeric: tabular-nums;

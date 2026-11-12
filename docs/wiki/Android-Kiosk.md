@@ -112,7 +112,10 @@ The clock screen can be shown on demand, and it changes nothing:
 A forced run is a **display, not a card**: taps, keys and scrolls do **not** take it away
 (on a wall the first accidental touch would), it stays for the whole window and then leaves
 by itself. The only way out early is the small **✕ «Esci»** in the top-right corner, which
-also prints the time left. The switch, the timeout and every other setting stay exactly as
+also prints the time left. Next to it, **⏭ «Grafici» / «Curiosità»** scrolls the versions of
+the idle screen — the fact and the nutrition charts normally alternate every five minutes,
+and a preview that cannot scroll them only shows half of the screen; the button names the
+view it will show next. The switch, the timeout and every other setting stay exactly as
 they were, and a running session (a scan, a cooking step, a SHELFY turn) wins over the
 parameter — the same guards the ordinary screensaver obeys. The event is written to the
 client log as `[SCREENSAVER] forced for Ns by ?screensaver` / `preview Ns from Settings`.

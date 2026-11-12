@@ -2458,7 +2458,10 @@
     "scan_long_hint": "Scan product (long-press for shopping mode)",
     "shopping_count": "items",
     "exit": "Exit",
-    "exit_pinned": "Leave the screensaver"
+    "exit_pinned": "Leave the screensaver",
+    "view_fact": "Fact",
+    "view_nutrition": "Charts",
+    "next_view_hint": "Show the next view"
   },
   "days": {
     "mon": "Monday",

@@ -2458,7 +2458,10 @@
     "scan_long_hint": "Scansiona prodotto (tieni premuto per modalità spesa)",
     "shopping_count": "articoli",
     "exit": "Esci",
-    "exit_pinned": "Esci dallo screensaver"
+    "exit_pinned": "Esci dallo screensaver",
+    "view_fact": "Curiosità",
+    "view_nutrition": "Grafici",
+    "next_view_hint": "Mostra la prossima vista"
   },
   "days": {
     "mon": "Lunedì",

@@ -87,11 +87,17 @@ Le informazioni ESSENZIALI (token, ecc) devono essere subito visibili».
   screensaver non deve uscirmi»): a tap, a key or a scroll does **not** take it away — on a wall
   that is the first accidental touch — so it ends with its window, or from the **✕ «Esci»** in
   the corner, which also prints the time left; the ordinary screensaver still closes on any
-  touch. It waits for the splash (an overlay under `#app-preloader` is a clock nobody sees) and
-  a running session (scan, cooking, SHELFY) wins over it. Found on the way:
-  `dismissScreensaver()` re-armed the idle clock unconditionally, so a dismissed screen came
-  back on its own five minutes later on an instance where the switch is OFF — it now re-arms
-  only when `screensaver_enabled` is true.
+  touch. Next to it, **⏭ «Grafici» / «Curiosità»** (`_cycleScreensaverView`) scrolls the two
+  versions of the idle screen — the fact and the nutrition charts rotate every five minutes, and
+  a preview that cannot scroll them shows half the screen; the button names the view it will
+  show, a manual pick is not undone when the data lands (`_ssManual`) and a view with nothing to
+  chart keeps the fact instead of a blank wall. It waits for the splash (an overlay under
+  `#app-preloader` is a clock nobody sees) and a running session (scan, cooking, SHELFY) wins
+  over it. Found on the way: `dismissScreensaver()` re-armed the idle clock unconditionally, so
+  a dismissed screen came back on its own five minutes later on an instance where the switch is
+  OFF — it now re-arms only when `screensaver_enabled` is true. The fade-in of each view no
+  longer depends on `requestAnimationFrame` alone (`_ssNextFrame`: a hidden kiosk screen never
+  paints, and a view stuck at opacity 0 is a blank screen).
 - **Translations**: the 43 new keys exist in all six locales with real translations (the new
   retention card included); `scripts/i18n-audit.py` reports every locale complete and
   `i18n-value-audit.py` has nothing new to report.

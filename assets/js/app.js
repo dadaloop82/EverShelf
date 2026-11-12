@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112zc'; // bump when translations change
+const _I18N_VERSION = '20261112zd'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -21729,7 +21729,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zc';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zd';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21739,7 +21739,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112zc';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112zd';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -43321,16 +43321,46 @@ function _startForcedScreensaver(seconds) {
     return secs;
 }
 
-/** Paint the corner control of a pinned run (hidden for the ordinary screensaver). */
+/** Paint the controls of a pinned run (hidden for the ordinary screensaver). */
 function _syncScreensaverPinUi() {
     const pinned = _screensaverPinned && _screensaverActive;
-    const btn = document.getElementById('screensaver-exit-btn');
-    if (btn) btn.hidden = !pinned;
+    const bar = document.getElementById('screensaver-pin-bar');
+    if (bar) bar.hidden = !pinned;
     const count = document.getElementById('screensaver-exit-count');
-    if (!count) return;
-    if (!pinned) { count.textContent = ''; return; }
-    const left = Math.max(0, Math.round((_screensaverForceUntil - Date.now()) / 1000));
-    count.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    if (count) {
+        if (!pinned) {
+            count.textContent = '';
+        } else {
+            const left = Math.max(0, Math.round((_screensaverForceUntil - Date.now()) / 1000));
+            count.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+        }
+    }
+    // The ⏭ button names the version it is about to show: the fact and the charts alternate
+    // every five minutes, and a preview that cannot scroll them is only half the screen.
+    const cycleLabel = document.getElementById('screensaver-cycle-label');
+    if (cycleLabel) {
+        const nextIsNutrition = (_ssSlot + 1) % 2 === 1;
+        cycleLabel.textContent = t(nextIsNutrition ? 'screensaver.view_nutrition' : 'screensaver.view_fact');
+    }
+}
+
+/**
+ * Forced run only: show the next version of the idle screen NOW (the automatic rotation
+ * spends `SCREENSAVER_FACT_DURATION` on each), and restart the rotation from the chosen
+ * view so it keeps its full time. A manual pick survives `_startScreensaverRotation()`,
+ * which would otherwise pull the screen back to the first slot when the data lands.
+ */
+function _cycleScreensaverView() {
+    if (!_screensaverActive || !_screensaverPinned) return;
+    _ssManual = true;
+    _ssSlot = (_ssSlot + 1) % 4;
+    _showScreensaverSlot(_ssSlot);
+    clearInterval(_ssRotationTimer);
+    _screensaverFactInterval = _ssRotationTimer = setInterval(() => {
+        _ssSlot = (_ssSlot + 1) % 4;
+        _showScreensaverSlot(_ssSlot);
+    }, SCREENSAVER_FACT_DURATION);
+    _syncScreensaverPinUi();
 }
 
 /** The ✕ of a pinned run: the one deliberate way out before the window ends. */
@@ -43515,8 +43545,9 @@ function dismissScreensaver(targetPage) {
     _screensaverForceTimer = null;
     _screensaverPinned = false;
     _screensaverForceUntil = 0;
-    const exitBtn = document.getElementById('screensaver-exit-btn');
-    if (exitBtn) exitBtn.hidden = true;
+    _ssManual = false;
+    const pinBar = document.getElementById('screensaver-pin-bar');
+    if (pinBar) pinBar.hidden = true;
     clearInterval(_screensaverClockInterval);
     clearInterval(_screensaverFactInterval);
     clearInterval(_ssRotationTimer);
@@ -43546,6 +43577,8 @@ function dismissScreensaver(targetPage) {
 // Handle for screensaver rotation timer
 let _ssRotationTimer = null;
 let _ssSlot = 0; // 0=fact, 1=nutrition, 2=fact, 3=nutrition …
+/** The household scrolled the versions by hand (forced run): the slot must not be reset. */
+let _ssManual = false;
 
 /**
  * Start the screensaver content rotation:
@@ -43553,12 +43586,31 @@ let _ssSlot = 0; // 0=fact, 1=nutrition, 2=fact, 3=nutrition …
  */
 function _startScreensaverRotation() {
     clearInterval(_ssRotationTimer);
-    _ssSlot = 0;
-    _showScreensaverSlot(0);
+    // A manual pick (the ⏭ button of a forced run) wins over the default first slot: the data
+    // arrives a moment after the screen appears, and pulling it back to slot 0 would undo the tap.
+    if (!_ssManual) _ssSlot = 0;
+    _showScreensaverSlot(_ssSlot);
     _screensaverFactInterval = _ssRotationTimer = setInterval(() => {
         _ssSlot = (_ssSlot + 1) % 4; // 4 steps: fact, nutr, fact, nutr (with repeats for more facts)
         _showScreensaverSlot(_ssSlot);
     }, SCREENSAVER_FACT_DURATION);
+}
+
+/**
+ * Run `fn` after the next paint, with a timeout as the safety net: a hidden tab (the wall's
+ * screen off) and a headless renderer never call `requestAnimationFrame`, and a screensaver
+ * view that is displayed but stays at opacity 0 is a blank screen — the content must appear
+ * even when nothing is painting.
+ */
+function _ssNextFrame(fn) {
+    let done = false;
+    const run = () => {
+        if (done) return;
+        done = true;
+        try { fn(); } catch (e) { /* cosmetic only */ }
+    };
+    requestAnimationFrame(run);
+    setTimeout(run, 150);
 }
 
 function _showScreensaverSlot(slot) {
@@ -43575,13 +43627,21 @@ function _showScreensaverSlot(slot) {
         if (showNutr) {
             factEl.style.display = 'none';
             nutrEl.style.display = 'flex';
-            _renderScreensaverNutrition();
-            requestAnimationFrame(() => { nutrEl.style.opacity = '1'; });
+            // Nothing to chart (empty pantry, data not in yet): the fact stays. A blank wall
+            // for five minutes — and a ⏭ that scrolls into an empty screen — is not a version.
+            if (_renderScreensaverNutrition() === false) {
+                nutrEl.style.display = 'none';
+                factEl.style.display = '';
+                factEl.textContent = generateScreensaverFact();
+                _ssNextFrame(() => factEl.classList.add('visible'));
+                return;
+            }
+            _ssNextFrame(() => { nutrEl.style.opacity = '1'; });
         } else {
             nutrEl.style.display = 'none';
             factEl.style.display = '';
             factEl.textContent = generateScreensaverFact();
-            requestAnimationFrame(() => { factEl.classList.add('visible'); });
+            _ssNextFrame(() => { factEl.classList.add('visible'); });
         }
     }, 1600);
 }
@@ -43589,14 +43649,15 @@ function _showScreensaverSlot(slot) {
 /**
  * Render animated 3D-style pie charts inside the screensaver.
  * Shows: category distribution, health score, freshness.
+ * @returns {boolean} false when there is nothing to draw (the caller keeps the fact visible)
  */
 function _renderScreensaverNutrition() {
     const el = document.getElementById('screensaver-nutrition');
-    if (!el) return;
+    if (!el) return false;
     // Use cached nutrition data from dashboard if available, else build from screensaver inventory
     const inv = (_screensaverData && _screensaverData.inventory) || [];
     const data = (_nutriData && _nutriData.slices) ? _nutriData : _buildNutritionData(inv);
-    if (!data) { el.style.display = 'none'; return; }
+    if (!data) { el.style.display = 'none'; return false; }
 
     const { slices, total, healthScore, varietyScore, freshnessScore, fresh_pct } = data;
     const top4 = slices.slice(0, 4);
@@ -43647,6 +43708,7 @@ function _renderScreensaverNutrition() {
             setTimeout(() => { ring.style.setProperty('--val', val); ring.classList.add('ss-donut-ready'); }, 200);
         });
     });
+    return true;
 }
 
 function _ssDonut(label, val, color) {

@@ -2458,7 +2458,10 @@
     "scan_long_hint": "Escanear producto (mantener pulsado para modo compras)",
     "shopping_count": "artículos",
     "exit": "Salir",
-    "exit_pinned": "Salir del salvapantallas"
+    "exit_pinned": "Salir del salvapantallas",
+    "view_fact": "Curiosidad",
+    "view_nutrition": "Gráficos",
+    "next_view_hint": "Mostrar la siguiente vista"
   },
   "days": {
     "mon": "Lunes",

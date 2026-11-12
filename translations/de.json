@@ -2461,7 +2461,10 @@
     "scan_long_hint": "Produkt scannen (lange drücken für Einkaufsmodus)",
     "shopping_count": "Artikel",
     "exit": "Beenden",
-    "exit_pinned": "Screensaver beenden"
+    "exit_pinned": "Screensaver beenden",
+    "view_fact": "Fakt",
+    "view_nutrition": "Diagramme",
+    "next_view_hint": "Nächste Ansicht zeigen"
   },
   "days": {
     "mon": "Montag",
