@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112za'; // bump when translations change
+const _I18N_VERSION = '20261112zb'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -21729,7 +21729,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112za';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zb';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21739,7 +21739,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112za';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112zb';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -43258,6 +43258,89 @@ function _screensaverTimeoutMs() {
     return (isNaN(mins) || mins < 1 ? 5 : mins) * 60 * 1000;
 }
 
+/**
+ * A screensaver you can ASK FOR: `?screensaver` (or `?screensaver=90`) shows the idle
+ * screen immediately for that many seconds — 60 by default — even when the household
+ * keeps the switch off, and dismisses it by itself without touching a setting.
+ *
+ * Why a parameter and not a switch: judging the clock screen (a demo, a wall, "how does
+ * it look before I leave it on all night?") must not require turning the screensaver on
+ * and then waiting out the inactivity window, and it must not leave a change behind. It
+ * lasts for that navigation only: the next load without the parameter is exactly the
+ * instance the household configured. A tap still dismisses it early, and a running
+ * session (a scan, a cooking step, a voice turn) wins over the parameter — the same
+ * guards the ordinary screensaver obeys.
+ */
+const SCREENSAVER_FORCE_DEFAULT_SEC = 60;
+const SCREENSAVER_FORCE_MAX_SEC = 6 * 60 * 60;
+let _screensaverForceTimer = null;
+
+/**
+ * Seconds asked by the URL (`0` = the parameter is absent).
+ * @param {string} [search] location.search by default (a parameter makes it testable)
+ */
+function _screensaverForceSeconds(search) {
+    let raw;
+    try {
+        raw = new URLSearchParams(String(search === undefined ? location.search : search)).get('screensaver');
+    } catch (_) {
+        return 0;
+    }
+    if (raw === null) return 0;
+    const n = parseInt(String(raw).trim(), 10);
+    if (!Number.isFinite(n) || n <= 0) return SCREENSAVER_FORCE_DEFAULT_SEC;
+    return Math.min(n, SCREENSAVER_FORCE_MAX_SEC);
+}
+
+/**
+ * Preview the idle screen for N seconds, from the Settings card. Same path as
+ * `?screensaver=N` and the same promise: it shows, then leaves, and no setting is
+ * written. `?screensaver` is the way to force it from an address (a wall, a demo).
+ * @param {number} [seconds]
+ */
+function _previewScreensaver(seconds) {
+    const secs = Math.min(Math.max(parseInt(seconds, 10) || 30, 5), 600);
+    if (_screensaverActive) return;
+    if (_screensaverBlockedPage()) {
+        // A scan or a cooking step is on screen: covering it with a clock is not a preview.
+        showToast(t('settings.screensaver.preview_blocked'), 'info');
+        return;
+    }
+    try { remoteLog('SCREENSAVER', `preview ${secs}s from Settings`); } catch (_) {}
+    activateScreensaver();
+    clearTimeout(_screensaverForceTimer);
+    _screensaverForceTimer = setTimeout(() => {
+        _screensaverForceTimer = null;
+        if (_screensaverActive) dismissScreensaver();
+    }, secs * 1000);
+}
+
+/**
+ * Show the forced screensaver once the splash is gone — an overlay painted under
+ * `#app-preloader` is a clock nobody sees — and close it when the window ends.
+ */
+function _maybeForceScreensaver() {
+    const seconds = _screensaverForceSeconds();
+    if (!seconds) return;
+    let tries = 0;
+    const attempt = () => {
+        if (document.getElementById('app-preloader')) {
+            if (++tries > 60) return;      // 15 s and the splash is still there: give up
+            setTimeout(attempt, 250);
+            return;
+        }
+        if (_screensaverBlockedPage()) return;
+        try { remoteLog('SCREENSAVER', `forced for ${seconds}s by ?screensaver`); } catch (_) {}
+        activateScreensaver();
+        clearTimeout(_screensaverForceTimer);
+        _screensaverForceTimer = setTimeout(() => {
+            _screensaverForceTimer = null;
+            if (_screensaverActive) dismissScreensaver();
+        }, seconds * 1000);
+    };
+    attempt();
+}
+
 function _screensaverBlockedPage() {
     // The idle screen is allowed almost everywhere: it is an overlay, a tap dismisses it.
     // It was forbidden on the shopping page — the page this household lives on — so it
@@ -43386,6 +43469,10 @@ function updateScreensaverMealPlan() {
 
 function dismissScreensaver(targetPage) {
     if (!_screensaverActive) return;
+    // A forced run (`?screensaver=…`) owns a dismissal timer: once the screen is gone the
+    // timer must not fire into the NEXT screensaver.
+    clearTimeout(_screensaverForceTimer);
+    _screensaverForceTimer = null;
     clearInterval(_screensaverClockInterval);
     clearInterval(_screensaverFactInterval);
     clearInterval(_ssRotationTimer);
@@ -43404,7 +43491,10 @@ function dismissScreensaver(targetPage) {
         } else {
             refreshCurrentPage();
         }
-        resetInactivityTimer();
+        // Only when the household keeps it on: re-arming the clock unconditionally made a
+        // dismissed screen come back on its own five minutes later on an instance where
+        // the switch is OFF (the forced `?screensaver` run is what made that reachable).
+        if (getSettings().screensaver_enabled) resetInactivityTimer();
         _resetAutoHomeTimer();
     }, 400);
 }
@@ -46336,6 +46426,9 @@ async function _initApp() {
     _maybeShowLocationAltroNotice(_serverSettings);
     initSpesaMode();
     initScreensaverShortcuts();
+    // `?screensaver` / `?screensaver=90`: show the idle screen now, for that many seconds,
+    // without changing the setting (see `_maybeForceScreensaver`). It waits for the splash.
+    _maybeForceScreensaver();
     startBgShoppingRefresh();
     startHeartbeat();
     preloadBarcodeEngines();

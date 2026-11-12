@@ -1713,7 +1713,10 @@
       "timeout_15": "15 分钟",
       "timeout_30": "30 分钟",
       "timeout_60": "1 小时",
-      "start_after": "⏱️ 启动等待时间"
+      "start_after": "⏱️ 启动等待时间",
+      "preview_btn": "▶️ 预览 30 秒",
+      "preview_hint": "立即显示 30 秒，不修改任何设置：轻触即可关闭。在地址中可以用 <code>?screensaver=90</code> 强制任意时长。",
+      "preview_blocked": "请先结束扫描或烹饪步骤，然后再试。"
     },
     "scale": {
       "title": "⚖️ 智能秤",

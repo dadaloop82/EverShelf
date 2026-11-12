@@ -1713,7 +1713,10 @@
       "timeout_15": "15 minuti",
       "timeout_30": "30 minuti",
       "timeout_60": "1 ora",
-      "start_after": "⏱️ Avvia dopo"
+      "start_after": "⏱️ Avvia dopo",
+      "preview_btn": "▶️ Anteprima 30 s",
+      "preview_hint": "Lo mostra subito per 30 secondi, senza cambiare l'impostazione: un tocco lo chiude. Con un indirizzo puoi forzarlo per il tempo che vuoi: <code>?screensaver=90</code>.",
+      "preview_blocked": "Chiudi prima la scansione o la cottura, poi riprova."
     },
     "scale": {
       "title": "⚖️ Bilancia Smart",

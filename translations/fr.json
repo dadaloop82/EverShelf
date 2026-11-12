@@ -1608,7 +1608,10 @@
       "timeout_15": "15 minutes",
       "timeout_30": "30 minutes",
       "timeout_60": "1 heure",
-      "start_after": "⏱️ Démarrer après"
+      "start_after": "⏱️ Démarrer après",
+      "preview_btn": "▶️ Aperçu de 30 s",
+      "preview_hint": "L'affiche tout de suite pendant 30 secondes sans modifier le réglage : un toucher le ferme. Depuis une adresse, vous pouvez le forcer aussi longtemps que vous voulez : <code>?screensaver=90</code>.",
+      "preview_blocked": "Terminez d'abord le scan ou l'étape de cuisson, puis réessayez."
     },
     "scale": {
       "title": "⚖️ Balance connectée",

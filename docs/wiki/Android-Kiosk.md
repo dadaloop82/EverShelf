@@ -100,6 +100,21 @@ Four toggles with short explanations, pushed to the EverShelf server so every de
 the same choices: **screensaver** (clock overlay after inactivity), **price tracking**,
 **meal-plan** and **zero-waste tips**.
 
+### Judging the screensaver without leaving it on
+
+The clock screen can be shown on demand, and it changes nothing:
+
+- `?screensaver` (or `?...&screensaver=1`) — show it right now for **60 seconds**;
+- `?screensaver=90` — for 90 seconds (capped at 6 hours);
+- **Settings → Generali → Salvaschermo → «▶️ Anteprima 30 s»** — the same thing from the
+  touch screen, so nobody has to type a URL on the wall.
+
+It appears after the splash, a tap closes it early, and when the window ends it goes away
+by itself: the switch, the timeout and every other setting stay exactly as they were. A
+running session (a scan, a cooking step, a SHELFY turn) wins over the parameter — the same
+guards the ordinary screensaver obeys — and the event is written to the client log as
+`[SCREENSAVER] forced for Ns by ?screensaver`.
+
 ### Steps 6–7 — Gemini AI and Bring! (optional)
 
 Both can be skipped and configured later in the web app; the wizard writes what you enter
