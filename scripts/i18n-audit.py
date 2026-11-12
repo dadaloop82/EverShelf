@@ -34,6 +34,7 @@ SRC_JS = [
     ROOT / 'assets/js/audit.js',
     ROOT / 'assets/js/receipt.js',
     ROOT / 'assets/js/settings_search.js',
+    ROOT / 'assets/js/screensaver.js',
     *sorted((ROOT / 'assets/js/core').glob('*.js')),
 ]
 SRC_HTML = [ROOT / 'index.html']

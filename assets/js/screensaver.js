@@ -178,9 +178,16 @@ function _ssSlotIcon(slot) {
 }
 
 function _ssSlotLabel(slot) {
-    const key = `meal_types.${slot}`;
-    const label = t(key);
-    return (label && label !== key) ? label : slot;
+    // Four literal translation calls on purpose: one key built from a variable is invisible
+    // to scripts/i18n-audit.py, so a missing key would only show up on the wall.
+    const labels = {
+        colazione: t('meal_types.colazione'),
+        pranzo: t('meal_types.pranzo'),
+        merenda: t('meal_types.merenda'),
+        cena: t('meal_types.cena'),
+    };
+    const label = labels[slot];
+    return (label && label !== `meal_types.${slot}`) ? label : slot;
 }
 
 /** "15 min" from prep + cook, when the recipe carries them ("15 min", "20"…). */
@@ -633,7 +640,21 @@ function _ssPrevView() {
     _ssRestartRotation();
 }
 
-/** The label of the view the ⏭ control will show (the pin bar of a forced run). */
+/**
+ * The label of the view the ⏭ control will show (the pin bar of a forced run).
+ * Four literal translation calls, not one key built from a variable: the audit only sees
+ * the former, and a key it cannot see is a key that can go missing.
+ */
+function _ssViewLabel(id) {
+    switch (id) {
+        case 'meal': return t('screensaver.view_meal');
+        case 'alerts': return t('screensaver.view_alerts');
+        case 'nutrition': return t('screensaver.view_nutrition');
+        case 'fact': return t('screensaver.view_fact');
+        default: return '';
+    }
+}
+
 function _ssNextViewLabel() {
     const cfg = _ssSettings();
     const order = cfg.views.length ? cfg.views : SS_VIEWS.slice();
@@ -641,9 +662,9 @@ function _ssNextViewLabel() {
     for (let step = 1; step <= order.length; step++) {
         const id = order[((from + step) % order.length + order.length) % order.length];
         if (id === _ssView) continue;
-        return t(`screensaver.view_${id}`);
+        return _ssViewLabel(id);
     }
-    return t(`screensaver.view_${order[0]}`);
+    return _ssViewLabel(order[0]);
 }
 
 function _ssRestartRotation() {

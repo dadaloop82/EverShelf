@@ -50,6 +50,13 @@ became a dashboard that reads the household's own database.
   pending clock on entry and re-arms it in `closeCookingMode()`. Both cameras are stopped while
   the screen is up (`stopScanner()`, `_auditScanStop()` — a stream behind an opaque overlay is a
   LED and a heater for hours) and the scan page gets its reader back on unlock (`resumeScanner`).
+- **Text: no hardcoded string, and the audit can see all of it.** Every label of the idle
+  screen is a literal `t('…')` call (four explicit keys per view instead of one built from a
+  variable) and `assets/js/screensaver.js` was added to `SRC_JS` in
+  `scripts/i18n-audit.py` — the new file was outside the guard, so its keys were unchecked.
+  The audit immediately earned it: two comments that contained `t('…')` were read as a real
+  key and reported missing in all six locales. The pin bar's fallback label («Grafici») was
+  the last hardcoded word on the overlay and is now painted by the engine.
 - Validated in headless Chromium with a 700 ms timeout and stubbed data: it started on the
   shopping page, on the scan page and with a SHELFY turn open, did **not** start in cooking mode,
   and started again once the recipe was closed (`errors: []`).
