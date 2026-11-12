@@ -515,6 +515,16 @@ function _ssWeatherIcon(bucket) {
 
 /* ── head, footer, paint ────────────────────────────────────────────────────── */
 
+/**
+ * The name of the place, short enough for a pill: «Bolzano, Trentino-Alto Adige, Italia» is a
+ * mailing address, not a label — the first part is the city the household thinks in.
+ */
+function _ssShortCity(city) {
+    const label = String(city || '').trim();
+    if (label.length <= 18) return label;
+    return (label.split(',')[0] || '').trim() || label;
+}
+
 /** The clock, the date and the context pill (weather and/or the plan of the moment). */
 function _ssPaintHead() {
     const clock = document.getElementById('screensaver-clock');
@@ -532,7 +542,7 @@ function _ssPaintHead() {
     if (w && w.temp_c != null) {
         parts.push(`<span>${_ssWeatherIcon(w.bucket)} ${escapeHtml(t('screensaver.context_weather', {
             temp: Math.round(Number(w.temp_c)),
-            city: w.city || '',
+            city: _ssShortCity(w.city),
         }))}</span>`);
     }
     const slot = _ssMealSlot();

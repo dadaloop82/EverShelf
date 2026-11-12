@@ -564,6 +564,9 @@ runtime/binary files — if a task truly needs one, ask first.
   the screen is up instead of dismissing it. **It starts ALWAYS after the timeout, on any page and with any sheet open — the ONE exception is cooking mode** (`_screensaverBlockedPage`), which clears the pending clock on entry and re-arms it when the recipe closes; the cameras are stopped while it is up. Settings under Aspetto: `SCREENSAVER_VIEWS` +
   `SCREENSAVER_INTERVAL`. `_ssNextFrame()` keeps a `setTimeout` fallback: a hidden wall never
   calls `requestAnimationFrame`, and a card stuck at opacity 0 is a blank screen.
+  **Portrait has its own scale** (`@media (orientation: portrait)` in `style.css`): the sizes are tuned on the
+  width of a landscape screen, so upright the clock, the type, the rows and the rings step up and the card
+  becomes a full-width panel with a `min-height` — never a slip of paper in a black field.
 - **Tablet/kiosk CSS is opt-in**: `assets/css/tablet.css` activates on `html.is-kiosk`
   / `html.is-touch-tablet` (set by `_markDeviceChrome()`), never on `min-width` alone —
   a desktop monitor keeps the base styles.

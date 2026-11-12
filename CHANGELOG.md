@@ -59,6 +59,19 @@ became a dashboard that reads the household's own database.
   pending clock on entry and re-arms it in `closeCookingMode()`. Both cameras are stopped while
   the screen is up (`stopScanner()`, `_auditScanStop()` — a stream behind an opaque overlay is a
   LED and a heater for hours) and the scan page gets its reader back on unlock (`resumeScanner`).
+- **Portrait is its own layout, not a squeezed landscape** («quando lo schermo del tablet è
+  portrait le scritte sono troppo piccole e c'è moltissimo spazio vuoto inutilizzato»): every
+  size of the screen was tuned on the WIDTH of a landscape monitor, so standing upright the same
+  `vw` gave a tiny clock and a card floating in a black field. `@media (orientation: portrait)`
+  now reads the narrow side instead — clock `clamp(4.4rem, 17vw, 9rem)` (measured **123 px** on
+  a 724 px tablet instead of 79), title `clamp(1.7rem, 5.2vw, 2.6rem)`, chips, rows, rings and
+  the vitals all a step up — and the card becomes a **PANEL**: full width, `min-height:
+  clamp(240px, 40vh, 520px)`, its blocks centred, the rows of «Da consumare» sharing that height
+  (`space-evenly`) instead of bunching at the top. Measured on the same tablet: the card is 632 px
+  wide and 39 % of the height (was ~24 %), no horizontal overflow. The context pill became an
+  `inline-block` (as a flex row its `·` separator fell onto its own column when the text wrapped)
+  and the place name is shortened to the city it starts with — «Bolzano, Trentino-Alto Adige,
+  Italia» is a mailing address, not a label. Landscape and the ≤640 px phone rules are untouched.
 - **Text: no hardcoded string, and the audit can see all of it.** Every label of the idle
   screen is a literal `t('…')` call (four explicit keys per view instead of one built from a
   variable) and `assets/js/screensaver.js` was added to `SRC_JS` in

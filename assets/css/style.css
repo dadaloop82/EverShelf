@@ -12076,7 +12076,69 @@ body.cooking-mode-active .app-header {
     .ss-card { padding: 14px 14px 16px; }
     .ss-nutr { justify-content: center; }
     .ss-rows { gap: 6px; }
-    .ss-foot { gap: 8px 14px; font-size: 0.82rem; }
+    .ss-foot { gap: 8px 14px; }
+}
+
+/* ── Portrait (a tablet standing on the counter) ─────────────────────────────
+   Every size above is tuned on the WIDTH of a landscape screen; standing upright the same
+   `vw` is a third of it while the height is all free, so the clock looked tiny and the card
+   floated in a black field. Here the scale follows the narrow side instead: a bigger clock,
+   a full-width card and type that can be read from a metre away. The composition stays the
+   three bands of the landscape one (head / card / vitals), it is the sizes that change. */
+@media (orientation: portrait) {
+    .ss-stage {
+        width: 100%;
+        max-width: 760px;
+        padding-top: clamp(16px, 3.2vh, 40px);
+        gap: clamp(16px, 2.6vh, 34px);
+    }
+    .ss-clock { font-size: clamp(4.4rem, 17vw, 9rem); }
+    .ss-date { font-size: clamp(1.05rem, 3.2vw, 1.6rem); margin-top: 10px; }
+    .ss-context {
+        /* A flex row broke the separator onto its own column when the text wrapped:
+           inline-block flows the spans like a sentence. */
+        display: inline-block;
+        max-width: 100%;
+        font-size: clamp(0.95rem, 2.3vw, 1.2rem);
+        padding: 9px 20px;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.35;
+    }
+    /* The card is a PANEL, not a slip of paper in a black field: it takes the height the band
+       gives it (up to a limit, so a short card never looks stretched) and its blocks are
+       centred inside. That is what fills the portrait screen instead of leaving a void. */
+    .ss-card {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: clamp(240px, 40vh, 520px);
+        padding: clamp(20px, 3.2vw, 32px) clamp(18px, 3.4vw, 32px);
+        border-radius: 24px;
+    }
+    .ss-card > * { flex: 0 0 auto; }
+    .ss-eyebrow { font-size: clamp(0.9rem, 2vw, 1.05rem); gap: 10px; }
+    .ss-title { font-size: clamp(1.7rem, 5.2vw, 2.6rem); margin-top: 10px; }
+    .ss-sub { font-size: clamp(1.05rem, 2.7vw, 1.3rem); }
+    .ss-meta { gap: 10px; margin-top: 16px; }
+    .ss-chip { font-size: clamp(0.95rem, 2.3vw, 1.15rem); padding: 8px 14px; }
+    .ss-action { font-size: clamp(1.05rem, 2.5vw, 1.25rem); padding: 14px 26px; margin-top: 20px; align-self: flex-start; }
+    .ss-row { padding: 14px 16px; gap: 14px; }
+    .ss-row-icon { font-size: 1.5rem; }
+    .ss-row-name { font-size: clamp(1.1rem, 2.9vw, 1.4rem); }
+    .ss-row-meta { font-size: clamp(0.95rem, 2.2vw, 1.1rem); }
+    .ss-row-badge { font-size: clamp(0.9rem, 2.1vw, 1.1rem); padding: 6px 12px; }
+    /* The rows share the panel's height: three lines spread over a tall card look like a
+       dashboard, three lines bunched at the top look like a hole underneath. */
+    .ss-rows { gap: 10px; margin-top: 18px; flex: 1 1 auto; justify-content: space-evenly; }
+    .ss-nutr { gap: clamp(18px, 4vw, 34px); }
+    .ss-pie { width: clamp(150px, 34vw, 220px); height: clamp(150px, 34vw, 220px); }
+    .ss-ring { width: clamp(78px, 16vw, 108px); height: clamp(78px, 16vw, 108px); font-size: clamp(1rem, 2.6vw, 1.25rem); }
+    .ss-ring-label { font-size: clamp(0.82rem, 2vw, 1rem); }
+    .ss-leg { font-size: clamp(0.95rem, 2.2vw, 1.1rem); }
+    .ss-foot { font-size: clamp(0.95rem, 2.3vw, 1.2rem); gap: 12px 20px; }
+    .ss-kpi { gap: 9px; }
 }
 
 /* Settings: the four view switches of the idle screen, two by two */
