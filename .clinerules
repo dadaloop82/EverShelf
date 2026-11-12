@@ -88,7 +88,12 @@ runtime/binary files — if a task truly needs one, ask first.
   dissolve, so a list never changes shape; all cards
   are the same height (name clamped to two lines, meta to one, 62 px floor on the top
   block — skipped on the touch-tablet/kiosk band, where the action strip stays on the right
-  at full width). The rules live in `assets/css/surfaces.css` next to `.product-thumb`, and
+  at full width **as long as the card has room**: the band's text block carries a floor
+  (`.inv-card-top` 15rem, `.alert-item-info` 11rem) and both containers `flex-wrap: wrap`, so a
+  narrow card drops the strip to a second line instead of squeezing the name into «A u r e .»
+  one letter per line — and below 640 px a touch window is a PHONE, not a tablet: `mobile.css`
+  stacks the row like the phone card. Never a row whose article name is unreadable). The rules
+  live in `assets/css/surfaces.css` next to `.product-thumb`, and
   Home and pantry share **one list grammar**: `.urgency-hub` / `.alert-section` are plain
   sections, every `.alert-item` is a card with the pantry's chrome — and the chrome is
   **tokens**: `--es-radius-card` / `--es-shadow-card` (18 px, what `elegant.css` gives
@@ -204,6 +209,67 @@ runtime/binary files — if a task truly needs one, ask first.
   spoiled one (`_bannerPriority` 1400+). Recommending the bin on 126 ml of white wine is the
   opposite of what a pantry is for. The same table carries each family's `icon` (🍷/🍺/🥃) →
   `pao.icon` / the pantry's `family_icon` / `_productFamilyIcon()`: a wine is never 🥤.
+- **A medicine may stand in the alert strip, and it is never a food surface.** Its clock is the
+  PAO printed on the pack (`med_pao_days`, which `_openedPao()` asks FIRST — the food table
+  would lend a vial 20-45 days; `0` on tablets raises no clock at all), the card wears
+  `is-medical` (an indigo tint over `var(--surface-bg)`, light + dark) while the rail and the
+  title keep saying how urgent it is, the limit is ONE number (`medical.banner_opened_limit`,
+  «da usare entro 1 gg dall'apertura», never the «1-1 gg» of a monodose vial), and the strip has
+  no 🍳 and the ⋮ no «✓ Segna come ancora buono»: you do not cook a drug, and how long an open
+  pack stays usable is printed on the box. **A single-dose form has no period after opening**
+  (`data/medical_pao.json` → 0 for `fiala` / `monodose` / `flaconcino` / `siringa preriempita`):
+  the container is used in one go and the pantry's row is the BOX, so a 6-dose pack of glycerol
+  («6 CONTENITORI MONODOSE», 4 pz left, printed date 2028) read «da usare entro 1 gg
+  dall'apertura» and a sealed box was declared expired; `migration_med_pao_single_dose_v1`
+  re-derives the stored `1` (only that exact value, and only where the form now says 0).
+- **A genre is never a CLASS.** The title prefix comes from the dictionary and, only when that
+  misses, from one AI word — and an AI word must be a genre: «Integratore alimentare»,
+  «Parafarmaco», «Dispositivo medico» are **classes** and live in the vocab's
+  `umbrella_labels` (data), which `productKindIsPlausibleGenre()` refuses (exact and as the head
+  of a longer phrase) and `productKindStripUmbrellaCategoryPrefix()` strips. The AI's answer is
+  validated **before** it is cached: it used to be stored, so the signature cache replayed
+  «Integratore alimentare» for every supplement and titled a box of glycerol «Integratore
+  alimentare glicerolo CARLO ERBA» (`products.kind` = the class).
+  `migration_strip_kind_class_prefix_v1` healed the titles already written (3 on the field
+  install), and `data/product_kind_cache.json` had the poisoned entries removed.
+- **A medicine is not a second app.** Its edit sheet wears the food sheet's shell
+  (`edit-inventory-modal`: same header with the photo, `.edit-section-label` sections, the
+  stepper + unit select, `.edit-form-actions` Annulla/Salva) — the `is-medical-edit` compaction
+  went with the old markup — and its stocktake card («uno alla volta») carries the **bold AIC
+  and then the CATEGORY** (`_auditMedCategoryOrIngredientHtml`: «🔖 A002039055 · Primo
+  soccorso»), never the AIFA active ingredient («CLORTETRACICLINA CLORIDRATO»): at the shelf the
+  household reads what the box is FOR, and a hand-added box with no category falls back to the
+  ingredient. **The unit is editable** (pz / g / ml; `conf` is not offered — the pack is
+  `#edit-med-pack`) and sits right under «Confezione», beside the stepper; g and ml carry the
+  same **`~`** the row badge shows («~g» / «~ml»), because a medicine is not weighed to the
+  gram. **The PAO table is multilingual by DATA** (`data/medical_pao.json` v3): every rule's
+  `match` is a `lang => [words]` map and `medicalPaoRules()` flattens **all six languages
+  together**, because the NAME comes from the catalogue (AIFA is Italian, openFDA is English)
+  while the UI language may be another one; matching is **whole-word and accent-folded**
+  (`medicalPaoWordMatches()` / `medicalPaoFoldText()`: «comprime» finds «comprimé», «gel» no
+  longer fires on «Angelini») and a `*` marks a compound (`*saft` → «Hustensaft», `*salbe`,
+  `*tabletten`), which is how German writes its forms. **«Aperta da» answers
+  with what was chosen**: `medical.opened_expiry_days` / `opened_no_pao_days` («Aperto da 14 gg:
+  scade il …»), because the toast said «Aperto oggi» whatever the answer was.
+- **A medicine row gives up its images and symbols before its name.** Below 768 px the cabinet's
+  rows drop the drawn form mark (the row's «image»), the badge glyphs (🕓/🛡️/⚠️ — the words stay:
+  «8gg», «Scade fra 12gg») and the *empty* ☆, and `--row-photo-w: 0` hands the strip's width back
+  to the text: the name goes from 260 to 311 px at 393 (measured), the actions (✓ Usa, ⋮) stay,
+  and a favourite medicine keeps its ★ (state, not decoration). The favourite control then lives
+  in the medicine edit sheet's header (`_medToggleFavFromSheet`), so a phone never loses it.
+  Food rows are untouched: it is `@media (max-width: 767px)` + `.is-medical-row`, in
+  `mobile.css`.
+  Food keeps its two thresholds, printed once when a
+  table declares the same day twice (`dashboard.banner_opened_limit_flat`).
+- **The opening window is editable, and it learns from the household.** The pantry edit sheet
+  carries «consigliato entro \_[warn] → [critical] gg\_» (`pao_get` / `pao_save` / `pao_reset`,
+  `api/lib/pao_overrides.php`, table `pao_observations`): one row per product × family × place,
+  and the value the pantry then uses is the **AVERAGE** of the corrections for that family in
+  that place (`paoAverageMap()` → `openedShelfLifeThresholds()`), never the last tap — a single
+  correction nudges the category instead of rewriting it. No observation → the data table
+  (`data/opened_shelf_life.json`) answers exactly as before; «↺ Riporta ai valori consigliati»
+  clears the family. The hint says where the number came from («suggerito dall'app» vs «media
+  delle tue N correzioni»), because a value nobody can explain is a value nobody trusts.
 - **A `conf` row has two units.** A pack sold in g/ml (`_packMeasure()` from
   `default_quantity` + `package_unit`) is consumed by the pack **and** by its own
   measure: the product sheet carries the `Confezioni | ml` switch

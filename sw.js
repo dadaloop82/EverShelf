@@ -6,7 +6,7 @@
  * pin a stale app.js indefinitely. The cache below is only a safety net when the
  * server cannot be reached.
  */
-const CACHE = 'evershelf-v1.31.28n';
+const CACHE = 'evershelf-v1.31.28m';
 const BASE = (() => {
     const p = self.location.pathname || '/';
     return p.endsWith('sw.js') ? p.slice(0, -'sw.js'.length) : '/';
@@ -70,7 +70,14 @@ const SHELL = [
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE).then((cache) => cache.addAll(SHELL).catch(() => {}))
+        // `cache: 'reload'` on purpose: the shell is fetched from the NETWORK, never
+        // revalidated. `.htaccess` keeps JS/CSS/index on `no-cache`, so a conditional
+        // request answers `304 Not Modified` — which `cache.addAll()` cannot store (it accepts
+        // 200s only), and the offline shell would silently come out half empty after a
+        // release, exactly when somebody is offline and needs it.
+        caches.open(CACHE).then((cache) => cache.addAll(
+            SHELL.map((url) => new Request(url, { cache: 'reload' }))
+        ).catch(() => {}))
     );
     self.skipWaiting();
 });

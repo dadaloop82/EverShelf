@@ -20,6 +20,19 @@ RewriteEngine On
 # /docker/apache-evershelf.conf describe the server setup for free otherwise.
 RewriteRule ^docker/ - [F,L]
 
+# ── Never take the server down with a file that is being rewritten ──────────
+# Apache memory-maps a file to deliver it, and gzip-compresses app.js (2.1 MB: mod_deflate
+# handles text/javascript), which makes the response CHUNKED. When the file is truncated or
+# replaced WHILE it is being served — an editor saving it, a `git checkout`, a
+# `scripts/bump-version.sh` — the mapped page stops being backed and the CHILD DIES with
+# `Bus error (7)`: every response that child was carrying is cut mid-body, and Chrome says
+# exactly `net::ERR_INCOMPLETE_CHUNKED_ENCODING 200 (OK)`. Measured on a real deployment:
+# with mmap ON a truncated 40 MB .js killed the child (AH00052 Bus error); with `EnableMMAP
+# off` the same cut only logs `deflate: failed reading from HEAP bucket` and the child lives
+# (the one client loses that response, nobody else does). sendfile stays ON: it is safe and
+# fast, only the mapping goes away.
+EnableMMAP off
+
 # ── Security headers ────────────────────────────────────────────────────────
 # A full CSP is not possible yet (inline handlers, shipped third-party bundles),
 # but these are free and close framing / MIME-sniffing / referrer leaks.
@@ -53,9 +66,21 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^api/(.*)$ api/index.php?action=$1&%{QUERY_STRING} [L,QSA]
 
-# Prevent caching of JS/CSS so kiosk always gets fresh files
+# Keep JS/CSS fresh for the kiosk — by REVALIDATING, not by re-downloading.
+# `no-store` forbade the browser from keeping the file at all, so every boot pulled the whole
+# 2.1 MB app.js through a chunked gzip stream again (and every one of those streams was one
+# more chance to fail the whole page). The `?v=` stamp (`scripts/bump-version.sh`) is the
+# cache key and `no-cache` makes an unchanged boot cost a `304 Not Modified` (a few hundred
+# bytes), while a changed file still arrives at once.
+#
+# `Header unset ETag` is not laziness: mod_deflate publishes `ETag: W/"…-gzip"` but matches
+# `If-None-Match` against the tag WITHOUT that suffix, so a browser that keeps the one it was
+# given (Chrome sends both validators, and `If-None-Match` wins) never matches and gets the
+# whole file again. With the ETag gone the revalidation rides on `Last-Modified`, which
+# Apache does answer with a 304 — measured here, not assumed.
 <FilesMatch "\.(js|css)$">
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header unset ETag
+    Header set Cache-Control "no-cache, must-revalidate"
     Header set Pragma "no-cache"
     Header set Expires "0"
 </FilesMatch>
@@ -64,7 +89,8 @@ RewriteRule ^api/(.*)$ api/index.php?action=$1&%{QUERY_STRING} [L,QSA]
 # stamp, so a deployment could serve an old page next to the new modules (or miss
 # a module the new page adds). The service worker still provides the offline shell.
 <FilesMatch "^index\.html$">
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header unset ETag
+    Header set Cache-Control "no-cache, must-revalidate"
     Header set Pragma "no-cache"
     Header set Expires "0"
 </FilesMatch>
