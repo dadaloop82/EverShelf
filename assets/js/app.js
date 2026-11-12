@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112o'; // bump when translations change
+const _I18N_VERSION = '20261112p'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -18873,6 +18873,110 @@ function _pfMedicalPayload() {
 }
 
 /**
+ * Is this pack still WHOLE — nothing taken out of it?
+ *
+ * The one condition under which «Non aperta» may be offered. A medicine sheet counts PIECES of
+ * the box (`pz`, never `conf`), so the row is untouched when its stock is a whole number of the
+ * packs the product declares (`default_quantity`): one box of 20 with 20 inside, or two untouched
+ * boxes. 19 out of 20 was opened by definition, and a button saying otherwise would be the lie
+ * this control exists to prevent. A product that declares no pack size cannot be judged: no.
+ */
+function _medPackIsWhole(item) {
+    const qty = parseFloat(item && item.quantity);
+    const perPack = parseFloat(item && item.default_quantity);
+    if (!(qty > 0) || !(perPack > 0)) return false;
+    const packs = qty / perPack;
+    return Math.abs(packs - Math.round(packs)) < 0.001;
+}
+
+/**
+ * The «Aperta da» block of the medicine sheet — label, control, and the «Non aperta» door.
+ *
+ * Rendered by the sheet and REPAINTED by the two writes (`_medMarkOpened`, `_medMarkUnopened`), so
+ * the block always shows what is stored: it used to be built inline, a write could only patch the
+ * subtitle above it, and the select stayed on «—» right after the answer was given.
+ *
+ * «Non aperta» appears only on a pack that is still whole (`_medPackIsWhole`). On a half box the
+ * block says WHY instead of offering a door that would write something untrue.
+ */
+function _medOpenSinceBlockHtml(item, openedDaysOverride) {
+    const openedDays = openedDaysOverride !== undefined
+        ? openedDaysOverride
+        : ((typeof _medDaysOpen === 'function') ? _medDaysOpen(item) : null);
+    const opened = !!item.opened_at;
+    const label = `<p class="edit-section-label">${escapeHtml(opened ? t('medical.opened_since_change') : t('audit.med_days_q'))}</p>`;
+    // The stored answer is on screen: the presets, PLUS the age this row really has when it is not
+    // one of them (8 days is not a preset), preselected. Without it the control came back on «—»
+    // at every reopen and the write looked lost.
+    const dayChoices = [0, 2, 7, 14, 30, 60, 90];
+    if (openedDays != null && !dayChoices.includes(openedDays)) dayChoices.push(openedDays);
+    dayChoices.sort((a, b) => a - b);
+    const dayLabel = (n) => (n === 0
+        ? t('audit.med_days_today')
+        : t('dashboard.days_short').replace('{n}', n));
+    let control;
+    if (_isMobileUi()) {
+        control = `<select class="form-input" onchange="if(this.value!=='')_medMarkOpened(${Number(item.id)}, this.value)">
+            ${openedDays == null ? `<option value="" selected>—</option>` : ''}
+            ${dayChoices.map((n) => `<option value="${n}"${n === openedDays ? ' selected' : ''}>${escapeHtml(dayLabel(n))}</option>`).join('')}
+        </select>`;
+    } else {
+        control = `<div class="med-open-since-chips">
+            ${dayChoices.map((n) => `<button type="button" class="btn btn-small btn-secondary${n === openedDays ? ' is-on' : ''}" onclick="_medOpenSincePick(this, ${Number(item.id)}, ${n})">${escapeHtml(dayLabel(n))}</button>`).join('')}
+        </div>`;
+    }
+    const whole = _medPackIsWhole(item);
+    const seal = (opened && whole)
+        ? `<button type="button" class="btn btn-small btn-secondary med-unopen" onclick="_medMarkUnopened(${Number(item.id)})"><span aria-hidden="true">📦</span> ${escapeHtml(t('medical.mark_unopened'))}</button>`
+        : '';
+    const why = (opened && !whole)
+        ? `<p class="settings-hint med-unopen-why">${escapeHtml(t('medical.unopen_needs_full_pack'))}</p>`
+        : '';
+    return `${label}${control}${seal}${why}`;
+}
+
+/** Repaint that block in place after a write (a no-op when the sheet is not open). */
+function _medRepaintOpenSince(invId, openedDays) {
+    const host = document.getElementById('edit-med-open-since');
+    const item = (typeof _findInventoryItem === 'function') ? _findInventoryItem(invId) : null;
+    if (host && item) host.innerHTML = _medOpenSinceBlockHtml(item, openedDays);
+}
+
+/**
+ * «Non aperta»: the box was sealed all along (or a tap marked it open by mistake).
+ *
+ * It clears `opened_at` — the flag the whole app reads for the post-opening clock — and nothing
+ * else: opening a medicine never rewrites the DATE PRINTED ON THE BOX (`med_open` leaves it
+ * alone), so there is no date to give back. The server door is `inventory_update` with
+ * `opened_at_clear`, the same one the food sheet uses to seal a pack again.
+ *
+ * Offered only on a whole pack (`_medPackIsWhole`, enforced by the block that renders it): 19 of
+ * 20 tablets means the box was opened, and no button should be able to say otherwise.
+ */
+async function _medMarkUnopened(invId) {
+    if (!invId) return;
+    try {
+        const res = await api('inventory_update', {}, 'POST', { id: invId, opened_at_clear: 1 });
+        if (!res || !(res.success || res.ok)) {
+            showToast(t('medical.unopen_failed'), 'error');
+            return;
+        }
+        if (typeof _patchLiveInventoryItem === 'function') _patchLiveInventoryItem(invId, { opened_at: null });
+        const hint = document.getElementById('edit-med-state');
+        if (hint) hint.textContent = t('medical.state_new');
+        _medRepaintOpenSince(invId, null);
+        showToast(t('medical.unopened_ok'), 'success');
+        loadDashboard();
+        if (typeof loadInventory === 'function') loadInventory();
+        if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
+        // A stocktake can open this sheet on top of its card: the sentence must follow.
+        if (typeof _auditItemSaved === 'function') _auditItemSaved(invId);
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
+}
+
+/**
  * A chip of «Aperta da» in the medicine sheet: mark the answer, then write it.
  *
  * The chips used to call `_medMarkOpened` straight, so nothing on screen said which answer was
@@ -18917,6 +19021,10 @@ async function _medMarkOpened(invId, days) {
         if (hint) hint.textContent = `${t('medical.state_opened')} · ${formatDate(r.opened_at)}`;
         // The «da quanti giorni» control stays: it is the field you just used, and removing it
         // made the whole block vanish under the finger («se cambio i giorni il campo sparisce»).
+        // It is REPAINTED with the stored answer (and, on a whole pack, the «Non aperta» door) —
+        // which is what the control could not say while it sat on «—».
+        if (typeof _patchLiveInventoryItem === 'function') _patchLiveInventoryItem(invId, { opened_at: r.opened_at });
+        _medRepaintOpenSince(invId, daysAgo);
         _renderMedClassify();
         loadDashboard();
         if (typeof loadInventory === 'function') loadInventory();
@@ -20165,9 +20273,8 @@ function _editMedicalInventoryItem(item) {
             <span>${escapeHtml(t(c.label_key))}</span>
         </label>`).join('');
     const packQty = parseFloat(item.default_quantity) || 0;
-    // The age the row really has: the «Aperta da» control must SHOW it, or a select sitting on
-    // «—» reads as "not saved" (the report: «se cambio aperto da sembra che non venga salvato»).
-    const openedDays = (typeof _medDaysOpen === 'function') ? _medDaysOpen(item) : null;
+    // The age this row really has — and the «Non aperta» door — belong to
+    // `_medOpenSinceBlockHtml()`: one renderer, so a write can repaint exactly that block.
     const stateLabel = item.opened_at
         ? `${t('medical.state_opened')}${item.opened_at ? ' · ' + formatDateTime(item.opened_at) : ''}`
         : t('medical.state_new');
@@ -20294,29 +20401,8 @@ function _editMedicalInventoryItem(item) {
                     </div>
                     <input type="hidden" id="edit-expiry" value="${escapeAttr(item.expiry_date || '')}">
                 </div>
-                <div class="form-group med-open-since edit-vacuum-group">
-                    <p class="edit-section-label">${escapeHtml(item.opened_at ? t('medical.opened_since_change') : t('audit.med_days_q'))}</p>
-                    ${(() => {
-                        // The stored answer is on screen: the presets, PLUS the age this row really
-                        // has when it is not one of them (8 days is not a preset), preselected.
-                        // Without it the control came back on «—» at every reopen and the write
-                        // looked lost.
-                        const dayChoices = [0, 2, 7, 14, 30, 60, 90];
-                        if (openedDays != null && !dayChoices.includes(openedDays)) dayChoices.push(openedDays);
-                        dayChoices.sort((a, b) => a - b);
-                        const label = (n) => (n === 0
-                            ? t('audit.med_days_today')
-                            : t('dashboard.days_short').replace('{n}', n));
-                        if (_isMobileUi()) {
-                            return `<select class="form-input" onchange="if(this.value!=='')_medMarkOpened(${item.id}, this.value)">
-                               ${openedDays == null ? `<option value="" selected>—</option>` : ''}
-                               ${dayChoices.map((n) => `<option value="${n}"${n === openedDays ? ' selected' : ''}>${escapeHtml(label(n))}</option>`).join('')}
-                            </select>`;
-                        }
-                        return `<div class="med-open-since-chips">
-                           ${dayChoices.map((n) => `<button type="button" class="btn btn-small btn-secondary${n === openedDays ? ' is-on' : ''}" onclick="_medOpenSincePick(this, ${item.id}, ${n})">${escapeHtml(label(n))}</button>`).join('')}
-                        </div>`;
-                    })()}
+                <div class="form-group med-open-since edit-vacuum-group" id="edit-med-open-since">
+                    ${_medOpenSinceBlockHtml(item)}
                 </div>
             </div>
             <div class="edit-form-actions">

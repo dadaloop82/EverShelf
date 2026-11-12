@@ -15599,6 +15599,13 @@ body.cooking-mode-active #shelfy-intro { z-index: 100001; }
 }
 .med-open-since-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .med-open-since-chips .btn { min-height: 40px; }
+/* «Non aperta» — the second door of the same block, and the only way to take a wrong «aperta»
+   back without a lie about the stock. It sits UNDER the chips (its own line: seven presets plus
+   this would squeeze the last one), neutral rather than emerald, because it undoes a state
+   instead of answering a question. It exists only on a whole pack (`_medPackIsWhole`); where it
+   cannot be true, the hint above says why. */
+.med-open-since .med-unopen { margin-top: 8px; }
+.med-open-since .med-unopen-why { margin: 8px 0 0; }
 
 /* ── No camera → no camera icons, anywhere ────────────────────────────────
    Asked for: «se non ci sono le autorizzazioni o non si può usare la fotocamera NON far vedere
