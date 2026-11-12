@@ -143,6 +143,8 @@ became a dashboard that reads the household's own database.
   from git only on a feature branch and clears them on `main`/`develop`, and `:empty` hides an
   empty chip (its `margin-left` was a gap). A released install shows the version and nothing else.
   Verified on the real page: all three `display: none`, `.header-version` `v1.33.0`, no JS error.
+  The **43 older headings** that carried `· branch ``refactor_25_10_2026``` (1.23–1.28) are plain
+  `## [x.y.z] - date` again: the release history does not name a branch either.
 - `.dockerignore` keeps the `test_*.php` rule as a safeguard (no such file ships today), the
   stale `docs/openapi.yaml` and `scripts/fixtures/*` references are gone, and the tracked file
   count went from **361 to 339**.
@@ -3471,7 +3473,7 @@ Kiosk APK only.
   around it — the alternatives are still one tap away when a digit was read wrong. The
   packaging code of a box is announced by a toast, never printed on the form.
 
-## [1.28.1] - 2026-10-28 · branch `refactor_25_10_2026`
+## [1.28.1] - 2026-10-28
 
 ### Fixed
 - **The camera never started: `_setScanMode()` threw on every scan page open.** v1.28.0 removed
@@ -3657,7 +3659,7 @@ Kiosk APK only.
   from `_medPackCount()`). A liquid ("1 flacone 200 ml") names no pieces: the fraction row stays
   hidden and the quantity field is the answer. Nine new keys in all six locales.
 
-## [1.28.0] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.28.0] - 2026-10-27
 
 ### Added
 - **A medicine box is now read the way Italy prints it: the AIC, not the barcode.** The Italian
@@ -3770,7 +3772,7 @@ Kiosk APK only.
   `credits.source_fmd_what`), and the identifying-data disclaimer stays on screen. 21 new keys
   in six locales.
 
-## [1.27.0] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.27.0] - 2026-10-27
 
 ### Added
 - **Settings now answers "which free API do we use, why, and in which context" in one tap.**
@@ -3977,7 +3979,7 @@ Kiosk APK only.
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
-## [1.26.0] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.26.0] - 2026-10-27
 
 ### Added
 - **The three open barcode sources the app really queries are now in the credits, with their
@@ -4002,7 +4004,7 @@ Kiosk APK only.
   `world.openfoodfacts.org`) and when the trial endpoint comes back as a silent default. The
   rule “every source that answers a scan is credited” is now enforced, not remembered.
 
-## [1.25.1] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.25.1] - 2026-10-27
 
 ### Added
 - **The credit list now names its sources, where the free APIs are.** The medical code schemas
@@ -4019,7 +4021,7 @@ Kiosk APK only.
   module only talks to our own endpoints (`med_status`, `med_symptom_search`, `med_classify`,
   `med_open`). A logo would have to belong to a service that exists.
 
-## [1.25.0] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.25.0] - 2026-10-27
 
 ### Added
 - **Per-country barcode schemas, as data.** `data/medical_code_schemas.json` now says what a
@@ -4044,7 +4046,7 @@ Kiosk APK only.
   (GTIN + expiry + batch + serial) needs its own tests. Decoding it is the next step that
   would prefill the expiry date straight from the box.
 
-## [1.24.1] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.24.1] - 2026-10-27
 
 ### Changed
 - **The recipes have their nav slot back.** Round 14 traded the "🍳 Ricette" tab for "📷 Scanner"
@@ -4054,7 +4056,7 @@ Kiosk APK only.
   dashboard, the product modal and the spesa flow (all of them call `showPage('scan')`), which
   is how it was actually reached.
 
-## [1.24.0] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.24.0] - 2026-10-27
 
 ### Fixed
 - **Scanning a medicine box did nothing.** Italian boxes carry an **EAN-13** (often `80…`, GS1
@@ -4080,7 +4082,7 @@ Kiosk APK only.
   wiki says so: `docs/wiki/Medicines.md` documents the EAN vs SSN/Pharmacode reality and the
   scanner's behaviour in a table.
 
-## [1.23.2] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.23.2] - 2026-10-27
 
 ### Changed
 - **The five paragraphs of the notice are resolved with literal `t()` calls.** They were
@@ -4089,7 +4091,7 @@ Kiosk APK only.
   lost a translation would not have failed the build. The keys are now written out, and
   the guard test locks all five in the six locales.
 
-## [1.23.1] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.23.1] - 2026-10-27
 
 ### Fixed
 - **Enabling the medicine cabinet did nothing.** The first-run "Attiva" and the Settings switch
@@ -4118,7 +4120,7 @@ Kiosk APK only.
   the **server** (`med_setup_done`) instead of this browser's localStorage, so a reset shows it
   again on every device.
 
-## [1.23.0] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.23.0] - 2026-10-27
 
 ### Added
 - **The product form asks the question the scanner could not answer.** A medicine box scanned
@@ -4132,7 +4134,7 @@ Kiosk APK only.
 - Opening a product for editing shows its own medical fields (toggle on, chips selected,
   ingredient and PAO filled), so correcting a box is the same gesture as creating it.
 
-## [1.22.2] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.22.2] - 2026-10-27
 
 ### Fixed
 - **The opened banner threw `_openedQueueSiblings is not defined` on every dashboard paint.**
@@ -4151,7 +4153,7 @@ Kiosk APK only.
   API. This is the trap `AGENTS.md` warned about for `core/vocab.js`; now it cannot happen
   silently in `app.js` either.
 
-## [1.22.1] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.22.1] - 2026-10-27
 
 ### Fixed
 - **The medicine cabinet dialogs had no surface.** The first-run question (and the mandatory
@@ -4165,7 +4167,7 @@ Kiosk APK only.
   so the overlay's default 200 could hide it behind the app. The three medical dialogs
   now sit at 300500 — above both, below the auth overlays (400000) that own pairing.
 
-## [1.22.0] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.22.0] - 2026-10-27
 
 ### Added
 - **💊 Farmaci is a section of its own** (`Settings → 💊 Farmaci`, next to *Cucina*), and the
@@ -4203,7 +4205,7 @@ Kiosk APK only.
   scanner, duplicate-active-ingredient warning and the leaflet link. Nothing of this phase
   invents drug data.
 
-## [1.21.0] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.21.0] - 2026-10-27
 
 ### Added
 - **💊 EverShelf Med — the medicine cabinet, opt-in.** Off by default (`MED_ENABLED` or the
@@ -4234,7 +4236,7 @@ Kiosk APK only.
   six label keys. Guard test: `scripts/test-medical.php` (42 checks: opt-in, disclaimer, domain
   separation, matcher, safety copy, schema, wiring).
 
-## [1.20.0] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.20.0] - 2026-10-27
 
 ### Fixed
 - **The scale no longer lies about being connected.** The Android bridge answers every new
@@ -4283,7 +4285,7 @@ Kiosk APK only.
   rule, and the barcode→modal rule. `scripts/test-receipt-ocr.php` now asserts the entry point
   is **absent** and the toggle parked.
 
-## [1.19.1] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.19.1] - 2026-10-27
 
 ### Fixed
 - **No more flashbang at boot.** The splash is `#0c1222` and the app is white: swapping one
@@ -4317,7 +4319,7 @@ Kiosk APK only.
   the modal"; `scripts/test-credits.php` now asserts the overview is **free** of the credits
   footer.
 
-## [1.19.0] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.19.0] - 2026-10-27
 
 ### Added
 - **The official logos of the free services, everywhere — and a page that thanks them
@@ -4345,7 +4347,7 @@ Kiosk APK only.
 - The Settings tab strip gained a tab (`tab-credits`, section *system*); the search schema
   was regenerated (`php scripts/gen-settings-schema.php`).
 
-## [1.18.1] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.18.1] - 2026-10-27
 
 ### Added
 - **The splash credits the free services too.** The boot screen now shows the marks of the
@@ -4365,7 +4367,7 @@ Kiosk APK only.
   page and in the service-worker shell, and that the painting happens at `DOMContentLoaded`
   from the data (never a hardcoded list).
 
-## [1.18.0] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.18.0] - 2026-10-27
 
 ### Added
 - **The post-opening clock (PAO) is deterministic — and it is DATA.** The printed date on a
@@ -4414,7 +4416,7 @@ Kiosk APK only.
   the two false positives above), the state machine boundaries, the `pao` summary, the server
   and client wiring, and the ten new keys in all six locales with their placeholders.
 
-## [1.17.0] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.17.0] - 2026-10-27
 
 ### Added
 - **The product photo leads every row.** A packaging is recognised in milliseconds (the
@@ -4451,7 +4453,7 @@ Kiosk APK only.
   wiring and both `getStats()` queries; `scripts/test-ui-palette.php` now asserts the banner
   grammar (emerald answers + neutral secondaries) instead of the pastel classes.
 
-## [1.16.39] - 2026-10-27 · branch `refactor_25_10_2026`
+## [1.16.39] - 2026-10-27
 
 ### Fixed
 - **SHELFY no longer swallows the last word.** Two shapes did it. The transcript join
@@ -4491,7 +4493,7 @@ Kiosk APK only.
   deliver `"Ho usato 2 arance"` once), no capture path may call `startManualEntry()`, and
   the transcript CSS must stay 1 rem+ / semibold on a tinted background.
 
-## [1.16.38] - 2026-10-26 · branch `refactor_25_10_2026`
+## [1.16.38] - 2026-10-26
 
 ### Fixed
 - **SHELFY no longer interrupts you mid-sentence.** The browser marks a phrase *final* at
@@ -4592,7 +4594,7 @@ Kiosk APK only.
 - **The presentation has a face**: an avatar that floats, a hand that waves and a breathing
   ring (still with `prefers-reduced-motion`) instead of a wall of text.
 
-## [1.16.36] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.36] - 2026-10-25
 
 ### Changed
 - **The assistant is called SHELFY in the chat too.** The chat header still said “Gemini
@@ -4603,7 +4605,7 @@ Kiosk APK only.
 - Two dead keys left the locales (`nav.gemini`, `gemini.chat_title`): the navigator item
   went away in 1.16.22.
 
-## [1.16.35] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.35] - 2026-10-25
 
 ### Added
 - **Esc closes the dialog on top, and Tab stays inside it** (audit I3 + I4, the last two
@@ -4620,7 +4622,7 @@ Kiosk APK only.
 - Visibility is decided by `getClientRects()`, not `offsetParent`: a `position: fixed`
   overlay has no offset parent even when it is right there on screen.
 
-## [1.16.34] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.34] - 2026-10-25
 
 ### Changed
 - The two voice error messages now name the two real causes instead of saying “not allowed”:
@@ -4629,7 +4631,7 @@ Kiosk APK only.
   stesso)”*, in all six locales — a microphone needs a secure context, and a LAN install on
   plain `http://192.168.x.x` is the usual reason a phone hears nothing.
 
-## [1.16.33] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.33] - 2026-10-25
 
 ### Fixed
 - **Nothing was being recognised, and the app beeped every few seconds.** The listening
@@ -4649,7 +4651,7 @@ Kiosk APK only.
   the recogniser; on several phones two simultaneous consumers leave the recogniser hearing
   nothing. The meter now starts on the first result — it is cosmetic.
 
-## [1.16.32] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.32] - 2026-10-25
 
 ### Changed
 - **No banner hides its actions behind a ⋮ any more.** The last ones folded Finito /
@@ -4677,7 +4679,7 @@ Kiosk APK only.
   brand, place and quantity; the closest match drains for **15 seconds** and is taken if
   nothing is chosen.
 
-## [1.16.31] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.31] - 2026-10-25
 
 ### Fixed
 - **A product past its expiry date can no longer go unmentioned.** Reported with
@@ -4696,7 +4698,7 @@ Kiosk APK only.
   five rows, so a box from six months ago could push out the product that expired
   yesterday).
 
-## [1.16.30] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.30] - 2026-10-25
 
 ### Changed
 - **The capture microphone has a real animated border.** A static edge (and a quiet
@@ -4711,7 +4713,7 @@ Kiosk APK only.
 - The wrapper is hidden with the button when the browser has no speech recognition, so
   a ring never spins around nothing.
 
-## [1.16.29] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.29] - 2026-10-25
 
 ### Changed
 - **The anomaly banner asks one question and offers two answers**: “✓ Conferma 2000 ml”
@@ -4734,7 +4736,7 @@ Kiosk APK only.
   `editBannerAnomaly()`, `dismissBannerAnomaly()` and their translation keys: dead code
   once the strip has two choices, because the product sheet already does all of it.
 
-## [1.16.28] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.28] - 2026-10-25
 
 ### Changed
 - **One voice for the whole app.** The capture sheet built its own
@@ -4754,7 +4756,7 @@ Kiosk APK only.
 - Closing the capture sheet cancelled `speechSynthesis`, cutting the confirmation sentence
   (“Hai usato 1 mela. Confermi?”) a fraction of a second after it started.
 
-## [1.16.27] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.27] - 2026-10-25
 
 ### Changed
 - **The anomaly banner shows its actions inline, each with its own colour**: “Aggiorna a
@@ -4783,7 +4785,7 @@ Kiosk APK only.
   confirmation, only for dictated sentences, with a speaker toggle in the sheet.
 - **“Cosa posso dire”** lists the whole lexicon as tappable examples, in all six locales.
 
-## [1.16.26] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.26] - 2026-10-25
 
 ### Changed
 - **The product modal has one hierarchy.** Four saturated buttons (orange *Usa*,
@@ -4810,7 +4812,7 @@ Kiosk APK only.
 - Two buttons still offered the removed “Altro” location, pointing at a translation
   key that no longer existed (caught by `scripts/i18n-audit.py`).
 
-## [1.16.25] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.25] - 2026-10-25
 
 ### Round 3: the waste block holds food, the alert strip holds errors
 - **A data error is not wasted food.** The anomaly banner (“Quantità insolitamente
@@ -4835,7 +4837,7 @@ above it, and an anomaly alone no longer opens the food hub) and
 `scripts/test-ui-palette.php` (53 checks — the four-side reset, the 4 px rail, the meta
 row, the compact verdict, the extend pill and the neutral system strip).
 
-## [1.16.24] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.24] - 2026-10-25
 
 ### Banners now say **where** the product is
 The anomaly banner asked *“Quantità insolitamente alta: Pasta Fusilli (Barilla) — hai
@@ -4855,7 +4857,7 @@ more than one place.
 Guard test `scripts/test-urgency-hub.php` (64 checks) locks the SQL, the payload
 fields, the three helpers, the five call sites and the key in all six locales.
 
-## [1.16.23] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.23] - 2026-10-25
 
 ### The capture sheet starts listening by itself
 Opening the sheet (a tap on the centre button) now starts the microphone immediately —
@@ -4872,7 +4874,7 @@ the tap **is** the gesture the browser needs, so asking for a second one was poi
 Guard test `scripts/test-capture-parse.php` (171 checks) locks the auto-start, the
 start-before-await order and the reworded idle line.
 
-## [1.16.22] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.22] - 2026-10-25
 
 ### The centre button: no label, bigger, alive, and no brand
 - The text label under the centre button is gone: the microphone **is** the label
@@ -4893,7 +4895,7 @@ Guard test: `scripts/test-ui-palette.php` (47 checks) now also asserts no label,
 bigger clamp, both keyframes, the reduced-motion guard, no `nav-gemini` anywhere and
 that the button is not hidden offline.
 
-## [1.16.21] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.21] - 2026-10-25
 
 ### The capture sheet finally talks back
 The sheet looked dead: a mic button with no feedback, no transcript, no
@@ -4922,7 +4924,7 @@ Guard test `scripts/test-capture-parse.php` — **168 checks**: 18 sentences acr
 the six languages (intent + product + quantity), the ranking, the meter/interim/
 chips wiring, “no `api()`/`fetch()` in the parser” and the lexicon coverage.
 
-## [1.16.20] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.20] - 2026-10-25
 
 ### UI review round 2 — the three structural fixes and the palette
 - **“Dimenticati” escaped the stock hub.** The stale list is fetched asynchronously and
@@ -4955,7 +4957,7 @@ chips wiring, “no `api()`/`fetch()` in the parser” and the lexicon coverage.
 Guard tests: `scripts/test-stock-hub.php` (43), `scripts/test-urgency-hub.php` (51) and
 the new `scripts/test-ui-palette.php` (42) lock the behaviour and the palette.
 
-## [1.16.19] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.19] - 2026-10-25
 
 ### The “Altro” location is gone
 “Altro” was a generic bucket: whatever did not fit a real place ended up there, so
@@ -4984,7 +4986,7 @@ database migrates `altro` → `dispensa`, records `moved: 1`, is one-shot on the
 boot, keeps other locations intact; the client no longer offers the location, keeps
 the legacy alias, and the six translations carry the notice.
 
-## [1.16.18] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.18] - 2026-10-25
 
 ### The dashboard becomes a triage screen (UI pass, blocks 1-7 + voice)
 Five differently coloured frames in one scroll looked equally urgent, six micro
@@ -5021,7 +5023,7 @@ that accepts a spoken (Web Speech API, on-device) or typed sentence and routes i
 the flow that already does the job: use → use form, add → add form prefilled, recipe →
 chat. Nothing is applied without confirmation; a missing mic degrades to typing.
 
-## [1.16.17] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.17] - 2026-10-25
 
 ### Deep audit pass — the settings API stops leaking, the CI starts testing
 The full audit is `todo/AUDIT-2026-10-25.md` (internal, lettered sections A–M).
