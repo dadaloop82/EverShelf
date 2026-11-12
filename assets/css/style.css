@@ -14120,6 +14120,27 @@ body.offline-mode #smart-shopping {
     color: var(--text-main, inherit);
 }
 .audit-hit.is-elsewhere { background: var(--bg-app, #f8fafc); }
+/* A row this stocktake already ANSWERED stays in the list, and it says so.
+   It used to be filtered out, so the article the household had just confirmed could not be found
+   again: typing its name answered «Nessun prodotto per …» and offered to CREATE it, as if the
+   confirmation had never happened. The row now keeps its place with the answer in a badge and a
+   warmer surface, and it sinks below the open questions of the same section. */
+.audit-hit.is-answered {
+    background: color-mix(in srgb, var(--brand-primary, #059669) 7%, var(--surface-bg, #f8fafc));
+    border-color: color-mix(in srgb, var(--brand-primary, #059669) 30%, var(--surface-border, var(--border)));
+}
+.audit-hit-badge {
+    align-self: flex-start;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--brand-primary, #059669) 14%, transparent);
+    color: var(--brand-primary, #059669);
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+[data-theme="dark"] .audit-hit-badge { color: #6ee7b7; }
 .audit-hit-open {
     display: flex;
     align-items: center;
@@ -14138,7 +14159,8 @@ body.offline-mode #smart-shopping {
 .audit-hit-mark.is-here { color: var(--brand-primary, #059669); }
 .audit-hit-mark.is-elsewhere { color: var(--tone-danger, #dc2626); }
 .audit-hit-quick,
-.audit-hit-move {
+.audit-hit-move,
+.audit-hit-reopen {
     flex: 0 0 auto;
     /* On its own line (see `.audit-hit`) the action sits at the RIGHT, under the row. */
     margin-left: auto;
@@ -14157,12 +14179,14 @@ body.offline-mode #smart-shopping {
     color: #fff;
 }
 .audit-hit-quick:active { background: var(--brand-primary-hover, #047857); }
-.audit-hit-move {
+.audit-hit-move,
+.audit-hit-reopen {
     border: 1px solid var(--surface-border, var(--border));
     background: var(--surface-bg, #fff);
     color: var(--text-main, inherit);
 }
-.audit-hit-move:hover { border-color: var(--brand-primary, #059669); }
+.audit-hit-move:hover,
+.audit-hit-reopen:hover { border-color: var(--brand-primary, #059669); }
 .audit-search-scope { margin: 10px 0 0; font-weight: 700; }
 .audit-search-scope-note { margin: 4px 0 8px; font-weight: 600; }
 .audit-hit-thumb { flex: 0 0 auto; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
@@ -14250,7 +14274,8 @@ body.offline-mode #smart-shopping {
 }
 @media (max-width: 519px) {
     .audit-hit-quick,
-    .audit-hit-move {
+    .audit-hit-move,
+    .audit-hit-reopen {
         display: inline-flex;
         align-items: center;
         justify-content: center;

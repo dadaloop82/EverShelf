@@ -749,25 +749,34 @@ function _auditSearchMatches(term) {
     const elsewhere = [];
     if (!q) return { here, elsewhere };
     const scope = _auditScopeKey();
-    // A row this stocktake ALREADY answered — by hand, by name or by barcode — is not a question
-    // any more, and mode 1 filters it out for the same reason (`_auditBegin`).
+    // A row this stocktake ALREADY answered — by hand, by name or by barcode — must still be FOUND
+    // here. It is not a question any more, but hiding it made the article the household had just
+    // confirmed impossible to find again: typing its name answered «Nessun prodotto per …» and
+    // offered to CREATE it, as if nothing had happened. The row therefore stays, carrying its
+    // answer (`audit_answered`, on a COPY: the live caches are never touched), and it sinks below
+    // the open questions of the same section.
     //
-    // Here it was not filtered, and «✓ C'è» writes nothing (the shelf is right, that is the whole
-    // point): nothing changed, so the row stayed in the list and every press counted another
-    // confirmation in the session. One row could be confirmed five times.
+    // The old bug must not come back with it: «✓ C'è» writes nothing (the shelf is right, that is
+    // the whole point), so an unfinished row that stayed in the list counted a confirmation on
+    // every press. `_auditSearchQuickThere()` still refuses a second press per row — the ledger is
+    // one answer per row, and the badge is what changed, not the writing.
     const session = (_auditSession && (_auditSession.scope || '') === (scope || '')) ? _auditSession : null;
     const answered = (session && session.answered) || (_audit && _audit.answered) || {};
     for (const it of _auditItems()) {
-        if (answered[String(it.id)]) continue;
         if (typeof isInventoryDepleted === 'function' && isInventoryDepleted(it)) continue;
         const hay = _auditFold(`${it.display_name || ''} ${it.name || ''} ${it.brand || ''}`);
         if (!hay.includes(q)) continue;
-        if (!scope || normalizeLocationKey(it.location) === scope) here.push(it);
-        else elsewhere.push(it);
+        const kind = String(answered[String(it.id)] || '');
+        const row = kind === '' ? it : Object.assign({}, it, { audit_answered: kind });
+        if (!scope || normalizeLocationKey(it.location) === scope) here.push(row);
+        else elsewhere.push(row);
     }
+    // Open questions first, answered rows after them: the list says «already done» without pushing
+    // the real work down the sheet.
+    const openFirst = (rows) => rows.filter(r => !r.audit_answered).concat(rows.filter(r => r.audit_answered));
     return {
-        here: here.slice(0, AUDIT_SEARCH_MAX_HERE),
-        elsewhere: elsewhere.slice(0, AUDIT_SEARCH_MAX_ELSEWHERE),
+        here: openFirst(here).slice(0, AUDIT_SEARCH_MAX_HERE),
+        elsewhere: openFirst(elsewhere).slice(0, AUDIT_SEARCH_MAX_ELSEWHERE),
     };
 }
 
@@ -837,15 +846,28 @@ function _auditSearchRowHtml(it, scope) {
         : `<span class="audit-hit-mark is-elsewhere" title="${escapeAttr(t('audit.mark_elsewhere', { place: placeLabel }))}" aria-hidden="true">✕</span>`;
     const thereLabel = t('audit.there_is');
     const moveLabel = t('audit.move_here');
-    const action = inScope
-        ? `<button type="button" class="audit-hit-quick" title="${escapeAttr(thereLabel)}" aria-label="${escapeAttr(thereLabel)}" onclick="_auditSearchQuickThere(${Number(it.id)})"><span aria-hidden="true">✓</span> <span class="audit-hit-action-label">${escapeHtml(thereLabel)}</span></button>`
-        : `<button type="button" class="audit-hit-move" title="${escapeAttr(moveLabel)}" aria-label="${escapeAttr(moveLabel)}" onclick="_auditSearchMoveHere(${Number(it.id)})"><span aria-hidden="true">↪</span> <span class="audit-hit-action-label">${escapeHtml(moveLabel)}</span></button>`;
-    return `<div class="audit-hit${inScope ? '' : ' is-elsewhere'}">
+    // A row this stocktake ALREADY answered keeps its place in the list and wears the answer: it is
+    // how the household finds again the article it has just confirmed (`_auditSearchMatches`).
+    const answeredKind = String(it.audit_answered || '');
+    const answered = answeredKind !== '';
+    const reopenLabel = t('audit.answer_again');
+    const badge = answered
+        ? `<span class="audit-hit-badge"><span aria-hidden="true">${_auditAnswerIcon(answeredKind)}</span> ${escapeHtml(_auditAnswerLabel(answeredKind))}</span>`
+        : '';
+    const action = answered
+        // «✓ C'è» on an answered row writes nothing (the guard in `_auditSearchQuickThere()`), so
+        // the action is the card — where «Cambia risposta» sits next to «Avanti».
+        ? `<button type="button" class="audit-hit-reopen" title="${escapeAttr(reopenLabel)}" aria-label="${escapeAttr(reopenLabel)}" onclick="_auditSearchPick(${Number(it.id)})"><span aria-hidden="true">↩</span> <span class="audit-hit-action-label">${escapeHtml(reopenLabel)}</span></button>`
+        : (inScope
+            ? `<button type="button" class="audit-hit-quick" title="${escapeAttr(thereLabel)}" aria-label="${escapeAttr(thereLabel)}" onclick="_auditSearchQuickThere(${Number(it.id)})"><span aria-hidden="true">✓</span> <span class="audit-hit-action-label">${escapeHtml(thereLabel)}</span></button>`
+            : `<button type="button" class="audit-hit-move" title="${escapeAttr(moveLabel)}" aria-label="${escapeAttr(moveLabel)}" onclick="_auditSearchMoveHere(${Number(it.id)})"><span aria-hidden="true">↪</span> <span class="audit-hit-action-label">${escapeHtml(moveLabel)}</span></button>`);
+    return `<div class="audit-hit${inScope ? '' : ' is-elsewhere'}${answered ? ' is-answered' : ''}">
             <button type="button" class="audit-hit-open" onclick="_auditSearchPick(${Number(it.id)})">
                 ${mark}
                 <span class="audit-hit-thumb">${thumb}</span>
                 <span class="audit-hit-text">
                     ${_auditHitTitleHtml(it)}
+                    ${badge}
                     ${_auditHitFactsHtml(it)}
                 </span>
             </button>
@@ -881,10 +903,18 @@ function _auditRenderSearchResults() {
         + elsewhere.map(it => _auditSearchRowHtml(it, scope)).join('');
 }
 
-/** Enter in the field: the first row of the place you are inventorying is the one you meant. */
+/**
+ * Enter in the field: the first OPEN row of the place you are inventorying is the one you meant.
+ *
+ * A row this stocktake already answered keeps its place in the list (badged), but Enter must not
+ * land on it: the keyboard is how a shelf gets checked, and re-opening a finished answer on Enter
+ * would read as the app asking the same question twice. Only when nothing is open does the first
+ * row of the list open — that is how an answer is changed on purpose.
+ */
 function _auditSearchPickFirst() {
     const { here, elsewhere } = _auditSearchMatches(_auditSearchTerm);
-    const first = here[0] || elsewhere[0];
+    const open = (rows) => rows.find(r => !r.audit_answered);
+    const first = open(here) || open(elsewhere) || here[0] || elsewhere[0];
     if (first) _auditSearchPick(first.id);
     else _auditRenderSearchResults();
 }
@@ -1960,6 +1990,24 @@ function _auditRender() {
 }
 
 /**
+ * The ICON and the WORDS of an answer (`there` / `finished` / `spoiled` / `skip`).
+ *
+ * One mapping, two readers: the card's answered line (`_auditAnsweredHtml`) and the badge the
+ * search list wears on a row this stocktake already answered (`_auditSearchRowHtml`). «Already
+ * answered» is not the same news for a box that is there and for one declared empty, so the kind
+ * is always spelled out.
+ */
+function _auditAnswerIcon(kind) {
+    return kind === 'finished' ? '🏁' : (kind === 'spoiled' ? '🗑️' : (kind === 'skip' ? '⏭️' : '✓'));
+}
+
+function _auditAnswerLabel(kind) {
+    return kind === 'finished' ? t('audit.already_finished')
+        : (kind === 'spoiled' ? t('audit.already_spoiled')
+            : (kind === 'skip' ? t('audit.already_skipped') : t('audit.already_there')));
+}
+
+/**
  * The line that says this row is already in the ledger — what the card is showing, and when.
  *
  * The kind is spelled out («già confermato» / «già segnato finito» / «già segnato buttato» /
@@ -1968,10 +2016,8 @@ function _auditRender() {
  * time (a time reads the same in six languages) taken from the answer's own timestamp.
  */
 function _auditAnsweredHtml(kind, at) {
-    const icon = kind === 'finished' ? '🏁' : (kind === 'spoiled' ? '🗑️' : (kind === 'skip' ? '⏭️' : '✓'));
-    const label = kind === 'finished' ? t('audit.already_finished')
-        : (kind === 'spoiled' ? t('audit.already_spoiled')
-            : (kind === 'skip' ? t('audit.already_skipped') : t('audit.already_there')));
+    const icon = _auditAnswerIcon(kind);
+    const label = _auditAnswerLabel(kind);
     let time = '';
     if (at > 0) {
         try {
