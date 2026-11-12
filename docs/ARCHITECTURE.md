@@ -64,7 +64,7 @@ dispensa/
 ├── package.json                # Optional minify build (`npm run build`)
 ├── backup.sh                   # SQLite + .env backup helper
 ├── releases/                   # Release artifacts (kiosk/health-bridge APKs)
-├── docs/                       # Architecture, wiki, generated code indexes, openapi.yaml
+├── docs/                       # Architecture, codebase map, wiki, generated code indexes
 └── scripts/                    # bump-version, gen-code-index, i18n audits, check-*.php, gen-*.php
 ```
 

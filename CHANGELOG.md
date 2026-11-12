@@ -120,11 +120,32 @@ became a dashboard that reads the household's own database.
   slot any more) all follow the code again.
 - **Dead code removed**: `SCREENSAVER_FACT_DURATION`, `_screensaverFactInterval`,
   `_captureTurnLive()`, the `.screensaver-ad` rule (the markup it styled is gone).
-- Gates re-run on the final tree: 54 PHP files lint, every JS file (`node -c` / `--check`),
-  `shellcheck`, `gen-settings-schema --check`, `gen-code-index` (no drift), `i18n-audit` (0
-  missing), `i18n-value-audit`, settings coverage (0 undocumented), the generated files
-  (`vocab`, food facts, free APIs, OFF categories, storage actions — no diff), 0 duplicate ids,
-  balanced HTML/CSS, and `check-upgrade-migration` **48/48** from `origin/main`.
+### Repository cleanup — only what the app needs
+
+- **Deleted from the tree** (all of it recoverable from git history):
+  - `_probe.html` — a probe page left at the root;
+  - `test_recipe_stream.php` — a CLI test at the root (its historical HTTP leak is documented in the
+    changelog; the image already excluded `test_*.php`);
+  - `scripts/sync-i18n.py` — a one-off key-sync script with a stale hardcoded dictionary,
+    superseded by `scripts/i18n-audit.py`;
+  - `assets/img/demo.gif` (**9.8 MB**, referenced nowhere since the README rewrite) and
+    `assets/img/screenshots/*` (9 JPGs of the **pre-refactor** UI plus a README describing PNGs
+    that never existed).
+- **Kept on purpose, now documented** in *Configuration → Database → Maintenance helpers* so they
+  are not orphans: `fix-expiry-anchors.php` (repairs the dates an older install anchored on the
+  wrong day), `consolidate-duplicate-products.php`, `import-medicines.php`,
+  `fix-permissions.sh`, `install-transformers-model.sh`.
+- The brand artwork (`logo*.png`, `social_preview.png`) and the vendored minified libraries stay:
+  they are hot-linked by the website, the manifest and the service worker.
+- `.dockerignore` keeps the `test_*.php` rule as a safeguard (no such file ships today), the
+  stale `docs/openapi.yaml` and `scripts/fixtures/*` references are gone, and the tracked file
+  count went from **361 to 339**.
+
+All the gates were re-run on the final tree: 54 PHP files lint, every JS file (`node -c` /
+`--check`), `shellcheck`, `gen-settings-schema --check`, `gen-code-index` (no drift), `i18n-audit`
+(0 missing), `i18n-value-audit`, settings coverage (0 undocumented), the five generators (no
+diff), 0 duplicate ids, balanced HTML/CSS, and `check-upgrade-migration` **48/48** from
+`origin/main`.
 
 ## [1.32.0] - 2026-11-12
 

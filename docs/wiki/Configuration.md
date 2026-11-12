@@ -467,3 +467,14 @@ WAL checkpoint when the `sqlite3` CLI is not installed):
 ```bash
 ./backup.sh
 ```
+
+### Maintenance helpers in `scripts/`
+
+| Script | What it does |
+|---|---|
+| `php scripts/check-upgrade-migration.php` | Builds a database with the previous release and opens it with this one: 48 checks that nothing is lost. Run it before updating a long-lived install. |
+| `php scripts/fix-expiry-anchors.php` | Dry run by default. Repairs the best-before dates of an older install that were counted from the wrong day (the first pass anchored on *today* instead of the day the row entered the pantry, and a non-perishable became the year 2054). `--apply` writes, after a `VACUUM INTO` backup. |
+| `php scripts/consolidate-duplicate-products.php` | `--dry-run` first. Merges the product rows created before the brand-is-a-variant rule (skips any group whose stocked rows disagree on the unit). |
+| `php scripts/import-medicines.php <file>` | Imports the national medicine catalogue (AIFA CSV/XML for Italy, openFDA JSON for the US). |
+| `./scripts/fix-permissions.sh` | Re-applies ownership/permissions to `data/`, `logs/` and `.env` after a manual install (`WEB_USER=…` to change the owner). |
+| `./scripts/install-transformers-model.sh` | Vendors the optional MiniLM weights under `assets/vendor/transformers/` (the embedding classifier; without them the app falls back to the name heuristics). |
