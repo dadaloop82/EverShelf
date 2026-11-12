@@ -146,6 +146,14 @@ runtime/binary files — if a task truly needs one, ask first.
   `is-medical` — and `surfaces.css` paints one soft wash of it (12 % → 4 % over `--surface-bg`,
   24 % → 8 % in dark). The theme still owns the paper and the left rail keeps the urgency. New
   reason → a class on `#alert-banner` + one hue line; never a gradient in the theme.
+- **The Home lists wait with the SHELFY skeleton, like the shopping list.** `#stock-hub` starts
+  `hidden` and `_syncStockHub()` sizes it from the rows it finds — zero while the request is in
+  flight — so the skeleton used to animate inside a hidden panel. `_stockHubLoading()` shows the
+  block and paints `_listSkeletonHtml()` into **all three** lists, ONE panel on screen, tab counts
+  blank (a «0» is a lie); `_stockHubSettled('expiring'|'opened'|'stale')` gives it back to
+  `_syncStockHub()` when the last list answers (empty → hidden, error → skeleton removed,
+  `_stockHubSelect()` counts `.list-loading` as content). The boot's first-paint wait is bounded by
+  `_SPLASH_DATA_WAIT_MS` (2.5 s), or a slow answer hides the animation behind the splash entirely.
 - **A medicine in the shopping list is not a tomato.** It has its own shelf (`SHOPPING_SECTIONS`
   → **💊 Medicinali**, before «Altro», chosen by `getItemSection()` through `_shopRowIsMedical()`)
   and the notice strip's indigo tint (`.shop-row.is-medical` / `.smart-item.is-medical`, gradient

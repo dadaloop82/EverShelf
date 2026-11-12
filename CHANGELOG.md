@@ -5,6 +5,31 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.33] - 2026-11-12
+
+### The Home lists wait with the same SHELFY animation as the shopping list
+Asked for: «nella sezione liste quando viene generata una lista c'è una bellissima animazione con
+SHELFY eccetera, perché non l'hai fatta anche per in scadenza, aperti e dimenticati?». The skeleton
+was already being painted into `#expiring-list`/`#stale-list`, but the block starts `hidden` and
+`_syncStockHub()` computes its visibility from the rows it finds — zero while the request is in
+flight — so the animation lived inside a hidden panel: the household saw a blank area and then three
+rows at once.
+- `_stockHubLoading()` is the block's waiting state: the hub is shown, the same SHELFY avatar on the
+  breathing ring and the shimmer rows the shopping list paints go into **all three** lists
+  (`expiring`, `opened`, `stale` — the opened one had no skeleton at all), only the active tab's
+  panel is on screen, and the tab counts are blank instead of a wrong «0».
+- `_stockHubSettled('expiring'|'opened'|'stale')` hands the block back to `_syncStockHub()` when the
+  last list has answered: an empty block still hides itself, a failed load takes the skeleton away
+  instead of animating a promise that will never answer, and a tap on another tab during the wait
+  shows THAT panel's skeleton (`_stockHubSelect()` counts a `.list-loading` as content).
+- The boot's wait for the first paint is now **bounded** (`_SPLASH_DATA_WAIT_MS` = 2.5 s): the splash
+  used to hold the screen until `loadDashboard()` resolved, so on a slow answer the animation was
+  never seen at all. The skeleton holds the block's shape, so after that bound the Home is revealed
+  *with* its animation and the rows land under it (logged as `[BOOT] dashboard still loading …`).
+- Measured in headless Chromium with `stats` delayed 6 s: Home visible at ~2.5 s with the SHELFY
+  skeleton on the «In scadenza» panel, one panel on screen, blank counts; then 3 / 5 / 5 rows, no
+  skeleton left, counts correct. A tap on «Aperti» mid-wait shows that panel's skeleton.
+
 ## [1.31.32] - 2026-11-12
 
 ### One soft background per reason in the notice strip

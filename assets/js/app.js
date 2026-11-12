@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112v'; // bump when translations change
+const _I18N_VERSION = '20261112w'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -10452,12 +10452,71 @@ function _stockHubCounts() {
 }
 
 /**
+ * The waiting state of the stock block.
+ *
+ * Asked for: «nella sezione liste quando viene generata una lista c'è una bellissima animazione con
+ * SHELFY eccetera, perché non l'hai fatta anche per in scadenza, aperti e dimenticati?». The
+ * skeleton was already being painted into `#expiring-list`/`#stale-list`, but the whole hub starts
+ * `hidden` and `_syncStockHub()` computes its visibility from the rows it finds — zero while the
+ * request is still in flight — so the animation lived inside a hidden panel and the household saw a
+ * blank space and then three rows at once.
+ *
+ * The block is shown while it waits (its three lists get the same SHELFY skeleton the shopping list
+ * paints), and `_stockHubSettled()` hands it back to `_syncStockHub()` once every list has answered:
+ * an empty block is still hidden, exactly as before.
+ */
+let _stockHubWaiting = new Set();
+
+function _stockHubLoading(rows = 3) {
+    const hub = document.getElementById('stock-hub');
+    if (!hub) return;
+    // Something is already on screen: the skeleton is for the empty moment only.
+    if (hub.querySelector('.alert-item')) return;
+    _stockHubWaiting = new Set(['expiring', 'opened', 'stale']);
+    hub.dataset.loading = '1';
+    hub.hidden = false;
+    for (const id of ['expiring-list', 'opened-list', 'stale-list']) _showListSkeleton(id, rows);
+    // The panels hold no `.alert-item` yet, so `_stockHubSelect()` would hide the one on screen:
+    // the active tab keeps its skeleton visible until the data decides.
+    const active = _stockHubTab || 'expiring';
+    document.querySelectorAll('#stock-hub [data-stock-panel]').forEach(panel => {
+        panel.style.display = panel.dataset.stockPanel === active ? '' : 'none';
+    });
+    document.querySelectorAll('#stock-hub .stock-tab').forEach(btn => {
+        const on = btn.dataset.stock === active;
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+        // «0» next to a tab whose list is still coming would be a lie: the count is painted by
+        // `_syncStockHub()` when the data lands.
+        const count = btn.querySelector('.stock-tab-count');
+        if (count) count.textContent = '';
+    });
+}
+
+/** One list has answered (or failed): when the last one does, the block goes back to its rules. */
+function _stockHubSettled(which) {
+    if (!_stockHubWaiting.size) return;
+    if (which) _stockHubWaiting.delete(which);
+    if (_stockHubWaiting.size) return;
+    const hub = document.getElementById('stock-hub');
+    if (hub) delete hub.dataset.loading;
+    _syncStockHub();
+}
+
+/**
  * Repaint the tabs from what is actually on screen, hide the empty ones, and keep
  * the current tab if it still has rows (otherwise fall back to the first filled).
  */
 function _syncStockHub() {
     const hub = document.getElementById('stock-hub');
     if (!hub) return;
+    // A request is still in flight: the skeleton owns the block, but only ONE panel may be on
+    // screen — a loader that just finished sets its own section to `display: block`, and two
+    // visible panels were exactly the "different layout" the block was built to remove.
+    if (hub.dataset.loading === '1') {
+        _stockHubSelect(_stockHubTab || 'expiring');
+        return;
+    }
     const counts = _stockHubCounts();
     const tabs = ['expiring', 'opened', 'stale'];
     const available = tabs.filter(t => counts[t] > 0);
@@ -10486,7 +10545,9 @@ function _stockHubSelect(tab) {
     });
     document.querySelectorAll('#stock-hub [data-stock-panel]').forEach(panel => {
         const on = panel.dataset.stockPanel === tab;
-        const has = panel.querySelectorAll('.alert-item').length > 0;
+        // A panel still waiting for its data holds the SHELFY skeleton: that is content until the
+        // list answers, or a tap on a tab would blank the block it just opened.
+        const has = panel.querySelectorAll('.alert-item').length > 0 || !!panel.querySelector('.list-loading');
         panel.style.display = (on && has) ? '' : 'none';
     });
     // The panel just became visible: give it the height it is standing in, then name the rest.
@@ -12885,8 +12946,8 @@ async function loadDashboard() {
         _paintLocationRailSkeleton();
     }
     // The stock block is the first thing the home promises and the last thing it can paint (two
-    // requests): give it its shape meanwhile, exactly like the pantry and the shopping list.
-    _showListSkeleton('expiring-list', 3);
+    // requests): the same SHELFY skeleton the shopping list shows, in the block itself.
+    _stockHubLoading(3);
 
     try {
         const [summaryData, statsData] = await Promise.all([
@@ -12935,7 +12996,9 @@ async function loadDashboard() {
             _paintAlertList(expiringList, expiringShown, visibleExpiring.slice(expiringShown.length), expiringRow, _bindAlertItemsHoldOpen);
         } else {
             expiringSection.style.display = 'none';
+            _hideListSkeleton('expiring-list');
         }
+        _stockHubSettled('expiring');
         // One block, three tabs: repaint the segmented control from what is on screen.
         _syncStockHub();
         
@@ -13122,7 +13185,9 @@ async function loadDashboard() {
             _paintAlertList(openedList, visible, openedVisible.slice(visible.length), openedRow, _bindAlertItemsHoldOpen);
         } else {
             openedSection.style.display = 'none';
+            _hideListSkeleton('opened-list');
         }
+        _stockHubSettled('opened');
         _syncStockHub();
 
         loadStaleDashboardItems();
@@ -13135,6 +13200,14 @@ async function loadDashboard() {
         if (!document.getElementById('location-rail')?.childElementCount) {
             renderLocationRail([], {});
         }
+        // A failed load is not a load: take the skeleton away and let the block hide itself
+        // instead of animating a promise that will never answer.
+        _hideListSkeleton('expiring-list');
+        _hideListSkeleton('opened-list');
+        _hideListSkeleton('stale-list');
+        _stockHubSettled('expiring');
+        _stockHubSettled('opened');
+        _stockHubSettled('stale');
     }
 }
 
@@ -13178,6 +13251,7 @@ async function loadStaleDashboardItems() {
         if (!items.length) {
             section.style.display = 'none';
             list.innerHTML = '';
+            _stockHubSettled('stale');
             _syncStockHub();   // this list is empty: drop its tab
             return;
         }
@@ -13210,11 +13284,14 @@ async function loadStaleDashboardItems() {
         _paintAlertList(list, items.slice(0, DASHBOARD_STALE_MAX), items.slice(DASHBOARD_STALE_MAX), staleRow, _bindAlertItemsHoldOpen);
         // This loader is async and finishes after the tab selection: re-apply it, or
         // the "dimenticati" panel reappears under whichever tab is active.
+        _stockHubSettled('stale');
         _syncStockHub();
         requestAnimationFrame(() => { try { _growAlertLists(); } catch (e) { /* layout not ready */ } });
     } catch (e) {
         console.warn('[stale]', e);
         section.style.display = 'none';
+        _hideListSkeleton('stale-list');
+        _stockHubSettled('stale');
     }
 }
 
@@ -21231,7 +21308,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112v';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112w';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21241,7 +21318,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112v';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112w';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -45810,7 +45887,18 @@ async function _initApp() {
     // Paint Home under the splash BEFORE we lift it — otherwise the "Salva lo spreco"
     // hub (and other first-paint blocks) appear in the same frame as the fade and the
     // whole page jumps down. Med status can still trigger a second quiet reload after.
-    try { await loadDashboard(); } catch (e) { /* offline / first paint */ }
+    // The wait is BOUNDED: the stock block already holds its shape with the SHELFY skeleton
+    // (`_stockHubLoading`), so a slow answer must not turn the splash into a wall — after
+    // `_SPLASH_DATA_WAIT_MS` the Home is revealed WITH its animation and the rows land under it.
+    const _SPLASH_DATA_WAIT_MS = 2500;
+    const dashPaint = loadDashboard().catch(() => { /* offline / first paint */ });
+    await Promise.race([
+        dashPaint,
+        new Promise((resolve) => setTimeout(() => {
+            try { remoteLog('BOOT', `dashboard still loading after ${_SPLASH_DATA_WAIT_MS} ms: Home revealed with its skeleton`); } catch (e) { /* optional */ }
+            resolve();
+        }, _SPLASH_DATA_WAIT_MS)),
+    ]);
     // EverShelf Med (opt-in): the switch is instance-level, so the boot asks the server
     // once and, only when the module is on, repaints the dashboard with its own block.
     _medRefreshStatus().then(() => {
