@@ -1789,23 +1789,74 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
    pill moved into the detail modal and the banner menu). */
 .alert-item-badges { gap: 8px; }
 
-/* The system strip keeps its neutral surface whatever kind it is: the amber/orange
-   gradients from the theme were designed for a card, not for a one-line alert. */
-.alert-banner.system-alert,
-.alert-banner.system-alert.banner-anomaly,
-.alert-banner.system-alert.banner-dup-loss,
-.alert-banner.system-alert.banner-no-expiry,
-.alert-banner.system-alert.banner-expired-danger,
-.alert-banner.system-alert.banner-expired-warning,
-.alert-banner.system-alert.banner-expired-ok,
-.alert-banner.system-alert.banner-review,
-.alert-banner.system-alert.banner-prediction,
-.alert-banner.system-alert.banner-finished {
-    background: var(--surface-bg);
-    border: 1px solid var(--surface-border);
-    border-left: 4px solid var(--tone-soon);
-    box-shadow: var(--surface-shadow);
+/* ── ONE SOFT TINT PER REASON ────────────────────────────────────────────────
+   Asked for: «per ogni motivazione per cui crei un alert banner in alto puoi usare uno sfondo
+   tenue diverso?». The strip used to be neutral for every kind («the system strip keeps its
+   neutral surface whatever kind it is»), so an open yoghurt, a loss check and a consumption
+   prediction were the same card with different words. Now each reason owns a HUE (`--banner-hue`)
+   and the surface is a soft wash of it: the tint says WHAT this notice is about before a single
+   word is read, while the rail keeps the urgency and the text colours stay the theme's.
+   The wash is mixed over `var(--surface-bg)` on purpose — the theme still decides the paper
+   (light, dark, Corporate, Elegant) and this layer only adds 12 % of a colour on top of it. */
+.alert-banner,
+.alert-banner.banner-opened,
+.alert-banner.banner-expired,
+.alert-banner.banner-review,
+.alert-banner.banner-prediction,
+.alert-banner.banner-finished,
+.alert-banner.banner-anomaly,
+.alert-banner.banner-dup-loss,
+.alert-banner.banner-no-expiry {
+    background-color: var(--surface-bg);
+    background-image: linear-gradient(135deg,
+        color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 12%, transparent),
+        color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 4%, transparent));
+    border-top-color: color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 30%, var(--surface-border));
+    border-right-color: color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 30%, var(--surface-border));
+    border-bottom-color: color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 30%, var(--surface-border));
+    border-left: 4px solid var(--banner-hue, var(--tone-soon));
 }
+[data-theme="dark"] .alert-banner,
+[data-theme="dark"] .alert-banner.banner-opened,
+[data-theme="dark"] .alert-banner.banner-expired,
+[data-theme="dark"] .alert-banner.banner-review,
+[data-theme="dark"] .alert-banner.banner-prediction,
+[data-theme="dark"] .alert-banner.banner-finished,
+[data-theme="dark"] .alert-banner.banner-anomaly,
+[data-theme="dark"] .alert-banner.banner-dup-loss,
+[data-theme="dark"] .alert-banner.banner-no-expiry {
+    background-image: linear-gradient(135deg,
+        color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 24%, transparent),
+        color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 8%, transparent));
+    border-top-color: color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 26%, var(--surface-border));
+    border-right-color: color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 26%, var(--surface-border));
+    border-bottom-color: color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 26%, var(--surface-border));
+}
+
+/* …and the reason → hue map. The families are ordered from the most generic to the most
+   specific, so a severity class always wins over the family it belongs to. */
+.alert-banner                        { --banner-hue: #F59E0B; }  /* unknown / generic notice */
+.alert-banner.banner-opened          { --banner-hue: #F59E0B; }  /* open too long (warn) */
+.alert-banner.banner-opened.is-critical { --banner-hue: #EF4444; }
+.alert-banner.banner-opened.is-cook  { --banner-hue: #10B981; }  /* a drink past its window is an ingredient */
+.alert-banner.banner-expired         { --banner-hue: #F97316; }
+.alert-banner.banner-expired-warning { --banner-hue: #F97316; }
+.alert-banner.banner-expired-danger  { --banner-hue: #EF4444; }
+.alert-banner.banner-expired-ok      { --banner-hue: #22C55E; }
+.alert-banner.banner-review          { --banner-hue: #0284C7; }  /* an odd quantity: a look, not a loss */
+.alert-banner.banner-prediction      { --banner-hue: #8B5CF6; }  /* what the consumption says */
+.alert-banner.banner-anomaly         { --banner-hue: #0891B2; }  /* ledger vs shelf */
+.alert-banner.banner-finished        { --banner-hue: #64748B; }  /* probably finished */
+.alert-banner.banner-dup-loss        { --banner-hue: #E11D48; }  /* a double count is a loss */
+.alert-banner.banner-no-expiry       { --banner-hue: #14B8A6; }  /* missing data, not a danger */
+/* A medicine is never a food surface: its hue is the cabinet's indigo, whatever the clock says. */
+.alert-banner.is-medical,
+.alert-banner.banner-opened.is-medical,
+.alert-banner.banner-expired.is-medical { --banner-hue: #6366F1; }
+/* The two reasons with no coloured title of their own read in the theme's own ink: the tint is
+   the signal, the words do not need a second colour. */
+.alert-banner.banner-review .alert-banner-title,
+.alert-banner.banner-finished .alert-banner-title { color: var(--text-main); }
 .system-alert .alert-banner-title { color: var(--text-main); }
 .system-alert .alert-banner-detail { color: var(--text-muted); }
 .system-alert .banner-loc { font-size: 13px; }
@@ -2575,18 +2626,9 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
 
 /* ── A medicine in the same strip ──────────────────────────────────────────────
    An open cream or a vial past its day is a real notice and it belongs here, but its card is
-   never a food surface: the medical tint says WHAT the row is, while the rail and the title keep
-   saying HOW URGENT it is (`.banner-opened.is-critical`, `.banner-expired-danger`) — the state
-   rules stay in charge of every colour but the paper. `var(--surface-bg)` is the base on purpose:
-   the theme still decides the card, the tint is only added on top of it. */
-.alert-banner.is-medical {
-    background-color: var(--surface-bg);
-    background-image: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(99, 102, 241, 0.04));
-}
-[data-theme="dark"] .alert-banner.is-medical {
-    background-color: var(--surface-bg);
-    background-image: linear-gradient(135deg, rgba(99, 102, 241, 0.32), rgba(99, 102, 241, 0.10));
-}
+   never a food surface: the medical hue is the cabinet's indigo (see the reason → hue map next
+   to the strip rules), while the rail and the title keep saying HOW URGENT it is
+   (`.banner-opened.is-critical`, `.banner-expired-danger`). One tint system, not two. */
 /* ── The same tint on the shopping list ────────────────────────────────────────
    A medicine in the list is not a tomato: it gets its own section (💊 Medicinali) AND the tint
    the alert cards already wear, so a row is recognisable without reading it. The urgency rail

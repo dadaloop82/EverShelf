@@ -138,6 +138,14 @@ runtime/binary files — if a task truly needs one, ask first.
   (it also accepts the `inventory_id` shape of the forgotten endpoint). A list's own extra fact
   goes in the TEXT line via `_alertItemMeta(item, extra, { qtyText, extraTitle })`, never as a
   fourth chip: «Aperti» shows `🕓 18gg` there, «Dimenticati» its unused age.
+- **Each banner reason wears its own soft tint.** The notice strip at the top was neutral for every
+  kind, so an open yoghurt, a loss check and a prediction were the same card with different words.
+  Every reason sets ONE variable (`--banner-hue`) on the banner class — `banner-opened` +
+  `is-warn`/`is-critical`/`is-cook`, `banner-expired-danger/-warning/-ok`, `banner-review`,
+  `banner-prediction`, `banner-anomaly`, `banner-finished`, `banner-dup-loss`, `banner-no-expiry`,
+  `is-medical` — and `surfaces.css` paints one soft wash of it (12 % → 4 % over `--surface-bg`,
+  24 % → 8 % in dark). The theme still owns the paper and the left rail keeps the urgency. New
+  reason → a class on `#alert-banner` + one hue line; never a gradient in the theme.
 - **A medicine in the shopping list is not a tomato.** It has its own shelf (`SHOPPING_SECTIONS`
   → **💊 Medicinali**, before «Altro», chosen by `getItemSection()` through `_shopRowIsMedical()`)
   and the notice strip's indigo tint (`.shop-row.is-medical` / `.smart-item.is-medical`, gradient

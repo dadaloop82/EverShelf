@@ -5,6 +5,29 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.32] - 2026-11-12
+
+### One soft background per reason in the notice strip
+Asked for: «per ogni motivazione per cui crei un alert banner in alto puoi usare uno sfondo tenue
+diverso?». The strip was neutral for every kind («the system strip keeps its neutral surface
+whatever kind it is») — an open yoghurt, a loss check and a consumption prediction were the same
+card with different words, and the only signal was the rail.
+- Each reason now owns a HUE (`--banner-hue`) and the surface is a **soft wash** of it: 12 % → 4 %
+  over the theme's `--surface-bg` in light, 24 % → 8 % in dark. The theme still decides the paper
+  (light, dark, Corporate, Elegant); the tint only says WHAT the notice is about before a word is
+  read, while the rail keeps saying HOW URGENT it is.
+- The map, one line per reason: **amber** opened (warn) · **red** opened critical, expired danger ·
+  **emerald** a drink past its window (the kitchen answers) · **indigo** any medicine ·
+  **orange** expired warning · **green** expired but still good · **sky** an odd quantity (a look,
+  not a loss) · **violet** a consumption prediction · **cyan** ledger vs shelf · **slate** probably
+  finished · **rose** a double count · **teal** a missing date.
+- The «quantità insolita» strip was the only kind with no class of its own (`alert-banner`), so it
+  was the one that could never be recognised: it is `banner-review` now.
+- The theme layer no longer declares banner gradients and dark overrides (that was a second palette
+  competing with this one): `style.css` keeps the text colours, `surfaces.css` owns the surface.
+- Measured in headless Chromium (light and dark): twelve kinds, twelve distinct tints, one
+  consistent rail; the medical hue stays indigo whatever the clock says.
+
 ## [1.31.31] - 2026-11-12
 
 ### One row layout for every Home list

@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112u'; // bump when translations change
+const _I18N_VERSION = '20261112v'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -14004,7 +14004,7 @@ function renderBannerItem() {
         const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
         const isLow  = !!item._isLow; // set when banner item was built
         const t_ = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
-        banner.className = 'alert-banner';
+        banner.className = 'alert-banner banner-review';
         _bannerIconSet(iconEl, item, '⚠️');
         let titleText, detailText;
         if (suspDq && !isLow) {
@@ -21231,7 +21231,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112u';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112v';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21241,7 +21241,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112u';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112v';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
