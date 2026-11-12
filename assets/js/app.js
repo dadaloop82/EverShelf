@@ -39328,6 +39328,10 @@ function startCookingMode() {
     }
     document.getElementById('cooking-overlay').style.display = 'flex';
     document.body.classList.add('cooking-mode-active');
+    // Cooking mode is the one thing that keeps the idle screen away: the pending clock is
+    // cleared here and re-armed by `closeCookingMode()`, so the timeout is not spent while
+    // the household is reading a step.
+    clearTimeout(_inactivityTimer);
     _cookingWakeLockOn();          // keep the screen awake: hands are busy, not idle
     // Hide kiosk overlay — it lives outside <body> with z-index:2147483647 and would overlap cooking UI
     const _kioskOvl = document.getElementById('_kiosk_overlay');
@@ -39371,6 +39375,9 @@ function closeCookingMode() {
     // NOTE: intentionally keep _cookingRecipe, _cookingStep, _cookingVisited
     // so the user can resume from the same step when they reopen
     try { screen.orientation?.unlock().catch(() => {}); } catch (_) { /* ignore */ }
+    // Cooking mode was the ONLY thing holding the idle screen back: the clock starts counting
+    // again from here, or a wall left on a closed recipe would never show it.
+    if (getSettings().screensaver_enabled && !_screensaverActive) resetInactivityTimer();
 }
 
 function restartCookingMode() {
@@ -43300,8 +43307,8 @@ function _screensaverTimeoutMs() {
  * and then waiting out the inactivity window, and it must not leave a change behind. It
  * lasts for that navigation only: the next load without the parameter is exactly the
  * instance the household configured. A tap still dismisses it early, and a running
- * session (a scan, a cooking step, a voice turn) wins over the parameter — the same
- * guards the ordinary screensaver obeys.
+ * Cooking mode wins over the parameter (the recipe is the session); everything else shows it,
+ * exactly like the ordinary timer.
  */
 const SCREENSAVER_FORCE_DEFAULT_SEC = 60;
 const SCREENSAVER_FORCE_MAX_SEC = 6 * 60 * 60;
@@ -43399,7 +43406,8 @@ function _previewScreensaver(seconds) {
     const secs = Math.min(Math.max(parseInt(seconds, 10) || 30, 5), 600);
     if (_screensaverActive) return;
     if (_screensaverBlockedPage()) {
-        // A scan or a cooking step is on screen: covering it with a clock is not a preview.
+        // Cooking mode is on screen: covering the recipe with a clock is not a preview (and it
+        // is the one session that keeps the idle screen away).
         showToast(t('settings.screensaver.preview_blocked'), 'info');
         return;
     }
@@ -43429,29 +43437,18 @@ function _maybeForceScreensaver() {
 }
 
 function _screensaverBlockedPage() {
-    // The idle screen is allowed almost everywhere: it is an overlay, a tap dismisses it.
-    // It was forbidden on the shopping page — the page this household lives on — so it
-    // simply never appeared there. Only a RUNNING session keeps it away (a camera that is
-    // scanning must not be covered while the household is in the shop).
+    // «lo screensaver deve partire SEMPRE dopo il tempo stabilito tranne in modalità cucina»:
+    // a wall screen is not something the household has to be idle for. The ONLY exception is
+    // cooking mode, where the recipe IS the session — the steps are read hands-free and a
+    // clock over them interrupts the one thing that was asked for.
+    //
+    // Everything else gets the overlay and nothing more: the scanner, the shopping trip, a
+    // SHELFY turn, a product sheet. The screen is an overlay, «Sblocca» (or a swipe up) puts
+    // the household back exactly where it was, and the page underneath is untouched. The
+    // guards that used to live here (scan/spesa/add flows, a live voice turn) kept the clock
+    // silently away on the pages this household lives on, which is what this rule removes.
     if (_screensaverActive) return true;
     if (document.body.classList.contains('cooking-mode-active')) return true;
-    if (_currentPageId === 'scan' && (_spesaMode || _spesaScanTarget || _shoppingBoughtFlow)) return true;
-    if (_currentPageId === 'add' && (_spesaScanTarget || _shoppingBoughtFlow)) return true;
-    // A turn in progress is a session exactly like the scanner: SHELFY is listening (or the
-    // confirmation card is counting down), and a clock over the microphone is an overlay the
-    // household did not ask for. An idle sheet does NOT block it — the clock keeps counting.
-    if (_captureTurnLive()) return true;
-    return false;
-}
-
-/**
- * Is SHELFY busy right now — listening, thinking, or holding a confirmation card?
- * Used by the idle clocks, which are wired to pointer/key events only.
- */
-function _captureTurnLive() {
-    if (_captureState === 'listening' || _captureState === 'thinking') return true;
-    const card = document.getElementById('shelfy-confirm');
-    if (card && card.getClientRects().length > 0) return true;
     return false;
 }
 
@@ -43475,10 +43472,30 @@ function resetInactivityTimer() {
     _inactivityTimer = setTimeout(activateScreensaver, _screensaverTimeoutMs());
 }
 
+/**
+ * Stop every camera the idle screen is about to hide. A reader that keeps streaming behind an
+ * opaque overlay is a LED, a battery and a heater on a wall that stays like this for hours.
+ * `dismissScreensaver()` gives the scan page its reader back (the stocktake sheet offers
+ * «Apri la fotocamera» again on its own).
+ */
+function _screensaverStopCameras() {
+    try {
+        if (typeof _auditScanActive !== 'undefined' && _auditScanActive && typeof _auditScanStop === 'function') {
+            _auditScanStop(true);
+        }
+    } catch (_) { /* the stocktake keeps its own state */ }
+    try {
+        if (typeof scannerStream !== 'undefined' && scannerStream && typeof stopScanner === 'function') {
+            stopScanner();
+        }
+    } catch (_) { /* the scanner keeps its own state */ }
+}
+
 function activateScreensaver() {
     if (_screensaverBlockedPage()) return;
     _cancelAutoHomeTimer();
     _screensaverActive = true;
+    _screensaverStopCameras();
     const overlay = document.getElementById('screensaver');
     overlay.style.display = 'flex';
     // Fade in
@@ -43519,6 +43536,11 @@ function dismissScreensaver(targetPage) {
     setTimeout(() => {
         overlay.style.display = 'none';
         _screensaverActive = false;
+        // The reader was stopped when the screen opened: a scan page left dead would read as
+        // "la fotocamera non si apre più". The stocktake sheet reopens its own on demand.
+        if (_currentPageId === 'scan' && typeof resumeScanner === 'function') {
+            try { resumeScanner(); } catch (_) { /* the page repaints it anyway */ }
+        }
         if (targetPage) {
             showPage(targetPage);
         } else {

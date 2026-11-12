@@ -129,12 +129,18 @@ a **swipe up** unlocks, and the **«Sblocca»** pill at the bottom centre is the
 back (Esc does the same on a keyboard). The stage drifts a few pixels every 2.5 minutes
 against burn-in.
 
+**It always starts** after the timeout you set — on the pantry, the shopping list, the
+scanner, with a SHELFY turn open: the screen is an overlay and «Sblocca» puts you back
+exactly where you were (the cameras are stopped while it is up, and the scan page gets its
+reader back when you unlock). The **only** exception is **cooking mode**, where the recipe is
+the session and a clock over the steps interrupts the one thing that was asked for; leaving
+it starts the clock again.
+
 A forced run (`?screensaver[=N]`) is the same screen, pinned for the window: the top-right
 **✕ «Esci»** prints the time left, and **⏭** names and shows the next card without waiting
-for the rotation. The switch, the timeout and every other setting stay exactly as they were,
-and a running session (a scan, a cooking step, a SHELFY turn) wins over the parameter — the
-same guards the ordinary screensaver obeys. The event is written to the client log as
-`[SCREENSAVER] forced for Ns by ?screensaver` / `preview Ns from Settings`.
+for the rotation. The switch, the timeout and every other setting stay exactly as they were;
+cooking mode is the only thing that keeps it away, here too. The event is written to the
+client log as `[SCREENSAVER] forced for Ns by ?screensaver` / `preview Ns from Settings`.
 
 ### Steps 6–7 — Gemini AI and Bring! (optional)
 

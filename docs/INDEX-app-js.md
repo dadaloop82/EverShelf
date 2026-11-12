@@ -1465,274 +1465,274 @@ Use with: `sed -n "<line>p" assets/js/app.js` to jump to a function.
 39273:function _cookingRedo
 39280:async function _cookingFinishConfirm
 39292:function startCookingMode
-39354:function closeCookingMode
-39376:function restartCookingMode
-39385:function _setCookingWheelTilt
-39402:function _resetCookingWheelTilt
-39410:function _pulseCookingWheel
-39419:function _cookingStepFeedback
-39426:function _bindCookingWheelControls
-39531:function _animateCookingWheelTransition
-39546:function _cookingScrapTip
-39572:function _cookingHighlightText
-39611:function _renderCookingStepText
-39648:function _renderCookingStepIngredients
-39684:function renderCookingStep
-39768:function _renderZeroWasteTip
-39788:function _dismissZeroWasteTip
-39794:function _buildTtsRequest
-39825:function _buildHaTtsRequest
-39836:async function _ttsViaProxy
-39856:function _hasKioskTts
-39861:function _applyKioskTtsOverrides
-39867:async function speakCookingStep
-39899:function replayCookingTTS
-39906:function onTtsAuthTypeChange
-39913:function onTtsEngineChange
-39922:function onHaEnabledChange
-39928:function _applyHaSettingsUI
-39954:function _loadHaTab
-39960:function _renderHaSensorYaml
-40019:function copyHaSensorYaml
-40029:async function testHaConnection
-40054:function applyHaTtsPreset
-40098:function showHaWebhookHelp
-40103:async function saveHaSettings
-40192:function _notifyErrorText
-40205:function onNotifyEnabledChange
-40212:function _renderNotifyLanguageOptions
-40222:function _applyNotifySettingsUI
-40266:function _applyTelegramSettingsUI
-40285:async function saveTelegramSettings
-40304:function onPriceEnabledChange
-40310:function _applyWebPushSettingsUI
-40322:async function saveWebPushSettings
-40341:function _urlBase64ToUint8Array
-40350:async function subscribeWebPush
-40390:async function testWebPush
-40406:function _notifyStatus
-40419:async function _loadNotifyTab
-40438:function _randomNtfyTopic
-40449:function generateNtfyTopic
-40462:async function saveNotifySettings
-40521:async function testNotify
-40559:function _healthcheckJobLabel
-40569:function _healthcheckAgo
-40583:function _renderHealthcheckJobs
-40609:function _healthcheckErrorText
-40623:async function testHealthcheck
-40657:async function clearHealthcheckUrl
-40675:function _initBrowserTtsVoices
-40745:function _pickTtsVoice
-40779:function _cookingAutoScrollStop
-40784:function _cookingAutoScrollStart
-40820:function _cookingReading
-40826:function _speakBrowser
-40888:function testSound
-40899:async function testTTS
-41070:function _ensureAudioUnlocked
-41083:function _playCookingTimerSound
-41123:function _notifyCookingTimer
-41154:function _parseStepTimers
-41183:function _parseStepTimer
-41187:function _formatTimerDisplay
-41196:function _extractTimerLabel
-41295:function setupCookingTimerSuggestion
-41329:function _cookingPaintStepAction
-41346:function addSuggestedCookingTimer
-41355:function addCookingTimer
-41370:function _cookingVoiceStop
-41378:function removeCookingTimer
-41386:function toggleCookingTimerById
-41413:function resetCookingTimerById
-41423:function _cookingTimerDoneById
-41441:function _cookingTimerRingPct
-41446:function _updateTimerCard
-41473:function _updateScreenFlash
-41490:function renderTimersBar
-41517:function clearAllCookingTimers
-41529:function toggleCookingTTS
-41540:function navigateCookingStep
-41567:function cookingUseIngredient
-41578:function updateRecipeMealTitle
-41589:function _renderMealSubTypes
-41604:function getSelectedSubType
-41616:function _clearMealPlanChip
-41623:function onMealPlanChipChange
-41631:function _renderMealPlanHint
-41682:function showRegenChoice
-41687:function cancelRegenChoice
-41692:function doRegenerateReplace
-41697:async function doRegenerateSave
-41705:function _doRegenerate
-41721:function regenerateRecipe
-41725:async function syncMealieCache
-41752:function _updateMealieCacheStatus
-41766:function _setMealieInstallProgress
-41775:function _mealieInstallErrorMessage
-41795:function _updateRecipeEngineHelp
-41807:function _updateMealieSetupStatus
-41843:async function discoverMealie
-41911:async function installMealie
-42030:function _recipeLoadingStageText
-42036:function _recipeLoadingStagesStop
-42042:function _recipeLoadingStagesStart
-42056:async function generateRecipe
-42209:function initChat
-42226:async function loadChatContext
-42233:function sendChatSuggestion
-42239:function _looksLikeRecipe
-42247:async function chatTransferToRecipes
-42289:async function openIngredientDetail
-42305:async function openIngredientUse
-42317:function _recipeApiErrorMessage
-42325:async function generateRecipeForIngredient
-42356:function startRecipeFromProduct
-42366:async function sendChatMessage
-42439:function appendChatBubble
-42459:function _chatInventoryForMatching
-42471:function _chatProductNeedles
-42496:function _chatMatchProductsInText
-42537:function _chatIsLabel
-42556:function _chatIngredientBlocks
-42575:function _chatUseActionsHtml
-42601:function formatChatReply
-42622:function renderChatHistory
-42643:function scrollChatBottom
-42648:function clearChat
-42668:function saveChatHistory
-42702:function _offlineCacheGet
-42705:function _offlineCacheSet
-42708:function _offlineCacheGetSettings
-42711:function _offlineCacheSetSettings
-42714:function _offlineProductsGet
-42717:function _offlineProductsSet
-42720:function _offlineProductFromInventoryItem
-42735:function _offlineSearchBarcode
-42749:function _offlineQueueGet
-42752:function _offlineQueueSet
-42756:function _offlineShoppingCacheGet
-42759:function _offlineShoppingCacheSet
-42762:function _offlineSmartCacheGet
-42765:function _offlineSmartCacheSet
-42775:function _shoppingSectionsCollapsedGet
-42778:function _shoppingSectionsCollapsedSet
-42781:function toggleShoppingSection
-42812:function _queueWriteAfterNetworkFail
-42823:function _offlineQueuePush
-42843:function _handleOfflineApi
-42963:function _applyOptimisticUpdate
-42992:function _applyShoppingOptimisticUpdate
-43013:function _enterOfflineMode
-43034:async function _exitOfflineMode
-43048:function _renderOfflineBanner
-43073:async function _syncOfflineQueue
-43109:function _showNetworkOverlay
-43123:function _hideNetworkOverlay
-43158:function _paintOfflineStrip
-43193:async function _networkPingOnce
-43234:function _flushOfflineQueueSoon
-43257:function _resetAutoHomeTimer
-43263:function _cancelAutoHomeTimer
-43268:function _triggerAutoHome
-43288:function _screensaverTimeoutMs
-43317:function _screensaverForceSeconds
-43342:function _startForcedScreensaver
-43357:function _syncScreensaverPinUi
-43381:function _cycleScreensaverView
-43388:function _exitForcedScreensaver
-43398:function _previewScreensaver
-43414:function _maybeForceScreensaver
-43431:function _screensaverBlockedPage
-43451:function _captureTurnLive
-43467:function _noteVoiceActivity
-43472:function resetInactivityTimer
-43478:function activateScreensaver
-43497:function updateScreensaverClock
-43504:function dismissScreensaver
-43550:function _spesaScanUiBlocked
-43557:function _clearSpesaAiFallbackTimers
-43569:function _maybeStartSpesaAiFallbackTimer
-43573:function _showSpesaAiFallbackModal
-43578:function _spesaAiFallbackCancel
-43587:function toggleSpesaMode
-43592:function toggleSpesaModeFromCamera
-43597:function _spesaModeHasShoppingItem
-43617:function _syncSpesaQuickBtn
-43627:function _spesaCurrencySymbol
-43642:function _spesaFinishPrompt
-43671:function _spesaKeypad
-43683:async function _spesaFinishSave
-43698:function _spesaFinishSkip
-43704:function _spesaBeginScanning
-43718:function initSpesaMode
-43749:async function startSpesaMode
-43785:function endSpesaMode
-43802:function updateSpesaBanner
-43814:function _applySpesaScanUI
-43836:function _renderSpesaSessionList
-43871:async function _spesaSessionFieldChange
-43908:function _applyShoppingListRemovals
-43927:async function shoppingBoughtAfterAdd
-43959:async function spesaModeAfterAdd
-44017:async function _spesaRemovePurchasedFromList
-44058:function _familySiblingConfirmKey
-44062:function _getFamilySiblingConfirmed
-44076:function _isFamilySiblingRecentlyConfirmed
-44083:function _recordFamilySiblingConfirmed
-44093:function _dismissFamilySiblingPrompt
-44100:function _formatFamilySiblingDate
-44109:function _inferPackageSizeFromName
-44120:function _formatFamilySiblingStockLine
-44141:function _showFamilySiblingSuggest
-44201:function _spesaBannerStat
-44222:function _initScreensaverShortcutBtn
-44256:function initScreensaverShortcuts
-44263:function initInactivityWatcher
-44434:function _setupSeen
-44445:function _markSetupSeen
-44458:function _checklistPendingBeforeSave
-44469:function _ackSavedChecklistItems
-44482:function _checklistItemForStep
-44486:function _checklistState
-44497:function _checklistTodoItems
-44513:function _checklistNewsItems
-44525:function _assistantPendingSteps
-44544:function _renderSettingsChecklist
-44595:function _syncChecklistToggle
-44600:function _toggleChecklistItems
-44610:function _checklistGoTo
-44619:function _flashSettingsCard
-44636:function startSetupAssistant
-44654:function _setupDoneStep
-44661:function _getMissingSetupSteps
-44704:function _gdriveWizardNeeded
-44710:function _setupSteps
-44924:function showSetupWizard
-44941:function _renderSetupStep
-44972:function _setupSelectLang
-44979:function _setupGenerateTopic
-44985:function _setupPaint
-44997:async function _setupTestNotify
-45032:async function _setupTestHealthcheck
-45056:function _setupSkipStep
-45065:function _setupCollectCurrent
-45124:function setupWizardNav
-45155:async function _finishSetup
-45241:async function _runHeartbeat
-45257:function _setServerOffline
-45282:async function _flushOfflineReports
-45308:async function _handleServerRestored
-45323:function _heartbeatRetry
-45377:function _preloaderStage
-45397:function _preloaderUpdateRailProgress
-45416:async function _preloaderAwaitDwell
-45443:async function _runStartupCheck
-45780:function _startupHintText
-45788:function _showStartupWarningPopup
-45833:function _showStartupErrorPopup
-45841:function _startupRetry
-45846:function startHeartbeat
-45850:async function _initApp
-46128:async function _backgroundBringSync
+39358:function closeCookingMode
+39383:function restartCookingMode
+39392:function _setCookingWheelTilt
+39409:function _resetCookingWheelTilt
+39417:function _pulseCookingWheel
+39426:function _cookingStepFeedback
+39433:function _bindCookingWheelControls
+39538:function _animateCookingWheelTransition
+39553:function _cookingScrapTip
+39579:function _cookingHighlightText
+39618:function _renderCookingStepText
+39655:function _renderCookingStepIngredients
+39691:function renderCookingStep
+39775:function _renderZeroWasteTip
+39795:function _dismissZeroWasteTip
+39801:function _buildTtsRequest
+39832:function _buildHaTtsRequest
+39843:async function _ttsViaProxy
+39863:function _hasKioskTts
+39868:function _applyKioskTtsOverrides
+39874:async function speakCookingStep
+39906:function replayCookingTTS
+39913:function onTtsAuthTypeChange
+39920:function onTtsEngineChange
+39929:function onHaEnabledChange
+39935:function _applyHaSettingsUI
+39961:function _loadHaTab
+39967:function _renderHaSensorYaml
+40026:function copyHaSensorYaml
+40036:async function testHaConnection
+40061:function applyHaTtsPreset
+40105:function showHaWebhookHelp
+40110:async function saveHaSettings
+40199:function _notifyErrorText
+40212:function onNotifyEnabledChange
+40219:function _renderNotifyLanguageOptions
+40229:function _applyNotifySettingsUI
+40273:function _applyTelegramSettingsUI
+40292:async function saveTelegramSettings
+40311:function onPriceEnabledChange
+40317:function _applyWebPushSettingsUI
+40329:async function saveWebPushSettings
+40348:function _urlBase64ToUint8Array
+40357:async function subscribeWebPush
+40397:async function testWebPush
+40413:function _notifyStatus
+40426:async function _loadNotifyTab
+40445:function _randomNtfyTopic
+40456:function generateNtfyTopic
+40469:async function saveNotifySettings
+40528:async function testNotify
+40566:function _healthcheckJobLabel
+40576:function _healthcheckAgo
+40590:function _renderHealthcheckJobs
+40616:function _healthcheckErrorText
+40630:async function testHealthcheck
+40664:async function clearHealthcheckUrl
+40682:function _initBrowserTtsVoices
+40752:function _pickTtsVoice
+40786:function _cookingAutoScrollStop
+40791:function _cookingAutoScrollStart
+40827:function _cookingReading
+40833:function _speakBrowser
+40895:function testSound
+40906:async function testTTS
+41077:function _ensureAudioUnlocked
+41090:function _playCookingTimerSound
+41130:function _notifyCookingTimer
+41161:function _parseStepTimers
+41190:function _parseStepTimer
+41194:function _formatTimerDisplay
+41203:function _extractTimerLabel
+41302:function setupCookingTimerSuggestion
+41336:function _cookingPaintStepAction
+41353:function addSuggestedCookingTimer
+41362:function addCookingTimer
+41377:function _cookingVoiceStop
+41385:function removeCookingTimer
+41393:function toggleCookingTimerById
+41420:function resetCookingTimerById
+41430:function _cookingTimerDoneById
+41448:function _cookingTimerRingPct
+41453:function _updateTimerCard
+41480:function _updateScreenFlash
+41497:function renderTimersBar
+41524:function clearAllCookingTimers
+41536:function toggleCookingTTS
+41547:function navigateCookingStep
+41574:function cookingUseIngredient
+41585:function updateRecipeMealTitle
+41596:function _renderMealSubTypes
+41611:function getSelectedSubType
+41623:function _clearMealPlanChip
+41630:function onMealPlanChipChange
+41638:function _renderMealPlanHint
+41689:function showRegenChoice
+41694:function cancelRegenChoice
+41699:function doRegenerateReplace
+41704:async function doRegenerateSave
+41712:function _doRegenerate
+41728:function regenerateRecipe
+41732:async function syncMealieCache
+41759:function _updateMealieCacheStatus
+41773:function _setMealieInstallProgress
+41782:function _mealieInstallErrorMessage
+41802:function _updateRecipeEngineHelp
+41814:function _updateMealieSetupStatus
+41850:async function discoverMealie
+41918:async function installMealie
+42037:function _recipeLoadingStageText
+42043:function _recipeLoadingStagesStop
+42049:function _recipeLoadingStagesStart
+42063:async function generateRecipe
+42216:function initChat
+42233:async function loadChatContext
+42240:function sendChatSuggestion
+42246:function _looksLikeRecipe
+42254:async function chatTransferToRecipes
+42296:async function openIngredientDetail
+42312:async function openIngredientUse
+42324:function _recipeApiErrorMessage
+42332:async function generateRecipeForIngredient
+42363:function startRecipeFromProduct
+42373:async function sendChatMessage
+42446:function appendChatBubble
+42466:function _chatInventoryForMatching
+42478:function _chatProductNeedles
+42503:function _chatMatchProductsInText
+42544:function _chatIsLabel
+42563:function _chatIngredientBlocks
+42582:function _chatUseActionsHtml
+42608:function formatChatReply
+42629:function renderChatHistory
+42650:function scrollChatBottom
+42655:function clearChat
+42675:function saveChatHistory
+42709:function _offlineCacheGet
+42712:function _offlineCacheSet
+42715:function _offlineCacheGetSettings
+42718:function _offlineCacheSetSettings
+42721:function _offlineProductsGet
+42724:function _offlineProductsSet
+42727:function _offlineProductFromInventoryItem
+42742:function _offlineSearchBarcode
+42756:function _offlineQueueGet
+42759:function _offlineQueueSet
+42763:function _offlineShoppingCacheGet
+42766:function _offlineShoppingCacheSet
+42769:function _offlineSmartCacheGet
+42772:function _offlineSmartCacheSet
+42782:function _shoppingSectionsCollapsedGet
+42785:function _shoppingSectionsCollapsedSet
+42788:function toggleShoppingSection
+42819:function _queueWriteAfterNetworkFail
+42830:function _offlineQueuePush
+42850:function _handleOfflineApi
+42970:function _applyOptimisticUpdate
+42999:function _applyShoppingOptimisticUpdate
+43020:function _enterOfflineMode
+43041:async function _exitOfflineMode
+43055:function _renderOfflineBanner
+43080:async function _syncOfflineQueue
+43116:function _showNetworkOverlay
+43130:function _hideNetworkOverlay
+43165:function _paintOfflineStrip
+43200:async function _networkPingOnce
+43241:function _flushOfflineQueueSoon
+43264:function _resetAutoHomeTimer
+43270:function _cancelAutoHomeTimer
+43275:function _triggerAutoHome
+43295:function _screensaverTimeoutMs
+43324:function _screensaverForceSeconds
+43349:function _startForcedScreensaver
+43364:function _syncScreensaverPinUi
+43388:function _cycleScreensaverView
+43395:function _exitForcedScreensaver
+43405:function _previewScreensaver
+43422:function _maybeForceScreensaver
+43439:function _screensaverBlockedPage
+43464:function _noteVoiceActivity
+43469:function resetInactivityTimer
+43481:function _screensaverStopCameras
+43494:function activateScreensaver
+43514:function updateScreensaverClock
+43521:function dismissScreensaver
+43572:function _spesaScanUiBlocked
+43579:function _clearSpesaAiFallbackTimers
+43591:function _maybeStartSpesaAiFallbackTimer
+43595:function _showSpesaAiFallbackModal
+43600:function _spesaAiFallbackCancel
+43609:function toggleSpesaMode
+43614:function toggleSpesaModeFromCamera
+43619:function _spesaModeHasShoppingItem
+43639:function _syncSpesaQuickBtn
+43649:function _spesaCurrencySymbol
+43664:function _spesaFinishPrompt
+43693:function _spesaKeypad
+43705:async function _spesaFinishSave
+43720:function _spesaFinishSkip
+43726:function _spesaBeginScanning
+43740:function initSpesaMode
+43771:async function startSpesaMode
+43807:function endSpesaMode
+43824:function updateSpesaBanner
+43836:function _applySpesaScanUI
+43858:function _renderSpesaSessionList
+43893:async function _spesaSessionFieldChange
+43930:function _applyShoppingListRemovals
+43949:async function shoppingBoughtAfterAdd
+43981:async function spesaModeAfterAdd
+44039:async function _spesaRemovePurchasedFromList
+44080:function _familySiblingConfirmKey
+44084:function _getFamilySiblingConfirmed
+44098:function _isFamilySiblingRecentlyConfirmed
+44105:function _recordFamilySiblingConfirmed
+44115:function _dismissFamilySiblingPrompt
+44122:function _formatFamilySiblingDate
+44131:function _inferPackageSizeFromName
+44142:function _formatFamilySiblingStockLine
+44163:function _showFamilySiblingSuggest
+44223:function _spesaBannerStat
+44244:function _initScreensaverShortcutBtn
+44278:function initScreensaverShortcuts
+44285:function initInactivityWatcher
+44456:function _setupSeen
+44467:function _markSetupSeen
+44480:function _checklistPendingBeforeSave
+44491:function _ackSavedChecklistItems
+44504:function _checklistItemForStep
+44508:function _checklistState
+44519:function _checklistTodoItems
+44535:function _checklistNewsItems
+44547:function _assistantPendingSteps
+44566:function _renderSettingsChecklist
+44617:function _syncChecklistToggle
+44622:function _toggleChecklistItems
+44632:function _checklistGoTo
+44641:function _flashSettingsCard
+44658:function startSetupAssistant
+44676:function _setupDoneStep
+44683:function _getMissingSetupSteps
+44726:function _gdriveWizardNeeded
+44732:function _setupSteps
+44946:function showSetupWizard
+44963:function _renderSetupStep
+44994:function _setupSelectLang
+45001:function _setupGenerateTopic
+45007:function _setupPaint
+45019:async function _setupTestNotify
+45054:async function _setupTestHealthcheck
+45078:function _setupSkipStep
+45087:function _setupCollectCurrent
+45146:function setupWizardNav
+45177:async function _finishSetup
+45263:async function _runHeartbeat
+45279:function _setServerOffline
+45304:async function _flushOfflineReports
+45330:async function _handleServerRestored
+45345:function _heartbeatRetry
+45399:function _preloaderStage
+45419:function _preloaderUpdateRailProgress
+45438:async function _preloaderAwaitDwell
+45465:async function _runStartupCheck
+45802:function _startupHintText
+45810:function _showStartupWarningPopup
+45855:function _showStartupErrorPopup
+45863:function _startupRetry
+45868:function startHeartbeat
+45872:async function _initApp
+46150:async function _backgroundBringSync
 ```

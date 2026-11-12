@@ -40,6 +40,19 @@ became a dashboard that reads the household's own database.
 - **The forced run keeps working and gets easier**: `?screensaver[=N]` and «▶️ Anteprima 30 s»
   still show it for N seconds without touching a setting; the pin bar's ⏭ now names the next
   card (`_ssNextViewLabel`) and its ✕ still prints the time left.
+- **It starts ALWAYS, after the timeout you set** («lo screensaver deve partire SEMPRE dopo il
+  tempo stabilito tranne in modalità cucina»): on the pantry, the shopping list, the scanner,
+  with a SHELFY turn or a product sheet open. A wall screen is not something the household has
+  to be idle for, and the screen is an overlay — «Sblocca» / a swipe up puts back the page
+  underneath, untouched. The guards that used to keep it silently away (scan/spesa/add flows,
+  a live voice turn) are gone from `_screensaverBlockedPage()`; the **one** exception is
+  **cooking mode** (`body.cooking-mode-active`, the recipe is the session), which clears the
+  pending clock on entry and re-arms it in `closeCookingMode()`. Both cameras are stopped while
+  the screen is up (`stopScanner()`, `_auditScanStop()` — a stream behind an opaque overlay is a
+  LED and a heater for hours) and the scan page gets its reader back on unlock (`resumeScanner`).
+- Validated in headless Chromium with a 700 ms timeout and stubbed data: it started on the
+  shopping page, on the scan page and with a SHELFY turn open, did **not** start in cooking mode,
+  and started again once the recipe was closed (`errors: []`).
 - **Found on the way**: `requestAnimationFrame` alone left the fade step at opacity 0 on a
   hidden wall (a blank screen) — `_ssNextFrame()` adds a 150 ms timeout fallback; a nutrition
   view with nothing to chart now keeps the previous card instead of an empty one; the phone

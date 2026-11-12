@@ -1675,7 +1675,7 @@
       "start_after": "⏱️ Starten nach",
       "preview_btn": "▶️ 30-Sekunden-Vorschau",
       "preview_hint": "Zeigt ihn sofort für 30 Sekunden, ohne die Einstellung zu ändern: er bleibt bis zum Ende — das ✕ oben rechts beendet ihn früher. Über eine Adresse kannst du ihn so lange erzwingen, wie du willst: <code>?screensaver=90</code>.",
-      "preview_blocked": "Beende zuerst den Scan oder den Kochschritt und versuche es dann erneut.",
+      "preview_blocked": "Beende zuerst den Kochmodus und versuche es dann erneut.",
       "views_label": "Karten des Bildschirmschoners",
       "views_hint": "Jede Karte liest deine eigenen Daten: das Essen mit einem echten Rezept, die Daten, die Vorratsdiagramme und eine Idee aus dem Regal.",
       "interval_label": "⏭️ Wie oft er wechselt"

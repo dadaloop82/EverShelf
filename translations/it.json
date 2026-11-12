@@ -1716,7 +1716,7 @@
       "start_after": "⏱️ Avvia dopo",
       "preview_btn": "▶️ Anteprima 30 s",
       "preview_hint": "Lo mostra subito per 30 secondi, senza cambiare l'impostazione: resta fino allo scadere — per uscire prima c'è la ✕ in alto a destra. Con un indirizzo puoi forzarlo per il tempo che vuoi: <code>?screensaver=90</code>.",
-      "preview_blocked": "Chiudi prima la scansione o la cottura, poi riprova.",
+      "preview_blocked": "Chiudi prima la modalità cucina, poi riprova.",
       "views_label": "Viste della lavagna",
       "views_hint": "Ogni vista legge i tuoi dati: il pasto con una ricetta vera, le scadenze, i grafici della dispensa e un'idea presa dal magazzino.",
       "interval_label": "⏭️ Ogni quanto cambia"

@@ -1611,7 +1611,7 @@
       "start_after": "⏱️ Iniciar tras",
       "preview_btn": "▶️ Vista previa de 30 s",
       "preview_hint": "Lo muestra al instante durante 30 segundos sin cambiar el ajuste: se queda hasta el final — la ✕ de arriba a la derecha lo cierra antes. Desde una dirección puedes forzarlo todo el tiempo que quieras: <code>?screensaver=90</code>.",
-      "preview_blocked": "Termina primero el escaneo o el paso de cocción y vuelve a intentarlo.",
+      "preview_blocked": "Sal primero del modo cocina y vuelve a intentarlo.",
       "views_label": "Tarjetas del salvapantallas",
       "views_hint": "Cada tarjeta lee tus datos: la comida con una receta real, las fechas, los gráficos de la despensa y una idea de las estanterías.",
       "interval_label": "⏭️ Cada cuánto cambia"

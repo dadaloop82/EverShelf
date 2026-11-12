@@ -1716,7 +1716,7 @@
       "start_after": "⏱️ Start after",
       "preview_btn": "▶️ 30 s preview",
       "preview_hint": "Shows it right away for 30 seconds without changing the setting: it stays until the window ends — the ✕ in the top-right corner leaves earlier. From an address you can force it for as long as you like: <code>?screensaver=90</code>.",
-      "preview_blocked": "Finish the scan or the cooking step first, then try again.",
+      "preview_blocked": "Leave cooking mode first, then try again.",
       "views_label": "Cards of the idle screen",
       "views_hint": "Every card reads your own data: the meal with a real recipe, the dates, the pantry charts and an idea from the shelves.",
       "interval_label": "⏭️ How often it changes"

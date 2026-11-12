@@ -1716,7 +1716,7 @@
       "start_after": "⏱️ 启动等待时间",
       "preview_btn": "▶️ 预览 30 秒",
       "preview_hint": "立即显示 30 秒，不修改任何设置：它会一直显示到时间结束——右上角的 ✕ 可以提前退出。在地址中可以用 <code>?screensaver=90</code> 强制任意时长。",
-      "preview_blocked": "请先结束扫描或烹饪步骤，然后再试。",
+      "preview_blocked": "请先退出烹饪模式，然后再试。",
       "views_label": "屏保卡片",
       "views_hint": "每张卡片都读取你自己的数据：带真实食谱的餐食、日期、储藏室图表和来自货架的点子。",
       "interval_label": "⏭️ 切换间隔"
