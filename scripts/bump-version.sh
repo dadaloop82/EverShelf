@@ -99,23 +99,20 @@ sed -i -E "s/(\?v=)[0-9]{8}[a-z]+/\1${STAMP}/g" "$APPJS"
 # ── README.md: shields.io version badge (drifted to 1.11.6 once already) ────
 sed -i -E "s|(badge/version-)[0-9]+\.[0-9]+\.[0-9]+|\1${VERSION}|" "$README"
 
-# ── the branch label beside every version ──────────────────────────────────
-# The semver alone does not say which line of work a build came from, and a
-# hand-kept label goes stale within one release. The name comes from git, so a
-# bump on develop says `develop`, a bump on a refactor branch says its name, and a
-# release built from main says `main`. Nothing to remember, nothing to forget.
+# ── the branch label beside every version (work-in-progress builds only) ───
+# A RELEASE shows the version and nothing else: `main` and `develop` clear the label, a
+# feature branch fills it from git (so the wall of a dev install says which line of work it
+# is). The name is never written into README.md — the branch is not part of the product.
 BRANCH="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-if [[ -n "$BRANCH" && "$BRANCH" != "HEAD" ]]; then
-    # HTML label: only characters a ref may actually contain.
-    BRANCH_HTML="$(printf '%s' "$BRANCH" | tr -cd 'A-Za-z0-9._/-')"
-    # shields.io: `_` renders as a space and `__` as an underscore, `/` as %2F.
-    BRANCH_BADGE="$(printf '%s' "$BRANCH" | sed 's/_/__/g; s|/|%2F|g')"
-    # `[^>]*>` because a label may carry a class before its content
-    sed -i -E "s|(id=\"header-branch\"[^>]*>)[^<]*|\1${BRANCH_HTML}|" "$INDEX"
-    sed -i -E "s|(id=\"preloader-branch\"[^>]*>)[^<]*|\1${BRANCH_HTML}|" "$INDEX"
-    sed -i -E "s|(id=\"about-branch-label\"[^>]*>)[^<]*|\1${BRANCH_HTML}|" "$INDEX"
-    sed -i -E "s|(badge/branch-)[A-Za-z0-9._%~-]*|\1${BRANCH_BADGE}|" "$README"
-fi
+BRANCH_HTML=""
+case "$BRANCH" in
+    main|master|develop|HEAD|'') BRANCH_HTML="" ;;
+    *) BRANCH_HTML="$(printf '%s' "$BRANCH" | tr -cd 'A-Za-z0-9._/-')" ;;
+esac
+# `[^>]*>` because a label may carry a class before its content.
+sed -i -E "s|(id=.header-branch.[^>]*>)[^<]*|\1${BRANCH_HTML}|" "$INDEX"
+sed -i -E "s|(id=.preloader-branch.[^>]*>)[^<]*|\1${BRANCH_HTML}|" "$INDEX"
+sed -i -E "s|(id=.about-branch-label.[^>]*>)[^<]*|\1${BRANCH_HTML}|" "$INDEX"
 
 echo "Bumped version to v${VERSION} (asset stamp ${STAMP}) in:"
 echo "  - index.html (2 badges + ?v= queries)"
@@ -123,7 +120,11 @@ echo "  - manifest.json"
 echo "  - sw.js (CACHE)"
 echo "  - assets/js/app.js (_I18N_VERSION)"
 echo "  - README.md (version badge)"
-echo "  - index.html + README.md (branch label, from git)"
+if [[ -n "$BRANCH_HTML" ]]; then
+    echo "  - index.html (branch label: ${BRANCH_HTML} — a work-in-progress build)"
+else
+    echo "  - index.html (branch label cleared: this is a release build)"
+fi
 echo
 echo "Remember to add a CHANGELOG.md entry for v${VERSION} and to prepend the"
 echo "new release to the README \"What's new\" line (prose stays manual)."

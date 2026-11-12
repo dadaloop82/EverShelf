@@ -210,9 +210,10 @@ body.is-booting.is-revealing .bottom-nav {
     letter-spacing: 0.02em;
     color: #166534;
 }
-/* The branch label: which line of work the build came from, deliberately small
-   next to the version (a git ref, never translated). Kept in sync by
-   scripts/bump-version.sh from `git rev-parse --abbrev-ref HEAD`. */
+/* The branch label: which line of work a WORK-IN-PROGRESS build came from, deliberately
+   small next to the version (a git ref, never translated). `scripts/bump-version.sh` fills
+   it only on a feature branch and leaves it empty on `main`/`develop`, where `:empty` above
+   hides it — a released install shows the version and nothing else. */
 .app-preloader-verchip-branch {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 0.62rem;
@@ -961,6 +962,15 @@ body.is-booting.is-revealing .bottom-nav {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/*
+ * An EMPTY branch label is a release build: `scripts/bump-version.sh` fills it from git only
+ * on a feature branch and clears it on `main`/`develop`. An empty span still carries its
+ * `margin-left`, i.e. a gap in the header — so an empty chip is not painted at all.
+ */
+.header-branch:empty,
+.app-preloader-verchip-branch:empty,
+.about-branch:empty { display: none; }
 
 /* Same label in Settings → Info, next to the version line. */
 .about-branch {

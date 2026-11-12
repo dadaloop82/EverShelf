@@ -509,7 +509,9 @@ runtime/binary files — if a task truly needs one, ask first.
 - **Two versions in the header, one rule for space.** `.header-version` stays a **bare semver**
   (`reportError()` reads it as the app version); the kiosk APK version lives in
   `#header-kiosk-version` ("kiosk 1.7.26"), from `_kioskBridge.getAppVersion()`. `_paintKioskVersion()`
-  shows both only when the row fits, then drops the kiosk label, then `#header-branch`, then **the
+  shows both only when the row fits, then drops the kiosk label, then `#header-branch` (a work-in-progress
+  build only: `bump-version.sh` fills it on a feature branch and clears it on `main`/`develop`, and
+  `:empty` hides it), then **the
   name ENTIRELY** (`is-name-hidden`: logo + app version — never a clipped "E…", which is what a
   phone showed while `.header-title` could not shrink for want of `min-width: 0`). At least the app
   version is always readable. Re-measured on resize and after the translations; never append anything

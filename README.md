@@ -20,11 +20,12 @@ Everything runs on your own hardware, and nothing about your pantry leaves it.
 
 ---
 
-## 🚧 This branch is a large refactor
+## 🚧 1.33 is a large refactor
 
-`refactor_25_10_2026` rewrites the parts the household actually touches. The database is
-migrated automatically on the first request (verified row by row — see
-[§8](#8-upgrade-safety-is-a-test-not-a-promise)), and no setting is lost. What changed, and why:
+This release rewrites the parts the household actually touches — the settings page, the idle
+screen, every list, the medicine cabinet and the stocktake. The database migrates itself on the
+first request (verified row by row, see [§8](#8-upgrade-safety-is-a-test-not-a-promise)) and no
+setting is lost: updating is a pull and a restart. What changed, and why:
 
 ### 1. Settings is a control panel, not a wall of fields
 
@@ -100,7 +101,7 @@ promoting them, scheduled by the container's cron.
 `php scripts/check-upgrade-migration.php` builds a database with the **old** code, fills it
 with realistic content and opens it with the **new** one: 48 checks prove that nothing is
 lost, that the repairs are the intended ones, and that a second boot changes nothing. It is
-the gate this branch was developed against.
+the gate this release was developed against.
 
 ---
 

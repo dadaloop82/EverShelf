@@ -72,7 +72,7 @@ itself and the bar at the bottom is the receipt.
 cabinet row, and the sheet's facts wrap instead of scrolling sideways.
 
 → The full history is in the [CHANGELOG](https://github.com/dadaloop82/EverShelf/blob/main/CHANGELOG.md);
-the branch that brought these is described in the [README](https://github.com/dadaloop82/EverShelf#-this-branch-is-a-large-refactor).
+what changed and why is described in the [README](https://github.com/dadaloop82/EverShelf#-133-is-a-large-refactor).
 
 ---
 
