@@ -46,6 +46,7 @@
     "mode_search": "Ich sage sie",
     "search_hint": "Produktnamen tippen: zuerst die, die hier stehen, dann die anderen.",
     "search_placeholder": "z. B. Passata",
+    "search_placeholder_med": "z. B. Paracetamol",
     "search_none": "Kein Produkt für „{term}“.",
     "search_create": "„{term}“ anlegen",
     "search_badge": "🔎 {term}",

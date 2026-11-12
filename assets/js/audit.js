@@ -674,11 +674,19 @@ function _auditScopesBodyHtml(items, saved) {
 function _auditSearchBodyHtml() {
     const scope = _auditScopeKey();
     const placeLabel = _auditScopeLabel(scope);
+    // The example in the field follows the SHELF: «passata di pomodoro» typed while inventorying
+    // the medicines is the app talking about another room. The place this stocktake is about
+    // decides; with no place chosen, the pantry's own filter does. Both strings are resolved with a
+    // literal t-call here, or `scripts/i18n-audit.py` reports them as "defined but unused".
+    const medPlace = scope
+        ? (typeof isMedicalLocation === 'function' && isMedicalLocation(scope))
+        : (typeof _inventoryIsMedicalContext === 'function' && _inventoryIsMedicalContext());
+    const placeholder = medPlace ? t('audit.search_placeholder_med') : t('audit.search_placeholder');
     return `<p class="audit-hint">${escapeHtml(t('audit.search_hint'))}</p>
         ${scope ? `<p class="audit-hint audit-search-scope-note"><span aria-hidden="true">📍</span> ${escapeHtml(t('audit.search_in_place', { place: placeLabel }))}</p>` : ''}
         <input type="text" id="audit-search-input" class="form-input audit-search-input"
                autocomplete="off" autocapitalize="sentences" spellcheck="false"
-               placeholder="${escapeAttr(t('audit.search_placeholder'))}"
+               placeholder="${escapeAttr(placeholder)}"
                oninput="_auditSearchInput(this.value)"
                onkeydown="if(event.key==='Enter'){event.preventDefault();_auditSearchPickFirst();}">
         <div class="audit-search-results" id="audit-search-results"></div>`;

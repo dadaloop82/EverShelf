@@ -46,6 +46,7 @@
     "mode_search": "Los digo yo",
     "search_hint": "Escribe el nombre del producto: primero los que están aquí, luego los demás.",
     "search_placeholder": "ej. tomate triturado",
+    "search_placeholder_med": "ej. paracetamol",
     "search_none": "Ningún producto para «{term}».",
     "search_create": "Crear «{term}»",
     "search_badge": "🔎 {term}",

@@ -46,6 +46,7 @@
     "mode_search": "Je les nomme",
     "search_hint": "Tape le nom du produit : d’abord ceux qui sont ici, puis les autres.",
     "search_placeholder": "ex. coulis de tomate",
+    "search_placeholder_med": "ex. paracétamol",
     "search_none": "Aucun produit pour « {term} ».",
     "search_create": "Créer « {term} »",
     "search_badge": "🔎 {term}",

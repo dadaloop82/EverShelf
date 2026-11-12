@@ -46,6 +46,7 @@
     "mode_search": "I name them",
     "search_hint": "Type the product name: the ones standing here come first, then the others.",
     "search_placeholder": "e.g. tomato passata",
+    "search_placeholder_med": "e.g. paracetamol",
     "search_none": "No product for “{term}”.",
     "search_create": "Create “{term}”",
     "search_badge": "🔎 {term}",

@@ -46,6 +46,7 @@
     "mode_search": "我自己说",
     "search_hint": "输入产品名称：先列出在这里的，然后是其他位置的。",
     "search_placeholder": "例如：番茄酱",
+    "search_placeholder_med": "例如：对乙酰氨基酚",
     "search_none": "没有找到“{term}”。",
     "search_create": "创建“{term}”",
     "search_badge": "🔎 {term}",

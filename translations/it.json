@@ -46,6 +46,7 @@
     "mode_search": "Ti dico io",
     "search_hint": "Scrivi il nome del prodotto: prima quelli che sono qui, poi gli altri.",
     "search_placeholder": "Es: passata di pomodoro",
+    "search_placeholder_med": "Es: paracetamolo",
     "search_none": "Nessun prodotto per «{term}».",
     "search_create": "Crea «{term}»",
     "search_badge": "🔎 {term}",
