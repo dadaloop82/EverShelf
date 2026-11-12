@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112t'; // bump when translations change
+const _I18N_VERSION = '20261112u'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -10426,8 +10426,11 @@ function _rowMenuButtons(item) {
     const useKey = t('inventory.item_detail_use');
     const menuKey = t('dashboard.row_actions');
     const loc = String(item.location || 'dispensa').replace(/'/g, "\\'");
+    // A stale row calls its inventory id `inventory_id`: one builder, one grammar, whichever
+    // shape the endpoint that filled the list chose.
+    const invId = (item.id !== undefined && item.id !== null) ? item.id : item.inventory_id;
     return `<button type="button" class="row-use-btn" title="${escapeAttr(useKey)}" aria-label="${escapeAttr(useKey)}" onclick="event.stopPropagation(); quickUse(${item.product_id}, '${loc}')">✓<span class="row-use-label">${escapeHtml(useKey)}</span></button>`
-        + `<button type="button" class="alert-item-menu" title="${escapeAttr(menuKey)}" aria-label="${escapeAttr(menuKey)}" onclick="event.stopPropagation(); showAlertItemDetail(${item.id}, ${item.product_id})">⋮</button>`;
+        + `<button type="button" class="alert-item-menu" title="${escapeAttr(menuKey)}" aria-label="${escapeAttr(menuKey)}" onclick="event.stopPropagation(); showAlertItemDetail(${invId}, ${item.product_id})">⋮</button>`;
 }
 
 /**
@@ -12797,8 +12800,12 @@ function _openedAgeHtml(daysOpen) {
  * 2 pz": a Home row and a pantry row must survive the same width, and this line is the first
  * to be cut. Its icon is the PACKAGE, while the opened age wears the CLOCK (🕓): two facts,
  * two marks that cannot be confused. The whole sentence is in the tooltip.
+ *
+ * `opts.qtyText` lets a list pass its own (richer) stock text — the opened rows describe
+ * "1 conf (da 500 ml) + 250 ml" — and `opts.extraTitle` keeps the tooltip exact when the
+ * visible extra is the compact form of a sentence.
  */
-function _alertItemMeta(item, extra = '') {
+function _alertItemMeta(item, extra = '', opts = {}) {
     if (!item) return '';
     const locKey = normalizeLocationKey(item.location);
     const locInfo = LOCATIONS[normalizeLocationKey(locKey)] || { icon: '📦', label: item.location || '' };
@@ -12808,19 +12815,54 @@ function _alertItemMeta(item, extra = '') {
         full.push(`${locInfo.icon} ${locInfo.label}`);
         bits.push(`${locInfo.icon} ${escapeHtml(locInfo.label)}`);
     }
-    if (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') {
-        const qty = stripHtml(formatQuantityForItem(item));
-        if (qty) {
-            full.push(t('dashboard.still_have_qty', { qty }));
-            bits.push(`📦 ${escapeHtml(qty)}`);
-        }
+    const hasOverride = opts.qtyText !== undefined && opts.qtyText !== null;
+    const qty = hasOverride
+        ? String(opts.qtyText || '')
+        : ((item.quantity !== undefined && item.quantity !== null && item.quantity !== '')
+            ? stripHtml(formatQuantityForItem(item)) : '');
+    if (qty) {
+        full.push(t('dashboard.still_have_qty', { qty }));
+        bits.push(`📦 ${escapeHtml(qty)}`);
     }
     if (extra) {
-        full.push(extra);
+        full.push(opts.extraTitle || extra);
         bits.push(escapeHtml(extra));
     }
     if (!bits.length) return '';
     return `<span class="alert-item-qty" title="${escapeAttr(full.join(' · '))}">${bits.join(' · ')}</span>`;
+}
+
+/**
+ * ONE state badge for every Home list.
+ *
+ * «In scadenza», «Scaduti», «Aperti» e «Dimenticati» drew four different right-hand strips — a
+ * relative sentence, a bare date, a stack of blue chips and a list with no action line at all —
+ * so the same card changed shape as the household moved between the tabs of the same block.
+ * The badge is built here ONCE: the compact relative verdict the «In scadenza» list already
+ * used, the exact date in the tooltip, and the classes `style.css` has always owned.
+ *
+ * @param {number|string|null} days  days to the expiry (negative = already past)
+ * @param {{date?: string, vacuum?: boolean, cls?: string}} [opts]
+ */
+function _alertStateBadge(days, opts = {}) {
+    const d = (days === null || days === undefined || days === '') ? NaN : Number(days);
+    if (!Number.isFinite(d)) return '';
+    const cls = opts.cls || (d < 0 ? 'expired'
+        : d === 0 ? 'today'
+            : (d <= 7 ? 'expiring' : (d <= 30 ? 'expiring-soon' : 'expiring-later')));
+    const relative = d < 0 ? _relativeDaysAgo(d) : _relativeDaysAhead(d);
+    const title = [opts.date ? formatDate(opts.date) : '', relative].filter(Boolean).join(' · ');
+    const lock = opts.vacuum ? ' 🔒' : '';
+    return `<span class="alert-item-badge ${cls}"${title ? ` title="${escapeAttr(title)}"` : ''}>${escapeHtml(relative)}${lock}</span>`;
+}
+
+/** How many days a pack has been open, from the row itself (`opened_at`), or null. */
+function _daysSinceOpened(item) {
+    const raw = String((item && item.opened_at) || '').trim();
+    if (!raw) return null;
+    const t0 = Date.parse(raw.replace(' ', 'T'));
+    if (!Number.isFinite(t0)) return null;
+    return Math.max(0, Math.floor((Date.now() - t0) / 86400000));
 }
 
 let _staleRotateTimer = null;
@@ -12874,9 +12916,6 @@ async function loadDashboard() {
             expiringSection.style.display = 'block';
             const expiringRow = (item) => {
                 const days = daysUntilExpiry(item.expiry_date);
-                const badgeText = _relativeDaysAhead(days);
-                const badgeClass = days === 0 ? 'today'
-                    : (days <= 7 ? 'expiring' : (days <= 30 ? 'expiring-soon' : 'expiring-later'));
                 return `
                 <div class="alert-item alert-item-clickable${_isMedicalRow(item) ? ' is-medical' : ''}" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
@@ -12888,7 +12927,7 @@ async function loadDashboard() {
                         </div>
                     </div>
                     <div class="alert-item-badges">
-                        <span class="alert-item-badge ${badgeClass}">${badgeText}</span>
+                        ${_alertStateBadge(days, { date: item.expiry_date })}
                         ${_rowMenuButtons(item)}
                     </div>
                 </div>`;
@@ -12927,7 +12966,6 @@ async function loadDashboard() {
             expiredSection.style.display = 'block';
             const expiredRow = (item) => {
                 const days = Math.abs(daysUntilExpiry(item.expiry_date));
-                const daysText = _relativeDaysAgo(days);
                 // No Controlla / Va bene pill here: the red "N gg fa" badge already carries
                 // the urgency. Match the airy Expiring rows (photo · text · time · Usa · ⋮).
                 return `
@@ -12940,7 +12978,7 @@ async function loadDashboard() {
                         </div>
                     </div>
                     <div class="alert-item-badges">
-                        <span class="alert-item-badge expired">${daysText}</span>
+                        ${_alertStateBadge(-days, { date: item.expiry_date })}
                         ${_rowMenuButtons(item)}
                     </div>
                 </div>`;
@@ -13007,7 +13045,6 @@ async function loadDashboard() {
                 .sort((a, b) => String(a.opened_at || '9999').localeCompare(String(b.opened_at || '9999')));
             const { shown: visible } = _dashboardAlertCap(openedVisible, DASHBOARD_OPENED_MAX);
             const openedRow = (item) => {
-                const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
                 const qty = parseFloat(item.quantity);
                 const pkgSize = parseFloat(item.default_quantity);
                 const unitLabels = { 'ml': 'ml', 'g': 'g', 'pz': t('units.pz') };
@@ -13048,42 +13085,24 @@ async function loadDashboard() {
                     }
                 }
 
-                // Expiry badge
+                // ONE state badge, the same control «In scadenza» uses: the post-opening clock
+                // as a relative verdict (the exact date in the tooltip). A row past its clock
+                // that the safety rules still call edible keeps the amber "look" colour instead
+                // of the red one — the pill says the same thing everywhere, the colour says how
+                // bad it is.
                 const days = item.days_to_expiry;
                 const isEdible = item.is_edible;
-                let expiryBadge = '';
-                if (days !== null && days !== undefined) {
-                    let expiryClass, expiryText;
-                    if (!isEdible) {
-                        // Only show the red ⛔ badge for items that are genuinely dangerous.
-                        // For conserve/condiments classified as safe, use a gentler amber badge.
-                        const spoiledSafety = getExpiredSafety(item, Math.abs(item.days_to_expiry ?? 1));
-                        if (spoiledSafety.level === 'ok') {
-                            expiryClass = 'opened-expiry-soon';
-                            expiryText = '\u26A0\uFE0F ' + t('expiry.badge_check_soon');
-                        } else {
-                            expiryClass = 'opened-expiry-spoiled';
-                            expiryText = t('expiry.badge_expired');
-                        }
-                    } else if (days > 365) {
-                        expiryClass = 'opened-expiry-ok';
-                        expiryText = t('expiry.badge_stable');
-                    } else if (days === 0) {
-                        expiryClass = 'opened-expiry-today';
-                        expiryText = t('expiry.badge_today');
-                    } else if (days <= 2) {
-                        expiryClass = 'opened-expiry-urgent';
-                        expiryText = t('expiry.badge_expiring_short').replace('{n}', days);
-                    } else if (days <= 5) {
-                        expiryClass = 'opened-expiry-soon';
-                        expiryText = t('expiry.badge_expiring_short').replace('{n}', days);
-                    } else {
-                        expiryClass = 'opened-expiry-ok';
-                        expiryText = t('expiry.badge_ok_still').replace('{n}', days);
-                    }
-                    const vacuumNote = item.vacuum_sealed ? ' 🔒' : '';
-                    expiryBadge = `<span class="alert-item-badge opened-expiry ${expiryClass}">${expiryText}${vacuumNote}</span>`;
+                let stateCls = '';
+                if (days !== null && days !== undefined && !isEdible) {
+                    const safety = getExpiredSafety(item, Math.abs(days || 1));
+                    if (safety.level === 'ok') stateCls = 'expiring-soon';
                 }
+                // How long the pack has been open: the fact this list is ABOUT, so it lives in
+                // the text line (a `· 🕓 4gg` mark, sentence in the tooltip) where the pantry
+                // keeps its own opened age — not in a fourth chip of the action strip.
+                const openedDays = _daysSinceOpened(item);
+                const openedExtra = openedDays !== null ? `🕓 ${t('dashboard.days_short', { n: openedDays })}` : '';
+                const openedExtraTitle = openedDays !== null ? t('inventory.opened_for_days', { n: openedDays }) : '';
 
                 return `
                 <div class="alert-item alert-item-clickable${!isEdible ? ' alert-item-spoiled' : ''}" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
@@ -13091,12 +13110,12 @@ async function loadDashboard() {
                         ${_productThumbHtml(item)}
                         <div class="alert-item-main">
                             ${_alertItemHead(item)}
+                            ${_alertItemMeta(item, openedExtra, { qtyText, extraTitle: openedExtraTitle })}
                         </div>
                     </div>
                     <div class="alert-item-badges">
-                        <span class="alert-item-qty">${locInfo.icon} ${locInfo.label}</span>
-                        <span class="alert-item-badge opened">${qtyText}</span>
-                        ${expiryBadge}
+                        ${_alertStateBadge(days, { date: item.opened_expiry || item.expiry_date, vacuum: item.vacuum_sealed, cls: stateCls })}
+                        ${_rowMenuButtons(item)}
                     </div>
                 </div>`;
             };
@@ -13168,19 +13187,13 @@ async function loadStaleDashboardItems() {
             const unusedLabel = item.never_used
                 ? t('dashboard.stale_never_used')
                 : _relativeDaysAgo(days);
-            // ONE badge, not two: "aperto da N gg" + "📅 data · tra N giorni" + ✓ + ⋮ needed a
-            // second line at phone width, and a Home row may not be taller than a pantry row.
-            // The opened age is still in the meta line ("non usato da N giorni") and in the sheet,
-            // and the relative distance stays in the tooltip.
-            const expiryBadge = item.expiry_date
-                ? `<span class="alert-item-badge stale-expiry" title="${escapeAttr(formatDate(item.expiry_date) + ' · ' + _relativeDaysAhead(item.days_to_expiry))}">📅 ${escapeHtml(formatDate(item.expiry_date))}</span>`
-                : '';
-            const pid = item.product_id;
-            const iid = item.inventory_id;
-            const loc = (item.location || 'dispensa').replace(/'/g, "\\'");
+            // ONE badge and the SAME two actions as every other Home row: the compact relative
+            // date of the «In scadenza» strip (the exact date in the tooltip), then ✓ Usa · ⋮.
+            // The bare `📅 12/03/2027` pill and the hand-rolled pair of buttons were this list's
+            // own layout; a tab of the same block may not draw a different card.
             // The row opens the same detail sheet as the other alert lists (it used to be
             // an inert div: "aperti da troppo tempo non accade nulla nemmeno su desktop").
-            return `<div class="alert-item stale-item alert-item-clickable" data-alert-inv-id="${iid}" data-alert-product-id="${pid}">
+            return `<div class="alert-item stale-item alert-item-clickable" data-alert-inv-id="${item.inventory_id}" data-alert-product-id="${item.product_id}">
                 <div class="alert-item-info">
                     ${_productThumbHtml(item)}
                     <div class="alert-item-main">
@@ -13188,10 +13201,9 @@ async function loadStaleDashboardItems() {
                         ${_alertItemMeta(item, unusedLabel)}
                     </div>
                 </div>
-                <div class="alert-item-badges stale-actions">
-                    ${expiryBadge}
-                    <button type="button" class="row-use-btn" onclick="quickUse(${pid}, '${loc}')">✓<span class="row-use-label">${t('dashboard.stale_use')}</span></button>
-                    <button type="button" class="alert-item-menu" title="${escapeAttr(t('dashboard.row_actions'))}" aria-label="${escapeAttr(t('dashboard.row_actions'))}" onclick="event.stopPropagation(); showAlertItemDetail(${iid}, ${pid})">⋮</button>
+                <div class="alert-item-badges">
+                    ${_alertStateBadge(item.days_to_expiry, { date: item.expiry_date })}
+                    ${_rowMenuButtons(item)}
                 </div>
             </div>`;
         };
@@ -21219,7 +21231,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112t';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112u';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21229,7 +21241,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112t';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112u';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

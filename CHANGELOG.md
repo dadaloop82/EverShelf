@@ -5,6 +5,32 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.31] - 2026-11-12
+
+### One row layout for every Home list
+Reported: «la lista "In scadenza", "Aperti" e "dimenticati" usano layout diversi e non va bene,
+devono usare tutte le liste lo stesso layout e quella in "In scadenza" è buono usa quello».
+The three tabs of the same block were three different cards: «In scadenza» drew `[date] [✓ Usa]
+[⋮]`; «Aperti» had no meta line at all, three blue chips in the strip and **no actions**; «Dimenticati»
+drew a bare `📅 12/03/2027` pill and its own pair of buttons, centred on the row.
+- The state badge is now ONE builder (`_alertStateBadge()`): the compact relative verdict the
+  «In scadenza» list already used (`tra 6 gg` / `OGGI` / `Domani` / `12 gg fa`), the classes
+  `style.css` owns (`today`, `expiring`, `expiring-soon`, `expiring-later`, `expired`) and the exact
+  date in the tooltip. «Scaduti», «Aperti» and «Dimenticati» call it too.
+- The two actions are ONE builder as well (`_rowMenuButtons()`), which now accepts the
+  `inventory_id` shape the forgotten endpoint returns — so the forgotten rows have the same
+  `✓ Usa` and the same `⋮` as every other card.
+- «Aperti» grew the meta line it was missing (place · 📦 stock) and moved the fact it is ABOUT —
+  how long the pack has been open (`🕓 18gg`, the sentence in the tooltip) — into the text, where
+  the pantry keeps its own opened age; the stock keeps the richer "1 conf (da 500 ml) + 250 ml"
+  wording through `_alertItemMeta(item, extra, { qtyText })`.
+- Removed the CSS the old shapes owned (`alert-item-badge.opened`, the five `opened-expiry-*`
+  colours, `stale-actions` and the centre alignment of `.stale-item`): a tab of the same block may
+  not paint a control of its own.
+- Measured in headless Chromium at 360 / 393 / 800 px: every row of the three lists is
+  **132 px** with a 62 px text block and a 34 px action line — the same numbers as the pantry
+  rows and as «In scadenza».
+
 ## [1.31.30] - 2026-11-12
 
 ### A medicine is not a tomato, not even in the shopping list

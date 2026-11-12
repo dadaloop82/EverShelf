@@ -3180,16 +3180,9 @@ a.free-api:hover { border-color: var(--brand-primary); }
 }
 .capture-examples-list { display: flex; flex-wrap: wrap; gap: 6px; }
 
-/* The forgotten row says WHEN it expires: that date is the reason it is on screen. */
-.alert-item-badge.stale-expiry {
-    background: var(--tone-soon-soft);
-    color: var(--tone-soon-text);
-    font-variant-numeric: tabular-nums;
-}
-[data-theme="dark"] .alert-item-badge.stale-expiry {
-    background: color-mix(in srgb, var(--tone-soon) 24%, transparent);
-    color: #FDE68A;
-}
+/* The state badge of a Home row is ONE control (`_alertStateBadge` in app.js): every list —
+   «In scadenza», «Scaduti», «Aperti», «Dimenticati» — wears the same pill, so the forgotten list
+   no longer needs a `📅 12/03/2027` variant of its own. */
 
 /* Anomaly strip: the primary never breaks in two lines ("Conferma 3500 / ml" pushed the
    whole row out of line) and the second button is the neutral "correct it" door. */

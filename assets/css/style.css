@@ -10622,12 +10622,6 @@ body.cooking-mode-active .app-header {
     color: #1e40af;
 }
 
-.alert-item-badge.opened {
-    background: #3b82f6;
-    color: #fff;
-    font-size: 0.7rem;
-}
-
 /* ===== STALE / UNUSED STOCK ===== */
 .alert-stale {
     background: #faf5ff;
@@ -10642,26 +10636,10 @@ body.cooking-mode-active .app-header {
     color: var(--text-muted, #6b7280);
     line-height: 1.35;
 }
-.stale-item {
-    align-items: center;
-}
-.stale-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    justify-content: flex-end;
-    align-items: center;
-    flex-shrink: 0;
-    max-width: 58%;
-}
-.stale-actions .btn-banner {
-    flex: 0 0 auto;
-    min-width: 0;
-    min-height: 34px;
-    padding: 7px 12px;
-    font-size: 0.82rem;
-    line-height: 1.2;
-}
+/* `.stale-item` used to align its content to the centre (`align-items: center`) and carried its
+   own `.stale-actions` strip, which is why the forgotten rows were a few pixels off every other
+   Home card. Both lists now share the row grammar of «In scadenza»: nothing here but the class
+   the JS needs to recognise the row. */
 
 /* ===== SEASONAL SHOPPING REVIEW ===== */
 .seasonal-review {
@@ -10756,19 +10734,10 @@ body.cooking-mode-active .app-header {
 [data-theme="dark"] .seasonal-note { color: #6ee7b7; }
 [data-theme="dark"] .seasonal-row { border-top-color: rgba(110, 231, 183, 0.15); }
 
-/* Opened expiry badges */
-.alert-item-badge.opened-expiry {
-    font-size: 0.7rem;
-    font-weight: 700;
-    border-radius: 20px;
-    padding: 2px 7px;
-}
-.opened-expiry-ok      { background: #dcfce7; color: #166534; }
-.opened-expiry-soon    { background: #fef9c3; color: #854d0e; }
-.opened-expiry-urgent  { background: #fee2e2; color: #991b1b; }
-.opened-expiry-today   { background: #f97316; color: #fff; }
-.opened-expiry-spoiled { background: #1f2937; color: #f9fafb; }
-
+/* The opened list draws the same state badge as every other Home row (`_alertStateBadge`): the
+   three blue `opened-expiry-*` pills it used to own are gone, because a tab of the same block may
+   not paint a different control. The inedible case is the shared `expired` (or the amber
+   `expiring-soon` when the safety rules still call it edible). */
 .alert-item-spoiled {
     opacity: 0.75;
 }
@@ -13019,12 +12988,6 @@ body.cooking-mode-active .app-header {
 [data-theme="dark"] .alert-review h3             { color: #fcd34d; }
 [data-theme="dark"] .alert-opened               { background: #0c1f3a; border-color: #1e3a8a; }
 [data-theme="dark"] .alert-opened h3             { color: #7dd3fc; }
-[data-theme="dark"] .alert-item-badge.opened     { background: #1e40af; }
-
-/* ── Opened expiry badges ── */
-[data-theme="dark"] .opened-expiry-ok     { background: #0f2a1a; color: #86efac; }
-[data-theme="dark"] .opened-expiry-soon   { background: #2a1e00; color: #fde68a; }
-[data-theme="dark"] .opened-expiry-urgent { background: #2a0808; color: #fca5a5; }
 
 /* ── Alert banner: gradient overrides ── */
 [data-theme="dark"] .alert-banner.banner-expired            { background: #2a0808; border-color: #7f1d1d; }

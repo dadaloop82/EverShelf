@@ -129,6 +129,15 @@ runtime/binary files — if a task truly needs one, ask first.
   (`_shopRowBought`, it writes the stock), right (`≥ 52 px`) is **non lo compro**
   (`removeBringItem`, the dated dismiss). No third zone: a long right swipe used to open the
   scanner, which is why the gesture felt doubled (`markShoppingItemBought` is gone).
+- **A Home row is ONE card, whichever tab it is in.** «In scadenza», «Scaduti», «Aperti» e
+  «Dimenticati» are tabs of the same block: `[photo] [name + brand / place · 📦 stock · extra]
+  [state badge] [✓ Usa] [⋮]`, 132 px in every list (text block 62, action line 34 — measured at
+  360 / 393 / 800 px). ONE builder for the pill — `_alertStateBadge(days, { date, vacuum, cls })`,
+  the compact relative verdict of «In scadenza» with `today/expiring/expiring-soon/expiring-later/
+  expired` and the exact date in the tooltip — and ONE for the actions, `_rowMenuButtons(item)`
+  (it also accepts the `inventory_id` shape of the forgotten endpoint). A list's own extra fact
+  goes in the TEXT line via `_alertItemMeta(item, extra, { qtyText, extraTitle })`, never as a
+  fourth chip: «Aperti» shows `🕓 18gg` there, «Dimenticati» its unused age.
 - **A medicine in the shopping list is not a tomato.** It has its own shelf (`SHOPPING_SECTIONS`
   → **💊 Medicinali**, before «Altro», chosen by `getItemSection()` through `_shopRowIsMedical()`)
   and the notice strip's indigo tint (`.shop-row.is-medical` / `.smart-item.is-medical`, gradient
