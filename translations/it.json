@@ -2312,6 +2312,8 @@
     "search_short": "Errore nella ricerca",
     "save": "Errore nel salvataggio",
     "connection": "Errore di connessione",
+    "delete_failed": "Non riesco a eliminare il prodotto: riprova.",
+    "server_busy": "Il server è occupato: riprova tra un attimo.",
     "camera": "Impossibile accedere alla fotocamera",
     "bring_add": "Errore nell'aggiunta a Bring!",
     "add_to_list": "Errore nell'aggiunta alla lista",

@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112q'; // bump when translations change
+const _I18N_VERSION = '20261112r'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19824,6 +19824,30 @@ async function _submitWasteRecord(inventoryId, reason, mode, knownRow) {
     }
 }
 
+/**
+ * The ONE answer every delete has to read.
+ *
+ * `api()` does NOT throw on a server error — it returns the JSON — so a caller that ignored the
+ * result closed the sheet, said «Prodotto rimosso» and left the row exactly where it was. That is
+ * the report: «premo Butta, mi chiede conferma e non lo cancella» (the server had answered
+ * `HTTP 500 — database is locked`). `true` only when the server said it deleted something;
+ * otherwise the sentence says what happened, and the caller changes nothing on screen.
+ */
+async function _deleteInventoryRow(id) {
+    let res = null;
+    try {
+        res = await api('inventory_delete', {}, 'POST', { id });
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+        return false;
+    }
+    if (res && (res.success || res.ok)) return true;
+    const key = (res && typeof res.error_key === 'string') ? res.error_key : '';
+    const busy = !!(res && res.error === 'database_busy');
+    showToast(busy ? t('error.server_busy') : (key ? t(key) : t('error.delete_failed')), 'error');
+    return false;
+}
+
 async function deleteInventoryItem(id, knownRow) {
     // `knownRow` is the banner/action-page row: the pantry list may be filtered to another
     // place, and losing the row here would delete nothing without saying so.
@@ -19848,8 +19872,8 @@ async function deleteInventoryItem(id, knownRow) {
         // Medicines: short confirm, no food-waste questionnaire / learning.
         if (!confirm(t('medical.discard_confirm'))) return;
         const snapshot = { ...item };
+        if (!(await _deleteInventoryRow(id))) return;
         try {
-            await api('inventory_delete', {}, 'POST', { id });
             closeModal();
             _dashboardLiveRefresh(id);
             showActionToast(t('toast.product_removed'), t('toast.undo_action'), async () => {
@@ -25972,12 +25996,13 @@ async function submitActionEditInventory(e, id, productId) {
 }
 
 async function deleteActionInventoryItem(id) {
-    if (confirm(t('confirm.remove_item'))) {
-        await api('inventory_delete', {}, 'POST', { id });
-        closeModal();
-        showToast(t('toast.product_removed'), 'success');
-        showProductAction(); // Refresh the action page
-    }
+    if (!confirm(t('confirm.remove_item'))) return;
+    // Same rule as the pantry sheet: nothing on screen changes unless the server really deleted
+    // the row (a 500 used to close the sheet and announce «Prodotto rimosso» anyway).
+    if (!(await _deleteInventoryRow(id))) return;
+    closeModal();
+    showToast(t('toast.product_removed'), 'success');
+    showProductAction(); // Refresh the action page
 }
 
 

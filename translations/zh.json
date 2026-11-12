@@ -2312,6 +2312,8 @@
     "search_short": "搜索错误",
     "save": "保存时出错",
     "connection": "连接错误",
+    "delete_failed": "无法删除该商品：请重试。",
+    "server_busy": "服务器繁忙：请稍后重试。",
     "camera": "无法访问摄像头",
     "bring_add": "添加到 Bring! 时出错",
     "add_to_list": "添加到清单时出错",

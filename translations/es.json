@@ -2311,6 +2311,8 @@
     "search_short": "Error de búsqueda",
     "save": "Error al guardar",
     "connection": "Error de conexión",
+    "delete_failed": "No he podido eliminar el producto: inténtalo de nuevo.",
+    "server_busy": "El servidor está ocupado: inténtalo en un momento.",
     "camera": "No se puede acceder a la cámara",
     "bring_add": "Error al añadir a Bring!",
     "add_to_list": "Error al añadir a la lista",

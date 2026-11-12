@@ -2315,6 +2315,8 @@
     "search_short": "Suchfehler",
     "save": "Fehler beim Speichern",
     "connection": "Verbindungsfehler",
+    "delete_failed": "Das Produkt konnte nicht gelöscht werden: bitte erneut versuchen.",
+    "server_busy": "Der Server ist beschäftigt: bitte gleich erneut versuchen.",
     "camera": "Kamera nicht verfügbar",
     "bring_add": "Fehler beim Hinzufügen zu Bring!",
     "add_to_list": "Fehler beim Hinzufügen zur Liste",

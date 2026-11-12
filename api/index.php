@@ -7219,13 +7219,48 @@ function deleteInventory(PDO $db): void {
         // non-fatal
     }
 
-    $qty = (float)$row['quantity'];
-    if ($qty > 0.0001) {
-        $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'out', ?, ?, ?)")
-           ->execute([(int)$row['product_id'], $qty, $row['location'], '[Eliminazione inventario]']);
+    // TWO writes that must land together: the ledger row that says where the stock went, and the
+    // inventory row itself. They used to run bare, so a database busy with anything else answered
+    // `SQLSTATE[HY000]: General error: 5 database is locked` (HTTP 500) — and the household got
+    // «Butta» → confirm → the medicine still on the shelf, with a success toast on top of it.
+    // The IMMEDIATE transaction + retry is the pattern every other write handler already follows,
+    // and a lock that outlives it is reported as `database_busy`, which the client retries.
+    try {
+        dbWithRetry(function () use ($db, $row, $id): void {
+            dbBeginImmediate($db);
+            try {
+                $qty = (float)$row['quantity'];
+                if ($qty > 0.0001) {
+                    $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'out', ?, ?, ?)")
+                       ->execute([(int)$row['product_id'], $qty, $row['location'], '[Eliminazione inventario]']);
+                }
+                $db->prepare("DELETE FROM inventory WHERE id = ?")->execute([$id]);
+                dbCommit($db);
+            } catch (Throwable $e) {
+                dbRollback($db);
+                throw $e;
+            }
+        });
+    } catch (PDOException $e) {
+        if (str_contains($e->getMessage(), 'database is locked')) {
+            http_response_code(503);
+            echo json_encode([
+                'success' => false,
+                'error'   => 'database_busy',
+                'message' => 'Database temporaneamente occupato — riprova tra un attimo.',
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+        EverLog::error('deleteInventory failed', [
+            'event'        => 'api_inventory_delete_failed',
+            'inventory_id' => $id,
+            'msg'          => $e->getMessage(),
+        ]);
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        return;
     }
 
-    $db->prepare("DELETE FROM inventory WHERE id = ?")->execute([$id]);
     echo json_encode(['success' => true]);
 }
 

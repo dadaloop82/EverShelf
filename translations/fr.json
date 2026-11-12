@@ -2311,6 +2311,8 @@
     "search_short": "Erreur de recherche",
     "save": "Erreur d'enregistrement",
     "connection": "Erreur de connexion",
+    "delete_failed": "Impossible de supprimer le produit : réessaie.",
+    "server_busy": "Le serveur est occupé : réessaie dans un instant.",
     "camera": "Impossible d'accéder à la caméra",
     "bring_add": "Erreur d'ajout à Bring !",
     "add_to_list": "Erreur lors de l'ajout à la liste",

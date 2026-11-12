@@ -2312,6 +2312,8 @@
     "search_short": "Search error",
     "save": "Error saving",
     "connection": "Connection error",
+    "delete_failed": "I could not delete the product: try again.",
+    "server_busy": "The server is busy: try again in a moment.",
     "camera": "Cannot access camera",
     "bring_add": "Error adding to Bring!",
     "add_to_list": "Error adding to the list",
