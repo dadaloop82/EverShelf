@@ -1715,7 +1715,7 @@
       "timeout_60": "1 小时",
       "start_after": "⏱️ 启动等待时间",
       "preview_btn": "▶️ 预览 30 秒",
-      "preview_hint": "立即显示 30 秒，不修改任何设置：轻触即可关闭。在地址中可以用 <code>?screensaver=90</code> 强制任意时长。",
+      "preview_hint": "立即显示 30 秒，不修改任何设置：它会一直显示到时间结束——右上角的 ✕ 可以提前退出。在地址中可以用 <code>?screensaver=90</code> 强制任意时长。",
       "preview_blocked": "请先结束扫描或烹饪步骤，然后再试。"
     },
     "scale": {
@@ -2456,7 +2456,9 @@
     "recipe_btn": "食谱",
     "scan_btn": "扫描商品",
     "scan_long_hint": "扫描商品（长按进入购物模式）",
-    "shopping_count": "件商品"
+    "shopping_count": "件商品",
+    "exit": "退出",
+    "exit_pinned": "退出屏保"
   },
   "days": {
     "mon": "星期一",

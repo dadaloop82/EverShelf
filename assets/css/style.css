@@ -11817,6 +11817,38 @@ body.cooking-mode-active .app-header {
     gap: 16px;
     z-index: 10001;
 }
+/* The way out of a PINNED screensaver (`?screensaver…` / «Anteprima»): that clock does not
+   close on a tap — a wall would lose it at the first accidental touch — so it owns a small
+   control in the corner with the seconds it has left. Top-right: the shortcuts are
+   bottom-right and they must never sit under it. */
+.screensaver-exit-btn {
+    position: absolute;
+    top: max(18px, env(safe-area-inset-top, 18px));
+    right: 18px;
+    z-index: 10002;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.10);
+    color: rgba(255, 255, 255, 0.92);
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    /* No backdrop-filter: a blur over the clock repaints every frame on a low-end wall. */
+}
+
+.screensaver-exit-btn[hidden] { display: none; }
+.screensaver-exit-btn:active { background: rgba(255, 255, 255, 0.2); }
+
+.screensaver-exit-count {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.72;
+    font-size: 0.76rem;
+}
 .screensaver-shortcut-btn {
     width: 64px;
     height: 64px;

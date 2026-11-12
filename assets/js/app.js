@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112zb'; // bump when translations change
+const _I18N_VERSION = '20261112zc'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -21729,7 +21729,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zb';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zc';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21739,7 +21739,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112zb';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112zc';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -43274,6 +43274,9 @@ function _screensaverTimeoutMs() {
 const SCREENSAVER_FORCE_DEFAULT_SEC = 60;
 const SCREENSAVER_FORCE_MAX_SEC = 6 * 60 * 60;
 let _screensaverForceTimer = null;
+/** A forced run is PINNED: a tap does not close it (only its window, or the ✕). */
+let _screensaverPinned = false;
+let _screensaverForceUntil = 0;
 
 /**
  * Seconds asked by the URL (`0` = the parameter is absent).
@@ -43293,6 +43296,49 @@ function _screensaverForceSeconds(search) {
 }
 
 /**
+ * Start a PINNED screensaver for `seconds`.
+ *
+ * «quando forzo lo screensaver (temporaneamente) non deve uscirmi dallo screensaver»: a
+ * forced run is a display, not a card. The idle listeners must not take it away on a
+ * pointer/key event — on a wall that is the first accidental touch, and the household
+ * asked for exactly these N seconds — so it stops only when its window ends. The small ✕
+ * in the corner (`_exitForcedScreensaver`) is the one deliberate way out.
+ *
+ * @param {number} seconds
+ * @returns {number} the seconds actually granted (clamped)
+ */
+function _startForcedScreensaver(seconds) {
+    const secs = Math.min(Math.max(parseInt(seconds, 10) || SCREENSAVER_FORCE_DEFAULT_SEC, 1), SCREENSAVER_FORCE_MAX_SEC);
+    _screensaverPinned = true;
+    _screensaverForceUntil = Date.now() + secs * 1000;
+    activateScreensaver();
+    _syncScreensaverPinUi();
+    clearTimeout(_screensaverForceTimer);
+    _screensaverForceTimer = setTimeout(() => {
+        _screensaverForceTimer = null;
+        if (_screensaverActive) dismissScreensaver();
+    }, secs * 1000);
+    return secs;
+}
+
+/** Paint the corner control of a pinned run (hidden for the ordinary screensaver). */
+function _syncScreensaverPinUi() {
+    const pinned = _screensaverPinned && _screensaverActive;
+    const btn = document.getElementById('screensaver-exit-btn');
+    if (btn) btn.hidden = !pinned;
+    const count = document.getElementById('screensaver-exit-count');
+    if (!count) return;
+    if (!pinned) { count.textContent = ''; return; }
+    const left = Math.max(0, Math.round((_screensaverForceUntil - Date.now()) / 1000));
+    count.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+}
+
+/** The ✕ of a pinned run: the one deliberate way out before the window ends. */
+function _exitForcedScreensaver() {
+    dismissScreensaver();
+}
+
+/**
  * Preview the idle screen for N seconds, from the Settings card. Same path as
  * `?screensaver=N` and the same promise: it shows, then leaves, and no setting is
  * written. `?screensaver` is the way to force it from an address (a wall, a demo).
@@ -43307,12 +43353,7 @@ function _previewScreensaver(seconds) {
         return;
     }
     try { remoteLog('SCREENSAVER', `preview ${secs}s from Settings`); } catch (_) {}
-    activateScreensaver();
-    clearTimeout(_screensaverForceTimer);
-    _screensaverForceTimer = setTimeout(() => {
-        _screensaverForceTimer = null;
-        if (_screensaverActive) dismissScreensaver();
-    }, secs * 1000);
+    _startForcedScreensaver(secs);
 }
 
 /**
@@ -43331,12 +43372,7 @@ function _maybeForceScreensaver() {
         }
         if (_screensaverBlockedPage()) return;
         try { remoteLog('SCREENSAVER', `forced for ${seconds}s by ?screensaver`); } catch (_) {}
-        activateScreensaver();
-        clearTimeout(_screensaverForceTimer);
-        _screensaverForceTimer = setTimeout(() => {
-            _screensaverForceTimer = null;
-            if (_screensaverActive) dismissScreensaver();
-        }, seconds * 1000);
+        _startForcedScreensaver(seconds);
     };
     attempt();
 }
@@ -43397,6 +43433,8 @@ function activateScreensaver() {
     // Fade in
     requestAnimationFrame(() => overlay.classList.add('visible'));
     updateScreensaverClock();
+    // A pinned run (`?screensaver`, the preview) shows its ✕ and the seconds it has left.
+    _syncScreensaverPinUi();
     _screensaverClockInterval = setInterval(updateScreensaverClock, 1000);
     updateScreensaverShopping();
     syncShoppingPriceTotal(false).then(() => updateScreensaverShopping());
@@ -43418,6 +43456,8 @@ function updateScreensaverClock() {
     const el = document.getElementById('screensaver-clock');
     if (el) el.innerHTML = `${time}<div class="screensaver-date">${date}</div>`;
     updateScreensaverMealPlan();
+    // The same one-second tick keeps the corner control of a pinned run honest.
+    _syncScreensaverPinUi();
 }
 
 /** Show/hide the planned meal type badge on the screensaver based on current time slot. */
@@ -43469,10 +43509,14 @@ function updateScreensaverMealPlan() {
 
 function dismissScreensaver(targetPage) {
     if (!_screensaverActive) return;
-    // A forced run (`?screensaver=…`) owns a dismissal timer: once the screen is gone the
-    // timer must not fire into the NEXT screensaver.
+    // A forced run (`?screensaver=…`) owns a dismissal timer and a PIN: once the screen is
+    // gone neither may survive into the NEXT screensaver.
     clearTimeout(_screensaverForceTimer);
     _screensaverForceTimer = null;
+    _screensaverPinned = false;
+    _screensaverForceUntil = 0;
+    const exitBtn = document.getElementById('screensaver-exit-btn');
+    if (exitBtn) exitBtn.hidden = true;
     clearInterval(_screensaverClockInterval);
     clearInterval(_screensaverFactInterval);
     clearInterval(_ssRotationTimer);
@@ -44728,6 +44772,10 @@ function initInactivityWatcher() {
         events.forEach(evt => {
             document.addEventListener(evt, () => {
                 if (_screensaverActive) {
+                    // A FORCED run is pinned: «quando forzo lo screensaver non deve uscirmi».
+                    // A tap, a key or a scroll must not take the clock away — it stays for the
+                    // window that was asked for, and the ✕ in the corner is the way out.
+                    if (_screensaverPinned) return;
                     dismissScreensaver();
                     return;
                 }

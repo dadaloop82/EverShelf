@@ -1715,7 +1715,7 @@
       "timeout_60": "1 hour",
       "start_after": "⏱️ Start after",
       "preview_btn": "▶️ 30 s preview",
-      "preview_hint": "Shows it right away for 30 seconds without changing the setting: a tap closes it. From an address you can force it for as long as you like: <code>?screensaver=90</code>.",
+      "preview_hint": "Shows it right away for 30 seconds without changing the setting: it stays until the window ends — the ✕ in the top-right corner leaves earlier. From an address you can force it for as long as you like: <code>?screensaver=90</code>.",
       "preview_blocked": "Finish the scan or the cooking step first, then try again."
     },
     "scale": {
@@ -2456,7 +2456,9 @@
     "recipe_btn": "Recipes",
     "scan_btn": "Scan product",
     "scan_long_hint": "Scan product (long-press for shopping mode)",
-    "shopping_count": "items"
+    "shopping_count": "items",
+    "exit": "Exit",
+    "exit_pinned": "Leave the screensaver"
   },
   "days": {
     "mon": "Monday",

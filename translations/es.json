@@ -1610,7 +1610,7 @@
       "timeout_60": "1 hora",
       "start_after": "⏱️ Iniciar tras",
       "preview_btn": "▶️ Vista previa de 30 s",
-      "preview_hint": "Lo muestra al instante durante 30 segundos sin cambiar el ajuste: un toque lo cierra. Desde una dirección puedes forzarlo todo el tiempo que quieras: <code>?screensaver=90</code>.",
+      "preview_hint": "Lo muestra al instante durante 30 segundos sin cambiar el ajuste: se queda hasta el final — la ✕ de arriba a la derecha lo cierra antes. Desde una dirección puedes forzarlo todo el tiempo que quieras: <code>?screensaver=90</code>.",
       "preview_blocked": "Termina primero el escaneo o el paso de cocción y vuelve a intentarlo."
     },
     "scale": {
@@ -2456,7 +2456,9 @@
     "recipe_btn": "Recetas",
     "scan_btn": "Escanear producto",
     "scan_long_hint": "Escanear producto (mantener pulsado para modo compras)",
-    "shopping_count": "artículos"
+    "shopping_count": "artículos",
+    "exit": "Salir",
+    "exit_pinned": "Salir del salvapantallas"
   },
   "days": {
     "mon": "Lunes",

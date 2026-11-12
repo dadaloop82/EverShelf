@@ -109,11 +109,13 @@ The clock screen can be shown on demand, and it changes nothing:
 - **Settings → Generali → Salvaschermo → «▶️ Anteprima 30 s»** — the same thing from the
   touch screen, so nobody has to type a URL on the wall.
 
-It appears after the splash, a tap closes it early, and when the window ends it goes away
-by itself: the switch, the timeout and every other setting stay exactly as they were. A
-running session (a scan, a cooking step, a SHELFY turn) wins over the parameter — the same
-guards the ordinary screensaver obeys — and the event is written to the client log as
-`[SCREENSAVER] forced for Ns by ?screensaver`.
+A forced run is a **display, not a card**: taps, keys and scrolls do **not** take it away
+(on a wall the first accidental touch would), it stays for the whole window and then leaves
+by itself. The only way out early is the small **✕ «Esci»** in the top-right corner, which
+also prints the time left. The switch, the timeout and every other setting stay exactly as
+they were, and a running session (a scan, a cooking step, a SHELFY turn) wins over the
+parameter — the same guards the ordinary screensaver obeys. The event is written to the
+client log as `[SCREENSAVER] forced for Ns by ?screensaver` / `preview Ns from Settings`.
 
 ### Steps 6–7 — Gemini AI and Bring! (optional)
 

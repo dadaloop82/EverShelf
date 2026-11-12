@@ -1610,7 +1610,7 @@
       "timeout_60": "1 heure",
       "start_after": "⏱️ Démarrer après",
       "preview_btn": "▶️ Aperçu de 30 s",
-      "preview_hint": "L'affiche tout de suite pendant 30 secondes sans modifier le réglage : un toucher le ferme. Depuis une adresse, vous pouvez le forcer aussi longtemps que vous voulez : <code>?screensaver=90</code>.",
+      "preview_hint": "L'affiche tout de suite pendant 30 secondes sans modifier le réglage : il reste jusqu'au bout — la ✕ en haut à droite le ferme plus tôt. Depuis une adresse, vous pouvez le forcer aussi longtemps que vous voulez : <code>?screensaver=90</code>.",
       "preview_blocked": "Terminez d'abord le scan ou l'étape de cuisson, puis réessayez."
     },
     "scale": {
@@ -2456,7 +2456,9 @@
     "recipe_btn": "Recettes",
     "scan_btn": "Scanner un produit",
     "scan_long_hint": "Scanner un produit (appui long pour le mode courses)",
-    "shopping_count": "articles"
+    "shopping_count": "articles",
+    "exit": "Quitter",
+    "exit_pinned": "Quitter l'écran de veille"
   },
   "days": {
     "mon": "Lundi",
