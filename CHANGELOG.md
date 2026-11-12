@@ -5,6 +5,79 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.29] - 2026-11-12
+
+### The opening window is the household's — averaged, never overwritten
+Reported together: «mi chiedi “aperta da” va bene ma metti anche “non aperta”, solo se la quantità
+corrisponde a quella della confezione chiusa».
+- `data/opened_shelf_life.json` stays the app's opinion; the two numbers the notice strip prints
+  («consigliato entro 3-6 gg») are now editable from the pantry edit sheet. `pao_observations`
+  (product × family × place) behind `pao_get` / `pao_save` / `pao_reset`
+  (`api/lib/pao_overrides.php`), and what every clock then reads is the **average of the
+  corrections** for that family in that place — one correction never rewrites a category.
+  `openedShelfLifeThresholds()` keeps `table_warn` / `table_critical`, so the sheet says where the
+  number came from and offers a reset; an install that never edited anything answers exactly as
+  before (`paoEnsureTable()` in `migrateDB()`).
+- **«Non aperta»**: a medicine marked open by a tap had no way back. The edit sheet clears
+  `opened_at` (`inventory_update` + `opened_at_clear`, the door the food sheet already used) and
+  nothing else — opening a medicine never rewrites the date printed on the box. It appears **only
+  while the pack is whole** (`_medPackIsWhole`: a whole number of the packs the product declares,
+  never 19 of 20); on a half box the block says why instead of writing something untrue. The
+  «Aperta da» block became `_medOpenSinceBlockHtml()`, repainted by both writes, so the control
+  always shows the stored answer.
+- The medical PAO table is v3: one rule per FORM with its words in the six shipped languages,
+  matched as whole words and accent-insensitively («comprime» finds «comprimé», «gel» no longer
+  fires on «Angelini»); single-dose containers carry 0 and `migration_med_pao_single_dose_v1`
+  re-derives the `1` that made a sealed 6-dose box read «da usare entro 1 gg dall'apertura».
+- `productKindIsPlausibleGenre()` refuses a CLASS with a tail too («Integratore alimentare a base di
+  erbe»), not only the exact umbrella label.
+
+### «Ti dico io» keeps the row you already confirmed
+Reported: «una volta fatto un articolo non lo ritrovo più nella lista… lo dovrei ritrovare con un
+badge “già confermato”». The search filtered answered rows out, so typing the name of the product
+just confirmed answered «Nessun prodotto per …» and offered to CREATE it again.
+- The row stays, carrying `audit_answered` (on a copy: the live caches are untouched), wearing a
+  badge in the answer's own words («Già confermato» / «già segnato finito» / «già segnato buttato» /
+  «già saltato») and a warmer surface, and it sinks below the open questions. Its action becomes
+  «Cambia risposta» (the card), because «✓ C'è» on an answered row writes nothing; the guard that
+  refuses a second press per row stays. Enter still lands on the first OPEN row.
+- The example in the field follows the SHELF: inventorying the medicines it asked for «Es: passata
+  di pomodoro». It reads «Es: paracetamolo» on a medical place (`isMedicalLocation`, or the pantry's
+  own filter when no place is chosen) and keeps the food example everywhere else.
+
+### No camera: the stream is off, the page is not
+Reported: «se la fotocamera non è disponibile… devi disattivarmi lo stream ma non l'intera funzione…
+tutto ciò che è manuale deve essere attivato», plus «il popup che esce è rotondo ed è brutissimo».
+- `showPage('scan')` used to return early, so typed barcode, name search and the manual form were
+  unreachable. The page opens; `initScanner()` is what refuses a `getUserMedia()` that can only
+  fail. The viewport and the camera's furniture are dropped by CSS, and the page says it in
+  `#scan-nocamera` — a card, not the capsule toast (`.toast.card` now carries the sentence wherever
+  the scan page is not on screen).
+- The AI door is the only one the stream takes away: `_updateScanAiButton()` disables it and says
+  «Il riconoscimento AI ha bisogno della fotocamera»; `_triggerManualAiScan()` refuses to read a
+  frame that does not exist.
+
+### «Butta» deletes the row — or says it could not
+Reported on a medicine: «premo Butta, mi chiede conferma e poi non lo cancella». The server log said
+`inventory_delete HTTP 500 — SQLSTATE[HY000]: General error: 5 database is locked`.
+- `deleteInventory()` ran its two writes (the `[Eliminazione inventario]` ledger row and the
+  `DELETE`) bare: any other write made SQLite answer BUSY and the request failed. It now runs in an
+  IMMEDIATE transaction with `dbWithRetry()`, and a lock that outlives the retries is reported as
+  `database_busy` (503), which the client retries. Measured on a copy of the live database with a
+  second connection holding the write lock: the old body failed, the new one deleted after 656 ms.
+- `api()` does not throw on a server error, and both delete callers threw the answer away: the sheet
+  closed, the toast said «Prodotto rimosso» and the row stayed. Every delete now goes through
+  `_deleteInventoryRow()`, which changes nothing on screen unless the server confirms.
+
+### A file rewritten while it is being served no longer kills the worker
+- `EnableMMAP off` in `.htaccess` and in the docker vhost: Apache maps the file it delivers and
+  `app.js` arrives gzipped (chunked), so truncating it under the mapping raised SIGBUS, the child
+  died (`AH00052 Bus error`) and every response in flight was cut — Chrome reports it as
+  `net::ERR_INCOMPLETE_CHUNKED_ENCODING 200 (OK)`.
+- JS/CSS/index: `no-cache` + `Last-Modified` (304) instead of `no-store` (a boot re-streamed 2.1 MB
+  every time), `ETag` unset because mod_deflate publishes a tag it then fails to match, and `sw.js`
+  fetches the shell with `cache: 'reload'` so a revalidating server cannot leave it half empty.
+
 ## [1.31.28] - 2026-11-11
 
 ### The Home fills the screen, then says "e altri N…"
