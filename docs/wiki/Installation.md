@@ -1,6 +1,6 @@
 # 📦 Installation
 
-EverShelf runs on any server with PHP 8.0+ and SQLite. Docker is the recommended approach for the fastest setup.
+EverShelf runs on any server with PHP 8.2+ and SQLite (CI checks 8.2, the Docker image builds on 8.5). Docker is the recommended approach for the fastest setup.
 
 ---
 
