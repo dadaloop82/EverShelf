@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112s'; // bump when translations change
+const _I18N_VERSION = '20261112t'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -3654,6 +3654,9 @@ const SHOPPING_SECTIONS = [
     { key: 'surgelati',      icon: '❄️',  label: t('shopping_sections.surgelati'),      cats: new Set(['surgelati']) },
     { key: 'bevande',        icon: '🥤', label: t('shopping_sections.bevande'),        cats: new Set(['bevande']) },
     { key: 'pulizia_igiene', icon: '🧴', label: t('shopping_sections.pulizia_igiene'), cats: new Set(['igiene','pulizia']) },
+    // A medicine is never a tomato: its own shelf in the list, right after the household goods
+    // and before «Altro», wearing the indigo tint of the alert cards (`.shop-row.is-medical`).
+    { key: 'medicinali',     icon: '💊', label: t('shopping_sections.medicinali'),     cats: new Set(['farmaci']) },
     { key: 'altro',          icon: '📦', label: t('shopping_sections.altro'),          cats: new Set(['altro']) },
 ];
 
@@ -3662,7 +3665,45 @@ function _sectionForCategory(cat) {
     return SHOPPING_SECTIONS[SHOPPING_SECTIONS.length - 1];
 }
 
+/**
+ * Is this shopping row a MEDICINE?
+ *
+ * The smart row says so itself (`is_medical` from `smartShopping()`, plus `med_tags` /
+ * `med_ingredient` when a row comes from the pantry). A row typed by hand has no product behind
+ * it, so it is looked up by name in the inventory the pantry already holds: «Tachipirina» added
+ * to the list lands in 💊 Medicinali, not between the carrots. The match tolerates the variant
+ * words a box carries («Tachipirina 1000 mg compresse»), because that is what the household
+ * types.
+ */
+function _shopRowIsMedical(smartData, name = '') {
+    const flag = (row) => !!(row && (row.is_medical === 1 || row.is_medical === true || row.is_medical === '1'
+        || String(row.med_tags || '').trim() || String(row.med_ingredient || '').trim()));
+    if (flag(smartData)) return true;
+    const needle = String(name || '').trim().toLowerCase();
+    if (!needle) return false;
+    const pool = (typeof _allInventoryCache !== 'undefined' && Array.isArray(_allInventoryCache) && _allInventoryCache.length)
+        ? _allInventoryCache
+        : (Array.isArray(currentInventory) ? currentInventory : []);
+    return pool.some((row) => {
+        if (!flag(row)) return false;
+        return [row.name, row.display_name, row.shopping_name].some((label) => {
+            const l = String(label || '').trim().toLowerCase();
+            if (!l) return false;
+            if (l === needle) return true;
+            // A shared HEAD is the same article only when it is a real word, never a two-letter
+            // stub: «latte» vs «latte di magnesia» is a question, «ta» vs «tachipirina» is not.
+            const head = needle.length >= 4 ? needle : (l.length >= 4 ? l : '');
+            return !!head && (l.startsWith(head + ' ') || needle.startsWith(l + ' '));
+        });
+    });
+}
+
 function getItemSection(name, smartData = null) {
+    // A medicine overrides the name-based guess: «Rinore» would be classified by its words, and
+    // the household looks for it at the pharmacy counter, never among the drinks.
+    if (_shopRowIsMedical(smartData, name)) {
+        return SHOPPING_SECTIONS.find((s) => s.key === 'medicinali') || _sectionForCategory('altro');
+    }
     if (smartData?.category) {
         const fromSmart = mapToLocalCategory(
             smartData.category,
@@ -10699,6 +10740,26 @@ function _openCaptureSheetInner() {
  * change by recreating the Activity reloads the whole app (reported as "opening SHELFY
  * restarts everything"). Everything that would open a keyboard asks this first.
  */
+/* ── A PERIPHERAL THAT CANNOT WORK SAYS WHY, IN SMALL RED ──────────────────────
+   «se ci sono problemi con periferiche o altro (microfono, fotocamera, altoparlante, ecc..) mi
+   scrivi sempre sotto la motivazione tecnica in piccolo e in rosso». The sentence the household
+   reads stays a translated, human line (WHAT is not working); this one carries the engine's own
+   words (WHY) — the same words the server log holds, so a screenshot and a log agree. */
+function _techReasonText(key, detail) {
+    if (!key) return '';
+    return `${t('diag.lead')} ${t(key)}${detail ? ` · ${detail}` : ''}`;
+}
+
+/** Put (or clear, with no key) the technical line of a peripheral problem under its sentence. */
+function _techReason(target, key, detail) {
+    const el = typeof target === 'string' ? document.getElementById(target) : target;
+    if (!el) return;
+    const text = _techReasonText(key, detail);
+    if (!text) { el.hidden = true; el.textContent = ''; return; }
+    el.textContent = text;
+    el.hidden = false;
+}
+
 /**
  * Can this device use the camera at all?
  *
@@ -10709,6 +10770,8 @@ function _openCaptureSheetInner() {
  * `getUserMedia` on this browser, the permission already refused, or a camera that just failed.
  */
 let _cameraBlocked = false;
+/** Why the camera is off (`diag.*` key + raw detail): painted under the notice on the scan page. */
+let _cameraDiag = { key: '', detail: '' };
 function _cameraUsable() {
     return !_cameraBlocked && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 }
@@ -10731,6 +10794,8 @@ function _syncScanNoCameraChrome(blocked) {
     const on = blocked !== undefined ? !!blocked : !_cameraUsable();
     const note = document.getElementById('scan-nocamera');
     if (note) note.hidden = !on;
+    // WHY, in small red under the sentence: the browser's own reason, not a guess.
+    _techReason('scan-nocamera-tech', on ? (_cameraDiag.key || 'diag.camera_no_api') : '', _cameraDiag.detail);
     const ai = document.getElementById('scan-ai-manual-btn');
     if (!ai) return;
     if (!on) {
@@ -10760,8 +10825,11 @@ function _explainCameraUnavailable() {
     try { remoteLog('CAM', onScan ? 'no camera: notice shown on the scan page' : 'no camera: explained on another page'); } catch (e) { /* logging is optional */ }
 }
 
-function _markCameraBlocked(reason) {
-    if (_cameraBlocked) return;
+function _markCameraBlocked(reason, diagKey = '', diagDetail = '') {
+    // Remember WHY first: the notice under the sentence is painted from here even when the flag
+    // was already set (a second failure can refine the reason).
+    if (diagKey) _cameraDiag = { key: diagKey, detail: diagDetail || _cameraDiag.detail };
+    if (_cameraBlocked) { _syncScanNoCameraChrome(true); return; }
     _cameraBlocked = true;
     _applyCameraChrome();
     try { remoteLog('CAM', 'camera unavailable: ' + reason); } catch (e) {}
@@ -10771,18 +10839,22 @@ function _markCameraBlocked(reason) {
 function _detectCameraAvailability() {
     try {
         if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
-            _markCameraBlocked('no getUserMedia');
+            // The usual cause is not a camera-less device but a page served over plain HTTP
+            // (`isSecureContext === false`): `getUserMedia` simply does not exist there.
+            const detail = `getUserMedia=missing secure_context=${window.isSecureContext ? 'yes' : 'no'}`;
+            _markCameraBlocked('no getUserMedia (' + detail + ')', 'diag.camera_no_api', detail);
             return;
         }
         if (navigator.permissions && navigator.permissions.query) {
             navigator.permissions.query({ name: 'camera' }).then((st) => {
-                if (st.state === 'denied') _markCameraBlocked('permission denied');
+                if (st.state === 'denied') _markCameraBlocked('permission denied', 'diag.camera_denied', 'permissions.camera=denied');
                 // The permission can come back (Android settings): the 📷 works again without a reload.
                 st.onchange = () => {
                     if (st.state === 'denied') {
-                        _markCameraBlocked('permission denied');
+                        _markCameraBlocked('permission denied', 'diag.camera_denied', 'permissions.camera=denied');
                     } else if (_cameraBlocked) {
                         _cameraBlocked = false;
+                        _cameraDiag = { key: '', detail: '' };
                         _applyCameraChrome();
                     }
                 };
@@ -10845,18 +10917,36 @@ function _logKioskMemory(stage) {
     } catch (e) { /* diagnostics never break a sheet */ }
 }
 
-function _captureStatus(key, params) {
+/**
+ * The status line, plus — when the problem is a PERIPHERAL — the technical reason in small red
+ * underneath (`tech`): the household's sentence says what is not working, this one says why.
+ */
+function _captureStatus(key, params, tech) {
     _captureStatusText(t(key, params));
+    _techReason('capture-tech', tech && tech.key, tech && tech.detail);
 }
 
 /** The status line, already resolved: the phase machine below passes the literal itself. */
 function _captureStatusText(text) {
     const el = document.getElementById('capture-status');
+    // A new sentence is not about a broken peripheral any more: the red line goes with the old
+    // one (it is re-set right after by `_captureStatus` when this is a peripheral problem).
+    _techReason('capture-tech', '');
     if (!el) return;
     // Rewriting the same sentence on every interim result made the live region repeat
     // itself; the state machine below sets it once per transition.
     if (el.textContent === text) return;
     el.textContent = text;
+}
+
+/**
+ * The microphone in the engine's own words: the SAME line the server log carries, so a
+ * screenshot of the sheet and a `[SHELFY]` line in `data/logs/app-*.log` agree.
+ */
+function _micDiagDetail(extra) {
+    const api = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    const secure = window.isSecureContext ? 'yes' : 'no';
+    return `SpeechRecognition=${api ? 'yes' : 'no'} secure_context=${secure} kiosk=${_isKioskDevice() ? 'yes' : 'no'}${extra ? ` ${extra}` : ''}`;
 }
 
 /**
@@ -10922,6 +11012,7 @@ function _captureNotUnderstood(messageKey, params) {
 }
 
 /** The mic is offered only where the browser can actually listen (audit: no fake CTA). */
+let _micDiagLast = '';
 function _captureSyncMicAvailability() {
     const mic = document.getElementById('capture-mic');
     if (!mic) return;
@@ -10935,24 +11026,32 @@ function _captureSyncMicAvailability() {
     // ring spinning around nothing.
     const wrap = document.getElementById('capture-mic-wrap');
     if (wrap) wrap.hidden = !canListen;
-    if (!canListen) {
-        // No recogniser. A PHONE gets the text field, because typing is the only way in.
-        // A KIOSK does not: the soft keyboard relayouts the whole page and Android may answer
-        // a configuration change by recreating the Activity, which reloads the WebView — the
-        // app "restarts" on a tap of SHELFY. On the tablet the sentence is chosen from the
-        // examples below (one tap runs it, no keyboard) or from the chat.
-        if (_isKioskDevice()) {
-            _captureShowType(false);
-            const typeBtn = document.getElementById('capture-type-btn');
-            if (typeBtn) typeBtn.hidden = true;
-            _captureStatus('capture.kiosk_no_voice');
-            return;
-        }
-        // No recogniser: typing IS the assistant here, so the field opens by itself
-        // (the link that normally reveals it would have nothing to offer).
-        _captureShowType(true);
-        _captureStatus('capture.unsupported');
+    if (canListen) { _micDiagLast = ''; return; }
+    // One line per STATE CHANGE, not per open: this is the record of what the device believed
+    // when SHELFY told the household it could not listen (the tablet report: «dice che non ha
+    // il microfono»). It lands in `data/logs/app-*.log` (or `kiosk-*.log` on the wall).
+    const diagKey = _isKioskDevice() ? 'diag.mic_kiosk' : 'diag.mic_no_api';
+    const detail = _micDiagDetail();
+    if (detail !== _micDiagLast) {
+        _micDiagLast = detail;
+        try { remoteLog('SHELFY', `mic unavailable: ${_isKioskDevice() ? 'kiosk WebView' : 'no SpeechRecognition'} · ${detail}`); } catch (e) { /* logging is optional */ }
     }
+    // No recogniser. A PHONE gets the text field, because typing is the only way in.
+    // A KIOSK does not: the soft keyboard relayouts the whole page and Android may answer
+    // a configuration change by recreating the Activity, which reloads the WebView — the
+    // app "restarts" on a tap of SHELFY. On the tablet the sentence is chosen from the
+    // examples below (one tap runs it, no keyboard) or from the chat.
+    if (_isKioskDevice()) {
+        _captureShowType(false);
+        const typeBtn = document.getElementById('capture-type-btn');
+        if (typeBtn) typeBtn.hidden = true;
+        _captureStatus('capture.kiosk_no_voice', null, { key: diagKey, detail });
+        return;
+    }
+    // No recogniser: typing IS the assistant here, so the field opens by itself
+    // (the link that normally reveals it would have nothing to offer).
+    _captureShowType(true);
+    _captureStatus('capture.unsupported', null, { key: diagKey, detail });
 }
 
 
@@ -11136,7 +11235,7 @@ function _captureRetryVoice() {
     // On a kiosk "riprova a voce" has nothing to retry with: say the honest line and leave the
     // example phrases (one tap each) and the chat as the two ways forward.
     if (_isKioskDevice()) {
-        _captureStatus('capture.kiosk_no_voice');
+        _captureStatus('capture.kiosk_no_voice', null, { key: 'diag.mic_kiosk', detail: _micDiagDetail('retry=refused') });
         return;
     }
     _captureStartVoice();
@@ -11910,7 +12009,10 @@ const _CAPTURE_HANDOVER_GUARD_MS = 700;
 
 async function _captureStartVoice() {
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Ctor) { _captureStatus('capture.unsupported'); return; }
+    if (!Ctor) {
+        _captureStatus('capture.unsupported', null, { key: 'diag.mic_no_api', detail: _micDiagDetail() });
+        return;
+    }
     // A KIOSK NEVER ARMS THE RECOGNISER, whoever asks. `_captureRetryVoice()` (the fallback card's
     // "🔄 Riprova a voce") used to call this without a guard: on the wall the session started, Android
     // refused the microphone — the permission surface cannot come to the front over a locked-task
@@ -11919,7 +12021,7 @@ async function _captureStartVoice() {
     // cannot listen there, and the household was being sent to check permissions that are fine.
     if (_isKioskDevice()) {
         _kioskTrace('SHELFY', 'startVoice refused on kiosk');
-        _captureStatus('capture.kiosk_no_voice');
+        _captureStatus('capture.kiosk_no_voice', null, { key: 'diag.mic_kiosk', detail: _micDiagDetail('start=refused') });
         _captureSetState('idle');
         return;
     }
@@ -12082,7 +12184,18 @@ async function _captureStartVoice() {
                 // Typing is the way out of a denied microphone, so offer it instead of
                 // pointing at a field that is hidden.
                 _captureShowType(true);
-                _captureStatus('capture.mic_denied');
+                _captureStatus('capture.mic_denied', null, { key: 'diag.mic_denied', detail: _micDiagDetail(`error=${ev.error}`) });
+                return;
+            }
+            // No microphone at all (unplugged, disabled, or held by another app): the recogniser
+            // says `audio-capture` and nothing else would ever explain it — say it, in words and
+            // with the engine's own reason, and open typing, which needs no microphone.
+            if (ev && ev.error === 'audio-capture') {
+                _captureVoiceStop();
+                _captureSetState('idle');
+                _captureShowType(true);
+                _captureStatus('capture.mic_missing', null, { key: 'diag.mic_capture', detail: _micDiagDetail('error=audio-capture') });
+                try { remoteLog('SHELFY', `mic unavailable: audio-capture · ${_micDiagDetail()}`); } catch (e) { /* optional */ }
                 return;
             }
             // "no-speech" / "aborted": onend decides, and the interim text still counts.
@@ -18408,10 +18521,17 @@ function _setScanModeInner(mode) {
     // The scanner only exists where the country schema says what to read: otherwise the panel
     // keeps the camera and the hand entry, and a dialog explains why.
     const readable = medical && _medScanSupported() && _medOcrPatterns().length > 0;
+    // No camera at all: the typed AIC is the ONLY way in — see the two blocks below.
+    const noCam = typeof _cameraUsable === 'function' && !_cameraUsable();
     const hint = document.getElementById('scan-med-hint');
     if (hint) {
         hint.hidden = !medical;
-        hint.textContent = medical ? _medScanHintText() : t('medical.scan_hint');
+        // With no camera «inquadra l'etichetta» is an instruction nobody can follow: the hint
+        // becomes the sentence that names the hand entry. `data-i18n` moves with it, so a
+        // language change keeps the same sentence.
+        const hintKey = (medical && noCam) ? 'medical.code_no_camera' : 'medical.scan_hint';
+        hint.setAttribute('data-i18n', hintKey);
+        hint.textContent = medical ? (noCam ? t('medical.code_no_camera') : _medScanHintText()) : t('medical.scan_hint');
     }
     // The guide rectangle IS the reader's field of view: what is inside it is what gets OCR'd
     // (and it shows the shape to look for, e.g. `A000000000`, taken from the country data).
@@ -18444,7 +18564,7 @@ function _setScanModeInner(mode) {
     _medHideFamilyPicker();
     const sampleEl = document.getElementById('scan-med-frame-sample');
     if (sampleEl) sampleEl.classList.remove('is-read');
-    if (medical) _medOcrSelfTest().catch(() => {});
+    if (medical && !noCam) _medOcrSelfTest().catch(() => {});
     // The hand entry is ASKED for, never parked under the camera: the medicine panel carries a
     // "✏️ Scrivi codice" button and the field appears only when it is tapped (or when the
     // twenty-second rescue card asks). A permanently anchored A + 9 digits row took the camera's
@@ -18453,6 +18573,16 @@ function _setScanModeInner(mode) {
     if (codeRow) codeRow.hidden = true;
     const codeOpenBtn = document.getElementById('scan-med-code-open');
     if (codeOpenBtn) codeOpenBtn.hidden = !medical;
+    // NO CAMERA, medicine panel: the typed AIC is the ONLY way in, so the field is opened here
+    // instead of waiting for a rescue that a missing stream never schedules (`_medAskCodeSoon()`
+    // bails without `scannerStream`) — and the card it would use lives over the viewport, which
+    // `html.no-camera` hides. The lookup is the same one a scan runs (`_medSubmitCode →
+    // _medConfirmRead`), so nothing else changes: the catalogue answers exactly as if the code
+    // had been read, near matches and name fallback included.
+    if (medical && noCam) {
+        _medCodeRowOpen();
+        scanLog('Medicine: no camera, the code is asked by hand at once');
+    }
     // The status chip is the ONE line of feedback (no box over the camera): what the reader got.
     const codeInput = document.getElementById('scan-med-code-input');
     if (codeInput && !medical) codeInput.value = '';
@@ -20992,9 +21122,23 @@ async function initScanner() {
     } catch (err) {
         clearTimeout(_camWatchdogTimer);
         scanLog(`CAMERA ERROR: ${err.name}: ${err.message}`);
+        // Why it failed, in the engine's own words: a red line under the sentence (and the same
+        // fields in the server log, so «non funziona la fotocamera» has an answer).
+        const camDiagKey = ({
+            NotAllowedError: 'diag.camera_denied',
+            PermissionDeniedError: 'diag.camera_denied',
+            SecurityError: 'diag.camera_denied',
+            NotFoundError: 'diag.camera_none',
+            DevicesNotFoundError: 'diag.camera_none',
+            OverconstrainedError: 'diag.camera_none',
+            NotReadableError: 'diag.camera_error',
+            TrackStartError: 'diag.camera_error',
+            AbortError: 'diag.camera_error',
+        })[err && err.name] || 'diag.camera_error';
+        const camDiagDetail = `${err && err.name}: ${err && err.message}`;
         // Refused or no camera at all: this device cannot scan, and every 📷 in the app must go.
         if (['NotAllowedError', 'NotFoundError', 'SecurityError', 'NotReadableError'].includes(err && err.name)) {
-            _markCameraBlocked(err.name);
+            _markCameraBlocked(err.name, camDiagKey, camDiagDetail);
         }
         _kioskTrace('CAM', `error ${err.name}: ${err.message}`);
         console.error('Camera error:', err);
@@ -21011,6 +21155,7 @@ async function initScanner() {
                 </div>
                 <p style="color: var(--danger)">${escapeHtml(t('error.camera'))}</p>
                 <p style="font-size:0.85rem; color: var(--text-light); margin-top:8px">${escapeHtml(t('scanner.camera_error_hint'))}</p>
+                <p class="tech-reason">${escapeHtml(_techReasonText(camDiagKey, camDiagDetail))}</p>
             `;
             result.style.display = 'block';
         }
@@ -21074,7 +21219,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112s';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112t';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21084,7 +21229,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112s';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112t';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -22629,7 +22774,7 @@ function _medAskCodeSoon() {
  * running while it is open (a box in the other hand may still be recognised), and the
  * twenty-second rescue card is cancelled — the answer is already on its way by hand.
  */
-function _medCodeRowOpen() {
+function _medCodeRowOpen(focus = true) {
     if (!_scanModeIsMedical()) return;
     const row = document.getElementById('scan-med-code-row');
     const ask = document.getElementById('scan-med-ask');
@@ -22646,8 +22791,14 @@ function _medCodeRowOpen() {
     _medShowAsk(false);
     row.hidden = false;
     row.classList.remove('is-wanted');
-    try { input?.focus({ preventScroll: true }); } catch (e) { /* no keyboard */ }
-    scanLog('Medicine: the hand entry was opened by the household');
+    // A KIOSK NEVER OPENS THE SOFT KEYBOARD BY ITSELF (an Android WebView answers a
+    // keyboard-driven configuration change by recreating the Activity, which reloads the page):
+    // the field is revealed, and the household taps it if they want to type.
+    const willFocus = !!focus && !_isKioskDevice();
+    if (willFocus) {
+        try { input?.focus({ preventScroll: true }); } catch (e) { /* no keyboard */ }
+    }
+    scanLog(`Medicine: the hand entry was opened (${willFocus ? 'focused' : 'revealed'})`);
 }
 
 /** Back to the camera after the code prompt stopped it. */
@@ -32348,8 +32499,18 @@ function renderSmartItem(item) {
             expiryBadge = `<span class="smart-pred-badge pred-urgent">${t('expiry.badge_expires_warn').replace('{n}', item.days_to_expiry)}</span>`;
         }
 
+    // The urgency colour is an INLINE style, so it beats any stylesheet rule: a medicine gets its
+    // indigo tint layered on top of it here, exactly like `.shop-row.is-medical` does in CSS.
+    const medRow = _shopRowIsMedical(item, shoppingName);
+    const darkTheme = document.documentElement.getAttribute('data-theme') === 'dark'
+        || document.documentElement.classList.contains('dark')
+        || document.body.classList.contains('dark');
+    const medTint = medRow
+        ? `linear-gradient(135deg, rgba(99, 102, 241, ${darkTheme ? 0.32 : 0.12}), rgba(99, 102, 241, ${darkTheme ? 0.10 : 0.04})), `
+        : '';
+
         return `
-        <div class="smart-item" style="border-left: 3px solid ${u.color}; background: ${u.bg}">
+        <div class="smart-item${medRow ? ' is-medical' : ''}" style="border-left: 3px solid ${u.color}; background: ${medTint}${u.bg}">
             <div class="smart-item-top">
                 ${!item.on_bring ? `<input type="checkbox" class="smart-check" data-idx="${globalIdx}">` : ''}
                 <span class="smart-item-icon" aria-hidden="true">${u.icon}</span>
@@ -33844,6 +34005,9 @@ async function renderShoppingItems(force = false) {
             const displayName = _shoppingListGenericTitle(item, smartData);
             const visualHtml = _shopRowVisualHtml(item, smartData);
             const urgencyClass = _shopRowUrgencyClass(urgency);
+            // A medicine wears the medical tint of the notice strip (surfaces.css): the rail keeps
+            // saying HOW urgent it is, the paper says WHAT the row is.
+            const medClass = _shopRowIsMedical(smartData, displayName) ? ' is-medical' : '';
             const urgencyBadge = (urgency === 'critical' || urgency === 'high')
                 ? `<span class="shop-row-urgency-badge shop-row-urgency-badge--${urgency}">${urgency === 'critical' ? '⚡' : '🟠'} ${t(urgency === 'critical' ? 'shopping.urgency_critical' : 'shopping.urgency_high')}</span>`
                 : '';
@@ -33852,7 +34016,7 @@ async function renderShoppingItems(force = false) {
                 : '';
 
             html += `
-            <div class="shop-row${urgencyClass}" id="shop-item-${idx}" data-idx="${idx}" data-urgency="${urgency || ''}" data-urgent="${urgency === 'critical' || urgency === 'high' ? '1' : '0'}">
+            <div class="shop-row${urgencyClass}${medClass}" id="shop-item-${idx}" data-idx="${idx}" data-urgency="${urgency || ''}" data-urgent="${urgency === 'critical' || urgency === 'high' ? '1' : '0'}">
                 ${_shopRowInnerHtml({
                     displayName,
                     subtitle: _shoppingRowSubtitle(item, displayName, smartData),
@@ -38480,6 +38644,16 @@ function _cookingVoiceHint(force) {
     if (!btn) return;
     const lex = (typeof vocabCookingVoice === 'function') ? vocabCookingVoice() : { next: [], prev: [], replay: [] };
     const word = (list) => escapeHtml(String((list && list[0]) || ''));
+    // A cooking screen whose microphone cannot work says WHY, in small red: the same rule the
+    // capture sheet follows (the clock is not a diagnosis). The SPEAKER is the other peripheral
+    // this card speaks for: with no `speechSynthesis` (and no native bridge) the step is silent,
+    // and a silent step looked like a recipe that had lost its voice.
+    const techText = _techReasonText(
+        _isKioskDevice() ? 'diag.mic_kiosk' : ((window.SpeechRecognition || window.webkitSpeechRecognition) ? '' : 'diag.mic_no_api'),
+        _micDiagDetail('mode=cooking')
+    );
+    const ttsBridge = (typeof _kioskBridge !== 'undefined' && _kioskBridge && typeof _kioskBridge.speak === 'function');
+    const techTts = (!window.speechSynthesis && !ttsBridge) ? _techReasonText('diag.speaker_tts', 'speechSynthesis=missing') : '';
     const el = document.createElement('div');
     el.className = 'cooking-voice-hint';
     el.id = 'cooking-voice-hint';
@@ -38496,7 +38670,9 @@ function _cookingVoiceHint(force) {
             <span class="cvh-chip">«${word(lex.prev)}»</span>
             <span class="cvh-chip">«${word(lex.replay)}»</span>
         </div>
-        <p class="cvh-foot">${escapeHtml(t('cooking.voice_hint_foot'))}</p>`;
+        <p class="cvh-foot">${escapeHtml(t('cooking.voice_hint_foot'))}</p>
+        ${techText ? `<p class="tech-reason">${escapeHtml(techText)}</p>` : ''}
+        ${techTts ? `<p class="tech-reason">${escapeHtml(techTts)}</p>` : ''}`;
     document.body.appendChild(el);
     // Under the mic button, right-aligned, never off screen.
     const rect = btn.getBoundingClientRect();

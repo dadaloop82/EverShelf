@@ -1303,6 +1303,22 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     font-size: 0.84rem;
     color: var(--text-light);
 }
+/* ── The technical reason of a peripheral problem ──────────────────────────────
+   «se ci sono problemi con periferiche o altro (microfono, fotocamera, altoparlante, ecc..) mi
+   scrivi sempre sotto la motivazione tecnica in piccolo e in rosso». Small and red, UNDER the
+   sentence it explains: the household's line says what is broken, this one says why, in the same
+   words the server log carries. */
+.tech-reason {
+    margin: 6px 0 0;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: #b91c1c;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+.scan-nocamera-text .tech-reason { text-align: left; }
+[data-theme="dark"] .tech-reason,
+.dark .tech-reason { color: #f87171; }
 .capture-input-row { display: flex; gap: 8px; align-items: center; }
 .capture-input-row .form-input { flex: 1 1 auto; min-height: var(--touch-min); }
 .capture-input-row .btn { min-height: var(--touch-min); }
@@ -2569,6 +2585,24 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
 }
 [data-theme="dark"] .alert-banner.is-medical {
     background-color: var(--surface-bg);
+    background-image: linear-gradient(135deg, rgba(99, 102, 241, 0.32), rgba(99, 102, 241, 0.10));
+}
+/* ── The same tint on the shopping list ────────────────────────────────────────
+   A medicine in the list is not a tomato: it gets its own section (💊 Medicinali) AND the tint
+   the alert cards already wear, so a row is recognisable without reading it. The urgency rail
+   stays the authority on HOW urgent it is (`.shop-row-urgency-*`, left border): the tint only
+   says WHAT the row is — the same division the notice strip follows.
+   Only the IMAGE is painted, never the base colour: `.shop-row` is `--bg-card` and
+   `.smart-item` is `--es-surface-tint` (two different papers, and a third in the dark theme), so
+   the gradient has to sit ON TOP of whatever the theme already decided. */
+.shop-row.is-medical,
+.smart-item.is-medical {
+    background-image: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(99, 102, 241, 0.04));
+}
+[data-theme="dark"] .shop-row.is-medical,
+.dark .shop-row.is-medical,
+[data-theme="dark"] .smart-item.is-medical,
+.dark .smart-item.is-medical {
     background-image: linear-gradient(135deg, rgba(99, 102, 241, 0.32), rgba(99, 102, 241, 0.10));
 }
 .alert-banner-actions .btn-banner-more {
@@ -3997,9 +4031,11 @@ a.free-api:hover { border-color: var(--brand-primary); }
 /* The hand entry of the medicine panel lives behind its own button: in the food panel it does
    not exist, and the strip stays the camera's. */
 #page-scan:not(.is-medical-scan) #scan-med-code-open { display: none !important; }
-/* …and the strip itself is empty in the medicine panel (all three of its buttons are hidden
-   above): an empty flex row would still take its margin and a line of height. */
-#page-scan.is-medical-scan .scan-action-bar { display: none; }
+/* …and the strip KEEPS ITS PLACE in the medicine panel: `#scan-med-code-open` (the typed AIC)
+   lives in it. Hiding the whole bar took the hand entry away with the three food buttons, and on
+   a phone with no camera the twenty-second rescue card never fires (`_medAskCodeSoon()` needs a
+   stream) — so there was no way at all to name a box by its code. One button, full width. */
+#page-scan.is-medical-scan .scan-action-bar { display: flex; }
 /* The medicine panel reads a LABEL, not a barcode: the particle cloud, the corner frame and the
    sweeping red line belong to the barcode hunt and only add noise here. What replaces them is
    one rectangle that says where to aim and what the app expects to see inside it. */

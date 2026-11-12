@@ -224,6 +224,7 @@
     "surgelati": "Tiefkühl",
     "bevande": "Getränke",
     "pulizia_igiene": "Reinigung & Hygiene",
+    "medicinali": "Medikamente",
     "altro": "Sonstiges"
   },
   "pao": {
@@ -3044,6 +3045,7 @@
     "type_instead": "Lieber tippen",
     "unsupported": "Dieser Browser hat keine Spracherkennung: tippe unten (SHELFY versteht trotzdem).",
     "mic_denied": "Mikrofon nicht erlaubt: prüfe die Browser-Berechtigungen und öffne die App über HTTPS. Du kannst unten tippen.",
+    "mic_missing": "Kein Mikrofon verfügbar: das System erkennt keines. Prüfe, ob es angeschlossen und aktiv ist.",
     "kiosk_no_voice": "SHELFY kann auf diesem Tablet nicht zuhören: tippe unten auf einen Satz (oder öffne den Chat).",
     "not_understood": "SHELFY hat es nicht verstanden: versuch „Ich esse einen Apfel“ oder „Ich habe Kopfschmerzen“.",
     "open_failed": "SHELFY ließ sich nicht öffnen. Versuche es noch einmal.",
@@ -3093,6 +3095,18 @@
     "fallback_lead": "Verstanden: „{text}“ — aber der Befehl ist nicht durchgelaufen.",
     "continue_chat": "Weiter im Chat",
     "retry_voice": "Noch einmal sprechen"
+  },
+  "diag": {
+    "lead": "Technischer Grund:",
+    "mic_kiosk": "Android-WebView im Kiosk-Modus: SHELFY kann das Mikrofon hier nicht öffnen (der Berechtigungsdialog würde die Seite neu laden).",
+    "mic_no_api": "Der Browser stellt keine Spracherkennung bereit (SpeechRecognition fehlt).",
+    "mic_denied": "Mikrofonberechtigung vom Browser oder System verweigert (HTTPS und eine erteilte Berechtigung sind nötig).",
+    "mic_capture": "Das System hat kein Mikrofon geliefert: Gerät fehlt, ist belegt oder deaktiviert.",
+    "camera_no_api": "Der Browser stellt navigator.mediaDevices.getUserMedia nicht bereit: HTTPS (oder localhost) und ein aktueller Browser sind nötig.",
+    "camera_denied": "Kameraberechtigung vom Browser oder System verweigert.",
+    "camera_none": "Keine Kamera auf diesem Gerät verfügbar.",
+    "camera_error": "Die Kamera hat keinen Stream geliefert (Browser- oder Treiberfehler).",
+    "speaker_tts": "Der Browser stellt speechSynthesis nicht bereit: es kann keine Stimme abgespielt werden."
   },
   "location_altro": {
     "removed": "Der Ort „Sonstiges“ wurde entfernt: {n} Produkte sind nach „{to}“ verschoben."
@@ -3434,7 +3448,8 @@
     "empty_expiring": "Keine bald ablaufenden Medikamente",
     "shelfy_ask": "Ich habe {symptom}: was habe ich schon im Hausapothekenschrank, das helfen könnte?",
     "shelfy_ask_generic": "Was habe ich schon im Hausapothekenschrank, das bei meinem Befinden helfen könnte?",
-    "empty_symptom": "Keine Medikamente zu Hause für dieses Symptom"
+    "empty_symptom": "Keine Medikamente zu Hause für dieses Symptom",
+    "code_no_camera": "Die Kamera ist auf diesem Gerät aus: Tippe den auf der Schachtel gedruckten Code ein (A + 9 Ziffern für die AIC)."
   },
   "months": {
     "january": "Januar",

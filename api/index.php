@@ -19646,7 +19646,12 @@ function smartShoppingCached(PDO $db): void {
                 $data = json_decode($raw, true);
                 // `empty_stock_only` marks the cache schema: an older cache written while
                 // low-stock items were still listed is rebuilt instead of being served.
-                if ($data && isset($data['success']) && !empty($data['empty_stock_only']) && (int)($data['plan_days'] ?? -1) === $planDays) {
+                // `medical_sections` does the same for the 💊 row flag (`is_medical`): a payload
+                // written before it exists would put a medicine back among the tomatoes for up
+                // to three minutes.
+                if ($data && isset($data['success']) && !empty($data['empty_stock_only'])
+                    && !empty($data['medical_sections'])
+                    && (int)($data['plan_days'] ?? -1) === $planDays) {
                     $data['cache_age_seconds'] = time() - ($data['cached_ts'] ?? $mtime);
                     $data['items'] = smartShoppingFilterPurchased($db, $data['items'] ?? []);
                     $data['plan_days_default'] = smartDefaultPlanDays($db);
@@ -19669,6 +19674,8 @@ function smartShoppingCached(PDO $db): void {
     $decoded = json_decode($json, true);
     if ($decoded && !empty($decoded['success'])) {
         $decoded['empty_stock_only'] = true;
+        // Schema marker for the 💊 section: see `smartShoppingCached()`.
+        $decoded['medical_sections'] = true;
         $decoded['cached_ts'] = time();
         $decoded['cached_at'] = date('c');
         @file_put_contents($cacheFile, json_encode($decoded, JSON_UNESCAPED_UNICODE), LOCK_EX);
@@ -20374,7 +20381,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
     // 1. Get all products with their inventory and transaction history
     $products = $db->query("
         SELECT p.id, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
-               p.shopping_name
+               p.shopping_name, COALESCE(p.is_medical, 0) AS is_medical
         FROM products p
         ORDER BY p.name
     ")->fetchAll();
@@ -21326,6 +21333,10 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             'shopping_name' => $shoppingName,
             'brand' => $p['brand'] ?: '',
             'category' => $p['category'] ?: '',
+            // A medicine is not a tomato: the client puts this row in its own 💊 section and
+            // gives it the medical tint. The flag is the ARTICLE's, so it survives the name
+            // variants the shopping row is given.
+            'is_medical' => (int)($p['is_medical'] ?? 0),
             'unit' => $unit,
             'current_qty' => round($qty, 1),
             // Stock of the whole buyable FAMILY in this item's unit. The row is one

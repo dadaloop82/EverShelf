@@ -129,6 +129,28 @@ runtime/binary files — if a task truly needs one, ask first.
   (`_shopRowBought`, it writes the stock), right (`≥ 52 px`) is **non lo compro**
   (`removeBringItem`, the dated dismiss). No third zone: a long right swipe used to open the
   scanner, which is why the gesture felt doubled (`markShoppingItemBought` is gone).
+- **A medicine in the shopping list is not a tomato.** It has its own shelf (`SHOPPING_SECTIONS`
+  → **💊 Medicinali**, before «Altro», chosen by `getItemSection()` through `_shopRowIsMedical()`)
+  and the notice strip's indigo tint (`.shop-row.is-medical` / `.smart-item.is-medical`, gradient
+  ONLY: `.shop-row` is `--bg-card`, `.smart-item` is `--es-surface-tint`, the theme owns the paper),
+  while the urgency rail stays the authority on HOW urgent it is. `smartShopping()` returns
+  `is_medical` and `smartShoppingCached()` refuses a payload without the `medical_sections` marker;
+  a row typed by hand is matched against the pantry («Tachipirina» → «Tachipirina 1000 mg
+  compresse»), never on a two-letter stub.
+- **A peripheral that cannot work says why, in small red.** `_techReason()` puts the engine's own
+  words (`diag.*`, six locales + the raw detail the log carries) under the sentence that already
+  exists: `#capture-tech` (mic), `#scan-nocamera-tech` (camera, from `_cameraDiag` via
+  `_syncScanNoCameraChrome()`) and the cooking voice card (`diag.speaker_tts`). The reasons are
+  real — `SpeechRecognition` absent, kiosk WebView, permission denied, **`audio-capture`** (no
+  microphone: `capture.mic_missing`), missing `getUserMedia` with `secure_context=no` (the plain-HTTP
+  LAN install), no device, driver error — and `_captureSyncMicAvailability()` logs the mic state
+  once per change (`[SHELFY] mic unavailable: …`), so «il tablet dice che non ha il microfono» has
+  an answer in the log.
+- **No camera, medicine panel: the typed AIC is the door.** `_setScanModeInner()` opens the hand
+  entry at once (`medical.code_no_camera` replaces «inquadra l'etichetta») and the medicine action
+  bar keeps its place, because the rescue card needs a stream that is not there. The lookup is the
+  scan's own (`_medSubmitCode` → `_medConfirmRead`): same catalogue verification, same near-match
+  picker, same name fallback.
 - **A purchase is always dated, and its quantity must not be waste.** Every write into
   `inventory` infers the best-before date when none was typed (`inventoryInferExpiryDate()`,
   stored as an estimate, `expiry_user_set = 0`; never for a medicine) — `migrateDB` dated the

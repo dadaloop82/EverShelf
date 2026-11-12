@@ -224,6 +224,7 @@
     "surgelati": "Frozen",
     "bevande": "Beverages",
     "pulizia_igiene": "Cleaning & Hygiene",
+    "medicinali": "Medicines",
     "altro": "Other"
   },
   "pao": {
@@ -3041,6 +3042,7 @@
     "type_instead": "I'd rather type",
     "unsupported": "This browser has no speech recognition: type below (SHELFY understands just the same).",
     "mic_denied": "Microphone not allowed: check the browser permissions and open the app over HTTPS. You can type below.",
+    "mic_missing": "No microphone available: the system sees none. Check that it is connected and enabled.",
     "kiosk_no_voice": "SHELFY can't listen on this tablet: tap one of the phrases below (or open the chat).",
     "not_understood": "SHELFY did not understand: try “I eat an apple” or “I have a headache”.",
     "open_failed": "I couldn't open SHELFY. Try again.",
@@ -3090,6 +3092,18 @@
     "fallback_lead": "I heard: “{text}” — but the command did not go through.",
     "continue_chat": "Continue in the chat",
     "retry_voice": "Try again by voice"
+  },
+  "diag": {
+    "lead": "Technical reason:",
+    "mic_kiosk": "Android WebView in kiosk mode: SHELFY cannot open the microphone here (the permission dialog would recreate the page).",
+    "mic_no_api": "The browser does not expose speech recognition (SpeechRecognition missing).",
+    "mic_denied": "Microphone permission denied by the browser or the system (HTTPS and a granted permission are required).",
+    "mic_capture": "The system delivered no microphone: missing, busy or disabled device.",
+    "camera_no_api": "The browser does not expose navigator.mediaDevices.getUserMedia: HTTPS (or localhost) and an up-to-date browser are required.",
+    "camera_denied": "Camera permission denied by the browser or the system.",
+    "camera_none": "No camera available on this device.",
+    "camera_error": "The camera did not deliver a stream (browser or driver error).",
+    "speaker_tts": "The browser does not expose speechSynthesis: no voice can be played."
   },
   "location_altro": {
     "removed": "The “Other” location is gone: {n} products moved to “{to}”."
@@ -3431,7 +3445,8 @@
     "empty_expiring": "No medicines expiring soon",
     "shelfy_ask": "I have {symptom}: what do I already have in my medicine cabinet that might help?",
     "shelfy_ask_generic": "What do I already have in my medicine cabinet that might help with how I feel?",
-    "empty_symptom": "No medicines at home for this symptom"
+    "empty_symptom": "No medicines at home for this symptom",
+    "code_no_camera": "The camera is off on this device: type the code printed on the box (A + 9 digits for the AIC)."
   },
   "months": {
     "january": "January",

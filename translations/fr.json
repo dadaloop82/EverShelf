@@ -224,6 +224,7 @@
     "surgelati": "Surgelés",
     "bevande": "Boissons",
     "pulizia_igiene": "Nettoyage & Hygiène",
+    "medicinali": "Medicaments",
     "altro": "Autre"
   },
   "pao": {
@@ -3041,6 +3042,7 @@
     "type_instead": "Je préfère écrire",
     "unsupported": "Ce navigateur n'a pas la reconnaissance vocale : écris ci-dessous (SHELFY comprend quand même).",
     "mic_denied": "Micro non autorisé : vérifie les permissions du navigateur et ouvre l'app en HTTPS. Tu peux écrire ci-dessous.",
+    "mic_missing": "Aucun microphone disponible : le système n'en voit aucun. Vérifiez qu'il est connecté et actif.",
     "kiosk_no_voice": "SHELFY ne peut pas écouter sur cette tablette : touche une des phrases ci-dessous (ou ouvre le chat).",
     "not_understood": "SHELFY n’a pas compris : essaie « je mange une pomme » ou « j’ai mal à la tête ».",
     "open_failed": "Impossible d'ouvrir SHELFY. Réessaie.",
@@ -3090,6 +3092,18 @@
     "fallback_lead": "J’ai compris : « {text} » — mais la commande n’a pas abouti.",
     "continue_chat": "Continuer dans le chat",
     "retry_voice": "Réessayer à la voix"
+  },
+  "diag": {
+    "lead": "Raison technique :",
+    "mic_kiosk": "WebView Android en mode kiosque : SHELFY ne peut pas ouvrir le micro ici (la boîte de permissions recréerait la page).",
+    "mic_no_api": "Le navigateur n'expose pas la reconnaissance vocale (SpeechRecognition absent).",
+    "mic_denied": "Autorisation du microphone refusée par le navigateur ou le système (HTTPS et une autorisation accordée sont nécessaires).",
+    "mic_capture": "Le système n'a fourni aucun microphone : appareil absent, occupé ou désactivé.",
+    "camera_no_api": "Le navigateur n'expose pas navigator.mediaDevices.getUserMedia : HTTPS (ou localhost) et un navigateur à jour sont nécessaires.",
+    "camera_denied": "Autorisation de la caméra refusée par le navigateur ou le système.",
+    "camera_none": "Aucune caméra disponible sur cet appareil.",
+    "camera_error": "La caméra n'a pas fourni de flux (erreur du navigateur ou du pilote).",
+    "speaker_tts": "Le navigateur n'expose pas speechSynthesis : aucune voix ne peut être lue."
   },
   "location_altro": {
     "removed": "L’emplacement « Autre » n’existe plus : {n} produits ont été déplacés vers « {to} »."
@@ -3431,7 +3445,8 @@
     "empty_expiring": "Aucun médicament bientôt périmé",
     "shelfy_ask": "J’ai {symptom} : qu’est-ce que j’ai déjà dans mon armoire à pharmacie qui pourrait aider ?",
     "shelfy_ask_generic": "Qu’est-ce que j’ai déjà dans mon armoire à pharmacie qui pourrait m’aider ?",
-    "empty_symptom": "Aucun médicament à la maison pour ce symptôme"
+    "empty_symptom": "Aucun médicament à la maison pour ce symptôme",
+    "code_no_camera": "La caméra est désactivée sur cet appareil : saisissez le code imprimé sur la boîte (A + 9 chiffres pour l'AIC)."
   },
   "months": {
     "january": "Janvier",

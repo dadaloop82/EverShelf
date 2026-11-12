@@ -5,6 +5,56 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.30] - 2026-11-12
+
+### A medicine is not a tomato, not even in the shopping list
+Asked for: «i medicinali devono avere uno sfondo diverso (come hai fatto nei banner) e devono andare
+nella sezione Medicinali».
+- `SHOPPING_SECTIONS` gained a **💊 Medicinali** shelf (right after the household goods, before
+  «Altro»), and `getItemSection()` answers it first when the row is a medicine: the name-based guess
+  put «Rinore» among the drinks, and the household looks for it at the pharmacy counter.
+- The row wears the same indigo tint as the notice strip — `.shop-row.is-medical` /
+  `.smart-item.is-medical` — so it is recognisable without reading it. The **urgency rail stays the
+  authority on HOW urgent it is**: the tint only says WHAT the row is. The gradient is the only thing
+  painted (never the base colour): `.shop-row` is `--bg-card` and `.smart-item` is
+  `--es-surface-tint`, and the theme must keep deciding the paper under the tint.
+- `smartShopping()` now selects and returns `COALESCE(p.is_medical, 0) AS is_medical`, and the smart
+  cache carries the `medical_sections` schema marker: a payload written before the flag existed is
+  rebuilt instead of served, so no medicine can slip back among the carrots for three minutes.
+  A row typed by hand has no product behind it, so `_shopRowIsMedical()` looks it up in the pantry it
+  already holds, tolerating the variant words a box carries («Tachipirina» → «Tachipirina 1000 mg
+  compresse») and never matching on a two-letter stub.
+
+### No camera, medicine panel: the typed AIC is the whole door
+Reported: «se la fotocamera è disattivata e sono in modalità farmaci devo farmi comunque inserire
+manualmente il codice A e poi tu devi effettuare la ricerca come se lo avessi scansionato».
+- `_setScanModeInner()` opens the hand entry **at once** when the medicine panel has no camera, and
+  the hint stops asking to frame a label nobody can frame (`medical.code_no_camera`). Until now the
+  only door was the twenty-second rescue card, and `_medAskCodeSoon()` needs a stream — a phone with
+  no camera had no way at all to name a box by its code.
+- The lookup is the scan's own (`_medSubmitCode` → `_medConfirmRead`): catalogue verification, the
+  near-match picker and the name fallback all answer exactly as they do for a read code. The
+  medicine action bar keeps its place in the panel (it carries that button).
+
+### A peripheral that cannot work says why, in small red
+Asked for: «se ci sono problemi con periferiche o altro (microfono, fotocamera, altoparlante, ecc..)
+mi scrivi sempre sotto la motivazione tecnica in piccolo e in rosso?» — the tablet was saying «SHELFY
+non può ascoltare» with no reason, and the household read it as «non ha il microfono».
+- One helper, `_techReason()`, paints the engine's own words under the sentence that already exists
+  (`diag.*`, six locales, plus the raw detail the server log carries): the capture sheet
+  (`#capture-tech`), the scan page's no-camera card (`#scan-nocamera-tech`) and the cooking voice card.
+- The reasons are REAL, not a generic line: `SpeechRecognition` absent, a kiosk WebView, the
+  permission denied (`NotAllowedError`), **`audio-capture`** (no microphone at all — now its own
+  sentence, `capture.mic_missing`), no `getUserMedia` (and whether the page is a secure context — the
+  usual cause on a plain-HTTP LAN install), permission denied, no device, a driver error.
+- The MICROPHONE state is logged once per change — `[SHELFY] mic unavailable: … SpeechRecognition=…
+  secure_context=… kiosk=…` — so «il tablet dice che non ha il microfono» has an answer in
+  `data/logs/app-*.log`: on the wall the log reads `speech=true kiosk=true`, i.e. the recogniser is
+  there and it is SHELFY that does not open the microphone (the permission dialog recreates the
+  Activity).
+- `scripts/i18n-audit.py`: `shopping_sections.medicinali`, `medical.code_no_camera`,
+  `capture.mic_missing` and the ten `diag.*` lines exist in all six locales.
+
 ## [1.31.29] - 2026-11-12
 
 ### The opening window is the household's — averaged, never overwritten

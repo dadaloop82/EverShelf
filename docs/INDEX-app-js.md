@@ -156,1553 +156,1557 @@ Use with: `sed -n "<line>p" assets/js/app.js` to jump to a function.
 3612:function categoryLabel
 3620:function categoryText
 3626:function iconLabel
-3660:function _sectionForCategory
-3665:function getItemSection
-3693:function mapToLocalCategory
-3717:function _isPreparedSaladName
-3722:function guessCategoryFromName
-3756:function _cosineSim
-3769:function _meanPool
-3787:async function classifyCategoryByEmbedding
-3834:function getExpiredSafety
-3940:function _openedPao
-3970:function _openedLimitText
-3991:function _openedCookHint
-4004:function _openedSnoozeKey
-4008:function _openedIsSnoozed
-4015:function _openedSnooze
-4028:function shouldShowExpiredBanner
-4053:function detectUnitAndQuantity
-4081:function isSoldByPiece
-4087:function detectProductUnitAndQuantity
-4095:function suggestCategoryUnitQty
-4128:function estimateExpiryDays
-4227:function formatEstimatedExpiry
-4238:function estimateOpenedExpiryDays
-4358:function addDays
-4365:function guessLocationFromName
-4376:function guessLocation
-4406:function _rememberInventorySearchFromInput
-4412:function _restoreInventorySearchInput
-4421:function _syncSearchClearBtn
-4428:function clearInventorySearch
-4437:function clearProductsSearch
-4487:async function _applyFixedZoom
-4526:async function toggleTorch
-4549:async function flipCamera
-4562:function _blurActiveTextInput
-4572:function switchScanTab
-4573:function switchScanTabName
-4576:function _setScanHudState
-4599:function _barcodeBoxToViewport
-4631:function _scoutBarcodeRegion
-4708:function _updateScanCloudScout
-4717:function _updateScanCloudScoutLegacy
-4731:function _setScanTrackTarget
-4743:function _showScanLockBox
-4755:function _hideScanLockBox
-4762:function _flashScanLockBox
-4770:function _ensureScanCloud
-4803:function _tickScanCloud
-4881:function _startScanCloud
-4888:function _stopScanCloud
-4902:function openScanNameSearch
-4911:function closeScanNameSearch
-4924:function addToScanRecents
-4933:function _scanChipHtml
-4941:async function updateScanRecents
-4946:async function updateScanQuickRail
-5008:function _warmScanCaches
-5021:function _scheduleSpeculativeBarcodePrefetch
-5034:async function _productHasLiveStock
-5043:async function _selectRecentProduct
-5073:function _showScanLiveCode
-5081:function _hideScanLiveCode
-5086:function _showScanConfirm
-5101:async function _tryGeminiNumberOCR
-5166:function _showScanAiOverlay
-5173:function _hideScanAiOverlay
-5181:function _resetAiFallbackForNewScan
-5188:function _updateScanAiButton
-5203:function _clearAiMatchPanel
-5218:function _dismissAiMatchPanel
-5223:function _renderAiCandidateThumb
-5230:function _renderAiCandidateRow
-5255:function _renderAiCandidateSection
-5265:function _showAiMatchChoices
-5319:async function _fetchAiMatchCandidates
-5349:function _aiMatchKeepSameNature
-5368:function _isProduceCategory
-5378:function _aiSuggestedUnit
-5393:function _aiSuggestedQuantity
-5404:function _aiStorageFields
-5433:function _normalizeAiMatchName
-5442:function _aiNameLooksProcessed
-5446:function _aiSignificantTokens
-5455:function _findBestAiCatalogMatch
-5506:async function _openAiSavedProduct
-5572:async function _confirmAiDetectedProduct
-5626:async function _selectAiProductCandidate
-5664:async function _triggerManualAiScan
-5690:async function _tryGeminiVisualBarcode
-5785:function getCameraConstraints
-5808:function isFrontCamera
-5813:async function enumerateCameras
-5829:function getSettings
-5850:function saveSettingsToStorage
-5861:async function _saveSettingToServer
-5896:function debounce
-5900:async function syncSettingsFromDB
-5984:function _applySyncedSettings
-6050:async function _loadBackupTab
-6088:async function _renderBackupTab
-6142:async function _backupNow
-6163:async function _backupDelete
-6170:async function _backupRestore
-6190:async function _gdriveTest
-6212:async function _gdrivePushNow
-6239:async function _gdriveAuthorize
-6267:async function _gdriveSubmitCode
-6306:async function _loadInfoTab
-6316:async function _renderInfoTab
-6474:async function _loadAboutSection
-6492:function reportBugManual
-6552:async function _submitBugReport
-6628:function _freeApiActive
-6644:function _creditsSeenIds
-6654:function _creditsRememberActive
-6665:function _activeFreeApis
-6677:function _syncCreditSources
-6690:function _freeApiLogoHtml
-6712:function _freeApiUsage
-6726:function _freeApiWhere
-6740:function _freeApiCardHtml
-6762:function _dataSourcesHtml
-6788:function _freeApiPageHtml
-6808:async function _loadFreeApis
-6851:function _openCreditsPage
-6870:function _openFreeApisDialog
-6920:function _closeFreeApisDialog
-6940:function _renderPreloaderApis
-6944:async function loadSettingsUI
-7266:function _kioskReconfigureScale
-7279:function _openKioskNativeSettings
-7300:function _formatPairingCountdown
-7307:function _renderPairingBodies
-7314:function _tickPairingCountdown
-7327:async function _loadPairingCodePanel
-7360:async function _refreshPairingCode
-7371:async function _copyPairingCode
-7395:function _kioskLocalApkUrl
-7405:async function _refreshKioskApkLinks
-7500:function _kioskCheckForUpdates
-7530:function _kioskInstallUpdate
-7575:function _kioskAppVersion
-7586:function _kioskVersionLabel
-7604:function _paintKioskVersion
-7659:function _initHeaderVersionFit
-7668:function _injectKioskOverlay
-7784:function _applianceDisplayName
-7791:function renderAppliances
-7805:async function loadCameraDevices
-7822:function addAppliance
-7839:function addApplianceQuick
-7852:function removeAppliance
-7860:function _isShoppingBringMode
-7865:function _applyShoppingListLabels
-7881:function _applyShoppingSettingsUI
-7911:function _applyProductRuleSettingsUI
-7934:async function applyProductAutoRules
-7965:function onShoppingEnabledChange
-7972:function onShoppingModeChange
-7988:async function saveSettings
-8313:async function _loadCalendarTab
-8338:function _renderIcsFeedBox
-8356:async function saveCalendarSettings
-8402:async function rotateCalendarToken
-8421:async function copyCalendarLink
-8445:function openCalendarLink
-8452:function switchSettingsTab
-8482:function switchSettingsGroup
-8503:function _syncSettingsGroupForTab
-8515:function _restoreSettingsNav
-8545:function _initSettingsAccordions
-8590:function _toggleSettingsCard
-8596:function _setSettingsCardOpen
-8604:function _closeSettingsCards
-8611:function _openSettingsCardFor
-8618:function _getSelectedAiProvider
-8623:function _setSelectedAiProvider
-8630:function _onAiProviderChange
-8641:function _syncAiProviderUi
-8658:async function testAiConnection
-8707:function togglePasswordVisibility
-8733:function _apiDropReadCache
-8737:function _apiReadKey
-8748:async function api
-8774:async function _apiFetchJson
-8931:function _aiCostIsBillableAction
-8937:function _aiCostIsMeterAction
-8942:function _aiCostNoteUsage
-8952:function _aiCostFmtTokens
-8959:function _aiCostFmtMoney
-8980:function _aiCostPillPaint
-9038:async function _aiCostPillRefresh
-9053:function _aiCostPillOpenInfo
-9077:function goBack
-9085:function _goBackNow
-9097:function refreshCurrentPage
-9123:function _fadeAlertRow
-9136:function _dashboardLiveRefresh
-9147:function refreshAppDataAfterMutation
-9161:function showPage
-9337:async function _awLoadFacts
-9360:function _awGetFacts
-9366:function _awFetchAndRender
-9379:function _updateAwLiveDot
-9387:function _startAntiWasteAutoRefresh
-9397:function _startBadgeRotation
-9426:function _awTrendCard
-9444:function _awTrendArrow
-9452:function _renderAntiWasteSection
-9644:function _buildNutritionData
-9693:function _renderNutritionSection
-9766:function _nutrScoreBar
-9779:function _renderMonthlyStatsSection
-9883:function _renderSpendEmpty
-9901:function _renderSpendSection
-9979:function _renderOverviewSection
-10024:function _renderFreshnessSection
-10061:function _renderTrendSection
-10103:function _renderMacrosSection
-10154:function _startInsightAlternation
-10167:function _applyInsightPhase
-10251:function _dashboardAlertCap
-10258:function _alertMoreNoteHtml
-10272:function _paintAlertList
-10283:function _growAlertList
-10318:function _growAlertLists
-10343:function _maybeShowLocationAltroNotice
-10363:function _renderMonthStrip
-10384:function _rowMenuButtons
-10402:function _stockHubCounts
-10414:function _syncStockHub
-10436:function _stockHubSelect
-10464:function _syncUrgencyHub
-10507:function renderLocationRail
-10537:function _paintLocationRailSkeleton
-10548:function _openLocationsSettings
-10559:function _setNavBadge
-10590:function _openCaptureSheet
-10606:function _openCaptureSheetInner
-10712:function _cameraUsable
-10716:function _applyCameraChrome
-10730:function _syncScanNoCameraChrome
-10754:function _explainCameraUnavailable
-10763:function _markCameraBlocked
-10771:function _detectCameraAvailability
-10795:function _isKioskDevice
-10804:function _closeCaptureSheet
-10828:function _logKioskMemory
-10848:function _captureStatus
-10853:function _captureStatusText
-10870:function _captureShowType
-10894:function _captureNotUnderstood
-10925:function _captureSyncMicAvailability
-10971:function _captureSetState
-11009:function _capturePhase
-11032:function _captureWatchdogStop
-11037:function _captureWatchdogStart
-11051:function _captureStatusStep
-11057:function _captureFailureText
-11062:function _captureTimeout
-11070:function _captureHideFallback
-11084:function _captureShowFallback
-11110:function _shelfyHandOverToChat
-11121:function _captureContinueInChat
-11130:function _captureRetryVoice
-11163:function _capturePaintLevel
-11176:function _captureMeterPulseStart
-11195:function _captureStopMeter
-11211:function _captureVoiceStop
-11234:function _captureShowTranscript
-11254:function _captureShowUnderstood
-11284:function _captureShowChoices
-11342:function _captureTrace
-11356:function _captureExamples
-11370:function _captureRenderExamples
-11382:function _captureToggleExamples
-11399:function _shelfyIntroSeen
-11402:function _shelfyMarkIntroSeen
-11413:function _shelfyOpenIntro
-11433:function _shelfyCloseIntro
-11445:function _shelfyDisarm
-11465:function _shelfyArmButton
-11511:function _shelfyClearConfirm
-11523:function _shelfyQtyLabel
-11530:async function _shelfyApplyConsume
-11555:function _shelfyOfferConsume
-11623:async function _shelfyRunConsume
-11662:async function _shelfyAddShopping
-11691:function _shelfyAddUnit
-11714:async function _shelfyOpenAdd
-11764:function _captureSpeechLang
-11789:async function _captureProbeLocal
-11841:function _captureJoinText
-11911:async function _captureStartVoice
-12152:function _captureUnitInfo
-12164:function _captureFindUnit
-12173:function _captureHasUnit
-12180:function _captureFractions
-12185:function _captureAllWords
-12190:function _captureWordRe
-12197:function _captureIntentWords
-12206:function _captureHasWord
-12209:function _captureStripWord
-12214:function _captureMatchIntent
-12231:function _captureParse
-12300:function _captureSameWord
-12322:function _captureScoreName
-12358:function _captureItemMatchScore
-12394:async function _captureInventoryRows
-12422:async function _captureFindProducts
-12435:async function _captureFindProduct
-12453:function _rowPackInUnit
-12464:function _captureQtyFor
-12507:function _captureChoose
-12523:function _captureIsActionable
-12536:async function _captureSubmit
-12641:function _relativeDaysAhead
-12647:function _relativeDaysAgo
-12654:function _alertItemHead
-12672:function _openedAgeHtml
-12688:function _alertItemMeta
-12718:function _startStaleRotation
-12726:async function loadDashboard
-13009:function openedFraction
-13018:function quickRecipeSuggestion
-13035:async function loadStaleDashboardItems
-13103:function _localizeSeasonalTip
-13130:function _localizeSeasonalReason
-13142:async function loadSeasonalReview
-13208:async function addSeasonalSuggestion
-13226:async function removeSeasonalOutOfSeason
-13247:async function removeAllSeasonalOutOfSeason
-13279:function isSuspiciousQty
-13286:function isSuspiciousDefaultQty
-13296:function getReviewConfirmed
-13314:function _saveToServer
-13318:function setReviewConfirmed
-13326:function _getNoExpiryDismissed
-13330:function _dismissNoExpiry
-13348:function _bannerEntryKey
-13375:async function loadBannerAlerts
-13650:function _bannerPriority
-13702:function _bannerLocationParts
-13712:function _bannerLocationLine
-13717:function _bannerLocationText
-13723:function renderBannerItem
-14072:function _bannerMarkAnomalyDismissed
-14079:function dismissBannerItem
-14099:function confirmBannerReview
-14107:function confirmNoExpiryNeeded
-14113:function editBannerNoExpiry
-14123:function editBannerReview
-14130:function confirmBannerPrediction
-14138:function editBannerPrediction
-14152:function editBannerAnomalyQuantity
-14176:function confirmBannerAnomaly
-14187:function dismissDuplicateLossCheck
-14196:async function openDuplicateLossCheck
-14213:function weighBannerItem
-14227:function editReviewItem
-14235:function bannerQuickUse
-14243:function bannerThrowAway
-14252:async function bannerMarkVacuum
-14294:function _shouldOfferExtendExpiry
-14314:function _computeExtendedExpiryDate
-14334:function intelligentExtendDays
-14342:function _freezeBonusDays
-14351:function _freezerLocationKey
-14359:async function freezeInventoryItem
-14423:async function bannerFreezeItem
-14438:function itemDetailEditExpiry
-14445:function extendInventoryExpiry
-14468:function bannerExtendExpiry
-14475:function _expiryEditAddDays
-14484:function _showExpiryEditModal
-14532:function _expiryEditCancel
-14543:async function _expiryEditSave
-14576:async function _applyInventoryExpiry
-14609:function bannerFinishAll
-14633:function editBannerExpiry
-14640:function dismissBannerExpired
-14647:function dismissBannerExpiring
-14654:async function confirmBannerFinished
-14673:function dismissBannerItemAfterAction
-14685:function _openedQueueSiblings
-14691:function _showOpenedTab
-14714:function bannerUseInRecipe
-14723:function bannerStillGood
-14733:function _bannerMenuToggle
-14745:function _bannerMenuClose
-14753:async function keepBannerFinishedStock
-14774:async function notFinishedBannerAction
-14812:function initBannerSwipe
-14838:function bannerNext
-14848:function bannerPrev
-14859:function renderGroupedByCategory
-14909:function renderGroupedByLocation
-14942:function renderDashItem
-14984:function dashItemTap
-14992:function _bindDashItemHoldOpen
-15002:function showAlertItemDetail
-15010:function _bindAlertItemsHoldOpen
-15022:function formatSubRemainder
-15030:function _pzFractionLabel
-15049:function isInventoryDepleted
-15065:async function _loadKnownTags
-15078:async function _saveProductTags
-15093:async function _loadFamilies
-15105:async function _saveProductFamily
-15118:function toggleInventoryTagFilter
-15128:function _renderInventoryTagFilter
-15153:function _inventoryVisibleItems
-15175:function alertQtyDisplay
-15181:function _isWeightVolumeUnit
-15187:function _qtyApproxMark
-15202:function _packMeasure
-15218:function formatQuantity
-15255:function formatQuantityForItem
-15264:function getUnitDisplayLabel
-15279:function ensureQtyUnitBadge
-15302:function setQtyInputUnitLabel
-15318:function syncAddQtyUnitBadge
-15324:function getActiveUseUnitLabel
-15332:function getActiveRecipeUseUnitLabel
-15340:function syncUseQtyUnitBadge
-15344:function syncRecipeUseQtyUnitBadge
-15350:function formatQuantityParts
-15398:function formatQuantityPartsForItem
-15408:function formatPackageFraction
-15430:async function loadInventory
-15489:function _syncInventoryAuditBanner
-15509:function _medCategoryBadgesHtml
-15526:function _inventoryExpiryBadgeHtml
-15609:function renderInventoryItem
-15680:function _inventoryQtyTone
-15698:function _bindRowHoldOpen
-15793:function _openInventoryRow
-15803:function _findInventoryItem
-15826:function _initInventoryRowSwipe
-16003:function _playInventorySwipeDemo
-16027:function _inventoryIsMedicalContext
-16036:function _syncInventoryMedChips
-16062:function _medInventoryChip
-16075:function _medItemMatchesSymptom
-16091:function _medCabinetContextPayload
-16122:function _medAskShelfySymptom
-16141:function _medCabinetEmptyHtml
-16157:function _inventoryEmptyHtml
-16184:function _medCabinetEmptyScan
-16188:function _medCabinetEmptyManual
-16214:function _inventoryGroupAvailable
-16220:function _syncInventoryGroupUi
-16233:function setInventoryGroupBy
-16242:function setInventoryViewFilter
-16254:function _clearMedSymptomFilter
-16260:function _inventoryApplyViewFilter
-16277:function renderInventory
-16306:function _sortOpenedFirst
-16323:function _inventoryOpenedRowClass
-16345:async function toggleInventoryFavorite
-16378:async function _medToggleFavFromSheet
-16391:function _inventorySearchScore
-16428:async function _refineCategoryBadgesAsync
-16445:function filterLocation
-16462:function filterInventory
-16505:async function loadQuickAccess
-16544:function renderQuickAccessBtn
-16561:async function _finishExhaustedProduct
-16585:async function _showExhaustedProductModal
-16617:function quickAccessSelect
-16644:function openProductImageLightbox
-16667:function _closeImageLightbox
-16674:function _itemDetailExpiryChip
-16713:function _itemDetailOtherPlacesHtml
-16753:function _itemDetailSwitchPack
-16764:function _itemDetailTotalPacksHtml
-16794:async function itemDetailToggleOpened
-16833:function showItemDetail
-17009:function itemDetailThrow
-17013:async function itemDetailFreeze
-17021:async function itemDetailToggleVacuum
-17083:async function itemDetailUseAll
-17096:async function _finishStockWithUndo
-17147:function _itemDetailQtyInit
-17202:function _itemDetailPackEntry
-17208:function _itemDetailEntryStep
-17213:function _itemDetailEntryMax
-17219:function _itemDetailEntryValue
-17226:function _itemDetailConfValue
-17240:function _itemDetailPackSwitchHtml
-17259:function _itemDetailSetEntryUnit
-17275:function _itemDetailSwitchesToPackEntry
-17282:function _itemDetailApplyEntryAmount
-17289:function _itemDetailUnitLabel
-17301:function _itemDetailFmtQty
-17308:function _itemDetailParseQty
-17314:function _itemDetailQtyNumber
-17320:function _itemDetailQtyLabel
-17327:function _itemDetailScaleWeightText
-17338:function _itemDetailMedSummaryHtml
-17386:function _itemDetailScaleCapable
-17396:function _itemDetailScaleEligible
-17404:function _itemDetailScalePillHtml
-17425:function _itemDetailSyncScaleUi
-17456:function _itemDetailApplyScaleReading
-17471:function _itemDetailMassUnit
-17488:function _itemDetailScaleAmount
-17502:function _updateItemDetailScaleCompare
-17538:function _scaleApplyToItemDetail
-17576:function _scaleAutoFillItemDetail
-17590:function _itemDetailAtMax
-17596:function _itemDetailPrimaryLabelText
-17609:function _itemDetailFinishLabelText
-17629:function _itemDetailSyncActionLabels
-17665:function _fractionChipOptions
-17733:function _itemDetailFractionOptions
-17754:function _itemDetailFractionsHtml
-17765:function _itemDetailSyncQtyUi
-17784:function _itemDetailSyncChips
-17793:function _itemDetailOnQtyInput
-17812:function _itemDetailReadInput
-17825:function _itemDetailSetQty
-17836:function _itemDetailStep
-17854:function _askDuplicateUseConfirm
-17895:function _confirmDuplicateUse
-17904:async function _itemDetailConsume
-17998:function _visibleOverlays
-18005:function _topOverlay
-18023:function _medDebugOn
-18032:async function _medImportCatalogFile
-18070:async function _medRefreshStatus
-18120:function _medDaysSince
-18136:async function _medMaybeAutoSyncCatalog
-18155:async function _medSyncCatalog
-18176:function _medOn
-18188:function _medScanSupported
-18203:function _medScanBarcodes
-18210:function _medScanHintText
-18224:function _medBlockedPopup
-18253:function _medCloseBlocked
-18267:function _medShowParafNotice
-18284:function _medCloseParafNotice
-18292:function _medConfirmParafNotice
-18310:function _medOpenParafManualForm
-18356:function _scanModeIsMedical
-18363:function _scanModeForLocation
-18378:function _setScanMode
-18389:function _setScanModeInner
-18464:function _medShowCrossHint
-18469:function _medHideCrossHint
-18481:function _medGoToCabinetScan
-18506:function _medNationalCode
-18524:function _localRowForBarcode
-18537:function _medCountryLabel
-18549:function _isMedicalRow
-18568:function _medLocationKey
-18585:function _medLocationChoices
-18594:function _applyMedUi
-18616:function _medRenderLocationPicker
-18628:function _medRenderCountryPicker
-18648:async function onMedCountryChange
-18655:function _renderMedLocations
-18670:function _medLocationLabel
-18677:async function onMedLocationPick
-18682:async function onMedLocationUnmark
-18689:async function onMedLocationCreate
-18714:async function _medSetLocations
-18730:async function onMedLocationChange
-18749:async function _renderMedClassify
-18812:async function _medClassify
-18843:function _syncProductMedicalUi
-18864:function _pfRenderMedCats
-18876:function onProductMedicalToggle
-18907:function _pfMedicalPayload
-18934:function _medPackIsWhole
-18952:function _medOpenSinceBlockHtml
-18989:function _medRepaintOpenSince
-19006:async function _medMarkUnopened
-19036:async function _medOpenSincePick
-19046:async function _medMarkOpened
-19096:async function _medSaveInstanceSettings
-19111:function _medSetupRender
-19138:function _medSetupSyncAccept
-19145:function _medSetupLocationPick
-19150:function _medSetupLocationTyped
-19158:function _medSetupBody
-19219:function _medMaybeAskSetup
-19229:function _medCloseSetup
-19235:async function _medSetupLater
-19246:async function _medSetupFinish
-19298:async function _medReopenSetup
-19307:async function onMedEnabledChange
-19332:function _medOpenSearch
-19375:function _medCloseSearch
-19377:function _medOpenItem
-19384:function _renderMedicalBlock
-19417:function _medDiscard
-19447:function _overlayFocusables
-19459:function _closeTopOverlay
-19511:function _showModalOverlay
-19518:function closeModalBackdrop
-19524:function closeModal
-19543:async function _openUsePage
-19563:async function _loadUseProduct
-19591:function _inventoryIdFor
-19612:async function quickUse
-19630:function openWasteSheet
-19644:function throwWasteForProduct
-19698:function _wasteNotesForReason
-19704:function _wasteReasonGridHtml
-19721:function _bindWasteReasonPicks
-19734:function _showWasteRecordModal
-19782:async function _submitWasteRecord
-19836:async function _deleteInventoryRow
-19851:async function deleteInventoryItem
-19904:async function _discardOnePiece
-19911:async function _discardAllFromModal
-19918:function _initExpiryManualTracking
-19933:function _isExpiryManuallySet
-19937:function _expiryUserSetPayload
-19954:function recalcEditExpiry
-19973:function editInventoryItem
-20183:function _paoPaintEdit
-20210:function _paoLoadForEdit
-20219:async function _paoResetForEdit
-20238:function _editPickLocation
-20254:function _editLocationExpiryDeltaDays
-20271:function _editLocExpiryHintHtml
-20280:function _editRefreshLocExpiryHints
-20297:function _editOnCategoryChange
-20322:function _isMobileUi
-20333:function _medEditSelectedTags
-20339:function _editMedicalInventoryItem
-20507:function startEditProductTitle
-20518:function finishEditProductTitle
-20537:function onEditUnitChange
-20563:function _patchLiveInventoryItem
-20574:async function submitEditInventory
-20812:function scanLog
-20828:function flushScanLog
-20839:function toggleScanDebug
-20849:function _scannerAiAllowed
-20853:function pauseScanner
-20858:function resumeScanner
-20885:function _cameraRetry
-20892:async function initScanner
-21021:function validateEANChecksum
-21036:function _setScanStatus
-21067:function _loadZbarVendor
-21103:function _startBestScanner
-21121:function _ensureBarcodeEngines
-21182:function preloadBarcodeEngines
-21199:function _isEanFormat
-21206:function _finalizeBarcode
-21225:function _tryConfirmBarcode
-21345:function _extractEanCandidates
-21359:function _capScanCanvasSize
-21370:function _buildScanCropFrame
-21406:function _medBarcodeCrop
-21422:function _captureDigitStrip
-21472:async function _ensureTesseractWorker
-21513:async function _tesseractConfigure
-21544:async function _tryLocalEanDigitOcr
-21598:function _medGuideRect
-21649:function _medLabelStrips
-21696:function _ocrGrayPixels
-21711:function _ocrWriteGray
-21729:function _binarizeScanCanvas
-21772:function _contrastScanCanvas
-21808:function _captureMedLabelFrame
-21861:async function _medReadLabelOcr
-21871:async function _medReadLabelOcrInner
-21988:async function _medOcrSelfTest
-22029:function _medOcrGeometryNote
-22046:function _medPreviewSample
-22114:function _medFamilyRows
-22133:function _medOpenFamily
-22142:function _medShowFamilyPicker
-22169:function _medHideFamilyPicker
-22178:function _medPickFamily
-22199:async function _medOpenVerifiedForm
-22241:function _medNearChoices
-22262:async function _medConfirmRead
-22362:async function _medTryLooseReads
-22397:async function _medOcrFallback
-22429:function _medOcrKick
-22456:function _medShowAsk
-22501:function _medCodeDigitsOnly
-22511:function _medNameMoreSet
-22521:function _medRevealNameAsk
-22541:async function _medSearchName
-22553:async function _medSearchNameMore
-22558:async function _medFetchNamePage
-22595:function _medPickNameRow
-22605:function _medAskCodeSoon
-22632:function _medCodeRowOpen
-22654:function _medResumeScan
-22668:async function _medSubmitCode
-22754:function _medDebugFrameJpeg
-22770:function _medDebugPass
-22796:function _medDebugPanel
-22831:function _medOcrRun
-22891:function _medCatalogueChoiceMeta
-22910:function _medCatalogueChoiceDetailHtml
-22919:function _medDisplayName
-22927:function _medFillFromCatalogue
-22975:function _medCategoryFromAtc
-22996:function _medNeighboursHtml
-23015:function _medUseCode
-23045:async function _medLookupCatalogue
-23068:async function _medShowCatalogueMatch
-23120:function _medShowAlternatives
-23129:function _medMatchCard
-23156:function _medUseMatch
-23172:function _renderMedDataset
-23243:function _scanDetectGapMs
-23248:function _scanDetectFrame
-23269:function _codesToVideoSpace
-23284:function startUnifiedScanner
-23527:function startQuaggaScanner
-23701:function enhanceCanvasForBarcode
-23733:function stopScanner
-23777:function _barcodeCacheKey
-23781:function _barcodePersistGet
-23793:function _barcodePersistSet
-23808:function _applyLocalBarcodeProductFixes
-23849:function _externalBarcodeNotes
-23860:function _currentProductFromExternal
-23887:async function _confirmShoppingScanMatch
-23902:function _inventoryRowForProduct
-23915:async function _finishBarcodeResolved
-23957:async function _saveExternalBarcodeProduct
-24017:function _barcodeRememberProduct
-24025:async function _resolveBarcodeLookup
-24041:async function _handleBarcodeResolve
-24067:async function onBarcodeDetected
-24193:async function _medStartManualEntry
-24226:function _medFormSetMode
-24343:function _medFormIsMedicine
-24380:function _medFormStockState
-24395:function _medFormStockSyncPackRow
-24424:function _medFormStockFrac
-24446:function _medFormStockSyncPackUnit
-24453:function _medFormStockUnitChanged
-24458:function _medFormPackTyped
-24464:function _medFormStockReset
-24533:function _medExpiryMonthOptionsHtml
-24555:function _medExpiryPaintMonthOptions
-24579:function _medExpiryFillPickers
-24620:function _medExpiryIso
-24645:function _medExpiryErrorText
-24652:function _medExpiryPick
-24669:function _medFormStockPrefill
-24702:function _medFormStockTyped
-24715:function _medFormStockFieldsVisible
-24724:function _medArmProductForm
-24742:function submitManualBarcode
-24747:function autoSubmitEAN
-24771:async function submitQuickName
-24805:function showQuickNameResults
-24851:function selectQuickProduct
-24874:async function createQuickProduct
-24937:function clearQuickNameResults
-24950:function startManualEntry
-25006:function markQtyManuallySet
-25010:function autoDetectCategory
-25041:function onCategoryChange
-25070:function onPfUnitChange
-25078:function _updateBarcodeHint
-25091:async function scanBarcodeForForm
-25196:function _expiryDaysLeft
-25231:async function _medEnsureCabinet
-25257:async function _medStockAddDirect
-25314:async function submitProduct
-25500:function showProductAction
-25816:async function checkInventoryForProduct
-25841:function editProductFromAction
-25896:function openInventoryEdit
-25936:function editActionInventoryItem
-25947:function onActionEditUnitChange
-25954:async function submitActionEditInventory
-25998:async function deleteActionInventoryItem
-26025:function _showDestructiveConfirm
-26091:function toggleActionEdit
-26100:async function saveEditedProductInfo
-26161:function _snapshotCatalogTitle
-26170:function _addProductTitleChanged
-26179:function _openInlineTitleEdit
-26190:function _closeInlineTitleEdit
-26198:function _wireInlineTitleEdit
-26208:function _readInlineTitleEdit
-26212:function _paintTitleText
-26218:function _paintBrandLine
-26226:function _renderAddProductPreview
-26252:function startEditAddTitle
-26256:function finishEditAddTitle
-26274:function startEditAddBrand
-26278:function finishEditAddBrand
-26295:async function _commitAddProductRename
-26334:function startEditScanAiTitle
-26338:function finishEditScanAiTitle
-26356:function startEditScanAiBrand
-26360:function finishEditScanAiBrand
-26385:function _renderAddMedStock
-26432:function _medAddStockState
-26446:function _medAddStockPieces
-26467:function _medAddExpiryHtml
-26487:function _addVacuumToggleHtml
-26511:function _addExpiryDateVacuumRowHtml
-26523:function showAddForm
-26719:function toggleVacuumSealed
-26725:function onVacuumSealedChange
-26748:function recalculateAddExpiry
-26784:async function _fetchExpiryHistoryAndUpdate
-26856:async function _applyAIProductHint
-26931:function getVacuumExpiryDays
-26940:function onAddUnitChange
-27006:function _addMinQtyForUnit
-27012:function _addUnitLabel
-27018:function updateAddQtyStep
-27027:function markAddQtyManuallySet
-27031:function adjustAddQty
-27049:function selectPurchaseType
-27133:function setRemainingPct
-27150:function addExpiryBatch
-27158:function removeExpiryBatch
-27163:function adjustBatchQty
-27168:function _rebuildMultiBatchUI
-27191:function selectLocation
-27207:function _pruneRecentInventoryAdds
-27212:function _findRecentInventoryAdd
-27223:function _recordRecentInventoryAdd
-27228:function _formatQtyPlain
-27232:function _formatRecentAddWhen
-27238:function _confirmRecentDuplicateAdd
-27258:async function _ensureAddProductRow
-27306:function _apiErrorText
-27337:async function submitAdd
-27591:function showUseForm
-27661:function renderUsePreview
-27677:function openUseInventoryEdit
-27707:function _updateUseHeroMeta
-27755:function _renderUseExpiryHint
-27836:function _isOpenedInventoryItem
-27848:function _useAllTotalQty
-27852:function _locationHasOpenedPackage
-27856:async function loadUseInventoryInfo
-28034:function switchUseUnit
-28071:function setConfFraction
-28082:function getSubUnitStep
-28090:function adjustUseQty
-28134:function _useQtyAtSelectedLocation
-28142:function setUseWeightFraction
-28156:function _appendUseWeightFractionButtons
-28175:function selectUseLocation
-28201:function _moveHistKey
-28202:function _kindHistKey
-28204:function _getMoveLocHistory
-28210:function _getKindMoveLocHistory
-28217:function _topMoveLoc
-28235:function _recordMoveLocChoice
-28259:function _preferredMoveChoice
-28282:function _moveHistoryConfidence
-28306:function _movePromptSeconds
-28313:function _getPrefLocHistory
-28318:function _recordUseLocationChoice
-28329:function _getPreferredUseLocation
-28339:function _expandUseLocationSelector
-28345:function setPzFraction
-28356:function isLowStock
-28371:function _nameTokens
-28385:function _findSimilarItem
-28404:function _matchBringToSmart
-28439:function _showVacuumPrompt
-28493:function showLowStockBringPrompt
-28599:async function addLowStockToBring
-28632:function closeLowStockPrompt
-28643:function clearMoveModalTimer
-28660:function _isAddFormLeaveGuardActive
-28664:function _setAddFormGuardActive
-28668:function _clearAddFormGuard
-28672:function _promptAddFormLeave
-28714:function _bindAddFormBeforeUnloadGuard
-28732:function _useFormIdleEligible
-28746:function clearUseFormIdleCountdown
-28762:function _maybeStartUseFormIdleCountdown
-28829:function clearAddFormIdleCountdown
-28843:function startAddFormIdleCountdown
-28903:function startMoveModalCountdown
-28932:function _moveCountdownMetaHtml
-28956:function _movePromptHasPortion
-28977:function _leftoverAfterUse
-28999:function _showMovePrompt
-29069:function _movePromptChoose
-29079:function _movePromptStay
-29092:function _movePromptClose
-29114:function showMoveAfterUseModal
-29149:async function _saveVacuumAndStay
-29175:async function confirmMoveAfterUse
-29228:async function submitUseAll
-29268:function _confirmDepleteSafety
-29302:function _showUseAllSlideConfirm
-29433:async function _doSubmitUseAll
-29446:function _showUseAllDisambiguation
-29494:async function _submitUseOneConf
-29529:function _confirmThenSubmitUseAllAt
-29534:async function _submitUseAllAt
-29570:async function submitUse
-29652:async function captureForAI
-29663:async function initAICamera
-29690:function takePhotoForAI
-29719:function retakePhotoAI
-29724:async function analyzeWithAI
-29834:async function selectLocalMatch
-29852:async function selectAIMatch
-29941:async function saveAIProductDirect
-30002:async function captureForAIFormFill
-30043:function closePfAiScanner
-30048:function pfAiCapture
-30069:function pfAiRetake
-30086:async function _pfAiAnalyze
-30147:function _pfAiFillFields
-30177:function _pfAiFillFromAI
-30183:async function _pfAiFillFromMatch
-30202:async function loadAllProducts
-30211:async function searchAllProducts
-30222:function renderProductsList
-30257:async function selectProductForAction
-30288:async function _getShoppingInventoryCache
-30300:function switchShoppingTab
-30307:function updateShoppingTabCounts
-30321:function getShoppingTags
-30326:function toggleShoppingTag
-30358:function _stockBaseForGap
-30364:function _sanitizePieceMonthly
-30376:function _sanitizePieceDailyRate
-30385:function _periodNeedForPlanDays
-30403:function _isSoldByPieceProductName
-30407:function _maxSuggestedPieces
-30413:function _floorPieceSuggestion
-30447:function _purchaseHorizonDays
-30470:function _capPricePayloadQty
-30494:function _ceilDiscreteQty
-30499:function _suggestedConfQty
-30505:function _computeSuggestedQtyForPlanDays
-30630:function _snapToSaleUnit
-30638:function _effectiveSmartQty
-30658:function _discreteFooterQty
-30671:function _shoppingSuggestedToAddQty
-30687:function _shoppingBuyQtyDisplay
-30700:async function markShoppingItemBoughtAtHome
-30731:function openScanForItem
-30740:async function confirmShoppingItemFound
-30762:function _urgencyToSpec
-30773:function _shoppingListGenericTitle
-30782:function _lookupCatalogShoppingName
-30804:function _getAutoAddedBring
-30817:function _markAutoAddedBring
-30824:function _unmarkAutoAddedBring
-30833:function _bringBlocklistNormalizeEntry
-30844:function _bringPurchasedExpired
-30854:function _getBringPurchasedBlocklist
-30868:function _markBringPurchased
-30876:function _isBringPurchased
-30886:function _smartItemMatchesHighUseRestock
-30902:function _smartItemOverridesPurchaseBlock
-30912:function _filterPurchasedSmartItems
-30921:async function autoAddCriticalItems
-30958:async function shoppingTripComplete
-30975:async function forceSyncBring
-31006:function _formatShoppingTotalLabel
-31011:function _setCanonicalShoppingTotal
-31031:function dataTotalLabelOrFormat
-31038:function _loadCanonicalTotalFromSession
-31058:function _setTotalLoading
-31064:function _applyShoppingTotalDisplay
-31079:function _clearCanonicalShoppingTotal
-31097:async function syncShoppingPriceTotal
-31137:function _buildPricePayload
-31206:function _formatInvQtyDisplay
-31221:function _shoppingFamilyInventoryRows
-31237:function _inferShoppingGeneric
-31256:function _productMatchesShoppingFamily
-31269:function _resolveShoppingDisplayName
-31282:function _dedupeShoppingByGeneric
-31304:function _buildPriceSparklineSVG
-31328:function _buildPriceBadgeHTML
-31351:function _applyPriceBadgesFromCache
-31377:function _applyPriceBadges
-31391:function _currencySymbol
-31406:async function fetchAllPrices
-31535:async function cleanupObsoleteBringItems
-31657:function logOperation
-31671:function buildSearchQuery
-31678:function parseQtyFromSpec
-31702:function estimateItemPrice
-31737:function _updateSmartUrgencyBadge
-31749:function _updateDashboardPriceTotal
-31760:function _syncOnBringFlags
-31781:function _renderSmartLastUpdate
-31788:function startBgShoppingRefresh
-31792:function getShoppingPlanDaysDefault
-31803:function getShoppingPlanDays
-31810:function isShoppingPlanDaysCustom
-31815:function setShoppingPlanDays
-31822:function resetShoppingPlanDays
-31829:async function applyShoppingPlanDays
-31845:function _previewShoppingPlanDaysBar
-31857:function _initShoppingPageInteractionTracking
-31871:function _shoppingScrollEl
-31877:function _shoppingScrollY
-31885:function _restoreShoppingScroll
-31894:function _shoppingRenderSignature
-31905:function _shopRowVisualHtml
-31925:function _shopRowVisualHtmlFromSmart
-31938:function _renderShoppingPlanDaysBar
-31965:async function loadSmartShopping
-32048:function _renderShoppingDismissed
-32075:function _shopIsDismissed
-32083:async function loadShoppingDismissed
-32095:async function restoreShoppingDismissed
-32112:async function restoreAllShoppingDismissed
-32125:function filterSmart
-32132:function renderSmartShopping
-32200:function _renderSmartSuggestedStrip
-32224:function _initSmartSuggestedChips
-32272:function renderSmartItem
-32375:async function migrateBringNames
-32403:async function addSmartToBring
-32456:async function loadShoppingCount
-32482:function _syncTagsFromBringSpec
-32530:function _localizeSmartReason
-32561:function _formatSuggestQty
-32580:function _buildSmartSpec
-32596:function _shoppingPrimaryReason
-32635:function _specNeedsGenericCleanup
-32639:async function autoSyncUrgencySpecs
-32667:function _shoppingSkeletonHtml
-32687:function _showShoppingSkeleton
-32695:function _hideShoppingSkeleton
-32713:function _listSkeletonHtml
-32740:function _showListSkeleton
-32750:function _hideListSkeleton
-32756:async function loadShoppingList
-32913:function _specDisplayText
-32932:function _cleanSpecForSearch
-32944:function _resolveShoppingItemUrgency
-32955:function _shopRowUrgencyClass
-32960:function _updateShoppingFooter
-32976:function showPriceDetail
-32995:async function addSmartItemQuick
-33036:function _shopQtyOverrides
-33046:function _shopQtyKey
-33051:function _shopRowQtyStep
-33062:function _shopRowBuyQty
-33072:function _shopRowBuyQtyLabel
-33080:function _shopRowQtyAdjust
-33114:async function _shopRowBought
-33149:async function _shopRowAction
-33165:function _initShopRowActions
-33191:function _shopQtyPopover
-33245:function _shopRowQtyHtml
-33257:function _shoppingListSubtitle
-33275:function _shoppingRowSubtitle
-33289:function _shopRowFrequencyHtml
-33308:function _shopRowStockHtml
-33329:function _shopRowReasonText
-33345:function _shopRowStockLabel
-33365:function _shopWasteChipHtml
-33385:function _shopWasteHintHtml
-33411:function _shopRowInnerHtml
-33472:function _shopSwipeThresholds
-33486:function _initShopRowSwipe
-33594:function _initShoppingPullRefresh
-33623:function _renderShoppingSectionHead
-33631:function _renderShoppingSuggestionsInline
-33686:function _shopSearchNorm
-33695:function _shopRowMatchesSearch
-33704:function _initShopSearchInput
-33714:function _shopUrgencyPillsMeta
-33724:function _renderShopFilterRow
-33744:function setShopUrgencyFilter
-33749:function _initShopFilterRow
-33760:async function renderShoppingItems
-33930:function toggleShoppingTagMenu
-33940:async function removeBringItem
-33971:async function openShoppingTemplates
-33987:function _renderTemplatesListBody
-34011:async function applyShoppingTemplate
-34032:async function deleteShoppingTemplate
-34040:function openTemplateEditor
-34084:function _renderTemplateDraftItems
-34099:function templateDraftAddPicked
-34114:function templateDraftAddManual
-34124:function templateDraftRemove
-34129:async function saveShoppingTemplate
-34150:async function generateSuggestions
-34210:function renderSuggestions
-34240:async function _enrichSuggestionsWithAI
-34271:function toggleSuggestion
-34283:function updateSuggestionActionBtn
-34297:async function addSelectedSuggestions
-34345:async function scanExpiryWithAI
-34389:function closeExpiryScanner
-34397:function captureExpiry
-34431:function retakeExpiry
-34447:async function analyzeExpiryImage
-34482:function stripHtml
-34487:function formatDate
-34496:function formatDateTime
-34504:function daysUntilExpiry
-34512:function adjustQty
-34519:function showLoading
-34524:function _plainUiText
-34533:function showToast
-34557:function showActionToast
-34591:async function loadLog
-34681:async function undoTransactionEntry
-34696:async function _doUndoTransaction
-34752:async function _checkMealPlanIngredientAvailable
-34793:function getMealPlanTypes
-34797:function getMealPlanTypeMap
-34803:function getWeekDaysShortLabels
-34826:function getMealPlan
-34832:function getTodayMealPlanType
-34841:function onMealPlanEnabledChange
-34854:function onPriceCountryChange
-34873:function renderMealPlanEditor
-34905:function openMealPlanPicker
-34930:function _mplanPickerOutside
-34934:function closeMealPlanPicker
-34940:function selectMealPlanType
-34951:function resetMealPlan
-34973:function getMealTypes
-34978:function getMealPickerTypes
-34982:function getMealSubTypes
-35001:function getMealLabels
-35007:function getMealType
-35016:function _normalizeMealId
-35025:function _mealLabel
-35034:function getSelectedMealType
-35042:async function getRecipeArchive
-35054:async function saveRecipeToArchive
-35091:async function getTodayRecipeTitles
-35112:function _recipeMinutes
-35130:function _recipeTotalMinutes
-35137:function _recipeNeedsAppliance
-35150:function _recipeArchiveFilterMatches
-35170:function _renderRecipeFilterBar
-35205:function _setRecipeArchiveFilter
-35220:function _mealieClose
-35225:async function _mealieOpen
-35247:async function _mealieLoadList
-35272:async function _mealieImport
-35295:async function _mealieImportAll
-35319:async function _mealieSync
-35331:async function _mealiePushAll
-35349:async function _mealiePushCooked
-35359:function _setRecipeArchiveView
-35379:async function _recipeLiveProductIdSet
-35402:function _recipeArchiveMissingInfo
-35419:function _recipeArchiveMissingCount
-35427:function _recipeMissingPopoverClose
-35431:function _recipeMissingPopoverOutside
-35436:async function _recipeMissingPopover
-35476:function _recipeNameKey
-35485:async function _recipeShoppingListedNames
-35500:async function _recipeMissingAddShopping
-35529:function _recipeArchiveCardHtml
-35589:async function loadRecipeArchive
-35669:function _recipeRepeatMeal
-35679:function viewArchivedRecipe
-35703:function openRecipeDialog
-35764:function toggleRecipeOption
-35768:async function onRecipeFuelToggle
-35780:function updateRecipeFuelGenerateBtn
-35794:async function maybeAutoLogRecipeMeal
-35822:function healthTodayKey
-35830:function applyHealthUiState
-35848:function _loadWeatherSettingsIntoForm
-35866:function applyWeatherUiState
-35875:async function onWeatherEnabledChange
-35891:function _updateWeatherLocationLabel
-35908:async function searchWeatherCity
-35935:async function pickWeatherCity
-35960:async function refreshWeatherPreview
-35988:async function onHealthEnabledChange
-36002:async function loadHealthSettingsTab
-36023:async function loadHealthProfileIntoSettings
-36041:async function saveHealthProfileFromSettings
-36062:async function createHealthBridgeToken
-36113:async function unlinkHealthBridge
-36131:function closeRecipeDialog
-36135:function adjustRecipePersons
-36146:function _parseRecipeQtyString
-36162:function _normalizeRecipeIngQtyNumber
-36195:function _recipeRoundPieceQty
-36199:function _recipeFormatPieceQtyLabel
-36209:function _recipeResolvePieceQty
-36226:function _recipeGetServingCapForIngredient
-36246:function _recipeClampQtyForServings
-36260:function _recipeGetClosedProductBaseQty
-36281:function _recipeShouldUseAllRemainder
-36291:function _computeRecipeIngStockHint
-36337:function _formatRecipeStockQty
-36345:function _recipeIngStockHintHtml
-36354:function _recipeQtyThresholdForCook
-36360:function _isDepletedForRecipe
-36366:async function enrichRecipeIngredientsStock
-36482:function _updateRecipeStockHintsAfterScale
-36513:async function useRecipeIngredient
-36702:function _recipeUseItemAtLoc
-36721:function _recipeUseHeadHtml
-36760:function _recipeUseSyncHead
-36766:function selectRecipeUseLoc
-36779:function _recipeUseStockAtLoc
-36789:function _recipeUseAllChipLabel
-36800:function _recipeUseFractionMaxEntry
-36822:function _recipeUseFractionOptions
-36864:function _recipeUseFractionsHtml
-36880:function _recipeUseSyncFractions
-36887:function _recipeUseSetFraction
-36899:function switchRecipeUseUnit
-36943:function adjustRecipeUseQty
-36964:async function submitRecipeUse
-37080:function showRecipeMoveModal
-37102:function _recipeMoveCancelStay
-37108:async function confirmRecipeMove
-37159:function _extractToolsFromSteps
-37200:function _recipeRatingStarsHtml
-37215:function _repaintRecipeRating
-37229:async function rateRecipe
-37251:async function toggleRecipeFavorite
-37284:function scaleRecipePersons
-37320:function _scaledRecipeIngQty
-37332:function formatRecipeShareText
-37403:function _closeRecipeShareSheet
-37408:async function copyRecipeShareText
-37433:function shareRecipeViaWhatsApp
-37448:function _showRecipeShareSheet
-37469:async function shareRecipe
-37498:function _recipeShoppingRecipeScaled
-37528:async function loadRecipeShoppingPlan
-37563:function renderRecipeShoppingPlan
-37606:async function addRecipeShoppingPlan
-37645:function _recipeScalablePantryCount
-37652:function _recipeUsedPantryCount
-37666:function _recipeCookFooterMode
-37679:function _refreshRecipeCookFooter
-37710:async function _recipeRedoIngredients
-37729:async function renderRecipe
-37999:async function cookRecipeDeductSelected
-38068:function _bindRecipeIngredientOpens
-38151:function _stepApplianceName
-38165:function _layoutCookingWheelCards
-38223:function _cookingModeOpen
-38228:async function _cookingWakeLockOn
-38241:function _cookingWakeLockOff
-38266:function _recipeSheetSource
-38278:function _syncCookingRecipeUsedFlags
-38289:function _cookingFinishPendingCount
-38295:function _cookingFinishPrompt
-38324:function _closeCookingFinishPrompt
-38330:function _cookingFinishSkip
-38345:function _cookingVoiceStopRec
-38371:function _cookingVoiceArm
-38381:function _cookingTtsBusy
-38386:function _cookingVoiceStart
-38452:function _cookingVoiceHintHide
-38460:function _cookingVoiceHintOutside
-38476:function _cookingVoiceHint
-38514:function _cookingVoiceCommand
-38536:function _cookingVoiceDispatch
-38553:function _cookingRedo
-38560:async function _cookingFinishConfirm
-38572:function startCookingMode
-38634:function closeCookingMode
-38656:function restartCookingMode
-38665:function _setCookingWheelTilt
-38682:function _resetCookingWheelTilt
-38690:function _pulseCookingWheel
-38699:function _cookingStepFeedback
-38706:function _bindCookingWheelControls
-38811:function _animateCookingWheelTransition
-38826:function _cookingScrapTip
-38852:function _cookingHighlightText
-38891:function _renderCookingStepText
-38928:function _renderCookingStepIngredients
-38964:function renderCookingStep
-39048:function _renderZeroWasteTip
-39068:function _dismissZeroWasteTip
-39074:function _buildTtsRequest
-39105:function _buildHaTtsRequest
-39116:async function _ttsViaProxy
-39136:function _hasKioskTts
-39141:function _applyKioskTtsOverrides
-39147:async function speakCookingStep
-39179:function replayCookingTTS
-39186:function onTtsAuthTypeChange
-39193:function onTtsEngineChange
-39202:function onHaEnabledChange
-39208:function _applyHaSettingsUI
-39234:function _loadHaTab
-39240:function _renderHaSensorYaml
-39299:function copyHaSensorYaml
-39309:async function testHaConnection
-39334:function applyHaTtsPreset
-39378:function showHaWebhookHelp
-39383:async function saveHaSettings
-39472:function _notifyErrorText
-39485:function onNotifyEnabledChange
-39492:function _renderNotifyLanguageOptions
-39502:function _applyNotifySettingsUI
-39546:function _applyTelegramSettingsUI
-39565:async function saveTelegramSettings
-39584:function onPriceEnabledChange
-39590:function _applyWebPushSettingsUI
-39602:async function saveWebPushSettings
-39621:function _urlBase64ToUint8Array
-39630:async function subscribeWebPush
-39670:async function testWebPush
-39686:function _notifyStatus
-39699:async function _loadNotifyTab
-39718:function _randomNtfyTopic
-39729:function generateNtfyTopic
-39742:async function saveNotifySettings
-39801:async function testNotify
-39839:function _healthcheckJobLabel
-39849:function _healthcheckAgo
-39863:function _renderHealthcheckJobs
-39889:function _healthcheckErrorText
-39903:async function testHealthcheck
-39937:async function clearHealthcheckUrl
-39955:function _initBrowserTtsVoices
-40025:function _pickTtsVoice
-40059:function _cookingAutoScrollStop
-40064:function _cookingAutoScrollStart
-40100:function _cookingReading
-40106:function _speakBrowser
-40168:function testSound
-40179:async function testTTS
-40350:function _ensureAudioUnlocked
-40363:function _playCookingTimerSound
-40403:function _notifyCookingTimer
-40434:function _parseStepTimers
-40463:function _parseStepTimer
-40467:function _formatTimerDisplay
-40476:function _extractTimerLabel
-40575:function setupCookingTimerSuggestion
-40609:function _cookingPaintStepAction
-40626:function addSuggestedCookingTimer
-40635:function addCookingTimer
-40650:function _cookingVoiceStop
-40658:function removeCookingTimer
-40666:function toggleCookingTimerById
-40693:function resetCookingTimerById
-40703:function _cookingTimerDoneById
-40721:function _cookingTimerRingPct
-40726:function _updateTimerCard
-40753:function _updateScreenFlash
-40770:function renderTimersBar
-40797:function clearAllCookingTimers
-40809:function toggleCookingTTS
-40820:function navigateCookingStep
-40847:function cookingUseIngredient
-40858:function updateRecipeMealTitle
-40869:function _renderMealSubTypes
-40884:function getSelectedSubType
-40896:function _clearMealPlanChip
-40903:function onMealPlanChipChange
-40911:function _renderMealPlanHint
-40962:function showRegenChoice
-40967:function cancelRegenChoice
-40972:function doRegenerateReplace
-40977:async function doRegenerateSave
-40985:function _doRegenerate
-41001:function regenerateRecipe
-41005:async function syncMealieCache
-41032:function _updateMealieCacheStatus
-41046:function _setMealieInstallProgress
-41055:function _mealieInstallErrorMessage
-41075:function _updateRecipeEngineHelp
-41087:function _updateMealieSetupStatus
-41123:async function discoverMealie
-41191:async function installMealie
-41310:function _recipeLoadingStageText
-41316:function _recipeLoadingStagesStop
-41322:function _recipeLoadingStagesStart
-41336:async function generateRecipe
-41489:function initChat
-41506:async function loadChatContext
-41513:function sendChatSuggestion
-41519:function _looksLikeRecipe
-41527:async function chatTransferToRecipes
-41569:async function openIngredientDetail
-41585:async function openIngredientUse
-41597:function _recipeApiErrorMessage
-41605:async function generateRecipeForIngredient
-41636:function startRecipeFromProduct
-41646:async function sendChatMessage
-41719:function appendChatBubble
-41739:function _chatInventoryForMatching
-41751:function _chatProductNeedles
-41776:function _chatMatchProductsInText
-41817:function _chatIsLabel
-41836:function _chatIngredientBlocks
-41855:function _chatUseActionsHtml
-41881:function formatChatReply
-41902:function renderChatHistory
-41923:function scrollChatBottom
-41928:function clearChat
-41948:function saveChatHistory
-41982:function _offlineCacheGet
-41985:function _offlineCacheSet
-41988:function _offlineCacheGetSettings
-41991:function _offlineCacheSetSettings
-41994:function _offlineProductsGet
-41997:function _offlineProductsSet
-42000:function _offlineProductFromInventoryItem
-42015:function _offlineSearchBarcode
-42029:function _offlineQueueGet
-42032:function _offlineQueueSet
-42036:function _offlineShoppingCacheGet
-42039:function _offlineShoppingCacheSet
-42042:function _offlineSmartCacheGet
-42045:function _offlineSmartCacheSet
-42055:function _shoppingSectionsCollapsedGet
-42058:function _shoppingSectionsCollapsedSet
-42061:function toggleShoppingSection
-42092:function _queueWriteAfterNetworkFail
-42103:function _offlineQueuePush
-42123:function _handleOfflineApi
-42243:function _applyOptimisticUpdate
-42272:function _applyShoppingOptimisticUpdate
-42293:function _enterOfflineMode
-42314:async function _exitOfflineMode
-42328:function _renderOfflineBanner
-42353:async function _syncOfflineQueue
-42389:function _showNetworkOverlay
-42403:function _hideNetworkOverlay
-42438:function _paintOfflineStrip
-42473:async function _networkPingOnce
-42514:function _flushOfflineQueueSoon
-42537:function _resetAutoHomeTimer
-42543:function _cancelAutoHomeTimer
-42548:function _triggerAutoHome
-42569:function _screensaverTimeoutMs
-42574:function _screensaverBlockedPage
-42594:function _captureTurnLive
-42610:function _noteVoiceActivity
-42615:function resetInactivityTimer
-42621:function activateScreensaver
-42643:function updateScreensaverClock
-42654:function updateScreensaverShopping
-42683:function updateScreensaverMealPlan
-42700:function dismissScreensaver
-42733:function _startScreensaverRotation
-42743:function _showScreensaverSlot
-42772:function _renderScreensaverNutrition
-42831:function _ssDonut
-42841:async function loadScreensaverData
-42870:async function _screensaverAutoAddItems
-42903:function showNextScreensaverFact
-42914:function generateScreensaverFact
-43235:function _spesaScanUiBlocked
-43242:function _clearSpesaAiFallbackTimers
-43254:function _maybeStartSpesaAiFallbackTimer
-43258:function _showSpesaAiFallbackModal
-43263:function _spesaAiFallbackCancel
-43272:function toggleSpesaMode
-43277:function toggleSpesaModeFromCamera
-43282:function _spesaModeHasShoppingItem
-43302:function _syncSpesaQuickBtn
-43312:function _spesaCurrencySymbol
-43327:function _spesaFinishPrompt
-43356:function _spesaKeypad
-43368:async function _spesaFinishSave
-43383:function _spesaFinishSkip
-43389:function _spesaBeginScanning
-43403:function initSpesaMode
-43434:async function startSpesaMode
-43470:function endSpesaMode
-43487:function updateSpesaBanner
-43499:function _applySpesaScanUI
-43521:function _renderSpesaSessionList
-43556:async function _spesaSessionFieldChange
-43593:function _applyShoppingListRemovals
-43612:async function shoppingBoughtAfterAdd
-43644:async function spesaModeAfterAdd
-43702:async function _spesaRemovePurchasedFromList
-43743:function _familySiblingConfirmKey
-43747:function _getFamilySiblingConfirmed
-43761:function _isFamilySiblingRecentlyConfirmed
-43768:function _recordFamilySiblingConfirmed
-43778:function _dismissFamilySiblingPrompt
-43785:function _formatFamilySiblingDate
-43794:function _inferPackageSizeFromName
-43805:function _formatFamilySiblingStockLine
-43826:function _showFamilySiblingSuggest
-43886:function _spesaBannerStat
-43907:function _initScreensaverShortcutBtn
-43941:function initScreensaverShortcuts
-43948:function initInactivityWatcher
-44115:function _setupSeen
-44126:function _markSetupSeen
-44139:function _checklistPendingBeforeSave
-44150:function _ackSavedChecklistItems
-44163:function _checklistItemForStep
-44167:function _checklistState
-44178:function _checklistTodoItems
-44194:function _checklistNewsItems
-44206:function _assistantPendingSteps
-44225:function _renderSettingsChecklist
-44274:function _syncChecklistToggle
-44279:function _toggleChecklistItems
-44289:function _checklistGoTo
-44298:function _flashSettingsCard
-44315:function startSetupAssistant
-44333:function _setupDoneStep
-44340:function _getMissingSetupSteps
-44383:function _gdriveWizardNeeded
-44389:function _setupSteps
-44603:function showSetupWizard
-44620:function _renderSetupStep
-44651:function _setupSelectLang
-44658:function _setupGenerateTopic
-44664:function _setupPaint
-44676:async function _setupTestNotify
-44711:async function _setupTestHealthcheck
-44735:function _setupSkipStep
-44744:function _setupCollectCurrent
-44803:function setupWizardNav
-44834:async function _finishSetup
-44920:async function _runHeartbeat
-44936:function _setServerOffline
-44961:async function _flushOfflineReports
-44987:async function _handleServerRestored
-45002:function _heartbeatRetry
-45056:function _preloaderStage
-45076:function _preloaderUpdateRailProgress
-45095:async function _preloaderAwaitDwell
-45122:async function _runStartupCheck
-45459:function _startupHintText
-45467:function _showStartupWarningPopup
-45512:function _showStartupErrorPopup
-45520:function _startupRetry
-45525:function startHeartbeat
-45529:async function _initApp
-45793:async function _backgroundBringSync
+3663:function _sectionForCategory
+3678:function _shopRowIsMedical
+3701:function getItemSection
+3734:function mapToLocalCategory
+3758:function _isPreparedSaladName
+3763:function guessCategoryFromName
+3797:function _cosineSim
+3810:function _meanPool
+3828:async function classifyCategoryByEmbedding
+3875:function getExpiredSafety
+3981:function _openedPao
+4011:function _openedLimitText
+4032:function _openedCookHint
+4045:function _openedSnoozeKey
+4049:function _openedIsSnoozed
+4056:function _openedSnooze
+4069:function shouldShowExpiredBanner
+4094:function detectUnitAndQuantity
+4122:function isSoldByPiece
+4128:function detectProductUnitAndQuantity
+4136:function suggestCategoryUnitQty
+4169:function estimateExpiryDays
+4268:function formatEstimatedExpiry
+4279:function estimateOpenedExpiryDays
+4399:function addDays
+4406:function guessLocationFromName
+4417:function guessLocation
+4447:function _rememberInventorySearchFromInput
+4453:function _restoreInventorySearchInput
+4462:function _syncSearchClearBtn
+4469:function clearInventorySearch
+4478:function clearProductsSearch
+4528:async function _applyFixedZoom
+4567:async function toggleTorch
+4590:async function flipCamera
+4603:function _blurActiveTextInput
+4613:function switchScanTab
+4614:function switchScanTabName
+4617:function _setScanHudState
+4640:function _barcodeBoxToViewport
+4672:function _scoutBarcodeRegion
+4749:function _updateScanCloudScout
+4758:function _updateScanCloudScoutLegacy
+4772:function _setScanTrackTarget
+4784:function _showScanLockBox
+4796:function _hideScanLockBox
+4803:function _flashScanLockBox
+4811:function _ensureScanCloud
+4844:function _tickScanCloud
+4922:function _startScanCloud
+4929:function _stopScanCloud
+4943:function openScanNameSearch
+4952:function closeScanNameSearch
+4965:function addToScanRecents
+4974:function _scanChipHtml
+4982:async function updateScanRecents
+4987:async function updateScanQuickRail
+5049:function _warmScanCaches
+5062:function _scheduleSpeculativeBarcodePrefetch
+5075:async function _productHasLiveStock
+5084:async function _selectRecentProduct
+5114:function _showScanLiveCode
+5122:function _hideScanLiveCode
+5127:function _showScanConfirm
+5142:async function _tryGeminiNumberOCR
+5207:function _showScanAiOverlay
+5214:function _hideScanAiOverlay
+5222:function _resetAiFallbackForNewScan
+5229:function _updateScanAiButton
+5244:function _clearAiMatchPanel
+5259:function _dismissAiMatchPanel
+5264:function _renderAiCandidateThumb
+5271:function _renderAiCandidateRow
+5296:function _renderAiCandidateSection
+5306:function _showAiMatchChoices
+5360:async function _fetchAiMatchCandidates
+5390:function _aiMatchKeepSameNature
+5409:function _isProduceCategory
+5419:function _aiSuggestedUnit
+5434:function _aiSuggestedQuantity
+5445:function _aiStorageFields
+5474:function _normalizeAiMatchName
+5483:function _aiNameLooksProcessed
+5487:function _aiSignificantTokens
+5496:function _findBestAiCatalogMatch
+5547:async function _openAiSavedProduct
+5613:async function _confirmAiDetectedProduct
+5667:async function _selectAiProductCandidate
+5705:async function _triggerManualAiScan
+5731:async function _tryGeminiVisualBarcode
+5826:function getCameraConstraints
+5849:function isFrontCamera
+5854:async function enumerateCameras
+5870:function getSettings
+5891:function saveSettingsToStorage
+5902:async function _saveSettingToServer
+5937:function debounce
+5941:async function syncSettingsFromDB
+6025:function _applySyncedSettings
+6091:async function _loadBackupTab
+6129:async function _renderBackupTab
+6183:async function _backupNow
+6204:async function _backupDelete
+6211:async function _backupRestore
+6231:async function _gdriveTest
+6253:async function _gdrivePushNow
+6280:async function _gdriveAuthorize
+6308:async function _gdriveSubmitCode
+6347:async function _loadInfoTab
+6357:async function _renderInfoTab
+6515:async function _loadAboutSection
+6533:function reportBugManual
+6593:async function _submitBugReport
+6669:function _freeApiActive
+6685:function _creditsSeenIds
+6695:function _creditsRememberActive
+6706:function _activeFreeApis
+6718:function _syncCreditSources
+6731:function _freeApiLogoHtml
+6753:function _freeApiUsage
+6767:function _freeApiWhere
+6781:function _freeApiCardHtml
+6803:function _dataSourcesHtml
+6829:function _freeApiPageHtml
+6849:async function _loadFreeApis
+6892:function _openCreditsPage
+6911:function _openFreeApisDialog
+6961:function _closeFreeApisDialog
+6981:function _renderPreloaderApis
+6985:async function loadSettingsUI
+7307:function _kioskReconfigureScale
+7320:function _openKioskNativeSettings
+7341:function _formatPairingCountdown
+7348:function _renderPairingBodies
+7355:function _tickPairingCountdown
+7368:async function _loadPairingCodePanel
+7401:async function _refreshPairingCode
+7412:async function _copyPairingCode
+7436:function _kioskLocalApkUrl
+7446:async function _refreshKioskApkLinks
+7541:function _kioskCheckForUpdates
+7571:function _kioskInstallUpdate
+7616:function _kioskAppVersion
+7627:function _kioskVersionLabel
+7645:function _paintKioskVersion
+7700:function _initHeaderVersionFit
+7709:function _injectKioskOverlay
+7825:function _applianceDisplayName
+7832:function renderAppliances
+7846:async function loadCameraDevices
+7863:function addAppliance
+7880:function addApplianceQuick
+7893:function removeAppliance
+7901:function _isShoppingBringMode
+7906:function _applyShoppingListLabels
+7922:function _applyShoppingSettingsUI
+7952:function _applyProductRuleSettingsUI
+7975:async function applyProductAutoRules
+8006:function onShoppingEnabledChange
+8013:function onShoppingModeChange
+8029:async function saveSettings
+8354:async function _loadCalendarTab
+8379:function _renderIcsFeedBox
+8397:async function saveCalendarSettings
+8443:async function rotateCalendarToken
+8462:async function copyCalendarLink
+8486:function openCalendarLink
+8493:function switchSettingsTab
+8523:function switchSettingsGroup
+8544:function _syncSettingsGroupForTab
+8556:function _restoreSettingsNav
+8586:function _initSettingsAccordions
+8631:function _toggleSettingsCard
+8637:function _setSettingsCardOpen
+8645:function _closeSettingsCards
+8652:function _openSettingsCardFor
+8659:function _getSelectedAiProvider
+8664:function _setSelectedAiProvider
+8671:function _onAiProviderChange
+8682:function _syncAiProviderUi
+8699:async function testAiConnection
+8748:function togglePasswordVisibility
+8774:function _apiDropReadCache
+8778:function _apiReadKey
+8789:async function api
+8815:async function _apiFetchJson
+8972:function _aiCostIsBillableAction
+8978:function _aiCostIsMeterAction
+8983:function _aiCostNoteUsage
+8993:function _aiCostFmtTokens
+9000:function _aiCostFmtMoney
+9021:function _aiCostPillPaint
+9079:async function _aiCostPillRefresh
+9094:function _aiCostPillOpenInfo
+9118:function goBack
+9126:function _goBackNow
+9138:function refreshCurrentPage
+9164:function _fadeAlertRow
+9177:function _dashboardLiveRefresh
+9188:function refreshAppDataAfterMutation
+9202:function showPage
+9378:async function _awLoadFacts
+9401:function _awGetFacts
+9407:function _awFetchAndRender
+9420:function _updateAwLiveDot
+9428:function _startAntiWasteAutoRefresh
+9438:function _startBadgeRotation
+9467:function _awTrendCard
+9485:function _awTrendArrow
+9493:function _renderAntiWasteSection
+9685:function _buildNutritionData
+9734:function _renderNutritionSection
+9807:function _nutrScoreBar
+9820:function _renderMonthlyStatsSection
+9924:function _renderSpendEmpty
+9942:function _renderSpendSection
+10020:function _renderOverviewSection
+10065:function _renderFreshnessSection
+10102:function _renderTrendSection
+10144:function _renderMacrosSection
+10195:function _startInsightAlternation
+10208:function _applyInsightPhase
+10292:function _dashboardAlertCap
+10299:function _alertMoreNoteHtml
+10313:function _paintAlertList
+10324:function _growAlertList
+10359:function _growAlertLists
+10384:function _maybeShowLocationAltroNotice
+10404:function _renderMonthStrip
+10425:function _rowMenuButtons
+10443:function _stockHubCounts
+10455:function _syncStockHub
+10477:function _stockHubSelect
+10505:function _syncUrgencyHub
+10548:function renderLocationRail
+10578:function _paintLocationRailSkeleton
+10589:function _openLocationsSettings
+10600:function _setNavBadge
+10631:function _openCaptureSheet
+10647:function _openCaptureSheetInner
+10748:function _techReasonText
+10754:function _techReason
+10775:function _cameraUsable
+10779:function _applyCameraChrome
+10793:function _syncScanNoCameraChrome
+10819:function _explainCameraUnavailable
+10828:function _markCameraBlocked
+10839:function _detectCameraAvailability
+10867:function _isKioskDevice
+10876:function _closeCaptureSheet
+10900:function _logKioskMemory
+10924:function _captureStatus
+10930:function _captureStatusText
+10946:function _micDiagDetail
+10960:function _captureShowType
+10984:function _captureNotUnderstood
+11016:function _captureSyncMicAvailability
+11070:function _captureSetState
+11108:function _capturePhase
+11131:function _captureWatchdogStop
+11136:function _captureWatchdogStart
+11150:function _captureStatusStep
+11156:function _captureFailureText
+11161:function _captureTimeout
+11169:function _captureHideFallback
+11183:function _captureShowFallback
+11209:function _shelfyHandOverToChat
+11220:function _captureContinueInChat
+11229:function _captureRetryVoice
+11262:function _capturePaintLevel
+11275:function _captureMeterPulseStart
+11294:function _captureStopMeter
+11310:function _captureVoiceStop
+11333:function _captureShowTranscript
+11353:function _captureShowUnderstood
+11383:function _captureShowChoices
+11441:function _captureTrace
+11455:function _captureExamples
+11469:function _captureRenderExamples
+11481:function _captureToggleExamples
+11498:function _shelfyIntroSeen
+11501:function _shelfyMarkIntroSeen
+11512:function _shelfyOpenIntro
+11532:function _shelfyCloseIntro
+11544:function _shelfyDisarm
+11564:function _shelfyArmButton
+11610:function _shelfyClearConfirm
+11622:function _shelfyQtyLabel
+11629:async function _shelfyApplyConsume
+11654:function _shelfyOfferConsume
+11722:async function _shelfyRunConsume
+11761:async function _shelfyAddShopping
+11790:function _shelfyAddUnit
+11813:async function _shelfyOpenAdd
+11863:function _captureSpeechLang
+11888:async function _captureProbeLocal
+11940:function _captureJoinText
+12010:async function _captureStartVoice
+12265:function _captureUnitInfo
+12277:function _captureFindUnit
+12286:function _captureHasUnit
+12293:function _captureFractions
+12298:function _captureAllWords
+12303:function _captureWordRe
+12310:function _captureIntentWords
+12319:function _captureHasWord
+12322:function _captureStripWord
+12327:function _captureMatchIntent
+12344:function _captureParse
+12413:function _captureSameWord
+12435:function _captureScoreName
+12471:function _captureItemMatchScore
+12507:async function _captureInventoryRows
+12535:async function _captureFindProducts
+12548:async function _captureFindProduct
+12566:function _rowPackInUnit
+12577:function _captureQtyFor
+12620:function _captureChoose
+12636:function _captureIsActionable
+12649:async function _captureSubmit
+12754:function _relativeDaysAhead
+12760:function _relativeDaysAgo
+12767:function _alertItemHead
+12785:function _openedAgeHtml
+12801:function _alertItemMeta
+12831:function _startStaleRotation
+12839:async function loadDashboard
+13122:function openedFraction
+13131:function quickRecipeSuggestion
+13148:async function loadStaleDashboardItems
+13216:function _localizeSeasonalTip
+13243:function _localizeSeasonalReason
+13255:async function loadSeasonalReview
+13321:async function addSeasonalSuggestion
+13339:async function removeSeasonalOutOfSeason
+13360:async function removeAllSeasonalOutOfSeason
+13392:function isSuspiciousQty
+13399:function isSuspiciousDefaultQty
+13409:function getReviewConfirmed
+13427:function _saveToServer
+13431:function setReviewConfirmed
+13439:function _getNoExpiryDismissed
+13443:function _dismissNoExpiry
+13461:function _bannerEntryKey
+13488:async function loadBannerAlerts
+13763:function _bannerPriority
+13815:function _bannerLocationParts
+13825:function _bannerLocationLine
+13830:function _bannerLocationText
+13836:function renderBannerItem
+14185:function _bannerMarkAnomalyDismissed
+14192:function dismissBannerItem
+14212:function confirmBannerReview
+14220:function confirmNoExpiryNeeded
+14226:function editBannerNoExpiry
+14236:function editBannerReview
+14243:function confirmBannerPrediction
+14251:function editBannerPrediction
+14265:function editBannerAnomalyQuantity
+14289:function confirmBannerAnomaly
+14300:function dismissDuplicateLossCheck
+14309:async function openDuplicateLossCheck
+14326:function weighBannerItem
+14340:function editReviewItem
+14348:function bannerQuickUse
+14356:function bannerThrowAway
+14365:async function bannerMarkVacuum
+14407:function _shouldOfferExtendExpiry
+14427:function _computeExtendedExpiryDate
+14447:function intelligentExtendDays
+14455:function _freezeBonusDays
+14464:function _freezerLocationKey
+14472:async function freezeInventoryItem
+14536:async function bannerFreezeItem
+14551:function itemDetailEditExpiry
+14558:function extendInventoryExpiry
+14581:function bannerExtendExpiry
+14588:function _expiryEditAddDays
+14597:function _showExpiryEditModal
+14645:function _expiryEditCancel
+14656:async function _expiryEditSave
+14689:async function _applyInventoryExpiry
+14722:function bannerFinishAll
+14746:function editBannerExpiry
+14753:function dismissBannerExpired
+14760:function dismissBannerExpiring
+14767:async function confirmBannerFinished
+14786:function dismissBannerItemAfterAction
+14798:function _openedQueueSiblings
+14804:function _showOpenedTab
+14827:function bannerUseInRecipe
+14836:function bannerStillGood
+14846:function _bannerMenuToggle
+14858:function _bannerMenuClose
+14866:async function keepBannerFinishedStock
+14887:async function notFinishedBannerAction
+14925:function initBannerSwipe
+14951:function bannerNext
+14961:function bannerPrev
+14972:function renderGroupedByCategory
+15022:function renderGroupedByLocation
+15055:function renderDashItem
+15097:function dashItemTap
+15105:function _bindDashItemHoldOpen
+15115:function showAlertItemDetail
+15123:function _bindAlertItemsHoldOpen
+15135:function formatSubRemainder
+15143:function _pzFractionLabel
+15162:function isInventoryDepleted
+15178:async function _loadKnownTags
+15191:async function _saveProductTags
+15206:async function _loadFamilies
+15218:async function _saveProductFamily
+15231:function toggleInventoryTagFilter
+15241:function _renderInventoryTagFilter
+15266:function _inventoryVisibleItems
+15288:function alertQtyDisplay
+15294:function _isWeightVolumeUnit
+15300:function _qtyApproxMark
+15315:function _packMeasure
+15331:function formatQuantity
+15368:function formatQuantityForItem
+15377:function getUnitDisplayLabel
+15392:function ensureQtyUnitBadge
+15415:function setQtyInputUnitLabel
+15431:function syncAddQtyUnitBadge
+15437:function getActiveUseUnitLabel
+15445:function getActiveRecipeUseUnitLabel
+15453:function syncUseQtyUnitBadge
+15457:function syncRecipeUseQtyUnitBadge
+15463:function formatQuantityParts
+15511:function formatQuantityPartsForItem
+15521:function formatPackageFraction
+15543:async function loadInventory
+15602:function _syncInventoryAuditBanner
+15622:function _medCategoryBadgesHtml
+15639:function _inventoryExpiryBadgeHtml
+15722:function renderInventoryItem
+15793:function _inventoryQtyTone
+15811:function _bindRowHoldOpen
+15906:function _openInventoryRow
+15916:function _findInventoryItem
+15939:function _initInventoryRowSwipe
+16116:function _playInventorySwipeDemo
+16140:function _inventoryIsMedicalContext
+16149:function _syncInventoryMedChips
+16175:function _medInventoryChip
+16188:function _medItemMatchesSymptom
+16204:function _medCabinetContextPayload
+16235:function _medAskShelfySymptom
+16254:function _medCabinetEmptyHtml
+16270:function _inventoryEmptyHtml
+16297:function _medCabinetEmptyScan
+16301:function _medCabinetEmptyManual
+16327:function _inventoryGroupAvailable
+16333:function _syncInventoryGroupUi
+16346:function setInventoryGroupBy
+16355:function setInventoryViewFilter
+16367:function _clearMedSymptomFilter
+16373:function _inventoryApplyViewFilter
+16390:function renderInventory
+16419:function _sortOpenedFirst
+16436:function _inventoryOpenedRowClass
+16458:async function toggleInventoryFavorite
+16491:async function _medToggleFavFromSheet
+16504:function _inventorySearchScore
+16541:async function _refineCategoryBadgesAsync
+16558:function filterLocation
+16575:function filterInventory
+16618:async function loadQuickAccess
+16657:function renderQuickAccessBtn
+16674:async function _finishExhaustedProduct
+16698:async function _showExhaustedProductModal
+16730:function quickAccessSelect
+16757:function openProductImageLightbox
+16780:function _closeImageLightbox
+16787:function _itemDetailExpiryChip
+16826:function _itemDetailOtherPlacesHtml
+16866:function _itemDetailSwitchPack
+16877:function _itemDetailTotalPacksHtml
+16907:async function itemDetailToggleOpened
+16946:function showItemDetail
+17122:function itemDetailThrow
+17126:async function itemDetailFreeze
+17134:async function itemDetailToggleVacuum
+17196:async function itemDetailUseAll
+17209:async function _finishStockWithUndo
+17260:function _itemDetailQtyInit
+17315:function _itemDetailPackEntry
+17321:function _itemDetailEntryStep
+17326:function _itemDetailEntryMax
+17332:function _itemDetailEntryValue
+17339:function _itemDetailConfValue
+17353:function _itemDetailPackSwitchHtml
+17372:function _itemDetailSetEntryUnit
+17388:function _itemDetailSwitchesToPackEntry
+17395:function _itemDetailApplyEntryAmount
+17402:function _itemDetailUnitLabel
+17414:function _itemDetailFmtQty
+17421:function _itemDetailParseQty
+17427:function _itemDetailQtyNumber
+17433:function _itemDetailQtyLabel
+17440:function _itemDetailScaleWeightText
+17451:function _itemDetailMedSummaryHtml
+17499:function _itemDetailScaleCapable
+17509:function _itemDetailScaleEligible
+17517:function _itemDetailScalePillHtml
+17538:function _itemDetailSyncScaleUi
+17569:function _itemDetailApplyScaleReading
+17584:function _itemDetailMassUnit
+17601:function _itemDetailScaleAmount
+17615:function _updateItemDetailScaleCompare
+17651:function _scaleApplyToItemDetail
+17689:function _scaleAutoFillItemDetail
+17703:function _itemDetailAtMax
+17709:function _itemDetailPrimaryLabelText
+17722:function _itemDetailFinishLabelText
+17742:function _itemDetailSyncActionLabels
+17778:function _fractionChipOptions
+17846:function _itemDetailFractionOptions
+17867:function _itemDetailFractionsHtml
+17878:function _itemDetailSyncQtyUi
+17897:function _itemDetailSyncChips
+17906:function _itemDetailOnQtyInput
+17925:function _itemDetailReadInput
+17938:function _itemDetailSetQty
+17949:function _itemDetailStep
+17967:function _askDuplicateUseConfirm
+18008:function _confirmDuplicateUse
+18017:async function _itemDetailConsume
+18111:function _visibleOverlays
+18118:function _topOverlay
+18136:function _medDebugOn
+18145:async function _medImportCatalogFile
+18183:async function _medRefreshStatus
+18233:function _medDaysSince
+18249:async function _medMaybeAutoSyncCatalog
+18268:async function _medSyncCatalog
+18289:function _medOn
+18301:function _medScanSupported
+18316:function _medScanBarcodes
+18323:function _medScanHintText
+18337:function _medBlockedPopup
+18366:function _medCloseBlocked
+18380:function _medShowParafNotice
+18397:function _medCloseParafNotice
+18405:function _medConfirmParafNotice
+18423:function _medOpenParafManualForm
+18469:function _scanModeIsMedical
+18476:function _scanModeForLocation
+18491:function _setScanMode
+18502:function _setScanModeInner
+18594:function _medShowCrossHint
+18599:function _medHideCrossHint
+18611:function _medGoToCabinetScan
+18636:function _medNationalCode
+18654:function _localRowForBarcode
+18667:function _medCountryLabel
+18679:function _isMedicalRow
+18698:function _medLocationKey
+18715:function _medLocationChoices
+18724:function _applyMedUi
+18746:function _medRenderLocationPicker
+18758:function _medRenderCountryPicker
+18778:async function onMedCountryChange
+18785:function _renderMedLocations
+18800:function _medLocationLabel
+18807:async function onMedLocationPick
+18812:async function onMedLocationUnmark
+18819:async function onMedLocationCreate
+18844:async function _medSetLocations
+18860:async function onMedLocationChange
+18879:async function _renderMedClassify
+18942:async function _medClassify
+18973:function _syncProductMedicalUi
+18994:function _pfRenderMedCats
+19006:function onProductMedicalToggle
+19037:function _pfMedicalPayload
+19064:function _medPackIsWhole
+19082:function _medOpenSinceBlockHtml
+19119:function _medRepaintOpenSince
+19136:async function _medMarkUnopened
+19166:async function _medOpenSincePick
+19176:async function _medMarkOpened
+19226:async function _medSaveInstanceSettings
+19241:function _medSetupRender
+19268:function _medSetupSyncAccept
+19275:function _medSetupLocationPick
+19280:function _medSetupLocationTyped
+19288:function _medSetupBody
+19349:function _medMaybeAskSetup
+19359:function _medCloseSetup
+19365:async function _medSetupLater
+19376:async function _medSetupFinish
+19428:async function _medReopenSetup
+19437:async function onMedEnabledChange
+19462:function _medOpenSearch
+19505:function _medCloseSearch
+19507:function _medOpenItem
+19514:function _renderMedicalBlock
+19547:function _medDiscard
+19577:function _overlayFocusables
+19589:function _closeTopOverlay
+19641:function _showModalOverlay
+19648:function closeModalBackdrop
+19654:function closeModal
+19673:async function _openUsePage
+19693:async function _loadUseProduct
+19721:function _inventoryIdFor
+19742:async function quickUse
+19760:function openWasteSheet
+19774:function throwWasteForProduct
+19828:function _wasteNotesForReason
+19834:function _wasteReasonGridHtml
+19851:function _bindWasteReasonPicks
+19864:function _showWasteRecordModal
+19912:async function _submitWasteRecord
+19966:async function _deleteInventoryRow
+19981:async function deleteInventoryItem
+20034:async function _discardOnePiece
+20041:async function _discardAllFromModal
+20048:function _initExpiryManualTracking
+20063:function _isExpiryManuallySet
+20067:function _expiryUserSetPayload
+20084:function recalcEditExpiry
+20103:function editInventoryItem
+20313:function _paoPaintEdit
+20340:function _paoLoadForEdit
+20349:async function _paoResetForEdit
+20368:function _editPickLocation
+20384:function _editLocationExpiryDeltaDays
+20401:function _editLocExpiryHintHtml
+20410:function _editRefreshLocExpiryHints
+20427:function _editOnCategoryChange
+20452:function _isMobileUi
+20463:function _medEditSelectedTags
+20469:function _editMedicalInventoryItem
+20637:function startEditProductTitle
+20648:function finishEditProductTitle
+20667:function onEditUnitChange
+20693:function _patchLiveInventoryItem
+20704:async function submitEditInventory
+20942:function scanLog
+20958:function flushScanLog
+20969:function toggleScanDebug
+20979:function _scannerAiAllowed
+20983:function pauseScanner
+20988:function resumeScanner
+21015:function _cameraRetry
+21022:async function initScanner
+21166:function validateEANChecksum
+21181:function _setScanStatus
+21212:function _loadZbarVendor
+21248:function _startBestScanner
+21266:function _ensureBarcodeEngines
+21327:function preloadBarcodeEngines
+21344:function _isEanFormat
+21351:function _finalizeBarcode
+21370:function _tryConfirmBarcode
+21490:function _extractEanCandidates
+21504:function _capScanCanvasSize
+21515:function _buildScanCropFrame
+21551:function _medBarcodeCrop
+21567:function _captureDigitStrip
+21617:async function _ensureTesseractWorker
+21658:async function _tesseractConfigure
+21689:async function _tryLocalEanDigitOcr
+21743:function _medGuideRect
+21794:function _medLabelStrips
+21841:function _ocrGrayPixels
+21856:function _ocrWriteGray
+21874:function _binarizeScanCanvas
+21917:function _contrastScanCanvas
+21953:function _captureMedLabelFrame
+22006:async function _medReadLabelOcr
+22016:async function _medReadLabelOcrInner
+22133:async function _medOcrSelfTest
+22174:function _medOcrGeometryNote
+22191:function _medPreviewSample
+22259:function _medFamilyRows
+22278:function _medOpenFamily
+22287:function _medShowFamilyPicker
+22314:function _medHideFamilyPicker
+22323:function _medPickFamily
+22344:async function _medOpenVerifiedForm
+22386:function _medNearChoices
+22407:async function _medConfirmRead
+22507:async function _medTryLooseReads
+22542:async function _medOcrFallback
+22574:function _medOcrKick
+22601:function _medShowAsk
+22646:function _medCodeDigitsOnly
+22656:function _medNameMoreSet
+22666:function _medRevealNameAsk
+22686:async function _medSearchName
+22698:async function _medSearchNameMore
+22703:async function _medFetchNamePage
+22740:function _medPickNameRow
+22750:function _medAskCodeSoon
+22777:function _medCodeRowOpen
+22805:function _medResumeScan
+22819:async function _medSubmitCode
+22905:function _medDebugFrameJpeg
+22921:function _medDebugPass
+22947:function _medDebugPanel
+22982:function _medOcrRun
+23042:function _medCatalogueChoiceMeta
+23061:function _medCatalogueChoiceDetailHtml
+23070:function _medDisplayName
+23078:function _medFillFromCatalogue
+23126:function _medCategoryFromAtc
+23147:function _medNeighboursHtml
+23166:function _medUseCode
+23196:async function _medLookupCatalogue
+23219:async function _medShowCatalogueMatch
+23271:function _medShowAlternatives
+23280:function _medMatchCard
+23307:function _medUseMatch
+23323:function _renderMedDataset
+23394:function _scanDetectGapMs
+23399:function _scanDetectFrame
+23420:function _codesToVideoSpace
+23435:function startUnifiedScanner
+23678:function startQuaggaScanner
+23852:function enhanceCanvasForBarcode
+23884:function stopScanner
+23928:function _barcodeCacheKey
+23932:function _barcodePersistGet
+23944:function _barcodePersistSet
+23959:function _applyLocalBarcodeProductFixes
+24000:function _externalBarcodeNotes
+24011:function _currentProductFromExternal
+24038:async function _confirmShoppingScanMatch
+24053:function _inventoryRowForProduct
+24066:async function _finishBarcodeResolved
+24108:async function _saveExternalBarcodeProduct
+24168:function _barcodeRememberProduct
+24176:async function _resolveBarcodeLookup
+24192:async function _handleBarcodeResolve
+24218:async function onBarcodeDetected
+24344:async function _medStartManualEntry
+24377:function _medFormSetMode
+24494:function _medFormIsMedicine
+24531:function _medFormStockState
+24546:function _medFormStockSyncPackRow
+24575:function _medFormStockFrac
+24597:function _medFormStockSyncPackUnit
+24604:function _medFormStockUnitChanged
+24609:function _medFormPackTyped
+24615:function _medFormStockReset
+24684:function _medExpiryMonthOptionsHtml
+24706:function _medExpiryPaintMonthOptions
+24730:function _medExpiryFillPickers
+24771:function _medExpiryIso
+24796:function _medExpiryErrorText
+24803:function _medExpiryPick
+24820:function _medFormStockPrefill
+24853:function _medFormStockTyped
+24866:function _medFormStockFieldsVisible
+24875:function _medArmProductForm
+24893:function submitManualBarcode
+24898:function autoSubmitEAN
+24922:async function submitQuickName
+24956:function showQuickNameResults
+25002:function selectQuickProduct
+25025:async function createQuickProduct
+25088:function clearQuickNameResults
+25101:function startManualEntry
+25157:function markQtyManuallySet
+25161:function autoDetectCategory
+25192:function onCategoryChange
+25221:function onPfUnitChange
+25229:function _updateBarcodeHint
+25242:async function scanBarcodeForForm
+25347:function _expiryDaysLeft
+25382:async function _medEnsureCabinet
+25408:async function _medStockAddDirect
+25465:async function submitProduct
+25651:function showProductAction
+25967:async function checkInventoryForProduct
+25992:function editProductFromAction
+26047:function openInventoryEdit
+26087:function editActionInventoryItem
+26098:function onActionEditUnitChange
+26105:async function submitActionEditInventory
+26149:async function deleteActionInventoryItem
+26176:function _showDestructiveConfirm
+26242:function toggleActionEdit
+26251:async function saveEditedProductInfo
+26312:function _snapshotCatalogTitle
+26321:function _addProductTitleChanged
+26330:function _openInlineTitleEdit
+26341:function _closeInlineTitleEdit
+26349:function _wireInlineTitleEdit
+26359:function _readInlineTitleEdit
+26363:function _paintTitleText
+26369:function _paintBrandLine
+26377:function _renderAddProductPreview
+26403:function startEditAddTitle
+26407:function finishEditAddTitle
+26425:function startEditAddBrand
+26429:function finishEditAddBrand
+26446:async function _commitAddProductRename
+26485:function startEditScanAiTitle
+26489:function finishEditScanAiTitle
+26507:function startEditScanAiBrand
+26511:function finishEditScanAiBrand
+26536:function _renderAddMedStock
+26583:function _medAddStockState
+26597:function _medAddStockPieces
+26618:function _medAddExpiryHtml
+26638:function _addVacuumToggleHtml
+26662:function _addExpiryDateVacuumRowHtml
+26674:function showAddForm
+26870:function toggleVacuumSealed
+26876:function onVacuumSealedChange
+26899:function recalculateAddExpiry
+26935:async function _fetchExpiryHistoryAndUpdate
+27007:async function _applyAIProductHint
+27082:function getVacuumExpiryDays
+27091:function onAddUnitChange
+27157:function _addMinQtyForUnit
+27163:function _addUnitLabel
+27169:function updateAddQtyStep
+27178:function markAddQtyManuallySet
+27182:function adjustAddQty
+27200:function selectPurchaseType
+27284:function setRemainingPct
+27301:function addExpiryBatch
+27309:function removeExpiryBatch
+27314:function adjustBatchQty
+27319:function _rebuildMultiBatchUI
+27342:function selectLocation
+27358:function _pruneRecentInventoryAdds
+27363:function _findRecentInventoryAdd
+27374:function _recordRecentInventoryAdd
+27379:function _formatQtyPlain
+27383:function _formatRecentAddWhen
+27389:function _confirmRecentDuplicateAdd
+27409:async function _ensureAddProductRow
+27457:function _apiErrorText
+27488:async function submitAdd
+27742:function showUseForm
+27812:function renderUsePreview
+27828:function openUseInventoryEdit
+27858:function _updateUseHeroMeta
+27906:function _renderUseExpiryHint
+27987:function _isOpenedInventoryItem
+27999:function _useAllTotalQty
+28003:function _locationHasOpenedPackage
+28007:async function loadUseInventoryInfo
+28185:function switchUseUnit
+28222:function setConfFraction
+28233:function getSubUnitStep
+28241:function adjustUseQty
+28285:function _useQtyAtSelectedLocation
+28293:function setUseWeightFraction
+28307:function _appendUseWeightFractionButtons
+28326:function selectUseLocation
+28352:function _moveHistKey
+28353:function _kindHistKey
+28355:function _getMoveLocHistory
+28361:function _getKindMoveLocHistory
+28368:function _topMoveLoc
+28386:function _recordMoveLocChoice
+28410:function _preferredMoveChoice
+28433:function _moveHistoryConfidence
+28457:function _movePromptSeconds
+28464:function _getPrefLocHistory
+28469:function _recordUseLocationChoice
+28480:function _getPreferredUseLocation
+28490:function _expandUseLocationSelector
+28496:function setPzFraction
+28507:function isLowStock
+28522:function _nameTokens
+28536:function _findSimilarItem
+28555:function _matchBringToSmart
+28590:function _showVacuumPrompt
+28644:function showLowStockBringPrompt
+28750:async function addLowStockToBring
+28783:function closeLowStockPrompt
+28794:function clearMoveModalTimer
+28811:function _isAddFormLeaveGuardActive
+28815:function _setAddFormGuardActive
+28819:function _clearAddFormGuard
+28823:function _promptAddFormLeave
+28865:function _bindAddFormBeforeUnloadGuard
+28883:function _useFormIdleEligible
+28897:function clearUseFormIdleCountdown
+28913:function _maybeStartUseFormIdleCountdown
+28980:function clearAddFormIdleCountdown
+28994:function startAddFormIdleCountdown
+29054:function startMoveModalCountdown
+29083:function _moveCountdownMetaHtml
+29107:function _movePromptHasPortion
+29128:function _leftoverAfterUse
+29150:function _showMovePrompt
+29220:function _movePromptChoose
+29230:function _movePromptStay
+29243:function _movePromptClose
+29265:function showMoveAfterUseModal
+29300:async function _saveVacuumAndStay
+29326:async function confirmMoveAfterUse
+29379:async function submitUseAll
+29419:function _confirmDepleteSafety
+29453:function _showUseAllSlideConfirm
+29584:async function _doSubmitUseAll
+29597:function _showUseAllDisambiguation
+29645:async function _submitUseOneConf
+29680:function _confirmThenSubmitUseAllAt
+29685:async function _submitUseAllAt
+29721:async function submitUse
+29803:async function captureForAI
+29814:async function initAICamera
+29841:function takePhotoForAI
+29870:function retakePhotoAI
+29875:async function analyzeWithAI
+29985:async function selectLocalMatch
+30003:async function selectAIMatch
+30092:async function saveAIProductDirect
+30153:async function captureForAIFormFill
+30194:function closePfAiScanner
+30199:function pfAiCapture
+30220:function pfAiRetake
+30237:async function _pfAiAnalyze
+30298:function _pfAiFillFields
+30328:function _pfAiFillFromAI
+30334:async function _pfAiFillFromMatch
+30353:async function loadAllProducts
+30362:async function searchAllProducts
+30373:function renderProductsList
+30408:async function selectProductForAction
+30439:async function _getShoppingInventoryCache
+30451:function switchShoppingTab
+30458:function updateShoppingTabCounts
+30472:function getShoppingTags
+30477:function toggleShoppingTag
+30509:function _stockBaseForGap
+30515:function _sanitizePieceMonthly
+30527:function _sanitizePieceDailyRate
+30536:function _periodNeedForPlanDays
+30554:function _isSoldByPieceProductName
+30558:function _maxSuggestedPieces
+30564:function _floorPieceSuggestion
+30598:function _purchaseHorizonDays
+30621:function _capPricePayloadQty
+30645:function _ceilDiscreteQty
+30650:function _suggestedConfQty
+30656:function _computeSuggestedQtyForPlanDays
+30781:function _snapToSaleUnit
+30789:function _effectiveSmartQty
+30809:function _discreteFooterQty
+30822:function _shoppingSuggestedToAddQty
+30838:function _shoppingBuyQtyDisplay
+30851:async function markShoppingItemBoughtAtHome
+30882:function openScanForItem
+30891:async function confirmShoppingItemFound
+30913:function _urgencyToSpec
+30924:function _shoppingListGenericTitle
+30933:function _lookupCatalogShoppingName
+30955:function _getAutoAddedBring
+30968:function _markAutoAddedBring
+30975:function _unmarkAutoAddedBring
+30984:function _bringBlocklistNormalizeEntry
+30995:function _bringPurchasedExpired
+31005:function _getBringPurchasedBlocklist
+31019:function _markBringPurchased
+31027:function _isBringPurchased
+31037:function _smartItemMatchesHighUseRestock
+31053:function _smartItemOverridesPurchaseBlock
+31063:function _filterPurchasedSmartItems
+31072:async function autoAddCriticalItems
+31109:async function shoppingTripComplete
+31126:async function forceSyncBring
+31157:function _formatShoppingTotalLabel
+31162:function _setCanonicalShoppingTotal
+31182:function dataTotalLabelOrFormat
+31189:function _loadCanonicalTotalFromSession
+31209:function _setTotalLoading
+31215:function _applyShoppingTotalDisplay
+31230:function _clearCanonicalShoppingTotal
+31248:async function syncShoppingPriceTotal
+31288:function _buildPricePayload
+31357:function _formatInvQtyDisplay
+31372:function _shoppingFamilyInventoryRows
+31388:function _inferShoppingGeneric
+31407:function _productMatchesShoppingFamily
+31420:function _resolveShoppingDisplayName
+31433:function _dedupeShoppingByGeneric
+31455:function _buildPriceSparklineSVG
+31479:function _buildPriceBadgeHTML
+31502:function _applyPriceBadgesFromCache
+31528:function _applyPriceBadges
+31542:function _currencySymbol
+31557:async function fetchAllPrices
+31686:async function cleanupObsoleteBringItems
+31808:function logOperation
+31822:function buildSearchQuery
+31829:function parseQtyFromSpec
+31853:function estimateItemPrice
+31888:function _updateSmartUrgencyBadge
+31900:function _updateDashboardPriceTotal
+31911:function _syncOnBringFlags
+31932:function _renderSmartLastUpdate
+31939:function startBgShoppingRefresh
+31943:function getShoppingPlanDaysDefault
+31954:function getShoppingPlanDays
+31961:function isShoppingPlanDaysCustom
+31966:function setShoppingPlanDays
+31973:function resetShoppingPlanDays
+31980:async function applyShoppingPlanDays
+31996:function _previewShoppingPlanDaysBar
+32008:function _initShoppingPageInteractionTracking
+32022:function _shoppingScrollEl
+32028:function _shoppingScrollY
+32036:function _restoreShoppingScroll
+32045:function _shoppingRenderSignature
+32056:function _shopRowVisualHtml
+32076:function _shopRowVisualHtmlFromSmart
+32089:function _renderShoppingPlanDaysBar
+32116:async function loadSmartShopping
+32199:function _renderShoppingDismissed
+32226:function _shopIsDismissed
+32234:async function loadShoppingDismissed
+32246:async function restoreShoppingDismissed
+32263:async function restoreAllShoppingDismissed
+32276:function filterSmart
+32283:function renderSmartShopping
+32351:function _renderSmartSuggestedStrip
+32375:function _initSmartSuggestedChips
+32423:function renderSmartItem
+32536:async function migrateBringNames
+32564:async function addSmartToBring
+32617:async function loadShoppingCount
+32643:function _syncTagsFromBringSpec
+32691:function _localizeSmartReason
+32722:function _formatSuggestQty
+32741:function _buildSmartSpec
+32757:function _shoppingPrimaryReason
+32796:function _specNeedsGenericCleanup
+32800:async function autoSyncUrgencySpecs
+32828:function _shoppingSkeletonHtml
+32848:function _showShoppingSkeleton
+32856:function _hideShoppingSkeleton
+32874:function _listSkeletonHtml
+32901:function _showListSkeleton
+32911:function _hideListSkeleton
+32917:async function loadShoppingList
+33074:function _specDisplayText
+33093:function _cleanSpecForSearch
+33105:function _resolveShoppingItemUrgency
+33116:function _shopRowUrgencyClass
+33121:function _updateShoppingFooter
+33137:function showPriceDetail
+33156:async function addSmartItemQuick
+33197:function _shopQtyOverrides
+33207:function _shopQtyKey
+33212:function _shopRowQtyStep
+33223:function _shopRowBuyQty
+33233:function _shopRowBuyQtyLabel
+33241:function _shopRowQtyAdjust
+33275:async function _shopRowBought
+33310:async function _shopRowAction
+33326:function _initShopRowActions
+33352:function _shopQtyPopover
+33406:function _shopRowQtyHtml
+33418:function _shoppingListSubtitle
+33436:function _shoppingRowSubtitle
+33450:function _shopRowFrequencyHtml
+33469:function _shopRowStockHtml
+33490:function _shopRowReasonText
+33506:function _shopRowStockLabel
+33526:function _shopWasteChipHtml
+33546:function _shopWasteHintHtml
+33572:function _shopRowInnerHtml
+33633:function _shopSwipeThresholds
+33647:function _initShopRowSwipe
+33755:function _initShoppingPullRefresh
+33784:function _renderShoppingSectionHead
+33792:function _renderShoppingSuggestionsInline
+33847:function _shopSearchNorm
+33856:function _shopRowMatchesSearch
+33865:function _initShopSearchInput
+33875:function _shopUrgencyPillsMeta
+33885:function _renderShopFilterRow
+33905:function setShopUrgencyFilter
+33910:function _initShopFilterRow
+33921:async function renderShoppingItems
+34094:function toggleShoppingTagMenu
+34104:async function removeBringItem
+34135:async function openShoppingTemplates
+34151:function _renderTemplatesListBody
+34175:async function applyShoppingTemplate
+34196:async function deleteShoppingTemplate
+34204:function openTemplateEditor
+34248:function _renderTemplateDraftItems
+34263:function templateDraftAddPicked
+34278:function templateDraftAddManual
+34288:function templateDraftRemove
+34293:async function saveShoppingTemplate
+34314:async function generateSuggestions
+34374:function renderSuggestions
+34404:async function _enrichSuggestionsWithAI
+34435:function toggleSuggestion
+34447:function updateSuggestionActionBtn
+34461:async function addSelectedSuggestions
+34509:async function scanExpiryWithAI
+34553:function closeExpiryScanner
+34561:function captureExpiry
+34595:function retakeExpiry
+34611:async function analyzeExpiryImage
+34646:function stripHtml
+34651:function formatDate
+34660:function formatDateTime
+34668:function daysUntilExpiry
+34676:function adjustQty
+34683:function showLoading
+34688:function _plainUiText
+34697:function showToast
+34721:function showActionToast
+34755:async function loadLog
+34845:async function undoTransactionEntry
+34860:async function _doUndoTransaction
+34916:async function _checkMealPlanIngredientAvailable
+34957:function getMealPlanTypes
+34961:function getMealPlanTypeMap
+34967:function getWeekDaysShortLabels
+34990:function getMealPlan
+34996:function getTodayMealPlanType
+35005:function onMealPlanEnabledChange
+35018:function onPriceCountryChange
+35037:function renderMealPlanEditor
+35069:function openMealPlanPicker
+35094:function _mplanPickerOutside
+35098:function closeMealPlanPicker
+35104:function selectMealPlanType
+35115:function resetMealPlan
+35137:function getMealTypes
+35142:function getMealPickerTypes
+35146:function getMealSubTypes
+35165:function getMealLabels
+35171:function getMealType
+35180:function _normalizeMealId
+35189:function _mealLabel
+35198:function getSelectedMealType
+35206:async function getRecipeArchive
+35218:async function saveRecipeToArchive
+35255:async function getTodayRecipeTitles
+35276:function _recipeMinutes
+35294:function _recipeTotalMinutes
+35301:function _recipeNeedsAppliance
+35314:function _recipeArchiveFilterMatches
+35334:function _renderRecipeFilterBar
+35369:function _setRecipeArchiveFilter
+35384:function _mealieClose
+35389:async function _mealieOpen
+35411:async function _mealieLoadList
+35436:async function _mealieImport
+35459:async function _mealieImportAll
+35483:async function _mealieSync
+35495:async function _mealiePushAll
+35513:async function _mealiePushCooked
+35523:function _setRecipeArchiveView
+35543:async function _recipeLiveProductIdSet
+35566:function _recipeArchiveMissingInfo
+35583:function _recipeArchiveMissingCount
+35591:function _recipeMissingPopoverClose
+35595:function _recipeMissingPopoverOutside
+35600:async function _recipeMissingPopover
+35640:function _recipeNameKey
+35649:async function _recipeShoppingListedNames
+35664:async function _recipeMissingAddShopping
+35693:function _recipeArchiveCardHtml
+35753:async function loadRecipeArchive
+35833:function _recipeRepeatMeal
+35843:function viewArchivedRecipe
+35867:function openRecipeDialog
+35928:function toggleRecipeOption
+35932:async function onRecipeFuelToggle
+35944:function updateRecipeFuelGenerateBtn
+35958:async function maybeAutoLogRecipeMeal
+35986:function healthTodayKey
+35994:function applyHealthUiState
+36012:function _loadWeatherSettingsIntoForm
+36030:function applyWeatherUiState
+36039:async function onWeatherEnabledChange
+36055:function _updateWeatherLocationLabel
+36072:async function searchWeatherCity
+36099:async function pickWeatherCity
+36124:async function refreshWeatherPreview
+36152:async function onHealthEnabledChange
+36166:async function loadHealthSettingsTab
+36187:async function loadHealthProfileIntoSettings
+36205:async function saveHealthProfileFromSettings
+36226:async function createHealthBridgeToken
+36277:async function unlinkHealthBridge
+36295:function closeRecipeDialog
+36299:function adjustRecipePersons
+36310:function _parseRecipeQtyString
+36326:function _normalizeRecipeIngQtyNumber
+36359:function _recipeRoundPieceQty
+36363:function _recipeFormatPieceQtyLabel
+36373:function _recipeResolvePieceQty
+36390:function _recipeGetServingCapForIngredient
+36410:function _recipeClampQtyForServings
+36424:function _recipeGetClosedProductBaseQty
+36445:function _recipeShouldUseAllRemainder
+36455:function _computeRecipeIngStockHint
+36501:function _formatRecipeStockQty
+36509:function _recipeIngStockHintHtml
+36518:function _recipeQtyThresholdForCook
+36524:function _isDepletedForRecipe
+36530:async function enrichRecipeIngredientsStock
+36646:function _updateRecipeStockHintsAfterScale
+36677:async function useRecipeIngredient
+36866:function _recipeUseItemAtLoc
+36885:function _recipeUseHeadHtml
+36924:function _recipeUseSyncHead
+36930:function selectRecipeUseLoc
+36943:function _recipeUseStockAtLoc
+36953:function _recipeUseAllChipLabel
+36964:function _recipeUseFractionMaxEntry
+36986:function _recipeUseFractionOptions
+37028:function _recipeUseFractionsHtml
+37044:function _recipeUseSyncFractions
+37051:function _recipeUseSetFraction
+37063:function switchRecipeUseUnit
+37107:function adjustRecipeUseQty
+37128:async function submitRecipeUse
+37244:function showRecipeMoveModal
+37266:function _recipeMoveCancelStay
+37272:async function confirmRecipeMove
+37323:function _extractToolsFromSteps
+37364:function _recipeRatingStarsHtml
+37379:function _repaintRecipeRating
+37393:async function rateRecipe
+37415:async function toggleRecipeFavorite
+37448:function scaleRecipePersons
+37484:function _scaledRecipeIngQty
+37496:function formatRecipeShareText
+37567:function _closeRecipeShareSheet
+37572:async function copyRecipeShareText
+37597:function shareRecipeViaWhatsApp
+37612:function _showRecipeShareSheet
+37633:async function shareRecipe
+37662:function _recipeShoppingRecipeScaled
+37692:async function loadRecipeShoppingPlan
+37727:function renderRecipeShoppingPlan
+37770:async function addRecipeShoppingPlan
+37809:function _recipeScalablePantryCount
+37816:function _recipeUsedPantryCount
+37830:function _recipeCookFooterMode
+37843:function _refreshRecipeCookFooter
+37874:async function _recipeRedoIngredients
+37893:async function renderRecipe
+38163:async function cookRecipeDeductSelected
+38232:function _bindRecipeIngredientOpens
+38315:function _stepApplianceName
+38329:function _layoutCookingWheelCards
+38387:function _cookingModeOpen
+38392:async function _cookingWakeLockOn
+38405:function _cookingWakeLockOff
+38430:function _recipeSheetSource
+38442:function _syncCookingRecipeUsedFlags
+38453:function _cookingFinishPendingCount
+38459:function _cookingFinishPrompt
+38488:function _closeCookingFinishPrompt
+38494:function _cookingFinishSkip
+38509:function _cookingVoiceStopRec
+38535:function _cookingVoiceArm
+38545:function _cookingTtsBusy
+38550:function _cookingVoiceStart
+38616:function _cookingVoiceHintHide
+38624:function _cookingVoiceHintOutside
+38640:function _cookingVoiceHint
+38690:function _cookingVoiceCommand
+38712:function _cookingVoiceDispatch
+38729:function _cookingRedo
+38736:async function _cookingFinishConfirm
+38748:function startCookingMode
+38810:function closeCookingMode
+38832:function restartCookingMode
+38841:function _setCookingWheelTilt
+38858:function _resetCookingWheelTilt
+38866:function _pulseCookingWheel
+38875:function _cookingStepFeedback
+38882:function _bindCookingWheelControls
+38987:function _animateCookingWheelTransition
+39002:function _cookingScrapTip
+39028:function _cookingHighlightText
+39067:function _renderCookingStepText
+39104:function _renderCookingStepIngredients
+39140:function renderCookingStep
+39224:function _renderZeroWasteTip
+39244:function _dismissZeroWasteTip
+39250:function _buildTtsRequest
+39281:function _buildHaTtsRequest
+39292:async function _ttsViaProxy
+39312:function _hasKioskTts
+39317:function _applyKioskTtsOverrides
+39323:async function speakCookingStep
+39355:function replayCookingTTS
+39362:function onTtsAuthTypeChange
+39369:function onTtsEngineChange
+39378:function onHaEnabledChange
+39384:function _applyHaSettingsUI
+39410:function _loadHaTab
+39416:function _renderHaSensorYaml
+39475:function copyHaSensorYaml
+39485:async function testHaConnection
+39510:function applyHaTtsPreset
+39554:function showHaWebhookHelp
+39559:async function saveHaSettings
+39648:function _notifyErrorText
+39661:function onNotifyEnabledChange
+39668:function _renderNotifyLanguageOptions
+39678:function _applyNotifySettingsUI
+39722:function _applyTelegramSettingsUI
+39741:async function saveTelegramSettings
+39760:function onPriceEnabledChange
+39766:function _applyWebPushSettingsUI
+39778:async function saveWebPushSettings
+39797:function _urlBase64ToUint8Array
+39806:async function subscribeWebPush
+39846:async function testWebPush
+39862:function _notifyStatus
+39875:async function _loadNotifyTab
+39894:function _randomNtfyTopic
+39905:function generateNtfyTopic
+39918:async function saveNotifySettings
+39977:async function testNotify
+40015:function _healthcheckJobLabel
+40025:function _healthcheckAgo
+40039:function _renderHealthcheckJobs
+40065:function _healthcheckErrorText
+40079:async function testHealthcheck
+40113:async function clearHealthcheckUrl
+40131:function _initBrowserTtsVoices
+40201:function _pickTtsVoice
+40235:function _cookingAutoScrollStop
+40240:function _cookingAutoScrollStart
+40276:function _cookingReading
+40282:function _speakBrowser
+40344:function testSound
+40355:async function testTTS
+40526:function _ensureAudioUnlocked
+40539:function _playCookingTimerSound
+40579:function _notifyCookingTimer
+40610:function _parseStepTimers
+40639:function _parseStepTimer
+40643:function _formatTimerDisplay
+40652:function _extractTimerLabel
+40751:function setupCookingTimerSuggestion
+40785:function _cookingPaintStepAction
+40802:function addSuggestedCookingTimer
+40811:function addCookingTimer
+40826:function _cookingVoiceStop
+40834:function removeCookingTimer
+40842:function toggleCookingTimerById
+40869:function resetCookingTimerById
+40879:function _cookingTimerDoneById
+40897:function _cookingTimerRingPct
+40902:function _updateTimerCard
+40929:function _updateScreenFlash
+40946:function renderTimersBar
+40973:function clearAllCookingTimers
+40985:function toggleCookingTTS
+40996:function navigateCookingStep
+41023:function cookingUseIngredient
+41034:function updateRecipeMealTitle
+41045:function _renderMealSubTypes
+41060:function getSelectedSubType
+41072:function _clearMealPlanChip
+41079:function onMealPlanChipChange
+41087:function _renderMealPlanHint
+41138:function showRegenChoice
+41143:function cancelRegenChoice
+41148:function doRegenerateReplace
+41153:async function doRegenerateSave
+41161:function _doRegenerate
+41177:function regenerateRecipe
+41181:async function syncMealieCache
+41208:function _updateMealieCacheStatus
+41222:function _setMealieInstallProgress
+41231:function _mealieInstallErrorMessage
+41251:function _updateRecipeEngineHelp
+41263:function _updateMealieSetupStatus
+41299:async function discoverMealie
+41367:async function installMealie
+41486:function _recipeLoadingStageText
+41492:function _recipeLoadingStagesStop
+41498:function _recipeLoadingStagesStart
+41512:async function generateRecipe
+41665:function initChat
+41682:async function loadChatContext
+41689:function sendChatSuggestion
+41695:function _looksLikeRecipe
+41703:async function chatTransferToRecipes
+41745:async function openIngredientDetail
+41761:async function openIngredientUse
+41773:function _recipeApiErrorMessage
+41781:async function generateRecipeForIngredient
+41812:function startRecipeFromProduct
+41822:async function sendChatMessage
+41895:function appendChatBubble
+41915:function _chatInventoryForMatching
+41927:function _chatProductNeedles
+41952:function _chatMatchProductsInText
+41993:function _chatIsLabel
+42012:function _chatIngredientBlocks
+42031:function _chatUseActionsHtml
+42057:function formatChatReply
+42078:function renderChatHistory
+42099:function scrollChatBottom
+42104:function clearChat
+42124:function saveChatHistory
+42158:function _offlineCacheGet
+42161:function _offlineCacheSet
+42164:function _offlineCacheGetSettings
+42167:function _offlineCacheSetSettings
+42170:function _offlineProductsGet
+42173:function _offlineProductsSet
+42176:function _offlineProductFromInventoryItem
+42191:function _offlineSearchBarcode
+42205:function _offlineQueueGet
+42208:function _offlineQueueSet
+42212:function _offlineShoppingCacheGet
+42215:function _offlineShoppingCacheSet
+42218:function _offlineSmartCacheGet
+42221:function _offlineSmartCacheSet
+42231:function _shoppingSectionsCollapsedGet
+42234:function _shoppingSectionsCollapsedSet
+42237:function toggleShoppingSection
+42268:function _queueWriteAfterNetworkFail
+42279:function _offlineQueuePush
+42299:function _handleOfflineApi
+42419:function _applyOptimisticUpdate
+42448:function _applyShoppingOptimisticUpdate
+42469:function _enterOfflineMode
+42490:async function _exitOfflineMode
+42504:function _renderOfflineBanner
+42529:async function _syncOfflineQueue
+42565:function _showNetworkOverlay
+42579:function _hideNetworkOverlay
+42614:function _paintOfflineStrip
+42649:async function _networkPingOnce
+42690:function _flushOfflineQueueSoon
+42713:function _resetAutoHomeTimer
+42719:function _cancelAutoHomeTimer
+42724:function _triggerAutoHome
+42745:function _screensaverTimeoutMs
+42750:function _screensaverBlockedPage
+42770:function _captureTurnLive
+42786:function _noteVoiceActivity
+42791:function resetInactivityTimer
+42797:function activateScreensaver
+42819:function updateScreensaverClock
+42830:function updateScreensaverShopping
+42859:function updateScreensaverMealPlan
+42876:function dismissScreensaver
+42909:function _startScreensaverRotation
+42919:function _showScreensaverSlot
+42948:function _renderScreensaverNutrition
+43007:function _ssDonut
+43017:async function loadScreensaverData
+43046:async function _screensaverAutoAddItems
+43079:function showNextScreensaverFact
+43090:function generateScreensaverFact
+43411:function _spesaScanUiBlocked
+43418:function _clearSpesaAiFallbackTimers
+43430:function _maybeStartSpesaAiFallbackTimer
+43434:function _showSpesaAiFallbackModal
+43439:function _spesaAiFallbackCancel
+43448:function toggleSpesaMode
+43453:function toggleSpesaModeFromCamera
+43458:function _spesaModeHasShoppingItem
+43478:function _syncSpesaQuickBtn
+43488:function _spesaCurrencySymbol
+43503:function _spesaFinishPrompt
+43532:function _spesaKeypad
+43544:async function _spesaFinishSave
+43559:function _spesaFinishSkip
+43565:function _spesaBeginScanning
+43579:function initSpesaMode
+43610:async function startSpesaMode
+43646:function endSpesaMode
+43663:function updateSpesaBanner
+43675:function _applySpesaScanUI
+43697:function _renderSpesaSessionList
+43732:async function _spesaSessionFieldChange
+43769:function _applyShoppingListRemovals
+43788:async function shoppingBoughtAfterAdd
+43820:async function spesaModeAfterAdd
+43878:async function _spesaRemovePurchasedFromList
+43919:function _familySiblingConfirmKey
+43923:function _getFamilySiblingConfirmed
+43937:function _isFamilySiblingRecentlyConfirmed
+43944:function _recordFamilySiblingConfirmed
+43954:function _dismissFamilySiblingPrompt
+43961:function _formatFamilySiblingDate
+43970:function _inferPackageSizeFromName
+43981:function _formatFamilySiblingStockLine
+44002:function _showFamilySiblingSuggest
+44062:function _spesaBannerStat
+44083:function _initScreensaverShortcutBtn
+44117:function initScreensaverShortcuts
+44124:function initInactivityWatcher
+44291:function _setupSeen
+44302:function _markSetupSeen
+44315:function _checklistPendingBeforeSave
+44326:function _ackSavedChecklistItems
+44339:function _checklistItemForStep
+44343:function _checklistState
+44354:function _checklistTodoItems
+44370:function _checklistNewsItems
+44382:function _assistantPendingSteps
+44401:function _renderSettingsChecklist
+44450:function _syncChecklistToggle
+44455:function _toggleChecklistItems
+44465:function _checklistGoTo
+44474:function _flashSettingsCard
+44491:function startSetupAssistant
+44509:function _setupDoneStep
+44516:function _getMissingSetupSteps
+44559:function _gdriveWizardNeeded
+44565:function _setupSteps
+44779:function showSetupWizard
+44796:function _renderSetupStep
+44827:function _setupSelectLang
+44834:function _setupGenerateTopic
+44840:function _setupPaint
+44852:async function _setupTestNotify
+44887:async function _setupTestHealthcheck
+44911:function _setupSkipStep
+44920:function _setupCollectCurrent
+44979:function setupWizardNav
+45010:async function _finishSetup
+45096:async function _runHeartbeat
+45112:function _setServerOffline
+45137:async function _flushOfflineReports
+45163:async function _handleServerRestored
+45178:function _heartbeatRetry
+45232:function _preloaderStage
+45252:function _preloaderUpdateRailProgress
+45271:async function _preloaderAwaitDwell
+45298:async function _runStartupCheck
+45635:function _startupHintText
+45643:function _showStartupWarningPopup
+45688:function _showStartupErrorPopup
+45696:function _startupRetry
+45701:function startHeartbeat
+45705:async function _initApp
+45969:async function _backgroundBringSync
 ```

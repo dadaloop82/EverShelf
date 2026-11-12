@@ -224,6 +224,7 @@
     "surgelati": "冷冻食品",
     "bevande": "饮料",
     "pulizia_igiene": "清洁与卫生",
+    "medicinali": "药品",
     "altro": "其他"
   },
   "pao": {
@@ -3041,6 +3042,7 @@
     "type_instead": "我要打字",
     "unsupported": "此浏览器不支持语音识别：请在下面输入（SHELFY 同样能理解）。",
     "mic_denied": "麦克风未获允许：请检查浏览器权限，并通过 HTTPS 打开应用。也可以在下面输入。",
+    "mic_missing": "没有可用的麦克风：系统未检测到设备。请检查是否已连接并启用。",
     "kiosk_no_voice": "SHELFY 在这台平板上无法收听：请点击下面的句子（或打开聊天）。",
     "not_understood": "SHELFY 没听懂：试试「我吃一个苹果」或「我头疼」。",
     "open_failed": "无法打开 SHELFY，请重试。",
@@ -3090,6 +3092,18 @@
     "fallback_lead": "我听到的是：“{text}” —— 但命令没有执行成功。",
     "continue_chat": "继续在聊天中处理",
     "retry_voice": "再说一次"
+  },
+  "diag": {
+    "lead": "技术原因：",
+    "mic_kiosk": "Android WebView 处于自助模式：SHELFY 无法在此打开麦克风（权限对话框会重建页面）。",
+    "mic_no_api": "浏览器未提供语音识别接口（缺少 SpeechRecognition）。",
+    "mic_denied": "浏览器或系统拒绝了麦克风权限（需要 HTTPS 并授予权限）。",
+    "mic_capture": "系统未提供任何麦克风：设备缺失、被占用或已禁用。",
+    "camera_no_api": "浏览器未提供 navigator.mediaDevices.getUserMedia：需要 HTTPS（或 localhost）和较新的浏览器。",
+    "camera_denied": "浏览器或系统拒绝了摄像头权限。",
+    "camera_none": "此设备没有可用的摄像头。",
+    "camera_error": "摄像头未提供视频流（浏览器或驱动错误）。",
+    "speaker_tts": "浏览器未提供 speechSynthesis：无法播放语音。"
   },
   "location_altro": {
     "removed": "“其他”位置已移除：{n} 个产品已移至“{to}”。"
@@ -3431,7 +3445,8 @@
     "empty_expiring": "没有即将过期的药品",
     "shelfy_ask": "我有{symptom}：家里药箱里有什么可能有用？",
     "shelfy_ask_generic": "家里药箱里有什么可能对我现在的不适有用？",
-    "empty_symptom": "家里没有针对该症状的药品"
+    "empty_symptom": "家里没有针对该症状的药品",
+    "code_no_camera": "此设备的摄像头已关闭：请输入包装上印制的编码（AIC 为 A + 9 位数字）。"
   },
   "months": {
     "january": "一月",
