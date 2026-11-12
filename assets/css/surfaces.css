@@ -2537,6 +2537,40 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     color: var(--text-muted);
 }
 .alert-banner.banner-opened .banner-verdict { margin-top: 6px; }
+/* The favourite star of the medicine edit sheet's header (`.item-detail-fav`): at phone widths
+   the row's own ☆ is hidden — a symbol the cabinet cannot afford — so the control lives where
+   the product is edited, and the feature is never lost on a small screen. */
+.item-detail-fav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-muted, #94a3b8);
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.item-detail-fav.active { color: #f59e0b; }
+.item-detail-fav:active { background: color-mix(in srgb, var(--surface-border) 60%, transparent); }
+
+/* ── A medicine in the same strip ──────────────────────────────────────────────
+   An open cream or a vial past its day is a real notice and it belongs here, but its card is
+   never a food surface: the medical tint says WHAT the row is, while the rail and the title keep
+   saying HOW URGENT it is (`.banner-opened.is-critical`, `.banner-expired-danger`) — the state
+   rules stay in charge of every colour but the paper. `var(--surface-bg)` is the base on purpose:
+   the theme still decides the card, the tint is only added on top of it. */
+.alert-banner.is-medical {
+    background-color: var(--surface-bg);
+    background-image: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(99, 102, 241, 0.04));
+}
+[data-theme="dark"] .alert-banner.is-medical {
+    background-color: var(--surface-bg);
+    background-image: linear-gradient(135deg, rgba(99, 102, 241, 0.32), rgba(99, 102, 241, 0.10));
+}
 .alert-banner-actions .btn-banner-more {
     min-width: var(--touch-min);
     padding: 0 10px;
@@ -4828,6 +4862,55 @@ button.scan-med-name-hit:focus-visible {
     gap: 8px;
     align-items: flex-end;
 }
+/* ── The opening window of the edit sheet («consigliato entro 3-6 gg») ──────────
+   Two numbers and the sentence that says where they come from: the app's own table, or the
+   average of the household's corrections for this family in this place. One line on a phone
+   (`[3] → [6] gg`), never a paragraph, and the reset is a quiet link, not a third button. */
+.pao-edit-group[hidden] { display: none !important; }
+.pao-days-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.pao-days-input {
+    width: 5.4rem;
+    min-height: 40px;
+    text-align: center;
+    font-weight: 700;
+    /* The two spinners of a number input eat the width of a 76 px field on Android. */
+    -moz-appearance: textfield;
+}
+.pao-days-input::-webkit-outer-spin-button,
+.pao-days-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.pao-days-dash {
+    color: var(--text-muted);
+    font-weight: 700;
+}
+.pao-days-unit {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.pao-edit-group .settings-hint {
+    margin: 6px 0 0;
+    line-height: 1.35;
+}
+.pao-reset-link {
+    margin-top: 4px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--brand-primary-hover, #047857);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+}
+.pao-reset-link[hidden] { display: none; }
 .edit-expiry-vacuum > .form-group:first-child {
     flex: 1 1 11rem;
     min-width: 0;
@@ -5143,11 +5226,6 @@ button.scan-med-name-hit:focus-visible {
     letter-spacing: 0.02em;
 }
 
-/* The medicine edit sheet, condensed like a food one: 6 px between groups, labels tight. */
-#modal-content .form.is-medical-edit .form-group { margin-bottom: 8px; }
-#modal-content .form.is-medical-edit label { margin-bottom: 2px; }
-#modal-content .form.is-medical-edit .form-input { padding-top: 7px; padding-bottom: 7px; }
-
-/* «Scade» and «Aperto da» are one row on a phone (see mobile.css); on a desk the chips need
-   the full width, so the pair is a plain block here. */
-.med-edit-pair { display: block; }
+/* The medicine edit sheet wears the food sheet's shell (`edit-inventory-modal`): the old
+   `.is-medical-edit` compaction (6 px groups, tighter labels/inputs) and the `.med-edit-pair`
+   block went with the old markup — two panels that do the same job must measure the same. */

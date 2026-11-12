@@ -27,6 +27,12 @@ html.is-touch-tablet .inv-row-content.inv-card {
     flex-direction: row;
     align-items: center;
     gap: 10px;
+    /* The band wraps before it squeezes the name: with `nowrap` a 393 px window (a touch
+       tablet whose window was narrowed, reported from the field) left the text column ~10 px
+       and printed «A/u/r/e.» one letter per line. Now the action strip simply drops to a
+       second line — the name is the row. */
+    flex-wrap: wrap;
+    row-gap: 6px;
     padding: 8px 10px;
 }
 
@@ -38,15 +44,18 @@ html.is-touch-tablet .inv-row-content.inv-card {
    and the card keeps the band's 8/10 px padding instead of the stacked 12. */
 html.is-kiosk .alert-item,
 html.is-touch-tablet .alert-item {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
     gap: 10px;
+    row-gap: 6px;
     padding: 8px 10px;
 }
 html.is-kiosk .alert-item .alert-item-info,
 html.is-touch-tablet .alert-item .alert-item-info {
     flex: 1 1 auto;
-    min-width: 0;
+    /* Same floor as the pantry's text block: the notice strip wraps under the text before the
+       article's name is squeezed (the two lists share one grammar). */
+    min-width: 11rem;
     /* The band's height comes from the content, never from the stacked card's floor. */
     min-height: 0;
 }
@@ -54,9 +63,10 @@ html.is-kiosk .alert-item .alert-item-badges,
 html.is-touch-tablet .alert-item .alert-item-badges {
     /* `0 0 auto`: the strip keeps its content width instead of being squeezed by the text
        beside it — a squeezed strip wraps into two lines and makes the card taller than the
-       row next to it, which is exactly what the two lists were doing to each other. */
+       row next to it, which is exactly what the two lists were doing to each other.
+       No `margin-left: auto` for the same reason as the pantry strip: when the band wraps
+       the badges belong under the text, not on the empty right half of their own line. */
     flex: 0 0 auto;
-    margin-left: auto;
     justify-content: flex-end;
     /* Nothing to dodge: this strip is nowhere near the photo. */
     padding-left: 0;
@@ -77,7 +87,10 @@ html.is-touch-tablet .alert-item .alert-item-info { min-height: 53px; }
 html.is-kiosk .inv-card-top,
 html.is-touch-tablet .inv-card-top {
     flex: 1 1 auto;
-    min-width: 0;
+    /* A floor, not `min-width: 0`: the text block must never be squeezed to nothing by the
+       strip beside it (the field bug: «A u r e.» one letter per line at 393 px). When a
+       tablet's row is really tight the strip wraps under it (`flex-wrap` above) instead. */
+    min-width: 15rem;
     align-items: center;
     gap: 10px;
 }
@@ -85,7 +98,10 @@ html.is-touch-tablet .inv-card-top {
 html.is-kiosk .inv-card-bottom,
 html.is-touch-tablet .inv-card-bottom {
     flex: 0 1 auto;
-    margin-left: auto;
+    /* No `margin-left: auto`: when the band wraps (a 2-column tablet card is ~469 px, where the
+       strip no longer fits beside the text) the strip must start under the text, not hang off
+       the right edge of an otherwise empty line. On one line the info block's `flex: 1 1 auto`
+       is what keeps the strip on the right. */
     gap: 8px;
     /* Never clamp to half the card — that truncated qty + expiry on wide tablets. */
     max-width: none;

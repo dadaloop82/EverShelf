@@ -658,6 +658,15 @@ function medicalCodeMatches(array $def, string $code, string $digits): bool
  * logic files. Each rule is an ordered list of words: the first one the name contains wins, so
  * "unguento oftalmico" is listed before the generic "unguento".
  */
+/**
+ * The PAO table, flattened for the matcher: one list of words per rule, with **every shipped
+ * language together**.
+ *
+ * A rule's `match` is a map `lang => [words]` (data), because the NAME comes from the catalogue
+ * (AIFA is Italian, openFDA is English) while the UI language may be another one — a German
+ * «Nasenspray» on an Italian phone must still be understood. A flat list (the old shape) keeps
+ * working, so the file stays editable by hand.
+ */
 function medicalPaoRules(): array
 {
     static $rules = null;
@@ -669,41 +678,113 @@ function medicalPaoRules(): array
     $raw = is_file($path) ? (string)file_get_contents($path) : '';
     $data = $raw !== '' ? json_decode($raw, true) : null;
     foreach ((array)($data['rules'] ?? []) as $rule) {
+        $match = is_array($rule) ? ($rule['match'] ?? []) : [];
+        // `lang => [words]` (v3) or `[words]` (legacy): both flatten to one vocabulary.
+        $lists = (is_array($match) && array_is_list($match)) ? [$match] : array_values((array)$match);
         $words = [];
-        foreach ((array)($rule['match'] ?? []) as $word) {
-            $w = trim((string)$word);
-            if ($w === '') {
-                continue;
+        foreach ($lists as $list) {
+            foreach ((array)$list as $word) {
+                $w = trim((string)$word);
+                if ($w === '') {
+                    continue;
+                }
+                $words[] = $w;
             }
-            $words[] = function_exists('mb_strtolower') ? mb_strtolower($w) : strtolower($w);
         }
         if (!$words) {
             continue;
         }
-        $rules[] = ['match' => $words, 'days' => max(0, min(365, (int)($rule['days'] ?? 0)))];
+        $rules[] = [
+            'form'  => (string)($rule['form'] ?? ''),
+            'match' => array_values(array_unique($words)),
+            'days'  => max(0, min(365, (int)($rule['days'] ?? 0))),
+        ];
     }
     return $rules;
+}
+
+/**
+ * Case- and accent-insensitive form of a text, for the PAO keywords.
+ *
+ * «comprime» must find «comprimé» and «zapfchen» must find «Zäpfchen»: the household types
+ * without accents, the catalogue prints them. CJK carries none and passes through untouched.
+ */
+function medicalPaoFoldText(string $text): string
+{
+    $text = function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+    if (class_exists('Normalizer')) {
+        $normalized = \Normalizer::normalize($text, \Normalizer::FORM_D);
+        if (is_string($normalized) && $normalized !== '') {
+            return (string)preg_replace('/\p{Mn}+/u', '', $normalized);
+        }
+    }
+    if (function_exists('iconv')) {
+        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT', $text);
+        if (is_string($ascii) && $ascii !== '') {
+            return strtolower($ascii);
+        }
+    }
+    return $text;
+}
+
+/**
+ * One word of the table as a matcher: a WHOLE word, never a fragment.
+ *
+ * «gel» must not fire on «Angelini» (the fragment matching that made every Angelini box a cream).
+ * A `*` says the word rides a token: `abc*` is a PREFIX, `*abc` a SUFFIX — German writes its
+ * forms as compounds («Hustensaft», «Wundsalbe», «Kopfschmerztabletten») and there is no space
+ * to match on. CJK has no word boundaries either, so there it stays a substring.
+ */
+function medicalPaoWordMatches(string $hayStack, string $word): bool
+{
+    if ($hayStack === '' || $word === '') {
+        return false;
+    }
+    $needle = medicalPaoFoldText(trim($word));
+    if ($needle === '') {
+        return false;
+    }
+    if (preg_match('/[\x{3400}-\x{9FFF}]/u', $needle)) {
+        return function_exists('mb_strpos')
+            ? mb_strpos($hayStack, $needle) !== false
+            : str_contains($hayStack, $needle);
+    }
+    $isPrefix = str_ends_with($needle, '*');
+    $isSuffix = str_starts_with($needle, '*');
+    $core = trim($needle, '*');
+    if ($core === '') {
+        return false;
+    }
+    if ($isPrefix) {
+        $re = '/(?<![\p{L}\p{N}])' . preg_quote($core, '/') . '[\p{L}\p{N}]*/u';
+    } elseif ($isSuffix) {
+        $re = '/[\p{L}\p{N}]*' . preg_quote($core, '/') . '(?![\p{L}\p{N}])/u';
+    } else {
+        $re = '/(?<![\p{L}\p{N}])' . preg_quote($core, '/') . '(?![\p{L}\p{N}])/u';
+    }
+    return preg_match($re, $hayStack) === 1;
 }
 
 /**
  * The PAO suggested for a medicine, from the FORM its name (or its pack notes) declares.
  *
  * The notes matter as much as the name: the cabinet stores «Fastum» with «gel 2,5% 25 mg/g tubo
- * 50 g» in `products.notes`, and the first run of the migration filled nothing because it only
- * looked at the title. 0 means "opening changes nothing" (tablets, capsules, suppositories) or
- * "nothing recognised" — in both cases nothing is written. It is a SUGGESTION: `med_classify`
- * uses it only when the household left the field empty, and the migration that applies it to the
- * existing cabinet never overwrites a typed value.
+ * 50 g» in them. Both are folded (case + accents) and every rule is asked in the SIX languages
+ * at once — the catalogue's language and the UI's are not the same thing.
+ *
+ * @param string $name  the medicine title (any language of the catalogue)
+ * @param string $notes the pack notes the catalogue wrote
+ * @return int days after opening, 0 when opening changes nothing
  */
 function medicalPaoDaysForName(string $name, string $notes = ''): int
 {
-    $hay = trim(function_exists('mb_strtolower') ? mb_strtolower($name . ' ' . $notes) : strtolower($name . ' ' . $notes));
+    $hay = medicalPaoFoldText(trim($name . ' ' . $notes));
     if ($hay === '') {
         return 0;
     }
     foreach (medicalPaoRules() as $rule) {
         foreach ($rule['match'] as $word) {
-            if ($word !== '' && str_contains($hay, $word)) {
+            if (medicalPaoWordMatches($hay, (string)$word)) {
                 return (int)$rule['days'];
             }
         }

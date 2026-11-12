@@ -35,6 +35,9 @@ require_once __DIR__ . '/lib/ai_provider.php';
 require_once __DIR__ . '/lib/ai_prompts.php';
 require_once __DIR__ . '/lib/seasonal.php';
 require_once __DIR__ . '/lib/opened_shelf_life.php';
+// The household's own PAO (period after opening): the two numbers the notice strip prints can
+// be edited, and the value used is the AVERAGE of the corrections for that family in that place.
+require_once __DIR__ . '/lib/pao_overrides.php';
 require_once __DIR__ . '/lib/medical.php';
 // The medicine catalogue (AIFA open data → local SQLite table, imported by
 // scripts/import-medicines.php --country=IT). Identification only: no dose, no advice.

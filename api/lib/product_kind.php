@@ -840,6 +840,15 @@ function productKindIsPlausibleGenre(string $kind): bool {
     if (isset($umbrellaTabs[$norm]) || isset($umbrellaTabs[$compact])) {
         return false;
     }
+    // A CLASS with a tail is still a class: «Integratore alimentare a base di erbe» opens with an
+    // umbrella label and is not the genre of an article — the AI answered exactly that once and
+    // prefixed every supplement with it. Only the multi-word labels are matched by prefix
+    // (a single word like «fruit» would also swallow a real genre such as «Fruit salad»).
+    foreach ($umbrellaTabs as $label => $_) {
+        if (is_string($label) && str_contains($label, ' ') && str_starts_with($norm, $label . ' ')) {
+            return false;
+        }
+    }
     // More than three words is a phrase dump, not a genre ("Sponge cake roll")
     if (count(preg_split('/\s+/u', $norm, -1, PREG_SPLIT_NO_EMPTY) ?: []) > 3) {
         return false;
@@ -920,9 +929,19 @@ function resolveProductKind(string $name, string $brand = '', string $category =
     // 3. One-word AI classification (cached per name+brand, daily capped).
     if ($allowAi) {
         $ai = productKindFromAi($name, $brand, $category);
-        if ($ai !== '') {
+        // The AI's word is a GENRE or nothing: a class («Integratore alimentare», «Farmaco») is
+        // never prefixed to a title and is never written to the cache, or the answer would be
+        // replayed for every supplement that looks like this one.
+        if ($ai !== '' && productKindIsPlausibleGenre($ai)) {
             productKindCacheSave(productKindCacheStore($cache, $signature, $ai, 'ai'));
             return ['kind' => $ai, 'source' => 'ai'];
+        }
+        if ($ai !== '' && class_exists('EverLog')) {
+            EverLog::warn('Product kind: the AI answered a class, not a genre', [
+                'event' => 'product_kind_ai_implausible',
+                'kind'  => $ai,
+                'name'  => $name,
+            ]);
         }
     }
 

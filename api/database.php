@@ -335,6 +335,42 @@ function migrateDB(PDO $db): void {
         }
     }
 
+    // Migration: a GENRE is never a CLASS. The AI once answered «Integratore alimentare» as the
+    // genre for a supplement, the kind pipeline took it and prefixed the title — so a box of
+    // glycerol read «Integratore alimentare glicerolo CARLO ERBA» and stored the class in
+    // `products.kind`, which is a filter in no list. The class is now in `umbrella_labels`
+    // (vocab DATA), so the pipeline refuses it and strips it; this pass heals the titles it
+    // already wrote, with the same two functions the medical branch runs (`migrateDB` cannot
+    // wait for somebody to press "apply auto rules"). A title that does not start with an
+    // umbrella label is untouched.
+    $kindClassHealed = $db->query("SELECT value FROM app_settings WHERE key = 'migration_strip_kind_class_prefix_v1'")->fetchColumn();
+    if (!$kindClassHealed) {
+        require_once __DIR__ . '/lib/product_kind.php';
+        $classRows = $db->query("SELECT id, name, COALESCE(kind, '') AS kind FROM products")->fetchAll(PDO::FETCH_ASSOC);
+        $classHealed = 0;
+        $updKind = $db->prepare('UPDATE products SET name = ?, kind = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+        foreach ($classRows as $classRow) {
+            $oldTitle = (string)($classRow['name'] ?? '');
+            $oldGenre = (string)($classRow['kind'] ?? '');
+            $strippedTitle = productKindStripUmbrellaCategoryPrefix($oldTitle);
+            $newGenre = ($oldGenre !== '' && !productKindIsPlausibleGenre($oldGenre)) ? '' : $oldGenre;
+            if ($strippedTitle === $oldTitle && $newGenre === $oldGenre) {
+                continue;
+            }
+            $newTitle = $strippedTitle !== '' ? productTitleCapitalize($strippedTitle) : $oldTitle;
+            $updKind->execute([$newTitle, $newGenre, (int)$classRow['id']]);
+            $classHealed++;
+        }
+        $db->exec("INSERT OR REPLACE INTO app_settings (key, value)
+                   VALUES ('migration_strip_kind_class_prefix_v1', '1')");
+        if ($classHealed > 0 && class_exists('EverLog')) {
+            EverLog::info('Titles healed from a class prefix', [
+                'event' => 'kind_class_prefix_stripped',
+                'rows'  => $classHealed,
+            ]);
+        }
+    }
+
     // Migration: rows that arrived with NO best-before date at all ("senza scadenza").
     // A row without a date never enters "in scadenza" and the pantry can never warn about
     // it, so a whole shopping trip could sit on the shelf unmonitored. Every new write is
@@ -374,6 +410,41 @@ function migrateDB(PDO $db): void {
             EverLog::info('Dated the inventory rows stored without an expiry', [
                 'event' => 'expiry_inferred_backfill',
                 'rows'  => $dated,
+            ]);
+        }
+    }
+
+    // Migration: a SINGLE-DOSE container raises no clock, and a box of them raises even less.
+    // The rule in `data/medical_pao.json` said «1 giorno» for fiala/monodose/flaconcino, so
+    // `med_classify` stored 1 on every such product — and a 6-container box of glycerol
+    // (notes: «6 CONTENITORI MONODOSE», 4 pz left, printed date 2028) then read «Aperto da 15 gg
+    // · da usare entro 1 gg dall'apertura»: a sealed box declared expired two weeks ago. The
+    // data now answers 0; here the STORED value that is exactly the old derived one is
+    // re-derived through the same data file (a number the household typed is never touched:
+    // only the single value the old rule could produce, and only when the form now says 0).
+    $medPaoSingleDose = $db->query("SELECT value FROM app_settings WHERE key = 'migration_med_pao_single_dose_v1'")->fetchColumn();
+    if (!$medPaoSingleDose) {
+        require_once __DIR__ . '/lib/medical.php';
+        $singleDoseRows = $db->query(
+            "SELECT id, name, COALESCE(notes, '') AS notes
+               FROM products
+              WHERE COALESCE(is_medical, 0) = 1
+                AND COALESCE(med_pao_days, 0) = 1"
+        )->fetchAll(PDO::FETCH_ASSOC);
+        $singleDoseReset = 0;
+        $updMedPao = $db->prepare('UPDATE products SET med_pao_days = 0 WHERE id = ?');
+        foreach ($singleDoseRows as $singleDoseRow) {
+            if (medicalPaoDaysForName((string)$singleDoseRow['name'], (string)$singleDoseRow['notes']) === 0) {
+                $updMedPao->execute([(int)$singleDoseRow['id']]);
+                $singleDoseReset++;
+            }
+        }
+        $db->exec("INSERT OR REPLACE INTO app_settings (key, value)
+                   VALUES ('migration_med_pao_single_dose_v1', '1')");
+        if ($singleDoseReset > 0 && class_exists('EverLog')) {
+            EverLog::info('Medicine PAO: single-dose containers no longer raise a clock', [
+                'event' => 'med_pao_single_dose_reset',
+                'rows'  => $singleDoseReset,
             ]);
         }
     }
@@ -746,6 +817,11 @@ function migrateDB(PDO $db): void {
     // lookup and renaming a tag is one row.
     require_once __DIR__ . '/lib/tags.php';
     tagsEnsureTables($db);
+
+    // The household's own PAO (period after opening), edited from the pantry edit sheet and
+    // averaged per family + place. Empty on a fresh install: the data table keeps answering.
+    require_once __DIR__ . '/lib/pao_overrides.php';
+    paoEnsureTable($db);
 
     // Migrate transactions CHECK constraint to allow 'waste' type
     $sql = $db->query("SELECT sql FROM sqlite_master WHERE type='table' AND name='transactions'")->fetchColumn();

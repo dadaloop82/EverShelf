@@ -1795,6 +1795,34 @@ function _auditResumeCard() {
  * The progress line is a real bar: it fills on the card you are LOOKING AT (`done + 1`), so the
  * first of fifteen shows ~7% instead of an empty grey line.
  */
+/**
+ * The rest of a medicine's fact line: the CATEGORY the household gave it («Dolore e febbre»),
+ * or the active ingredient when the box was added by hand and carries no category yet.
+ *
+ * `med_tags` holds the closed-taxonomy slugs and the label is the SAME one the chips in the
+ * edit sheet print, so the card cannot say one word where the sheet says another. The AIFA
+ * notes are a pharmacist's text («CLORTETRACICLINA CLORIDRATO»): the household standing at the
+ * shelf reads what the box is FOR.
+ */
+function _auditMedCategoryOrIngredientHtml(item) {
+    const slugs = String((item && item.med_tags) || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const cats = (_medStatus && Array.isArray(_medStatus.categories)) ? _medStatus.categories : [];
+    const labels = slugs.map((slug) => {
+        const cat = cats.find((c) => c && c.slug === slug);
+        if (cat && cat.label_key) return t(cat.label_key);
+        // `med_status` not loaded yet: the closed taxonomy's keys are `medical.cat_<slug>`.
+        // A key that does not resolve is not printed (the ingredient below is better than a slug).
+        const key = 'medical.cat_' + slug;
+        const label = t(key);
+        return label === key ? '' : label;
+    }).filter(Boolean);
+    if (labels.length) {
+        return ` · <span class="audit-fact-cat">${escapeHtml(labels.join(' · '))}</span>`;
+    }
+    const ingredient = String((item && item.med_ingredient) || '').trim();
+    return ingredient ? ` · <span aria-hidden="true">🧪</span> ${escapeHtml(ingredient)}` : '';
+}
+
 function _auditRender() {
     const el = document.getElementById('audit-overlay');
     if (!el) return;
@@ -1865,8 +1893,13 @@ function _auditRender() {
                         // A medicine answers with WHAT IT IS, not where it is: «Armadietto farmaci»
                         // is where you are standing («si sa che sto guardando lì») and the stock is
                         // already the number on the green button. The AIC tells one box from
-                        // the next («così capisco a cosa si riferisce»).
-                        ? `<p class="audit-fact-line audit-fact-line-med"><span aria-hidden="true">🔖</span> ${escapeHtml(String(it.barcode || '—'))}${String(it.med_ingredient || '').trim() ? ` · <span aria-hidden="true">🧪</span> ${escapeHtml(String(it.med_ingredient).trim())}` : ''}</p>`
+                        // the next («così capisco a cosa si riferisce») — so it is BOLD, one of the
+                        // facts the card is read for.
+                        // The category («Dolore e febbre») replaces the active ingredient on this
+                        // card: the AIFA notes are a pharmacist's text («CLORTETRACICLINA
+                        // CLORIDRATO») and the household standing at the shelf reads what the box
+                        // is FOR. No category on a hand-added box → the ingredient, as before.
+                        ? `<p class="audit-fact-line audit-fact-line-med"><span aria-hidden="true">🔖</span> <strong class="audit-fact-code">${escapeHtml(String(it.barcode || '—'))}</strong>${_auditMedCategoryOrIngredientHtml(it)}</p>`
                         : `<p class="audit-fact-line"><span aria-hidden="true">${escapeHtml(locMeta.icon || '📍')}</span> ${escapeHtml(placeLabel)} · <span aria-hidden="true">📦</span> ${escapeHtml(t('audit.stock_label'))}: <strong class="audit-fact-qty">${escapeHtml(qtyPlain)}</strong></p>`}
                     <p class="audit-fact-line audit-fact-line-expiry"><span aria-hidden="true">⏳</span> <span class="audit-expiry${isExpired ? ' is-expired' : ''}">${escapeHtml(expiryFact)}</span></p>
                 </div>

@@ -14413,6 +14413,18 @@ body.offline-mode #smart-shopping {
     /* "1,5 l" is one fact: it never splits in half when the line above wraps. */
     white-space: nowrap;
 }
+/* A medicine's number (the AIC, or the country's own) is the fact that card is read for: it
+   tells one box from the next, and it is what the household compares with the pack in their
+   hand. So it wears the same weight and size as the stock and the date, while the ingredient
+   beside it stays a quiet line. */
+.audit-fact-line-med .audit-fact-code {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-main, inherit);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
 .audit-fact-line-expiry .audit-expiry {
     font-size: 0.95rem;
     font-weight: 800;
@@ -15548,12 +15560,18 @@ body.cooking-mode-active #shelfy-intro { z-index: 100001; }
 #modal-content .modal-header.edit-modal-header { margin-bottom: 4px; padding-bottom: 0; align-items: flex-start; }
 #modal-content .modal-header.edit-modal-header .edit-modal-heading { margin: 0; line-height: 1.2; }
 #modal-content .modal-header.edit-modal-header .edit-modal-prefix { margin-right: 6px; }
-#modal-content .form.is-medical-edit > .settings-hint { margin: 0 0 8px; }
 #modal-content .form.is-medical-edit .item-detail-med-summary { margin-top: 0; }
 
 /* «Da quanti giorni è aperto?» — the same five answers as the stocktake, in the edit sheet. */
 .med-open-since { margin: 0 0 12px; }
 .med-open-since .settings-hint { margin: 0 0 6px; }
+/* The answer that is STORED wears the mark (same grammar as `.med-cat-chip.is-on`): a row of
+   identical chips said nothing about what the app had saved, so a correct write looked lost. */
+.med-open-since-chips .btn.is-on {
+    background: var(--brand-surface);
+    border-color: var(--brand-primary, #059669);
+    color: var(--brand-primary-hover, #047857);
+}
 .med-open-since-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .med-open-since-chips .btn { min-height: 40px; }
 

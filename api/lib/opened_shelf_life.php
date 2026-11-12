@@ -122,16 +122,24 @@ function openedShelfLifeFamily(string $name, string $category): array
 
 /**
  * The two thresholds of one product in one place:
- * `['warn' => int, 'critical' => int, 'family' => string, 'location' => string,
- *   'icon' => string, 'cook_after' => int, 'cook_hint_key' => string]`.
+ * `['warn' => int, 'critical' => int, 'table_warn' => int, 'table_critical' => int,
+ *   'family' => string, 'location' => string, 'icon' => string, 'cook_after' => int,
+ *   'cook_hint_key' => string]`.
  * A family that says nothing about this place inherits the defaults, so a yoghurt that
  * ends up in the pantry keeps a short clock instead of borrowing a shelf life.
  *
  * `icon` is the family's own mark (a wine is not a soft drink, whatever its category says)
  * and `cook_after` is the day a drink stops being something to pour and becomes an
  * ingredient: from there the row is a kitchen job, not a waste decision.
+ *
+ * `$overrides` is the household's own map (`paoAverageMap()`, keyed `family|place`): when they
+ * corrected this family in this place, their AVERAGE is what the pantry uses, and
+ * `table_warn`/`table_critical` keep the data table's numbers so the edit sheet can say where
+ * the value came from and offer to go back to it.
+ *
+ * @param array<string,array{warn:int,critical:int,sample:int}>|null $overrides
  */
-function openedShelfLifeThresholds(string $name, string $category, string $location): array
+function openedShelfLifeThresholds(string $name, string $category, string $location, ?array $overrides = null): array
 {
     $loc = openedShelfLifeLocationKey($location);
     $family = openedShelfLifeFamily($name, $category);
@@ -139,16 +147,29 @@ function openedShelfLifeThresholds(string $name, string $category, string $locat
     if (!is_array($spec)) {
         $spec = (array)(openedShelfLifeData()['defaults'][$loc] ?? ['warn' => 5, 'critical' => 10]);
     }
-    $warn = max(0, (int)($spec['warn'] ?? 5));
-    $critical = max($warn + 1, (int)($spec['critical'] ?? 10));
+    $tableWarn = max(0, (int)($spec['warn'] ?? 5));
+    $tableCritical = max($tableWarn + 1, (int)($spec['critical'] ?? 10));
+    $familyId = (string)($family['id'] ?? 'other');
+    // The household's own numbers win over the table's opinion — a fridge that keeps a yoghurt
+    // 3-6 days is the app's guess, and the person in front of the shelf knows better.
+    $own = is_array($overrides) ? ($overrides[$familyId . '|' . $loc] ?? null) : null;
+    $warn = $tableWarn;
+    $critical = $tableCritical;
+    if (is_array($own) && (int)($own['warn'] ?? 0) > 0) {
+        $warn = max(1, (int)$own['warn']);
+        $critical = max($warn, (int)($own['critical'] ?? $warn));
+    }
     return [
-        'warn'          => $warn,
-        'critical'      => $critical,
-        'family'        => (string)($family['id'] ?? 'other'),
-        'location'      => $loc,
-        'icon'          => (string)($family['icon'] ?? ''),
-        'cook_after'    => max(0, (int)($family['cook_after'] ?? 0)),
-        'cook_hint_key' => (string)($family['cook_hint_key'] ?? ''),
+        'warn'           => $warn,
+        'critical'       => $critical,
+        'table_warn'     => $tableWarn,
+        'table_critical' => $tableCritical,
+        'own'            => is_array($own) ? (int)($own['sample'] ?? 0) : 0,
+        'family'         => $familyId,
+        'location'       => $loc,
+        'icon'           => (string)($family['icon'] ?? ''),
+        'cook_after'     => max(0, (int)($family['cook_after'] ?? 0)),
+        'cook_hint_key'  => (string)($family['cook_hint_key'] ?? ''),
     ];
 }
 
@@ -182,11 +203,15 @@ function openedShelfLifeState(int $daysOpen, int $warn, int $critical): string
  * asks to be cooked with, not binned. The flag is DATA (`cook_after` on the family), the
  * sentence the UI shows comes as `cook_hint_key`.
  *
+ * `$overrides` carries the household's own PAO averages (`paoAverageMap()`): the edit sheet
+ * writes them, and every clock this app shows must read them or two screens would disagree.
+ *
  * @param array<string,mixed> $item inventory row (needs name, category, location, opened_at)
+ * @param array<string,array{warn:int,critical:int,sample:int}>|null $overrides
  * @return array{days_open:int,warn:int,critical:int,family:string,state:string,score:float,
  *               icon:string,cook_only:bool,cook_after:int,cook_hint_key:string}|null
  */
-function openedShelfLifeSummary(array $item): ?array
+function openedShelfLifeSummary(array $item, ?array $overrides = null): ?array
 {
     $openedAt = trim((string)($item['opened_at'] ?? ''));
     if ($openedAt === '') {
@@ -203,7 +228,8 @@ function openedShelfLifeSummary(array $item): ?array
     $t = openedShelfLifeThresholds(
         (string)($item['name'] ?? ''),
         (string)($item['category'] ?? ''),
-        (string)($item['location'] ?? '')
+        (string)($item['location'] ?? ''),
+        $overrides
     );
     $state = openedShelfLifeState($days, $t['warn'], $t['critical']);
     $score = $t['critical'] > 0 ? round($days / $t['critical'], 3) : 0.0;

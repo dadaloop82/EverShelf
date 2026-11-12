@@ -723,7 +723,13 @@ function _logBootDiagnostics() {
     } catch (e) { /* older engine: the default stands */ }
     let shelfy = 'closed';
     try { if (sessionStorage.getItem(SHELFY_OPEN_KEY) === '1') shelfy = 'open'; } catch (e) {}
-    remoteLog('BOOT', `type=${navType} shelfy=${shelfy} page=${_currentPageId || '-'} v=${_loadedVersion || '-'}`);
+    // `b=` is the asset bundle the page actually RUNS: `v` (the semver) does not change between
+    // deploys, so "my phone still shows the old sheet" was impossible to answer from the log.
+    // It is the same stamp as `?v=` in `index.html` (`_I18N_VERSION`), read inside a try because
+    // that const is declared later in this file than the first possible call.
+    let bundle = '-';
+    try { bundle = _I18N_VERSION || '-'; } catch (e) { /* not reached yet */ }
+    remoteLog('BOOT', `type=${navType} shelfy=${shelfy} page=${_currentPageId || '-'} v=${_loadedVersion || '-'} b=${bundle}`);
     _shelfyMarkOpen(false);
     // The wall's boot is where its renderer has died (twice at `renderer-killed-oom`, once two
     // seconds in). Three numbers at +0 / +5 / +20 s say what the page weighed on the way up, so
@@ -2162,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261111c'; // bump when translations change
+const _I18N_VERSION = '20261112m'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -3922,17 +3928,16 @@ function getExpiredSafety(item, daysExpired) {
  * The post-opening clock of a row, as the server computed it
  * (data/opened_shelf_life.json — `{days_open, warn, critical, state, score}`).
  * `null` for a sealed product: then the printed date is the only clock there is.
+ *
+ * A medicine keeps its OWN second clock and it WINS, because the server's table describes FOOD
+ * families: `med_pao_days` is the PAO printed on the pack (a monodose vial is 1 day, a cream
+ * 90) while the pantry's defaults would lend it 20-45 days. Opening a box starts a real expiry:
+ * past `med_pao_days` it is late even if the printed date is still far —
+ * «un prodotto aperto superati i X giorni di apertura potrebbe essere scaduto anche se la
+ * data di scadenza non è ancora arrivata». A form whose opening changes nothing (`0` —
+ * tablets, capsules) raises no clock at all, so a blister never asks anything.
  */
 function _openedPao(item) {
-    const p = item && item.pao;
-    if (p && typeof p === 'object') {
-        if (p.state && Number.isFinite(Number(p.days_open))) return p;
-    }
-    // A medicine keeps its OWN second clock, and it is computed here because the server's table
-    // (`data/opened_shelf_life.json`) describes FOOD families. Opening a box starts a real
-    // expiry: past `med_pao_days` the box is late even if the printed date is still far —
-    // «un prodotto aperto superati i X giorni di apertura potrebbe essere scaduto anche se la
-    // data di scadenza non è ancora arrivata».
     if (item && item.opened_at && typeof _isMedicalRow === 'function' && _isMedicalRow(item)) {
         const max = Number(item.med_pao_days) || 0;
         if (max <= 0) return null;
@@ -3942,7 +3947,34 @@ function _openedPao(item) {
         const state = daysOpen >= max ? 'critical' : (daysOpen >= warn ? 'warn' : 'ok');
         return { days_open: daysOpen, warn, critical: max, state, score: daysOpen / max };
     }
+    const p = item && item.pao;
+    if (p && typeof p === 'object') {
+        if (p.state && Number.isFinite(Number(p.days_open))) return p;
+    }
     return null;
+}
+
+/**
+ * The recommended window of an opened row, as one sentence.
+ *
+ * Food has TWO thresholds (`warn` = start checking, `critical` = probably gone) and the strip
+ * prints the window between them. A medicine has ONE limit — the PAO printed on the pack — so
+ * it prints that alone: the strip used to read «consigliato entro 1-1 gg» on a monodose vial,
+ * i.e. a range of a single day, which is not a fact anybody can act on. A food table that
+ * happens to declare the same day twice is printed once for the same reason.
+ *
+ * @param {object} pao the clock of `_openedPao()`
+ * @param {boolean} isMed true for a medicine row (one limit, no window)
+ * @returns {string} the localised sentence, '' when there is nothing to say
+ */
+function _openedLimitText(pao, isMed) {
+    const warn = Number(pao && pao.warn) || 0;
+    const critical = Number(pao && pao.critical) || 0;
+    if (critical >= 9999) return t('dashboard.banner_opened_limit_none');
+    if (critical <= 0) return '';
+    if (isMed) return t('medical.banner_opened_limit', { days: critical });
+    if (warn >= critical) return t('dashboard.banner_opened_limit_flat', { days: critical });
+    return t('dashboard.banner_opened_limit', { warn, critical });
 }
 
 /**
@@ -12589,8 +12621,10 @@ function _alertItemHead(item) {
  */
 function _openedAgeHtml(daysOpen) {
     const full = t('inventory.opened_for_days', { n: daysOpen });
+    // The clock is a wrapper (`.inv-time-ico`) so a narrow medicine row can drop the SYMBOL and
+    // keep the fact («8gg») — see `mobile.css`, `is-medical-row`.
     return `<span class="inv-time inv-time-opened" title="${escapeAttr(full)}">`
-        + `🕓 ${escapeHtml(t('dashboard.days_short', { n: daysOpen }))}</span>`;
+        + `<span class="inv-time-ico" aria-hidden="true">🕓</span> ${escapeHtml(t('dashboard.days_short', { n: daysOpen }))}</span>`;
 }
 
 /**
@@ -13654,26 +13688,30 @@ function renderBannerItem() {
 
     if (entry.type === 'opened') {
         // ── "Opened too long": the post-opening clock, not the printed date ────────────
-        // Photo left (same 44×44 as the lists), one clean fact line, Throw + Recipe + ⋮.
+        // Photo left (same 44×44 as the lists), one clean fact line, Throw + Recipe + ⋮ for
+        // food; a medicine keeps the photo, the tint and one answer (see `isMed` below).
         // The yellow "Controlla" pill is gone — "still good" lives in the ⋮.
         const item = entry.data;
         const pao = _openedPao(item) || { state: 'warn', days_open: 0, warn: 0, critical: 0, score: 0 };
         const critical = pao.state === 'critical';
+        // A medicine may stand in this strip — an open cream, a vial past its day — and it is
+        // never a food surface: the card wears the medical tint (`.alert-banner.is-medical`) and
+        // carries no kitchen. You do not cook a drug, and nobody decides here whether it is still
+        // good: the answers are discard, finish, correct.
+        const isMed = _isMedicalRow(item);
         // Past its drinking window a wine is not a waste decision: the data says from
         // `cook_after` days the row is an INGREDIENT (`cook_only`), so the strip leads with the
         // kitchen and leaves throwing it away as a neutral second choice. Recommending the bin
         // on 126 ml of white wine is the opposite of what a pantry is for.
-        const cookFirst = !!pao.cook_only;
-        banner.className = `alert-banner banner-opened ${cookFirst ? 'is-cook' : (critical ? 'is-critical' : 'is-warn')}`;
+        const cookFirst = !isMed && !!pao.cook_only;
+        banner.className = `alert-banner banner-opened${isMed ? ' is-medical' : ''} ${cookFirst ? 'is-cook' : (critical ? 'is-critical' : 'is-warn')}`;
         if (iconEl) {
             iconEl.innerHTML = _productThumbHtml(item);
             iconEl.classList.add('has-thumb');
         }
         titleEl.innerHTML = `${escapeHtml(item.name)}${item.brand ? ` <span class="banner-brand">(${escapeHtml(item.brand)})</span>` : ''}`;
         const locMeta = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location || '' };
-        const limitText = Number(pao.critical) >= 9999
-            ? t('dashboard.banner_opened_limit_none')
-            : t('dashboard.banner_opened_limit', { warn: pao.warn, critical: pao.critical });
+        const limitText = _openedLimitText(pao, isMed);
         const qtyPlain = (item.quantity !== undefined && item.quantity !== null && item.quantity !== '')
             ? stripHtml(formatQuantityForItem(item))
             : '';
@@ -13694,14 +13732,19 @@ function renderBannerItem() {
         const throwPrimary = `<button type="button" class="btn-banner btn-banner-throw-primary" onclick="bannerThrowAway()">🗑️ ${escapeHtml(t('dashboard.banner_expired_action_throw'))}</button>`;
         const throwNeutral = `<button type="button" class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">🗑️ ${escapeHtml(t('dashboard.banner_expired_action_throw'))}</button>`;
         const recipeSecond = `<button type="button" class="btn-banner btn-banner-recover" onclick="bannerUseInRecipe()">🍳 ${escapeHtml(t('dashboard.banner_opened_action_recipe'))}</button>`;
+        // A medicine has ONE answer on the strip: dispose of it (`openWasteSheet` gives a drug its
+        // short confirm, not the food questionnaire). No recipe — a drug is not an ingredient —
+        // and no «✓ Segna come ancora buono» in the ⋮ either: how long an open pack stays usable
+        // is printed on the box, it is not the household's call on a phone.
+        const stillGoodItem = isMed ? '' : `<button type="button" role="menuitem" class="alert-banner-menu-item" onclick="bannerStillGood()">`
+            +   `<span class="alert-banner-menu-icon" aria-hidden="true">✓</span>`
+            +   `<span class="alert-banner-menu-label">${escapeHtml(t('dashboard.banner_opened_menu_still_good'))}</span>`
+            + `</button>`;
         actionsEl.innerHTML =
-            (cookFirst ? cookButton + throwNeutral : throwPrimary + recipeSecond)
+            (isMed ? throwPrimary : (cookFirst ? cookButton + throwNeutral : throwPrimary + recipeSecond))
             + `<button type="button" class="btn-banner btn-banner-more" id="alert-banner-more-btn" onclick="event.stopPropagation();_bannerMenuToggle()" aria-expanded="false" aria-controls="alert-banner-menu" title="${moreLabel}" aria-label="${moreLabel}">⋮</button>`
             + `<div class="alert-banner-menu" id="alert-banner-menu" hidden role="menu">`
-            +   `<button type="button" role="menuitem" class="alert-banner-menu-item" onclick="bannerStillGood()">`
-            +     `<span class="alert-banner-menu-icon" aria-hidden="true">✓</span>`
-            +     `<span class="alert-banner-menu-label">${escapeHtml(t('dashboard.banner_opened_menu_still_good'))}</span>`
-            +   `</button>`
+            +   stillGoodItem
             +   (canFreeze
                 ? `<button type="button" role="menuitem" class="alert-banner-menu-item" onclick="bannerFreezeItem()">`
                 +     `<span class="alert-banner-menu-icon" aria-hidden="true">❄️</span>`
@@ -13738,12 +13781,15 @@ function renderBannerItem() {
             if (item.expiry_date) dateText = t('dashboard.banner_sold_date', { date: formatDate(item.expiry_date) });
         }
 
+        // A medicine wears the same medical tint here: the rail and the title still carry the
+        // severity (red when it is not safe), but the card must not look like a food surface.
+        const medTint = _isMedicalRow(item) ? ' is-medical' : '';
         if (safety.level === 'danger') {
-            banner.className = 'alert-banner banner-expired banner-expired-danger';
+            banner.className = 'alert-banner banner-expired banner-expired-danger' + medTint;
         } else if (safety.level === 'warning') {
-            banner.className = 'alert-banner banner-expired banner-expired-warning';
+            banner.className = 'alert-banner banner-expired banner-expired-warning' + medTint;
         } else {
-            banner.className = 'alert-banner banner-expired banner-expired-ok';
+            banner.className = 'alert-banner banner-expired banner-expired-ok' + medTint;
         }
         if (iconEl) {
             iconEl.innerHTML = _productThumbHtml(item);
@@ -15444,23 +15490,23 @@ function _inventoryExpiryBadgeHtml(item) {
                 // so a ~300 px badge left the name column 0 px wide and the card showed no text.
                 const long = t(key, { n: daysOpen, max });
                 const compact = t('dashboard.days_short').replace('{n}', daysOpen);
-                return `<span class="inv-time ${cls}" title="${escapeAttr(long)}">🕓 ${escapeHtml(compact)}</span>`;
+                return `<span class="inv-time ${cls}" title="${escapeAttr(long)}"><span class="inv-time-ico" aria-hidden="true">🕓</span> ${escapeHtml(compact)}</span>`;
             }
             return _openedAgeHtml(daysOpen);
         }
         if (!item.expiry_date) {
-            return `<span class="inv-time inv-time-far">🛡️ ${escapeHtml(t('medical.state_new'))}</span>`;
+            return `<span class="inv-time inv-time-far"><span class="inv-time-ico" aria-hidden="true">🛡️</span> ${escapeHtml(t('medical.state_new'))}</span>`;
         }
         const days = daysUntilExpiry(item.expiry_date);
         if (!Number.isFinite(days)) return '';
         if (days < 0) {
-            return `<span class="inv-time inv-time-expired">⚠️ ${escapeHtml(t('medical.sealed_expired', { n: Math.abs(days) }))}</span>`;
+            return `<span class="inv-time inv-time-expired"><span class="inv-time-ico" aria-hidden="true">⚠️</span> ${escapeHtml(t('medical.sealed_expired', { n: Math.abs(days) }))}</span>`;
         }
         if (days <= 60) {
-            return `<span class="inv-time inv-time-urgent">🛡️ ${escapeHtml(t('medical.sealed_expires_in', { n: days }))}</span>`;
+            return `<span class="inv-time inv-time-urgent"><span class="inv-time-ico" aria-hidden="true">🛡️</span> ${escapeHtml(t('medical.sealed_expires_in', { n: days }))}</span>`;
         }
         const year = String(item.expiry_date).slice(0, 4);
-        return `<span class="inv-time inv-time-far">🛡️ ${escapeHtml(t('medical.sealed_expires_year', { year }))}</span>`;
+        return `<span class="inv-time inv-time-far"><span class="inv-time-ico" aria-hidden="true">🛡️</span> ${escapeHtml(t('medical.sealed_expires_year', { year }))}</span>`;
     }
     if (item.opened_at) {
         const pao = _openedPao(item);
@@ -16252,11 +16298,11 @@ async function toggleInventoryFavorite(ev, productId) {
         ev.preventDefault();
     }
     const id = parseInt(productId, 10);
-    if (!id) return;
+    if (!id) return { ok: false, fav: false };
     const res = await api('products_toggle_favorite', {}, 'POST', { id });
     if (!res || !res.success) {
         showToast(t('error.generic'), 'error');
-        return;
+        return { ok: false, fav: false };
     }
     const fav = !!res.is_favorite;
     const patch = (arr) => {
@@ -16271,6 +16317,24 @@ async function toggleInventoryFavorite(ev, productId) {
     if (q) filterInventory();
     else renderInventory(currentInventory);
     if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+    return { ok: true, fav };
+}
+
+/**
+ * The star of the medicine edit sheet: the row's own ☆ is hidden on a phone (a symbol the
+ * cabinet cannot afford at that width — `mobile.css`, `is-medical-row`), so the control lives
+ * where the product is edited and the feature is never lost on a small screen.
+ */
+async function _medToggleFavFromSheet(btn, productId) {
+    const res = await toggleInventoryFavorite(null, productId);
+    if (!btn || !res || !res.ok) return;
+    const on = !!res.fav;
+    btn.textContent = on ? '★' : '☆';
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    const title = on ? t('inventory.unfavorite') : t('inventory.favorite');
+    btn.title = title;
+    btn.setAttribute('aria-label', title);
 }
 
 /** Relevance score for dispensa search (higher = better match). */
@@ -18808,6 +18872,22 @@ function _pfMedicalPayload() {
     };
 }
 
+/**
+ * A chip of «Aperta da» in the medicine sheet: mark the answer, then write it.
+ *
+ * The chips used to call `_medMarkOpened` straight, so nothing on screen said which answer was
+ * the stored one (the report: «se cambio aperto da sembra che non venga salvato»). The mark is
+ * the same `.is-on` the category chips use, and the write is the one function as before.
+ */
+async function _medOpenSincePick(btn, invId, days) {
+    const wrap = btn && btn.parentElement;
+    if (wrap) {
+        wrap.querySelectorAll('button').forEach((b) => b.classList.remove('is-on'));
+    }
+    if (btn) btn.classList.add('is-on');
+    await _medMarkOpened(invId, days);
+}
+
 /** "Segna come aperto": the operational expiry becomes today + the N days of the box. */
 async function _medMarkOpened(invId, days) {
     if (!invId) return;
@@ -18818,11 +18898,22 @@ async function _medMarkOpened(invId, days) {
             showToast(t('medical.classify_error'), 'error');
             return;
         }
-        showToast(r.pao_days > 0
-            ? t('medical.opened_expiry').replace('{date}', formatDate(r.pao_expiry || r.expiry_date))
-            : t('medical.opened_no_pao'), r.pao_days > 0 ? 'success' : 'info');
+        const daysAgo = Number(r.days_ago) || 0;
+        const expiryTxt = formatDate(r.pao_expiry || r.expiry_date);
+        // The answer must repeat what the household just said. It used to say «Aperto oggi»
+        // whatever the answer was, so marking a box open «14 giorni fa» came back as if the app
+        // had ignored it (and the date it printed was the 14-days-ago one).
+        const msg = r.pao_days > 0
+            ? (daysAgo > 0
+                ? t('medical.opened_expiry_days', { n: daysAgo, date: expiryTxt })
+                : t('medical.opened_expiry', { date: expiryTxt }))
+            : (daysAgo > 0
+                ? t('medical.opened_no_pao_days', { n: daysAgo })
+                : t('medical.opened_no_pao'));
+        showToast(msg, r.pao_days > 0 ? 'success' : 'info');
         // The edit sheet says what it just did instead of closing under the household's finger.
-        const hint = document.querySelector('.modal-header.edit-modal-header + .form .settings-hint');
+        // (The sheet wears the food sheet's header now: the state line is the subtitle.)
+        const hint = document.getElementById('edit-med-state');
         if (hint) hint.textContent = `${t('medical.state_opened')} · ${formatDate(r.opened_at)}`;
         // The «da quanti giorni» control stays: it is the field you just used, and removing it
         // made the whole block vanish under the finger («se cambio i giorni il campo sparisce»).
@@ -19855,6 +19946,19 @@ function editInventoryItem(id, _retried) {
                         </label>
                     </div>
                 </div>
+                <div class="form-group pao-edit-group" id="edit-pao-group" hidden>
+                    <p class="edit-section-label">${escapeHtml(t('pao.edit_label'))}</p>
+                    <div class="pao-days-row">
+                        <input type="number" id="edit-pao-warn" class="form-input pao-days-input" min="1" max="3650" step="1"
+                            inputmode="numeric" aria-label="${escapeAttr(t('pao.edit_warn_label'))}">
+                        <span class="pao-days-dash" aria-hidden="true">→</span>
+                        <input type="number" id="edit-pao-critical" class="form-input pao-days-input" min="1" max="3650" step="1"
+                            inputmode="numeric" aria-label="${escapeAttr(t('pao.edit_critical_label'))}">
+                        <span class="pao-days-unit">${escapeHtml(t('pao.days_unit'))}</span>
+                    </div>
+                    <p class="settings-hint" id="edit-pao-hint"></p>
+                    <button type="button" class="pao-reset-link" id="edit-pao-reset" hidden onclick="_paoResetForEdit()">↺ ${escapeHtml(t('pao.reset'))}</button>
+                </div>
                 <div class="edit-form-actions">
                     <button type="button" class="btn btn-large btn-secondary" onclick="closeModal()">${escapeHtml(t('btn.cancel'))}</button>
                     <button type="submit" class="btn btn-large btn-primary edit-save-btn">✓ ${escapeHtml(t('btn.save_changes'))}</button>
@@ -19866,6 +19970,11 @@ function editInventoryItem(id, _retried) {
     _initExpiryManualTracking('edit-expiry', item);
     // The kind this row's place belongs to: picking another pantry keeps the date it has.
     _editExpiryKind.set('edit-expiry', storageKindOfLocation(item.location));
+    // The opening window («consigliato entro 3-6 gg») is a second clock, loaded from the
+    // server: it belongs to the FAMILY, not to this row, and the app keeps the average of the
+    // household's corrections. `window._editPao` is what the submit compares against.
+    window._editPao = { id: Number(id) || 0, warn: 0, critical: 0 };
+    _paoLoadForEdit(id);
     const titleInput = document.getElementById('edit-product-name');
     if (titleInput) {
         titleInput.addEventListener('keydown', (ev) => {
@@ -19878,6 +19987,68 @@ function editInventoryItem(id, _retried) {
             }
         });
         titleInput.addEventListener('blur', () => finishEditProductTitle());
+    }
+}
+
+/**
+ * Paint the opening window of the edit sheet with what the server says.
+ *
+ * `res.warn` → `res.critical` is what the app WILL use: the average of the household's
+ * corrections for this family in this place, or the data table's own numbers when they never
+ * corrected it. The hint says which one, and «↺ riporta ai valori consigliati» only exists
+ * while the household's numbers are in charge.
+ */
+function _paoPaintEdit(res) {
+    if (!res || !res.success) return;
+    const warnEl = document.getElementById('edit-pao-warn');
+    const critEl = document.getElementById('edit-pao-critical');
+    if (!warnEl || !critEl) return;
+    // A product the table calls "no practical limit" (salt, sugar, a detergent) has no opening
+    // window to correct: the block stays hidden instead of offering ten years in a number field.
+    if (Number(res.critical) >= 9999) return;
+    const warn = Number(res.warn) || 0;
+    const critical = Number(res.critical) || 0;
+    warnEl.value = warn;
+    critEl.value = critical;
+    window._editPao = { id: Number(res.inventory_id) || 0, warn, critical };
+    const hintEl = document.getElementById('edit-pao-hint');
+    if (hintEl) {
+        const n = Number(res.sample) || 0;
+        hintEl.textContent = res.source === 'average'
+            ? t('pao.hint_average', { n, warn, critical })
+            : t('pao.hint_table', { warn, critical });
+    }
+    const resetEl = document.getElementById('edit-pao-reset');
+    if (resetEl) resetEl.hidden = res.source !== 'average';
+    const group = document.getElementById('edit-pao-group');
+    if (group) group.hidden = false;
+}
+
+/** Load the opening window of one row; a failure just hides the block (the edit still works). */
+function _paoLoadForEdit(inventoryId) {
+    const group = document.getElementById('edit-pao-group');
+    if (!group) return;
+    api('pao_get', { id: Number(inventoryId) || 0 }).then(_paoPaintEdit).catch(() => {
+        // No numbers is better than a wrong number: the block stays hidden.
+    });
+}
+
+/** «↺ Riporta ai valori consigliati»: forget the family's corrections and repaint. */
+async function _paoResetForEdit() {
+    const state = window._editPao || {};
+    const id = Number(state.id) || 0;
+    if (!id) return;
+    try {
+        const res = await api('pao_reset', {}, 'POST', { id });
+        if (!res || !res.success) {
+            showToast(res?.error || t('pao.save_failed'), 'error');
+            return;
+        }
+        _paoPaintEdit(res);
+        if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+        showToast(t('pao.reset_done'), 'success');
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -19994,6 +20165,9 @@ function _editMedicalInventoryItem(item) {
             <span>${escapeHtml(t(c.label_key))}</span>
         </label>`).join('');
     const packQty = parseFloat(item.default_quantity) || 0;
+    // The age the row really has: the «Aperta da» control must SHOW it, or a select sitting on
+    // «—» reads as "not saved" (the report: «se cambio aperto da sembra che non venga salvato»).
+    const openedDays = (typeof _medDaysOpen === 'function') ? _medDaysOpen(item) : null;
     const stateLabel = item.opened_at
         ? `${t('medical.state_opened')}${item.opened_at ? ' · ' + formatDateTime(item.opened_at) : ''}`
         : t('medical.state_new');
@@ -20015,37 +20189,94 @@ function _editMedicalInventoryItem(item) {
         med_atc: item.med_atc || '',
     };
 
+    // The sheet wears the FOOD sheet's grammar (same shell, same header with the photo, same
+    // section labels, same quantity row, same two-button footer): a medicine is not a different
+    // app. It used to be its own form (`edit-modal-header` with a «Modifica» prefix, plain
+    // labels, a unit badge instead of the unit select, one full-width Salva) — two panels that
+    // did the same job and looked like two products.
+    //
+    // The unit is EDITABLE, like on a food row: pieces (pz) for tablets and boxes, g for a
+    // cream, ml for a syrup or drops. `conf` is not offered: a medicine has no «confezioni»
+    // (the pack size is `#edit-med-pack`, pieces of the box), and the food sheet's
+    // package-size group has no meaning here.
+    const unitOpts = ['pz', 'g', 'ml'].map((u) => {
+        // A medicine is not weighed to the gram: the pantry row already says «~14 g», so the
+        // unit picked here carries the same mark (`getUnitDisplayLabel` → «~g» / «~ml») or the
+        // sheet and the list would contradict each other. Pieces stay exact.
+        const label = u === 'pz' ? t('units.pz') : getUnitDisplayLabel(u, { approx: true });
+        return `<option value="${u}" ${(item.unit || 'pz') === u ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+    }).join('');
+
     document.getElementById('modal-content').innerHTML = `
-        <div class="modal-header edit-modal-header">
-            <h3 class="edit-modal-heading">
-                <span class="edit-modal-prefix">${escapeHtml(t('medical.edit_title'))}</span>
-                <span id="edit-title-display">${escapeHtml(item.name)}</span>
-                <input type="hidden" id="edit-product-name" value="${escapeAttr(item.name || '')}">
-            </h3>
-            <button class="modal-close" onclick="closeModal()">✕</button>
-        </div>
-        <form class="form is-medical-edit" onsubmit="submitEditInventory(event, ${item.id}, ${item.product_id})">
-            <input type="hidden" id="edit-unit" value="${escapeAttr(item.unit || 'pz')}">
-            <input type="hidden" id="edit-vacuum" value="0">
-            <p class="settings-hint">${escapeHtml(stateLabel)}</p>
-            ${_itemDetailMedSummaryHtml(item)}
-            <div class="form-group" id="edit-qty-group">
-                <label>${escapeHtml(t('medical.edit_qty_label'))}</label>
-                <div class="qty-control-with-unit">
-                    <div class="qty-control">
-                        <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', -1)">−</button>
-                        <input type="number" id="edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
-                        <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', 1)">+</button>
+        <div class="edit-inventory-modal">
+            <div class="modal-header item-detail-header">
+                <div class="item-detail-header-row">
+                    <div class="item-detail-image edit-thumb">
+                        ${_validProductImageUrl(item.image_url)
+                            ? `<img src="${escapeAttr(item.image_url)}" alt="">`
+                            : `<span class="item-detail-emoji">${_productCatIconHtml(item)}</span>`}
                     </div>
-                    <span class="qty-unit-badge" id="edit-qty-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(item.unit || 'pz'))}</span>
+                    <div class="item-detail-header-text">
+                        <h3 class="item-detail-title">
+                            <button type="button" id="edit-title-display" class="edit-title-tap"
+                                onclick="startEditProductTitle()"
+                                title="${escapeAttr(t('product.edit_name_brand') || '')}">${escapeHtml(item.name || '')}</button>
+                        </h3>
+                        <input type="text" id="edit-product-name" class="form-input edit-title-input"
+                            value="${escapeAttr(item.name || '')}" autocomplete="off"
+                            style="display:none" aria-label="${escapeAttr(t('edit.label_name') || 'Name')}">
+                        ${item.brand ? `<p class="item-detail-brand">${escapeHtml(_medShortCompany(item.brand) || item.brand)}</p>` : ''}
+                        <p class="item-detail-loc-line" id="edit-med-state">${escapeHtml(stateLabel)}</p>
+                    </div>
+                </div>
+                <div class="item-detail-header-actions">
+                    <button type="button" class="item-detail-fav${Number(item.is_favorite) ? ' active' : ''}" id="edit-med-fav"
+                        onclick="_medToggleFavFromSheet(this, ${item.product_id})"
+                        aria-pressed="${Number(item.is_favorite) ? 'true' : 'false'}"
+                        title="${escapeAttr(Number(item.is_favorite) ? t('inventory.unfavorite') : t('inventory.favorite'))}"
+                        aria-label="${escapeAttr(Number(item.is_favorite) ? t('inventory.unfavorite') : t('inventory.favorite'))}">${Number(item.is_favorite) ? '★' : '☆'}</button>
+                    <button type="button" class="modal-close" onclick="closeModal()">✕</button>
                 </div>
             </div>
-            <div class="form-group">
-                <label>${escapeHtml(t('medical.detail_pack'))}</label>
-                <input type="number" id="edit-med-pack" class="form-input" min="0" step="any" value="${packQty > 0 ? packQty : ''}" placeholder="${escapeAttr(t('medical.pack_qty_label'))}">
-            </div>
+            <form class="form edit-inventory-form is-medical-edit" onsubmit="submitEditInventory(event, ${item.id}, ${item.product_id})">
+                <input type="hidden" id="edit-vacuum" value="0">
+                <input type="hidden" id="edit-med-ingredient" value="${escapeAttr(item.med_ingredient || '')}">
+                ${_itemDetailMedSummaryHtml(item)}
+                <div class="edit-meta-grid">
+                    <div class="form-group">
+                        <label class="edit-section-label" for="edit-med-pack">${escapeHtml(t('medical.detail_pack'))}</label>
+                        <input type="number" id="edit-med-pack" class="form-input" min="0" step="any" value="${packQty > 0 ? packQty : ''}" placeholder="${escapeAttr(t('medical.pack_qty_label'))}">
+                    </div>
+                    <div class="form-group">
+                        <label class="edit-section-label" for="edit-med-pao">${escapeHtml(t('medical.pao_label'))}</label>
+                        <input type="number" id="edit-med-pao" class="form-input" min="0" step="1" value="${Number(item.med_pao_days) || 0}">
+                    </div>
+                </div>
+                <p class="settings-hint med-pao-hint">${escapeHtml(t('medical.pao_hint'))}</p>
+                <p class="edit-section-label">${escapeHtml(t('inventory.label_quantity'))}</p>
+                <div class="form-group edit-qty-group" id="edit-qty-group">
+                    <div class="edit-qty-row">
+                        <div class="qty-control edit-qty-stepper">
+                            <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', -1)" aria-label="${escapeAttr(t('inventory.detail_less'))}">−</button>
+                            <input type="number" id="edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input" inputmode="decimal">
+                            <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', 1)" aria-label="${escapeAttr(t('inventory.detail_more_qty'))}">+</button>
+                        </div>
+                        <select id="edit-unit" class="edit-unit-select" onchange="onEditUnitChange()" aria-label="${escapeAttr(t('product.unit_label'))}">
+                            ${unitOpts}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <p class="edit-section-label">${escapeHtml(t('medical.detail_categories'))}</p>
+                    ${_isMobileUi()
+                        ? `<select id="edit-med-cat-select" class="form-input">
+                               <option value="">${escapeHtml(t('medical.pick_category'))}</option>
+                               ${cats.map(c => `<option value="${escapeAttr(c.slug)}"${selectedTags.includes(c.slug) ? ' selected' : ''}>${escapeHtml(t(c.label_key))}</option>`).join('')}
+                           </select>`
+                        : `<div id="edit-med-cats" class="med-cat-chips">${catChips || `<p class="settings-hint">${escapeHtml(t('medical.pick_category'))}</p>`}</div>`}
+                </div>
             <div class="form-group" id="edit-loc-group"${editLocs.length > 1 ? '' : ' hidden'}>
-                <label>${t('inventory.label_position')}</label>
+                <p class="edit-section-label">${escapeHtml(t('inventory.label_position'))}</p>
                 <div class="location-selector">
                     ${editLocs.map(([k, v]) => `
                         <button type="button" class="loc-btn ${item.location === k ? 'active' : ''}"
@@ -20054,51 +20285,46 @@ function _editMedicalInventoryItem(item) {
                 </div>
                 <input type="hidden" id="edit-loc" value="${item.location}">
             </div>
-            <div class="med-edit-pair">
-            <div class="form-group">
-                <label>${escapeHtml(t('medical.expiry_label'))}</label>
-                <div class="med-expiry-pickers" style="display:flex;gap:8px">
-                    <select id="edit-med-expiry-month" class="form-input" style="flex:1"></select>
-                    <input type="number" id="edit-med-expiry-year" class="form-input" style="flex:1" min="2020" max="2099" inputmode="numeric" placeholder="AAAA">
+            <div class="edit-expiry-vacuum">
+                <div class="form-group">
+                    <p class="edit-section-label">${escapeHtml(t('medical.expiry_label'))}</p>
+                    <div class="med-expiry-pickers" style="display:flex;gap:8px">
+                        <select id="edit-med-expiry-month" class="form-input" style="flex:1"></select>
+                        <input type="number" id="edit-med-expiry-year" class="form-input" style="flex:1" min="2020" max="2099" inputmode="numeric" placeholder="AAAA">
+                    </div>
+                    <input type="hidden" id="edit-expiry" value="${escapeAttr(item.expiry_date || '')}">
                 </div>
-                <input type="hidden" id="edit-expiry" value="${escapeAttr(item.expiry_date || '')}">
+                <div class="form-group med-open-since edit-vacuum-group">
+                    <p class="edit-section-label">${escapeHtml(item.opened_at ? t('medical.opened_since_change') : t('audit.med_days_q'))}</p>
+                    ${(() => {
+                        // The stored answer is on screen: the presets, PLUS the age this row really
+                        // has when it is not one of them (8 days is not a preset), preselected.
+                        // Without it the control came back on «—» at every reopen and the write
+                        // looked lost.
+                        const dayChoices = [0, 2, 7, 14, 30, 60, 90];
+                        if (openedDays != null && !dayChoices.includes(openedDays)) dayChoices.push(openedDays);
+                        dayChoices.sort((a, b) => a - b);
+                        const label = (n) => (n === 0
+                            ? t('audit.med_days_today')
+                            : t('dashboard.days_short').replace('{n}', n));
+                        if (_isMobileUi()) {
+                            return `<select class="form-input" onchange="if(this.value!=='')_medMarkOpened(${item.id}, this.value)">
+                               ${openedDays == null ? `<option value="" selected>—</option>` : ''}
+                               ${dayChoices.map((n) => `<option value="${n}"${n === openedDays ? ' selected' : ''}>${escapeHtml(label(n))}</option>`).join('')}
+                            </select>`;
+                        }
+                        return `<div class="med-open-since-chips">
+                           ${dayChoices.map((n) => `<button type="button" class="btn btn-small btn-secondary${n === openedDays ? ' is-on' : ''}" onclick="_medOpenSincePick(this, ${item.id}, ${n})">${escapeHtml(label(n))}</button>`).join('')}
+                        </div>`;
+                    })()}
+                </div>
             </div>
-            <div class="med-open-since">
-                <p class="settings-hint">${escapeHtml(item.opened_at ? t('medical.opened_since_change') : t('audit.med_days_q'))}</p>
-                ${_isMobileUi()
-                    // A phone gets the native picker (one line), like the categories: seven chips
-                    // wrapped onto two rows and cost ~70 px of a sheet that is already a scroll.
-                    ? `<select class="form-input" onchange="if(this.value!=='')_medMarkOpened(${item.id}, this.value)">
-                           <option value="">—</option>
-                           <option value="0">${escapeHtml(t('audit.med_days_today'))}</option>
-                           ${[2, 7, 14, 30, 60, 90].map(n => `<option value="${n}">${escapeHtml(t('dashboard.days_short').replace('{n}', n))}</option>`).join('')}
-                       </select>`
-                    : `<div class="med-open-since-chips">
-                           <button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, 0)">${escapeHtml(t('audit.med_days_today'))}</button>
-                           ${[2, 7, 14, 30, 60, 90].map(n => `<button type="button" class="btn btn-small btn-secondary" onclick="_medMarkOpened(${item.id}, ${n})">${escapeHtml(t('dashboard.days_short').replace('{n}', n))}</button>`).join('')}
-                       </div>`}
+            <div class="edit-form-actions">
+                <button type="button" class="btn btn-large btn-secondary" onclick="closeModal()">${escapeHtml(t('btn.cancel'))}</button>
+                <button type="submit" class="btn btn-large btn-primary edit-save-btn">✓ ${escapeHtml(t('btn.save_changes'))}</button>
             </div>
-            </div>
-            <div class="form-group">
-                <label>${escapeHtml(t('medical.detail_categories'))}</label>
-                ${_isMobileUi()
-                    ? `<select id="edit-med-cat-select" class="form-input">
-                           <option value="">${escapeHtml(t('medical.pick_category'))}</option>
-                           ${cats.map(c => `<option value="${escapeAttr(c.slug)}"${selectedTags.includes(c.slug) ? ' selected' : ''}>${escapeHtml(t(c.label_key))}</option>`).join('')}
-                       </select>`
-                    : `<div id="edit-med-cats" class="med-cat-chips">${catChips || `<p class="settings-hint">${escapeHtml(t('medical.pick_category'))}</p>`}</div>`}
-            </div>
-            ${/* The active ingredient is one of the FACTS above (the pill row): asking for it again
-                 was a row of the sheet for nothing. The hidden field keeps the value and the two
-                 save paths (they read #edit-med-ingredient) untouched. */''}
-            <input type="hidden" id="edit-med-ingredient" value="${escapeAttr(item.med_ingredient || '')}">
-            <div class="form-group">
-                <label>${escapeHtml(t('medical.pao_label'))}</label>
-                <input type="number" id="edit-med-pao" class="form-input" min="0" step="1" value="${Number(item.med_pao_days) || 0}">
-                <p class="settings-hint">${escapeHtml(t('medical.pao_hint'))}</p>
-            </div>
-            <button type="submit" class="btn btn-large btn-primary full-width mt-2">${t('btn.save')}</button>
         </form>
+        </div>
     `;
     _showModalOverlay();
     const monthEl = document.getElementById('edit-med-expiry-month');
@@ -20116,7 +20342,6 @@ function _editMedicalInventoryItem(item) {
     document.getElementById('edit-med-expiry-month')?.addEventListener('change', syncExpiry);
     document.getElementById('edit-med-expiry-year')?.addEventListener('change', syncExpiry);
     document.getElementById('edit-med-expiry-year')?.addEventListener('input', syncExpiry);
-    setQtyInputUnitLabel('edit-qty', item.unit || 'pz');
 }
 
 function startEditProductTitle() {
@@ -20151,7 +20376,8 @@ function finishEditProductTitle(cancel = false) {
 
 function onEditUnitChange() {
     const unit = document.getElementById('edit-unit').value;
-    setQtyInputUnitLabel('edit-qty', unit);
+    // No unit badge here: the select beside the stepper already says the unit, and
+    // `ensureQtyUnitBadge()` would add a second "pz" pill next to it.
     const confGroup = document.getElementById('edit-conf-size-group');
     if (confGroup) confGroup.style.display = unit === 'conf' ? 'block' : 'none';
     if (unit === 'conf') {
@@ -20316,6 +20542,30 @@ async function submitEditInventory(e, id, productId) {
             showToast(res?.message || res?.error || t('error.generic'), 'error');
             return;
         }
+        // The opening window the household may have corrected («consigliato entro 3-6 gg»).
+        // It is a SEPARATE write on purpose: the value belongs to the product's FAMILY in that
+        // place — what the app keeps is the average of the corrections — and the answer is that
+        // average, not what was typed. The notice strip prints it, on every device.
+        let paoAfter = null;
+        const paoWarnEl = document.getElementById('edit-pao-warn');
+        const paoCritEl = document.getElementById('edit-pao-critical');
+        const paoBefore = window._editPao || {};
+        if (!isMedEdit && paoWarnEl && paoCritEl && paoWarnEl.value !== '' && paoCritEl.value !== '') {
+            const paoWarn = Math.round(Number(paoWarnEl.value));
+            const paoCritical = Math.round(Number(paoCritEl.value));
+            if (paoWarn > 0 && paoCritical > 0
+                && (paoWarn !== Number(paoBefore.warn) || paoCritical !== Number(paoBefore.critical))) {
+                const paoRes = await api('pao_save', {}, 'POST', {
+                    id: payload.id, warn: paoWarn, critical: paoCritical,
+                }).catch(() => null);
+                if (paoRes && paoRes.success) {
+                    paoAfter = paoRes;
+                } else {
+                    showToast(t('pao.save_failed'), 'warning');
+                }
+            }
+        }
+        window._editPao = null;
         const savedQty = res.quantity !== undefined ? parseFloat(res.quantity) : qty;
         const patch = {
             name,
@@ -20351,7 +20601,16 @@ async function submitEditInventory(e, id, productId) {
         patchAll(currentInventory);
         patchAll(_allInventoryCache);
         closeModal();
-        showToast(t('toast.updated'), 'success');
+        // One toast for both writes: when the opening window was corrected, the sentence the
+        // household gets back is the AVERAGE the app now uses — that is the whole point of
+        // correcting it.
+        showToast(paoAfter
+            ? t('pao.saved', {
+                n: Number(paoAfter.sample) || 0,
+                warn: Number(paoAfter.warn) || 0,
+                critical: Number(paoAfter.critical) || 0,
+            })
+            : t('toast.updated'), 'success');
         if (window._editReturnToAction) {
             window._editReturnToAction = false;
             if (typeof showProductAction === 'function') showProductAction();
@@ -20373,6 +20632,9 @@ async function submitEditInventory(e, id, productId) {
         // The row the user just corrected must leave the dashboard by itself.
         _dashboardLiveRefresh(payload.id);
         await loadInventory();
+        // The notice strip prints the opening window: repaint it with the average just saved,
+        // so «consigliato entro 3-6 gg» and the row's own verdict agree at once.
+        if (paoAfter && typeof loadBannerAlerts === 'function') loadBannerAlerts();
         // A stocktake can open this sheet on top of its card: refresh the sentence
         // with what was just saved (the audit overlay stayed open underneath).
         if (typeof _auditItemSaved === 'function') _auditItemSaved(payload.id);
@@ -20636,7 +20898,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261111n';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112m';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -20646,7 +20908,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261111n';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112m';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

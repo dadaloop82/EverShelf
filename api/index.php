@@ -1050,6 +1050,18 @@ try {
         case 'inventory_update':
             updateInventory($db);
             break;
+        // The household's own PAO: the two numbers the notice strip prints («consigliato entro
+        // 3-6 gg») are editable in the pantry edit sheet, and the value the app uses is the
+        // average of the corrections for that family in that place (`api/lib/pao_overrides.php`).
+        case 'pao_get':
+            paoGetAction($db);
+            break;
+        case 'pao_save':
+            paoSaveAction($db);
+            break;
+        case 'pao_reset':
+            paoResetAction($db);
+            break;
         case 'inventory_delete':
             deleteInventory($db);
             break;
@@ -9073,6 +9085,9 @@ function getStats(PDO $db): void {
     // Compute opened_expiry and days_to_expiry for each opened item
     $opened = [];
     $today = strtotime('today midnight');
+    // The household's own PAO averages (edit sheet → `pao_save`), asked ONCE for the whole
+    // list: the banner must print the same numbers the sheet shows, on every device.
+    $paoOverrides = paoAverageMap($db);
     foreach ($openedRaw as $item) {
         $vacuum = (int)($item['vacuum_sealed'] ?? 0);
         // originalExpiry = manufacturer date stored in inventory.expiry_date.
@@ -9144,7 +9159,7 @@ function getStats(PDO $db): void {
                 if ($item['days_to_expiry'] === null || $item['days_to_expiry'] <= 365) {
                     $fi = $item;
                     $fi['quantity'] = $frac;
-                    $fi['pao'] = openedShelfLifeSummary($fi);
+                    $fi['pao'] = openedShelfLifeSummary($fi, $paoOverrides);
                     $opened[] = $fi;
                 }
                 continue;
@@ -9159,7 +9174,7 @@ function getStats(PDO $db): void {
         if (isInventoryDepleted($item)) continue;
         // The deterministic post-opening clock (data/opened_shelf_life.json): the dashboard
         // needs days_open + the two thresholds, not an AI guess.
-        $item['pao'] = openedShelfLifeSummary($item);
+        $item['pao'] = openedShelfLifeSummary($item, $paoOverrides);
         $opened[] = $item;
     }
     // Sort by days_to_expiry ascending (soonest first; nulls last)
@@ -24977,3 +24992,72 @@ function parseReceipt(): void
     ]);
     echo json_encode(['success' => true, 'items' => $items, 'count' => count($items)]);
 }
+
+// ── The household's PAO (period after opening) ────────────────────────────────
+// `data/opened_shelf_life.json` is the app's opinion on how long an opened product keeps;
+// the edit sheet lets the household say what their kitchen really does, and the app keeps
+// the AVERAGE of those corrections per family + place instead of the last tap. The clock the
+// notice strip prints reads `openedShelfLifeThresholds()`, so all three answers below only
+// describe and feed the same table (`api/lib/pao_overrides.php`).
+
+/**
+ * GET `pao_get` — the two numbers of one row, with where they come from.
+ *
+ * Answers the effective thresholds, the data table's own numbers (`table_warn`/`table_critical`)
+ * and `sample` = how many products the household's average is made of, so the form can say
+ * «media delle tue 3 modifiche» instead of pretending the value is a factory setting.
+ */
+function paoGetAction(PDO $db): void
+{
+    $ctx = paoRowContext($db, (int)($_GET['id'] ?? 0));
+    if ($ctx === null) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Inventory row not found']);
+        return;
+    }
+    echo json_encode(['success' => true] + $ctx, JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST `pao_save` — the household corrects the opening window of one product.
+ *
+ * The value becomes ONE observation of its family in that place (replacing this product's own
+ * previous one), and the answer carries the NEW AVERAGE — not the number just typed: the pantry
+ * uses the average, so correcting a single yoghurt nudges the family instead of rewriting it.
+ */
+function paoSaveAction(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $id = (int)($input['id'] ?? 0);
+    $warn = (int)($input['warn'] ?? 0);
+    $critical = (int)($input['critical'] ?? 0);
+    if ($id <= 0 || $warn <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'id and warn are required']);
+        return;
+    }
+    $ctx = paoSaveObservation($db, $id, $warn, $critical);
+    if ($ctx === null) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Inventory row not found']);
+        return;
+    }
+    echo json_encode(['success' => true] + $ctx, JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST `pao_reset` — «riporta ai valori consigliati»: forget the household's numbers for the
+ * family of this row (all its products, this place) and let the data table answer again.
+ */
+function paoResetAction(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $ctx = paoResetFamily($db, (int)($input['id'] ?? 0));
+    if ($ctx === null) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Inventory row not found']);
+        return;
+    }
+    echo json_encode(['success' => true] + $ctx, JSON_UNESCAPED_UNICODE);
+}
+
