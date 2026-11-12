@@ -12,29 +12,29 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261112zd">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261112zd">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261112zd">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261112ze">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261112ze">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261112ze">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261112zd">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261112ze">
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
-    <link rel="stylesheet" href="assets/css/tablet.css?v=20261112zd">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261112zd">
+    <link rel="stylesheet" href="assets/css/tablet.css?v=20261112ze">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261112ze">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261112zd"></script>
-    <script src="assets/js/core/auth.js?v=20261112zd"></script>
-    <script src="assets/js/core/med.js?v=20261112zd"></script>
+    <script src="assets/js/core/dom.js?v=20261112ze"></script>
+    <script src="assets/js/core/auth.js?v=20261112ze"></script>
+    <script src="assets/js/core/med.js?v=20261112ze"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261112zd"></script>
+    <script src="assets/js/med/italy.js?v=20261112ze"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261112zd"></script>
+    <script src="assets/js/core/support.js?v=20261112ze"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -42,7 +42,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112zd';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112ze';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -51,13 +51,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zd';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112ze';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261112zd"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261112ze"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -122,7 +122,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.32.0</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.33.0</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -223,7 +223,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span class="header-name" data-i18n="nav.title">EverShelf</span><span class="header-version">v1.32.0</span><span class="header-kiosk-version" id="header-kiosk-version" hidden></span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span class="header-name" data-i18n="nav.title">EverShelf</span><span class="header-version">v1.33.0</span><span class="header-kiosk-version" id="header-kiosk-version" hidden></span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -1593,6 +1593,39 @@
                             <option value="15" data-i18n="settings.screensaver.timeout_15">15 minuti</option>
                             <option value="30" data-i18n="settings.screensaver.timeout_30">30 minuti</option>
                             <option value="60" data-i18n="settings.screensaver.timeout_60">1 ora</option>
+                        </select>
+                    </div>
+                    <!-- What the idle screen shows, and how fast it changes. A view with nothing
+                         to say is skipped on its own (no meal planned, no alerts, empty pantry). -->
+                    <div class="form-group" style="margin-top:14px">
+                        <span class="settings-row-label" data-i18n="settings.screensaver.views_label">Viste della lavagna</span>
+                        <p class="settings-hint" data-i18n="settings.screensaver.views_hint">Ogni vista legge i tuoi dati: il pasto con una ricetta vera, le scadenze, i grafici della dispensa e un'idea presa dal magazzino.</p>
+                        <div class="ss-views-grid">
+                            <label class="toggle-row">
+                                <span>🍽️ <span data-i18n="screensaver.view_meal">Pasto e ricetta</span></span>
+                                <span class="toggle-switch"><input type="checkbox" id="setting-screensaver-view-meal"><span class="toggle-slider"></span></span>
+                            </label>
+                            <label class="toggle-row">
+                                <span>⚠️ <span data-i18n="screensaver.view_alerts">Da consumare</span></span>
+                                <span class="toggle-switch"><input type="checkbox" id="setting-screensaver-view-alerts"><span class="toggle-slider"></span></span>
+                            </label>
+                            <label class="toggle-row">
+                                <span>📊 <span data-i18n="screensaver.view_nutrition">Grafici dispensa</span></span>
+                                <span class="toggle-switch"><input type="checkbox" id="setting-screensaver-view-nutrition"><span class="toggle-slider"></span></span>
+                            </label>
+                            <label class="toggle-row">
+                                <span>💡 <span data-i18n="screensaver.view_fact">Idea del giorno</span></span>
+                                <span class="toggle-switch"><input type="checkbox" id="setting-screensaver-view-fact"><span class="toggle-slider"></span></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-screensaver-interval" style="font-size:0.85rem;font-weight:600;color:var(--text-secondary)" data-i18n="settings.screensaver.interval_label">⏭️ Ogni quanto cambia</label>
+                        <select id="setting-screensaver-interval" class="form-input" style="margin-top:6px;max-width:200px">
+                            <option value="15">15 s</option>
+                            <option value="20" selected>20 s</option>
+                            <option value="30">30 s</option>
+                            <option value="60">60 s</option>
                         </select>
                     </div>
                     <!-- A look BEFORE leaving it on: the same path as `?screensaver=30`, so the
@@ -3625,33 +3658,38 @@
     <div class="modal-content" id="modal-content" onclick="event.stopPropagation()"></div>
 </div>
 
-<!-- Screensaver Overlay -->
-<div id="screensaver" class="screensaver-overlay" style="display:none">
-    <div class="screensaver-content">
-        <div class="screensaver-clock" id="screensaver-clock"></div>
-        <div id="screensaver-shopping" class="screensaver-shopping" style="display:none"></div>
-        <div id="screensaver-mealplan" class="screensaver-mealplan" style="display:none"></div>
-        <!-- Nutrition pie charts panel (shown alternately with fact) -->
-        <div id="screensaver-nutrition" class="screensaver-nutrition" style="display:none"></div>
-        <div class="screensaver-fact" id="screensaver-fact"></div>
-        <!-- PARKED banner slot on the idle screen — the kiosk shows the screensaver for
-             hours, which is where an ad slot would have paid for the hosting. EverShelf
-             does not run ads, so it stays commented out.
-        <div class="screensaver-ad" id="ad-slot-screensaver" data-ad-slot="screensaver" style="display:none"></div>
-        -->
+<!-- ===== IDLE SCREEN — the ambient kitchen dashboard =====
+     Pure black (OLED / kiosk, with a few pixels of drift to fight burn-in), ONE card at a
+     time, a header with the time and the weather, a footer with the numbers that matter.
+     Rendered by `assets/js/screensaver.js`; a tap flips the view, «Sblocca» (or a swipe up)
+     goes back to the app. -->
+<div id="screensaver" class="screensaver-overlay" style="display:none" aria-live="polite">
+    <div class="ss-stage" id="screensaver-stage">
+        <header class="ss-head">
+            <div class="ss-clock" id="screensaver-clock"></div>
+            <div class="ss-context" id="screensaver-context" hidden></div>
+        </header>
+        <!-- The card of the moment: meal / alerts / nutrition / fact. -->
+        <main class="ss-core" id="screensaver-core"></main>
+        <footer class="ss-foot" id="screensaver-foot" hidden></footer>
     </div>
     <div class="screensaver-shortcuts">
-        <button class="screensaver-shortcut-btn" id="screensaver-recipe-btn" data-i18n-title="screensaver.recipe_btn" title="Recipes">
+        <button class="screensaver-shortcut-btn" id="screensaver-recipe-btn" data-i18n-title="screensaver.recipe_btn" title="Ricette">
             🍳
         </button>
-        <button class="screensaver-shortcut-btn" id="screensaver-scan-btn" data-i18n-title="screensaver.scan_long_hint" title="Scan product">
+        <button class="screensaver-shortcut-btn" id="screensaver-scan-btn" data-i18n-title="screensaver.scan_long_hint" title="Scansiona un prodotto">
             📷
         </button>
     </div>
-    <!-- Controls of a PINNED run (`?screensaver…` / «Anteprima»), top-right. The idle screen
-         changes version every five minutes (a fact, then the nutrition charts): a preview has
-         to be able to scroll them NOW, so the ⏭ button names the view it will show next. The ✕
-         is the deliberate way out and prints the seconds left. -->
+    <!-- The way back. A tap on the screen flips the view (it must NOT close it: an accidental
+         brush on the wall would take the clock away); this control and a swipe up unlock. -->
+    <button type="button" class="ss-unlock" id="screensaver-unlock" onclick="dismissScreensaver()"
+            data-i18n-title="screensaver.unlock_hint" data-i18n-aria="screensaver.unlock_hint"
+            aria-label="Sblocca e torna all'app" title="Sblocca e torna all'app">
+        <span aria-hidden="true">🔓</span> <span data-i18n="screensaver.unlock">Sblocca</span>
+    </button>
+    <!-- Controls of a PINNED run (`?screensaver…` / «Anteprima»), top-right: ⏭ names the view it
+         will show, ✕ is the deliberate way out and prints the seconds left. -->
     <div class="screensaver-pin-bar" id="screensaver-pin-bar" hidden>
         <button type="button" class="screensaver-pin-btn" id="screensaver-cycle-btn"
                 onclick="_cycleScreensaverView()"
@@ -3760,17 +3798,19 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261112zd"></script>
-<script src="assets/js/food_facts.generated.js?v=20261112zd"></script>
-<script src="assets/js/free_apis.generated.js?v=20261112zd"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261112zd"></script>
-<script src="assets/js/off_categories.generated.js?v=20261112zd"></script>
-<script src="assets/js/core/vocab.js?v=20261112zd"></script>
-<script src="assets/js/app.js?v=20261112zd"></script>
-<script src="assets/js/audit.js?v=20261112zd"></script>
-<script src="assets/js/receipt.js?v=20261112zd"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261112zd"></script>
-<script src="assets/js/settings_search.js?v=20261112zd"></script>
+<script src="assets/js/vocab.generated.js?v=20261112ze"></script>
+<script src="assets/js/food_facts.generated.js?v=20261112ze"></script>
+<script src="assets/js/free_apis.generated.js?v=20261112ze"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261112ze"></script>
+<script src="assets/js/off_categories.generated.js?v=20261112ze"></script>
+<script src="assets/js/core/vocab.js?v=20261112ze"></script>
+<script src="assets/js/app.js?v=20261112ze"></script>
+<script src="assets/js/audit.js?v=20261112ze"></script>
+<script src="assets/js/receipt.js?v=20261112ze"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261112ze"></script>
+<script src="assets/js/settings_search.js?v=20261112ze"></script>
+    <!-- The idle screen: an ambient kitchen dashboard (its own file, like audit.js). -->
+    <script src="assets/js/screensaver.js?v=20261112ze"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

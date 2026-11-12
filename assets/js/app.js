@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112zd'; // bump when translations change
+const _I18N_VERSION = '20261112ze'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -6039,7 +6039,7 @@ function _applySyncedSettings(serverSettings) {
         'meal_plan_enabled','tts_enabled','tts_url','tts_token',
         'tts_method','tts_auth_type','tts_content_type','tts_payload_key',
         'tts_engine','tts_rate','tts_pitch','tts_auth_header_name','tts_auth_header_value','tts_extra_fields',
-        'screensaver_enabled','screensaver_timeout',
+        'screensaver_enabled','screensaver_timeout','screensaver_views','screensaver_interval',
         'price_enabled','price_country','price_currency','price_update_months',
         'zerowaste_tips_enabled',
         'shopping_enabled','shopping_mode','shopping_smart_suggestions',
@@ -7223,6 +7223,7 @@ async function loadSettingsUI() {
             // Product rules (genre prefix + automatic favourites)
             _applyProductRuleSettingsUI(s);
             _applyRetentionSettingsUI(s);
+            _applyScreensaverViewSettings(s);
             // HA settings (server merge)
             _applyHaSettingsUI(s);
         }
@@ -7269,6 +7270,7 @@ async function loadSettingsUI() {
     // Product rules (genre prefix + automatic favourites)
     _applyProductRuleSettingsUI(s);
     _applyRetentionSettingsUI(s);
+    _applyScreensaverViewSettings(s);
     // Kiosk APK download stays visible everywhere (local server + GitHub).
     // Inside the kiosk WebView we also show the OTA / native-settings panels.
     _refreshKioskApkLinks();
@@ -7982,6 +7984,29 @@ function _applyProductRuleSettingsUI(s) {
  * They live in Settings → Sistema → Dati, next to export/import: they are about the
  * data this instance keeps, not about how the kitchen looks.
  */
+/** The four views of the idle screen and its pace (assets/js/screensaver.js reads them). */
+const SS_VIEW_IDS = ['meal', 'alerts', 'nutrition', 'fact'];
+function _applyScreensaverViewSettings(s) {
+    const raw = String(s.screensaver_views || '').split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
+    const on = raw.length ? raw : SS_VIEW_IDS.slice();
+    SS_VIEW_IDS.forEach(id => {
+        const el = document.getElementById(`setting-screensaver-view-${id}`);
+        if (el) el.checked = on.includes(id);
+    });
+    const pace = document.getElementById('setting-screensaver-interval');
+    if (pace) {
+        pace.value = String(s.screensaver_interval || 20);
+        // A value the select does not offer (an .env hand edit, an older install) would leave
+        // the field EMPTY: fall back to the nearest option, never to a blank control.
+        if (!pace.value && pace.options.length) {
+            const want = parseInt(s.screensaver_interval, 10) || 20;
+            const opts = [...pace.options].map(o => parseInt(o.value, 10)).filter(Number.isFinite);
+            const near = opts.reduce((a, b) => (Math.abs(b - want) < Math.abs(a - want) ? b : a), opts[0]);
+            pace.value = String(near);
+        }
+    }
+}
+
 function _applyRetentionSettingsUI(s) {
     const recipe = document.getElementById('setting-recipe-retention-days');
     if (recipe) recipe.value = s.recipe_retention_days || 7;
@@ -8240,6 +8265,12 @@ async function _saveSettingsInner(opts = {}) {
     if (recipeRetentionEl) s.recipe_retention_days = Math.max(1, Math.min(365, parseInt(recipeRetentionEl.value, 10) || 7));
     const historyRetentionEl = document.getElementById('setting-transaction-retention-days');
     if (historyRetentionEl) s.transaction_retention_days = Math.max(30, Math.min(3650, parseInt(historyRetentionEl.value, 10) || 90));
+    // Idle screen: which views and how fast they change. An empty pick keeps the previous
+    // list — a screensaver with no view would be a black screen for no reason.
+    const viewIds = SS_VIEW_IDS.filter(id => document.getElementById(`setting-screensaver-view-${id}`)?.checked);
+    if (viewIds.length) s.screensaver_views = viewIds.join(',');
+    const ssIntervalEl = document.getElementById('setting-screensaver-interval');
+    if (ssIntervalEl) s.screensaver_interval = Math.max(10, Math.min(300, parseInt(ssIntervalEl.value, 10) || 20));
     const vacuumExtensionEl = document.getElementById('setting-vacuum-expiry-extension-days');
     if (vacuumExtensionEl) {
         const v = parseInt(vacuumExtensionEl.value, 10);
@@ -8298,6 +8329,8 @@ async function _saveSettingsInner(opts = {}) {
             meal_plan_enabled: s.meal_plan_enabled,
             screensaver_enabled: s.screensaver_enabled,
             screensaver_timeout: s.screensaver_timeout || 5,
+            screensaver_views: s.screensaver_views || '',
+            screensaver_interval: s.screensaver_interval || 20,
             // Only persist once the user has decided (touched the toggle or already set).
             ...(((_serverSettings && _serverSettings.zerowaste_tips_set)
                 || document.getElementById('setting-zerowaste-tips')?.dataset.touched === '1')
@@ -21729,7 +21762,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zd';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112ze';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21739,7 +21772,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112zd';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112ze';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -31734,7 +31767,7 @@ function _applyShoppingTotalDisplay() {
     const { label } = _canonicalShoppingTotal;
     if (dash) { dash.textContent = label; dash.style.display = ''; }
     if (shop) shop.textContent = label;
-    if (_screensaverActive) updateScreensaverShopping();
+    if (_screensaverActive && typeof _ssRefreshFooter === 'function') _ssRefreshFooter();
 }
 
 function _clearCanonicalShoppingTotal() {
@@ -31748,7 +31781,7 @@ function _clearCanonicalShoppingTotal() {
     if (dash) dash.style.display = 'none';
     const shop = document.getElementById('price-total-value');
     if (shop) shop.textContent = '–';
-    if (_screensaverActive) updateScreensaverShopping();
+    if (_screensaverActive && typeof _ssRefreshFooter === 'function') _ssRefreshFooter();
 }
 
 /**
@@ -43250,7 +43283,6 @@ function _triggerAutoHome() {
 }
 let _screensaverClockInterval = null;
 let _screensaverFactInterval = null;
-let _screensaverData = null; // cached data for fact generation
 const SCREENSAVER_FACT_DURATION = 5 * 60 * 1000; // 5 minutes per fact
 
 function _screensaverTimeoutMs() {
@@ -43335,31 +43367,20 @@ function _syncScreensaverPinUi() {
             count.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
         }
     }
-    // The ⏭ button names the version it is about to show: the fact and the charts alternate
-    // every five minutes, and a preview that cannot scroll them is only half the screen.
+    // The ⏭ button names the view it is about to show (the engine knows the order).
     const cycleLabel = document.getElementById('screensaver-cycle-label');
-    if (cycleLabel) {
-        const nextIsNutrition = (_ssSlot + 1) % 2 === 1;
-        cycleLabel.textContent = t(nextIsNutrition ? 'screensaver.view_nutrition' : 'screensaver.view_fact');
+    if (cycleLabel && typeof _ssNextViewLabel === 'function') {
+        cycleLabel.textContent = _ssNextViewLabel();
     }
 }
 
 /**
- * Forced run only: show the next version of the idle screen NOW (the automatic rotation
- * spends `SCREENSAVER_FACT_DURATION` on each), and restart the rotation from the chosen
- * view so it keeps its full time. A manual pick survives `_startScreensaverRotation()`,
- * which would otherwise pull the screen back to the first slot when the data lands.
+ * The ⏭ control of a pinned run (and any programmatic jump): hand the engine the command,
+ * which restarts the rotation from the chosen view so it keeps its full interval.
  */
 function _cycleScreensaverView() {
-    if (!_screensaverActive || !_screensaverPinned) return;
-    _ssManual = true;
-    _ssSlot = (_ssSlot + 1) % 4;
-    _showScreensaverSlot(_ssSlot);
-    clearInterval(_ssRotationTimer);
-    _screensaverFactInterval = _ssRotationTimer = setInterval(() => {
-        _ssSlot = (_ssSlot + 1) % 4;
-        _showScreensaverSlot(_ssSlot);
-    }, SCREENSAVER_FACT_DURATION);
+    if (!_screensaverActive) return;
+    if (typeof _ssNextView === 'function') _ssNextView();
     _syncScreensaverPinUi();
 }
 
@@ -43466,75 +43487,18 @@ function activateScreensaver() {
     // A pinned run (`?screensaver`, the preview) shows its ✕ and the seconds it has left.
     _syncScreensaverPinUi();
     _screensaverClockInterval = setInterval(updateScreensaverClock, 1000);
-    updateScreensaverShopping();
-    syncShoppingPriceTotal(false).then(() => updateScreensaverShopping());
-    // PARKED: the idle screen used to (re)render the banner slot here, because that
-    // is where an ad was actually seen. EverShelf does not run ads any more, so the
-    // call is gone — the slot div is commented out in index.html.
-    // if (typeof _renderAdSlots === 'function') _renderAdSlots();
-    // Load data and start fact/nutrition rotation
-    loadScreensaverData().then(() => {
-        _startScreensaverRotation();
-    });
+    // The views (meal / alerts / nutrition / fact) live in assets/js/screensaver.js: it loads
+    // the household's own data, paints the first card and starts the rotation.
+    if (typeof _ssEngineStart === 'function') {
+        _ssEngineStart();
+    }
 }
 
 function updateScreensaverClock() {
-    const now = new Date();
-    const _ssLocale = _collationLocale();
-    const time = now.toLocaleTimeString(_ssLocale, { hour: '2-digit', minute: '2-digit' });
-    const date = now.toLocaleDateString(_ssLocale, { weekday: 'long', day: 'numeric', month: 'long' });
-    const el = document.getElementById('screensaver-clock');
-    if (el) el.innerHTML = `${time}<div class="screensaver-date">${date}</div>`;
-    updateScreensaverMealPlan();
-    // The same one-second tick keeps the corner control of a pinned run honest.
+    // The header (clock + date + weather/plan pill) is painted by the engine, together with
+    // the card; the tick only has to keep the time and the pin countdown honest.
+    if (typeof _ssPaintHead === 'function') _ssPaintHead();
     _syncScreensaverPinUi();
-}
-
-/** Show/hide the planned meal type badge on the screensaver based on current time slot. */
-function updateScreensaverShopping() {
-    const el = document.getElementById('screensaver-shopping');
-    if (!el) return;
-    const s = getSettings();
-    const itemCount = shoppingItems.length;
-    if (itemCount === 0) { el.style.display = 'none'; return; }
-
-    const countCol = `<div class="ss-shop-col">
-        <div class="ss-shop-value">${itemCount}</div>
-        <div class="ss-shop-label">🛒 ${escapeHtml(t('screensaver.shopping_count'))}</div>
-    </div>`;
-
-    let priceCol = '';
-    if (s.price_enabled) {
-        _loadCanonicalTotalFromSession();
-        const label = _canonicalShoppingTotal?.label;
-        if (label) {
-            priceCol = `<div class="ss-shop-sep"></div>
-            <div class="ss-shop-col">
-                <div class="ss-shop-value">${escapeHtml(label.replace(/^ca\.\s*/, ''))}</div>
-                <div class="ss-shop-label">💰 ${escapeHtml(t('shopping.price_total_short'))}</div>
-            </div>`;
-        }
-    }
-
-    el.innerHTML = `<div class="screensaver-shopping-card">${countCol}${priceCol}</div>`;
-    el.style.display = 'block';
-}
-
-function updateScreensaverMealPlan() {
-    const el = document.getElementById('screensaver-mealplan');
-    if (!el) return;
-    const s = getSettings();
-    if (s.meal_plan_enabled === false) { el.style.display = 'none'; return; }
-    const hour = new Date().getHours();
-    // Before 15:00 show pranzo, from 15:00 onwards show cena
-    const slot = hour < 15 ? 'pranzo' : 'cena';
-    const typeId = getTodayMealPlanType(slot);
-    if (!typeId || typeId === 'libero') { el.style.display = 'none'; return; }
-    const mpt = getMealPlanTypeMap()[typeId];
-    if (!mpt) { el.style.display = 'none'; return; }
-    const slotLabel = slot === 'pranzo' ? '🌤️ ' + t('meal_types.pranzo') : '🌙 ' + t('meal_types.cena');
-    el.innerHTML = `<span class="screensaver-mealplan-badge">${slotLabel} · ${mpt.icon} ${mpt.label}</span>`;
-    el.style.display = 'block';
 }
 
 function dismissScreensaver(targetPage) {
@@ -43545,22 +43509,16 @@ function dismissScreensaver(targetPage) {
     _screensaverForceTimer = null;
     _screensaverPinned = false;
     _screensaverForceUntil = 0;
-    _ssManual = false;
     const pinBar = document.getElementById('screensaver-pin-bar');
     if (pinBar) pinBar.hidden = true;
+    // The views, their timers and their gestures belong to assets/js/screensaver.js.
+    if (typeof _ssEngineStop === 'function') _ssEngineStop();
     clearInterval(_screensaverClockInterval);
-    clearInterval(_screensaverFactInterval);
-    clearInterval(_ssRotationTimer);
-    const nutrEl = document.getElementById('screensaver-nutrition');
-    if (nutrEl) { nutrEl.style.display = 'none'; nutrEl.innerHTML = ''; }
-    const factEl = document.getElementById('screensaver-fact');
-    if (factEl) { factEl.classList.remove('visible'); }
     const overlay = document.getElementById('screensaver');
     overlay.classList.remove('visible');
     setTimeout(() => {
         overlay.style.display = 'none';
         _screensaverActive = false;
-        _screensaverData = null;
         if (targetPage) {
             showPage(targetPage);
         } else {
@@ -43574,532 +43532,6 @@ function dismissScreensaver(targetPage) {
     }, 400);
 }
 
-// Handle for screensaver rotation timer
-let _ssRotationTimer = null;
-let _ssSlot = 0; // 0=fact, 1=nutrition, 2=fact, 3=nutrition …
-/** The household scrolled the versions by hand (forced run): the slot must not be reset. */
-let _ssManual = false;
-
-/**
- * Start the screensaver content rotation:
- * Every SCREENSAVER_FACT_DURATION ms flip between fact text and nutrition charts.
- */
-function _startScreensaverRotation() {
-    clearInterval(_ssRotationTimer);
-    // A manual pick (the ⏭ button of a forced run) wins over the default first slot: the data
-    // arrives a moment after the screen appears, and pulling it back to slot 0 would undo the tap.
-    if (!_ssManual) _ssSlot = 0;
-    _showScreensaverSlot(_ssSlot);
-    _screensaverFactInterval = _ssRotationTimer = setInterval(() => {
-        _ssSlot = (_ssSlot + 1) % 4; // 4 steps: fact, nutr, fact, nutr (with repeats for more facts)
-        _showScreensaverSlot(_ssSlot);
-    }, SCREENSAVER_FACT_DURATION);
-}
-
-/**
- * Run `fn` after the next paint, with a timeout as the safety net: a hidden tab (the wall's
- * screen off) and a headless renderer never call `requestAnimationFrame`, and a screensaver
- * view that is displayed but stays at opacity 0 is a blank screen — the content must appear
- * even when nothing is painting.
- */
-function _ssNextFrame(fn) {
-    let done = false;
-    const run = () => {
-        if (done) return;
-        done = true;
-        try { fn(); } catch (e) { /* cosmetic only */ }
-    };
-    requestAnimationFrame(run);
-    setTimeout(run, 150);
-}
-
-function _showScreensaverSlot(slot) {
-    const factEl  = document.getElementById('screensaver-fact');
-    const nutrEl  = document.getElementById('screensaver-nutrition');
-    if (!factEl || !nutrEl) return;
-    const showNutr = slot % 2 === 1; // odd slots = nutrition
-    // Fade out both
-    factEl.classList.remove('visible');
-    nutrEl.style.opacity = '0';
-    nutrEl.style.transition = 'opacity 1.5s ease';
-    setTimeout(() => {
-        if (!_screensaverActive) return;
-        if (showNutr) {
-            factEl.style.display = 'none';
-            nutrEl.style.display = 'flex';
-            // Nothing to chart (empty pantry, data not in yet): the fact stays. A blank wall
-            // for five minutes — and a ⏭ that scrolls into an empty screen — is not a version.
-            if (_renderScreensaverNutrition() === false) {
-                nutrEl.style.display = 'none';
-                factEl.style.display = '';
-                factEl.textContent = generateScreensaverFact();
-                _ssNextFrame(() => factEl.classList.add('visible'));
-                return;
-            }
-            _ssNextFrame(() => { nutrEl.style.opacity = '1'; });
-        } else {
-            nutrEl.style.display = 'none';
-            factEl.style.display = '';
-            factEl.textContent = generateScreensaverFact();
-            _ssNextFrame(() => { factEl.classList.add('visible'); });
-        }
-    }, 1600);
-}
-
-/**
- * Render animated 3D-style pie charts inside the screensaver.
- * Shows: category distribution, health score, freshness.
- * @returns {boolean} false when there is nothing to draw (the caller keeps the fact visible)
- */
-function _renderScreensaverNutrition() {
-    const el = document.getElementById('screensaver-nutrition');
-    if (!el) return false;
-    // Use cached nutrition data from dashboard if available, else build from screensaver inventory
-    const inv = (_screensaverData && _screensaverData.inventory) || [];
-    const data = (_nutriData && _nutriData.slices) ? _nutriData : _buildNutritionData(inv);
-    if (!data) { el.style.display = 'none'; return false; }
-
-    const { slices, total, healthScore, varietyScore, freshnessScore, fresh_pct } = data;
-    const top4 = slices.slice(0, 4);
-
-    // Build conic-gradient
-    let deg = 0;
-    const stops = top4.map(s => {
-        const end = deg + s.pct * 3.6;
-        const stop = `${s.color} ${deg.toFixed(1)}deg ${end.toFixed(1)}deg`;
-        deg = end;
-        return stop;
-    });
-    if (deg < 360) stops.push(`rgba(255,255,255,0.08) ${deg.toFixed(1)}deg 360deg`);
-    const gradient = `conic-gradient(from 0deg, ${stops.join(', ')})`;
-
-    // Three mini donut charts: categories, health, freshness
-    const healthColor = healthScore >= 70 ? '#4ade80' : healthScore >= 45 ? '#fbbf24' : '#f87171';
-    const freshColor  = freshnessScore >= 70 ? '#22d3ee' : freshnessScore >= 40 ? '#60a5fa' : '#94a3b8';
-    const varColor    = varietyScore   >= 70 ? '#a78bfa' : varietyScore   >= 40 ? '#fbbf24' : '#64748b';
-
-    el.innerHTML = `
-    <div class="ss-nutr-wrap">
-        <div class="ss-nutr-title">${t('nutrition.today_title')}</div>
-        <div class="ss-nutr-charts">
-            <!-- Main category pie -->
-            <div class="ss-nutr-chart-block">
-                <div class="ss-pie3d" id="ss-pie-main" style="--pie-bg:${gradient}"></div>
-                <div class="ss-nutr-chart-label">${t('nutrition.products_n').replace('{n}', total)}</div>
-                <div class="ss-nutr-legend">
-                    ${top4.map(s => `<div class="ss-leg-row"><span style="background:${s.color}" class="ss-leg-dot"></span><span>${s.icon} ${escapeHtml(categoryText(s.cat))}</span><span class="ss-leg-pct">${s.pct}%</span></div>`).join('')}
-                </div>
-            </div>
-            <!-- Score donuts -->
-            <div class="ss-nutr-scores-col">
-                ${_ssDonut(t('nutrition.label_health'), healthScore, healthColor)}
-                ${_ssDonut(t('nutrition.label_variety'), varietyScore, varColor)}
-                ${_ssDonut(t('nutrition.label_fresh'), fresh_pct, freshColor)}
-            </div>
-        </div>
-    </div>`;
-
-    // Trigger animations
-    requestAnimationFrame(() => {
-        const pie = document.getElementById('ss-pie-main');
-        if (pie) setTimeout(() => pie.classList.add('ss-pie3d-ready'), 80);
-        el.querySelectorAll('.ss-donut-ring').forEach(ring => {
-            const val = parseInt(ring.dataset.val || 0);
-            setTimeout(() => { ring.style.setProperty('--val', val); ring.classList.add('ss-donut-ready'); }, 200);
-        });
-    });
-    return true;
-}
-
-function _ssDonut(label, val, color) {
-    return `<div class="ss-donut-wrap">
-        <div class="ss-donut-ring" data-val="${val}" style="--color:${color};--val:0">
-            <span class="ss-donut-text">${val}%</span>
-        </div>
-        <div class="ss-donut-label">${label}</div>
-    </div>`;
-}
-
-// Load all data needed for screensaver facts
-async function loadScreensaverData() {
-    try {
-        const [statsRes, invRes, bringRes, smartRes] = await Promise.all([
-            api('stats'),
-            api('inventory_list'),
-            api('shopping_list').catch(() => null),
-            api('smart_shopping').catch(() => null)
-        ]);
-        _screensaverData = {
-            stats: statsRes,
-            inventory: invRes.inventory || [],
-            shopping: bringRes && bringRes.success ? (bringRes.purchase || []) : []
-        };
-        // Keep smartShoppingItems fresh so _screensaverAutoAddItems has current data
-        if (smartRes && Array.isArray(smartRes.items)) {
-            smartShoppingItems = smartRes.items;
-        }
-    } catch (e) {
-        _screensaverData = { stats: {}, inventory: [], shopping: [] };
-    }
-    // Silently add critical/high-urgency items to Bring! while screensaver is showing
-    _screensaverAutoAddItems();
-}
-
-/**
- * Silently adds critical and high-urgency shopping items to Bring! when the
- * screensaver activates. No toast shown — the shopping panel count updates
- * automatically after the add. Rate-limited to once per 30 minutes per session.
- */
-async function _screensaverAutoAddItems() {
-    const RATE_MS = 30 * 60 * 1000;
-    const lastRun = parseInt(sessionStorage.getItem('_ssAutoAddTs') || '0');
-    if (Date.now() - lastRun < RATE_MS) return;
-
-    const toAdd = smartShoppingItems.filter(i => {
-        if (i.on_bring) return false;
-        const gName = i.shopping_name || i.name;
-        if (_isBringPurchased(gName, i.urgency)) return false;
-        if (i.urgency === 'critical' || i.urgency === 'high') return true;
-        const qty = parseFloat(i.current_qty ?? i.quantity ?? 0);
-        return qty <= 0.001 && (i.urgency === 'medium' || i.urgency === 'low');
-    });
-    if (toAdd.length === 0) return;
-
-    sessionStorage.setItem('_ssAutoAddTs', String(Date.now()));
-    const itemsToAdd = toAdd.map(i => ({
-        name: i.shopping_name || i.name,
-        specification: _urgencyToSpec(i.urgency),
-    }));
-    try {
-        const result = await api('shopping_add', {}, 'POST', { items: itemsToAdd, listUUID: shoppingListUUID });
-        if (result.success && result.added > 0) {
-            _markAutoAddedBring(itemsToAdd.map(i => i.name));
-            logOperation('bring_auto_add_screensaver', { added: itemsToAdd.map(i => i.name) });
-            // Refresh bring list silently then update screensaver counter
-            loadShoppingList._bgCall = true;
-            loadShoppingList().then(() => syncShoppingPriceTotal(false));
-        }
-    } catch (e) { /* ignore */ }
-}
-
-// Show next random fact with fade in/out
-function showNextScreensaverFact() {
-    const el = document.getElementById('screensaver-fact');
-    if (!el) return;
-    el.classList.remove('visible');
-    setTimeout(() => {
-        el.textContent = generateScreensaverFact();
-        el.classList.add('visible');
-    }, 1600);
-}
-
-// Generate a dynamic fact from available data
-function generateScreensaverFact() {
-    const d = _screensaverData || { stats: {}, inventory: [], shopping: [] };
-    const inv = d.inventory;
-    const stats = d.stats;
-    const shop = d.shopping;
-    const now = new Date();
-    const hour = now.getHours();
-
-    // Pre-compute useful data
-    const expired = stats.expired || [];
-    const expiringSoon = stats.expiring_soon || [];
-    const totalProducts = stats.total_products || inv.length;
-    const totalItems = stats.total_items || 0;
-
-    const byLocation = {};
-    const byCategory = {};
-    const withExpiry = [];
-    const noExpiry = [];
-    const expiringThisWeek = [];
-    const expiringThisMonth = [];
-    const inFreezer = [];
-    const inFrigo = [];
-    const inDispensa = [];
-
-    for (const item of inv) {
-        // by location
-        const loc = normalizeLocationKey(item.location || 'dispensa');
-        if (!byLocation[loc]) byLocation[loc] = [];
-        byLocation[loc].push(item);
-        if (loc === 'freezer') inFreezer.push(item);
-        else if (loc === 'frigo') inFrigo.push(item);
-        else if (loc === 'dispensa') inDispensa.push(item);
-
-        // by category
-        const cat = mapToLocalCategory(item.category, item.name);
-        if (!byCategory[cat]) byCategory[cat] = [];
-        byCategory[cat].push(item);
-
-        // expiry
-        if (item.expiry_date) {
-            withExpiry.push(item);
-            const days = daysUntilExpiry(item.expiry_date);
-            if (days >= 0 && days <= 7) expiringThisWeek.push(item);
-            if (days >= 0 && days <= 30) expiringThisMonth.push(item);
-        } else {
-            noExpiry.push(item);
-        }
-    }
-
-    // Greeting based on time
-    const greeting = hour < 12 ? t('facts.greeting_morning') : hour < 18 ? t('facts.greeting_afternoon') : t('facts.greeting_evening');
-
-    // Random item picker
-    const rItem = (arr) => arr.length ? arr[Math.floor(Math.random() * arr.length)] : null;
-
-    // All fact generators
-    const facts = [];
-
-    // --- Expired items facts ---
-    if (expired.length > 0) {
-        facts.push(() => expired.length === 1 ? t('facts.expired_one') : t('facts.expired_many').replace('{n}', expired.length));
-        facts.push(() => {
-            const names = expired.slice(0, 3).map(i => i.name);
-            const extra = expired.length > 3 ? ` ${t('facts.expired_list_more').replace('{n}', expired.length - 3)}` : '';
-            return t('facts.expired_list').replace('{names}', names.join(', ') + extra);
-        });
-        const freezerExpired = expired.filter(i => i.location === 'freezer');
-        if (freezerExpired.length > 0) {
-            facts.push(() => {
-                const item = rItem(freezerExpired);
-                const safety = getExpiredSafety(item, Math.abs(daysUntilExpiry(item.expiry_date)));
-                if (safety.level === 'ok' || safety.level === 'warning') {
-                    return t('facts.freezer_expired_ok').replace('{name}', item.name);
-                }
-                return t('facts.freezer_expired_old').replace('{name}', item.name);
-            });
-        }
-        const frigoExpired = expired.filter(i => i.location === 'frigo');
-        if (frigoExpired.length > 0) {
-            facts.push(() => frigoExpired.length === 1 ? t('facts.fridge_expired_one') : t('facts.fridge_expired_many').replace('{n}', frigoExpired.length));
-        }
-    }
-
-    // --- Expiring soon facts ---
-    if (expiringSoon.length > 0) {
-        facts.push(() => {
-            const item = expiringSoon[0];
-            const days = daysUntilExpiry(item.expiry_date);
-            if (days === 0) return t('facts.expiring_today').replace('{name}', item.name);
-            if (days === 1) return t('facts.expiring_tomorrow').replace('{name}', item.name);
-            return t('facts.expiring_days').replace('{name}', item.name).replace('{days}', days);
-        });
-        if (expiringSoon.length > 1) {
-            facts.push(() => t('facts.expiring_many').replace('{n}', expiringSoon.length));
-        }
-    }
-    if (expiringThisWeek.length > 0) {
-        facts.push(() => t('facts.expiring_this_week').replace('{n}', expiringThisWeek.length));
-        facts.push(() => {
-            const item = rItem(expiringThisWeek);
-            const days = daysUntilExpiry(item.expiry_date);
-            const locLabel = LOCATIONS[normalizeLocationKey(item.location)]?.label || item.location;
-            return t('facts.expiring_item_loc').replace('{name}', item.name).replace('{loc}', locLabel).replace('{days}', days).replace('{dayslabel}', days === 1 ? t('facts.day') : t('facts.days'));
-        });
-    }
-    if (expiringThisMonth.length > 0) {
-        facts.push(() => t('facts.expiring_this_month').replace('{n}', expiringThisMonth.length));
-    }
-
-    // Shopping list count/items are already visible in the shopping panel on the screensaver.
-    // Items are added automatically by _screensaverAutoAddItems — no manual-action text needed.
-    if (shop.length === 0) {
-        facts.push(() => t('facts.shopping_empty'));
-    }
-
-    // --- Location-based facts ---
-    if (inFrigo.length > 0) {
-        facts.push(() => {
-            const item = rItem(inFrigo);
-            return t('facts.in_fridge').replace('{name}', item.name + (item.brand ? ' (' + item.brand + ')' : ''));
-        });
-    }
-    if (inFreezer.length > 0) {
-        facts.push(() => {
-            const item = rItem(inFreezer);
-            return t('facts.in_freezer').replace('{name}', item.name);
-        });
-    }
-
-    // --- Category-based facts ---
-    const catEntries = Object.entries(byCategory);
-    if (catEntries.length > 0) {
-        facts.push(() => {
-            const sorted = catEntries.sort((a, b) => b[1].length - a[1].length);
-            const top = sorted[0];
-            const catLabel = top[0];
-            return t('facts.top_category').replace('{icon}', '').replace('{cat}', categoryLabel(catLabel)).replace('{n}', top[1].length).replace(/\s+/g, ' ').trim();
-        });
-        if (byCategory['carne'] && byCategory['carne'].length > 0) {
-            facts.push(() => t('facts.cat_meat').replace('{n}', byCategory['carne'].length));
-        }
-        if (byCategory['latticini'] && byCategory['latticini'].length > 0) {
-            facts.push(() => t('facts.cat_dairy').replace('{n}', byCategory['latticini'].length));
-        }
-        if (byCategory['verdura'] && byCategory['verdura'].length > 0) {
-            facts.push(() => t('facts.cat_veggies').replace('{n}', byCategory['verdura'].length));
-        }
-        if (byCategory['frutta'] && byCategory['frutta'].length > 0) {
-            facts.push(() => t('facts.cat_fruit').replace('{n}', byCategory['frutta'].length));
-        }
-        if (byCategory['bevande'] && byCategory['bevande'].length > 0) {
-            facts.push(() => t('facts.cat_drinks').replace('{n}', byCategory['bevande'].length));
-        }
-        if (byCategory['surgelati'] && byCategory['surgelati'].length > 0) {
-            facts.push(() => t('facts.cat_frozen').replace('{n}', byCategory['surgelati'].length));
-        }
-        if (byCategory['pasta'] && byCategory['pasta'].length > 0) {
-            facts.push(() => t('facts.cat_pasta').replace('{n}', byCategory['pasta'].length));
-        }
-        if (byCategory['conserve'] && byCategory['conserve'].length > 0) {
-            facts.push(() => t('facts.cat_canned').replace('{n}', byCategory['conserve'].length));
-        }
-        if (byCategory['snack'] && byCategory['snack'].length > 0) {
-            facts.push(() => t('facts.cat_snacks').replace('{n}', byCategory['snack'].length));
-        }
-        if (byCategory['condimenti'] && byCategory['condimenti'].length > 0) {
-            facts.push(() => t('facts.cat_condiments').replace('{n}', byCategory['condimenti'].length));
-        }
-    }
-
-    // --- General inventory facts ---
-    if (inv.length > 0) {
-        facts.push(() => {
-            const item = rItem(inv);
-            return t('facts.item_random').replace('{name}', item.name).replace('{loc}', LOCATIONS[normalizeLocationKey(item.location)]?.label || item.location);
-        });
-        facts.push(() => {
-            const item = rItem(inv);
-            // Plain text: the screensaver prints the fact with textContent, so the
-            // <span class="conf-size-info"> that formatQuantity() adds for "conf" units
-            // would be shown as a literal tag. Use the text-only formatter.
-            const qty = _formatQtyPlain(item.quantity, item.unit, item.default_quantity, item.package_unit);
-            return t('facts.item_qty').replace('{name}', item.name).replace('{qty}', qty);
-        });
-    }
-    if (noExpiry.length > 0) {
-        facts.push(() => t('facts.no_expiry_count').replace('{n}', noExpiry.length));
-    }
-    if (withExpiry.length > 0) {
-        // Find the one expiring furthest away
-        const furthest = withExpiry.reduce((best, item) => {
-            const d = daysUntilExpiry(item.expiry_date);
-            return d > (best.d || 0) ? { item, d } : best;
-        }, { d: 0 });
-        if (furthest.item && furthest.d > 30) {
-            facts.push(() => t('facts.furthest_expiry').replace('{name}', furthest.item.name).replace('{months}', Math.round(furthest.d / 30)));
-        }
-    }
-
-    // --- Quantity-based facts ---
-    const highQtyItems = inv.filter(i => parseFloat(i.quantity) >= 5);
-    if (highQtyItems.length > 0) {
-        facts.push(() => {
-            const item = rItem(highQtyItems);
-            // Plain text: same reason as facts.item_qty above — never feed markup to textContent.
-            const qty = _formatQtyPlain(item.quantity, item.unit, item.default_quantity, item.package_unit);
-            return t('facts.high_qty').replace('{name}', item.name).replace('{qty}', qty);
-        });
-    }
-    const lowQtyItems = inv.filter(i => parseFloat(i.quantity) <= 1 && parseFloat(i.quantity) > 0);
-    if (lowQtyItems.length > 0) {
-        facts.push(() => {
-            const item = rItem(lowQtyItems);
-            return t('facts.low_qty_item').replace('{name}', item.name);
-        });
-        facts.push(() => t('facts.low_qty_count').replace('{n}', lowQtyItems.length));
-    }
-
-    // --- Time-of-day greetings & suggestions ---
-    if (hour >= 6 && hour < 10) {
-        if (byCategory['pane']) facts.push(() => t('facts.morning_bread'));
-        if (byCategory['latticini']) facts.push(() => t('facts.morning_milk'));
-        if (byCategory['frutta']) facts.push(() => t('facts.morning_fruit'));
-    }
-    if (hour >= 11 && hour < 14) {
-        if (byCategory['pasta']) facts.push(() => t('facts.noon_pasta'));
-        if (byCategory['verdura']) facts.push(() => t('facts.noon_salad').replace('{n}', byCategory['verdura'].length));
-    }
-    if (hour >= 17 && hour < 21) {
-        if (byCategory['carne']) facts.push(() => t('facts.evening_meat'));
-        if (byCategory['pesce']) facts.push(() => t('facts.evening_fish'));
-        if (expiringThisWeek.length > 0) facts.push(() => t('facts.evening_expiring').replace('{n}', expiringThisWeek.length));
-    }
-    if (hour >= 21 || hour < 6) {
-        if (expiringSoon.length > 0) facts.push(() => t('facts.night_reminder').replace('{names}', expiringSoon.slice(0,2).map(i=>i.name).join(', ')));
-    }
-
-    // --- Weekly stats ---
-    const recentIn = stats.recent_in || 0;
-    const recentOut = stats.recent_out || 0;
-    if (recentIn > 0 && recentOut > 0) {
-        facts.push(() => t('facts.weekly_balance').replace('{in}', recentIn).replace('{out}', recentOut));
-    } else if (recentIn > 0) {
-        facts.push(() => t('facts.weekly_added').replace('{n}', recentIn));
-    } else if (recentOut > 0) {
-        facts.push(() => t('facts.weekly_consumed').replace('{n}', recentOut));
-    }
-
-    // --- Tips & curiosità (statici ma ruotano) ---
-    facts.push(() => t('facts.tip_freezer'));
-    facts.push(() => t('facts.tip_bread'));
-    facts.push(() => t('facts.tip_fifo'));
-    facts.push(() => t('facts.tip_meat'));
-    facts.push(() => t('facts.tip_no_refreeze'));
-    facts.push(() => t('facts.tip_fridge'));
-    facts.push(() => t('facts.tip_canned'));
-
-    // --- Brand-based facts ---
-    const brands = inv.filter(i => i.brand).map(i => i.brand);
-    if (brands.length > 0) {
-        const brandCount = {};
-        brands.forEach(b => { brandCount[b] = (brandCount[b] || 0) + 1; });
-        const topBrand = Object.entries(brandCount).sort((a, b) => b[1] - a[1])[0];
-        facts.push(() => t('facts.top_brand').replace('{brand}', topBrand[0]).replace('{n}', topBrand[1]));
-    }
-
-    // --- Specific food combo facts ---
-    if (byCategory['pasta'] && byCategory['condimenti']) {
-        facts.push(() => t('facts.combo_pasta'));
-    }
-    if (byCategory['pane'] && byCategory['carne']) {
-        facts.push(() => t('facts.combo_sandwich'));
-    }
-    if (byCategory['verdura'] && byCategory['carne']) {
-        facts.push(() => t('facts.combo_balanced'));
-    }
-
-    // --- Empty states ---
-    if (inv.length === 0) {
-        facts.push(() => t('facts.pantry_empty'));
-        facts.push(() => t('facts.pantry_empty_scan'));
-    }
-
-    // --- Location distribution ---
-    const locCount = Object.keys(byLocation).length;
-    if (locCount > 1) {
-        facts.push(() => {
-            const parts = Object.entries(byLocation).map(([loc, items]) => 
-                `${LOCATIONS[normalizeLocationKey(loc)]?.icon || '📦'} ${items.length}`
-            );
-            return t('facts.location_distribution').replace('{parts}', parts.join('  ·  '));
-        });
-    }
-
-    // --- Anti-waste knowledge facts ---
-    const awFacts = _awGetFacts();
-    for (const f of awFacts) { facts.push(() => f); }
-
-    // Pick a random fact
-    if (facts.length === 0) {
-        return t('facts.pantry_waiting').replace('{greeting}', greeting);
-    }
-    return facts[Math.floor(Math.random() * facts.length)]();
-}
-
-// ===== SPESA MODE (long-press camera for continuous scanning) =====
 let _spesaMode = false;
 let _shoppingBoughtFlow = false;
 let _longPressTimer = null;
@@ -44834,11 +44266,11 @@ function initInactivityWatcher() {
         events.forEach(evt => {
             document.addEventListener(evt, () => {
                 if (_screensaverActive) {
-                    // A FORCED run is pinned: «quando forzo lo screensaver non deve uscirmi».
-                    // A tap, a key or a scroll must not take the clock away — it stays for the
-                    // window that was asked for, and the ✕ in the corner is the way out.
-                    if (_screensaverPinned) return;
-                    dismissScreensaver();
+                    // The idle screen owns its own gestures now (assets/js/screensaver.js):
+                    // a tap flips the view, a swipe left/right does the same, a swipe up or
+                    // «Sblocca» goes back to the app, Esc unlocks. The idle clock must not
+                    // fight them — that is why a brush on the wall no longer throws the
+                    // household out of the screensaver.
                     return;
                 }
                 // Auto-home: always reset regardless of screensaver setting

@@ -87,6 +87,30 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "type": "select"
         },
         {
+            "id": "setting-screensaver-view-meal",
+            "env": "SCREENSAVER_VIEWS",
+            "tab": "tab-general",
+            "group": "general",
+            "label": "settings.screensaver.views_label",
+            "hint": "settings.screensaver.views_hint",
+            "card": "settings.screensaver.card_title",
+            "card_hint": "settings.screensaver.card_hint",
+            "keywords": "",
+            "type": "bool"
+        },
+        {
+            "id": "setting-screensaver-interval",
+            "env": "SCREENSAVER_INTERVAL",
+            "tab": "tab-general",
+            "group": "general",
+            "label": "settings.screensaver.interval_label",
+            "hint": "",
+            "card": "settings.screensaver.card_title",
+            "card_hint": "settings.screensaver.card_hint",
+            "keywords": "",
+            "type": "select"
+        },
+        {
             "id": "setting-recipe-retention-days",
             "env": "RECIPE_RETENTION_DAYS",
             "tab": "tab-data",
@@ -1345,6 +1369,42 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "card_hint": "settings.backup.gdrive_hint",
             "keywords": "",
             "type": "int"
+        },
+        {
+            "id": "setting-screensaver-view-alerts",
+            "env": "SCREENSAVER_VIEWS",
+            "tab": "tab-general",
+            "group": "general",
+            "label": "screensaver.view_alerts",
+            "hint": "",
+            "card": "settings.screensaver.card_title",
+            "card_hint": "settings.screensaver.card_hint",
+            "keywords": "",
+            "type": "action"
+        },
+        {
+            "id": "setting-screensaver-view-nutrition",
+            "env": "SCREENSAVER_VIEWS",
+            "tab": "tab-general",
+            "group": "general",
+            "label": "screensaver.view_nutrition",
+            "hint": "",
+            "card": "settings.screensaver.card_title",
+            "card_hint": "settings.screensaver.card_hint",
+            "keywords": "",
+            "type": "action"
+        },
+        {
+            "id": "setting-screensaver-view-fact",
+            "env": "SCREENSAVER_VIEWS",
+            "tab": "tab-general",
+            "group": "general",
+            "label": "screensaver.view_fact",
+            "hint": "",
+            "card": "settings.screensaver.card_title",
+            "card_hint": "settings.screensaver.card_hint",
+            "keywords": "",
+            "type": "action"
         },
         {
             "id": "setting-shopping-remove-trip",

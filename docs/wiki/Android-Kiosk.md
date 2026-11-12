@@ -109,16 +109,32 @@ The clock screen can be shown on demand, and it changes nothing:
 - **Settings → Generali → Salvaschermo → «▶️ Anteprima 30 s»** — the same thing from the
   touch screen, so nobody has to type a URL on the wall.
 
-A forced run is a **display, not a card**: taps, keys and scrolls do **not** take it away
-(on a wall the first accidental touch would), it stays for the whole window and then leaves
-by itself. The only way out early is the small **✕ «Esci»** in the top-right corner, which
-also prints the time left. Next to it, **⏭ «Grafici» / «Curiosità»** scrolls the versions of
-the idle screen — the fact and the nutrition charts normally alternate every five minutes,
-and a preview that cannot scroll them only shows half of the screen; the button names the
-view it will show next. The switch, the timeout and every other setting stay exactly as
-they were, and a running session (a scan, a cooking step, a SHELFY turn) wins over the
-parameter — the same guards the ordinary screensaver obeys. The event is written to the
-client log as `[SCREENSAVER] forced for Ns by ?screensaver` / `preview Ns from Settings`.
+The idle screen is not a clock with a sentence: it is an **ambient kitchen dashboard** that
+reads the household's own data, one card at a time (`assets/js/screensaver.js`):
+
+| Card | What it shows |
+|---|---|
+| 🍽️ **Pasto** | The slot of the day and the meal plan, with a **real recipe from your archive** the pantry can cook now — nothing missing scores highest, an ingredient about to expire weighs more, plus ⏱️ / 🔥 / 🥩 and «Apri ricetta» |
+| ⚠️ **Da consumare** | Up to three things to eat first (open past its window, expired, expiring), each row opening the product sheet; with nothing to do it celebrates the 30-day milestone |
+| 📊 **Grafici** | The category pie and the health / variety / freshness rings, high contrast, plus one insight generated from the weakest number |
+| 💡 **Idea del giorno** | Five dynamic templates: the shopping list, saved vs wasted, weather + what expires first, the medicine cabinet, the shape of the pantry |
+
+Under **Aspetto** you choose which cards to keep and how often they change (15 · 20 · 30 ·
+60 s, `SCREENSAVER_VIEWS` / `SCREENSAVER_INTERVAL`). A card with nothing to say is skipped,
+never painted empty.
+
+**On the wall the gestures are the point**: a **tap** flips the card (it does *not* close the
+screen — an accidental brush must not take the clock away), a swipe left/right does the same,
+a **swipe up** unlocks, and the **«Sblocca»** pill at the bottom centre is the explicit way
+back (Esc does the same on a keyboard). The stage drifts a few pixels every 2.5 minutes
+against burn-in.
+
+A forced run (`?screensaver[=N]`) is the same screen, pinned for the window: the top-right
+**✕ «Esci»** prints the time left, and **⏭** names and shows the next card without waiting
+for the rotation. The switch, the timeout and every other setting stay exactly as they were,
+and a running session (a scan, a cooking step, a SHELFY turn) wins over the parameter — the
+same guards the ordinary screensaver obeys. The event is written to the client log as
+`[SCREENSAVER] forced for Ns by ?screensaver` / `preview Ns from Settings`.
 
 ### Steps 6–7 — Gemini AI and Bring! (optional)
 

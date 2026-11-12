@@ -97,6 +97,32 @@ function evershelfSettingsSchema(): array
     ),
     5 => 
     array (
+      'id' => 'setting-screensaver-view-meal',
+      'env' => 'SCREENSAVER_VIEWS',
+      'tab' => 'tab-general',
+      'group' => 'general',
+      'label' => 'settings.screensaver.views_label',
+      'hint' => 'settings.screensaver.views_hint',
+      'card' => 'settings.screensaver.card_title',
+      'card_hint' => 'settings.screensaver.card_hint',
+      'keywords' => '',
+      'type' => 'bool',
+    ),
+    6 => 
+    array (
+      'id' => 'setting-screensaver-interval',
+      'env' => 'SCREENSAVER_INTERVAL',
+      'tab' => 'tab-general',
+      'group' => 'general',
+      'label' => 'settings.screensaver.interval_label',
+      'hint' => '',
+      'card' => 'settings.screensaver.card_title',
+      'card_hint' => 'settings.screensaver.card_hint',
+      'keywords' => '',
+      'type' => 'select',
+    ),
+    7 => 
+    array (
       'id' => 'setting-recipe-retention-days',
       'env' => 'RECIPE_RETENTION_DAYS',
       'tab' => 'tab-data',
@@ -108,7 +134,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    6 => 
+    8 => 
     array (
       'id' => 'setting-transaction-retention-days',
       'env' => 'TRANSACTION_RETENTION_DAYS',
@@ -121,7 +147,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    7 => 
+    9 => 
     array (
       'id' => 'setting-vacuum-expiry-extension-days',
       'env' => 'VACUUM_EXPIRY_EXTENSION_DAYS',
@@ -134,7 +160,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    8 => 
+    10 => 
     array (
       'id' => 'setting-product-kind-prefix',
       'env' => 'PRODUCT_KIND_PREFIX',
@@ -147,7 +173,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.kind',
       'type' => 'bool',
     ),
-    9 => 
+    11 => 
     array (
       'id' => 'setting-tags-enabled',
       'env' => 'TAGS_ENABLED',
@@ -160,7 +186,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.tags',
       'type' => 'bool',
     ),
-    10 => 
+    12 => 
     array (
       'id' => 'setting-product-variants-enabled',
       'env' => 'PRODUCT_VARIANTS_ENABLED',
@@ -173,7 +199,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.family',
       'type' => 'bool',
     ),
-    11 => 
+    13 => 
     array (
       'id' => 'setting-receipt-ocr-enabled',
       'env' => 'RECEIPT_OCR_ENABLED',
@@ -186,7 +212,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.receipt',
       'type' => 'bool',
     ),
-    12 => 
+    14 => 
     array (
       'id' => 'setting-audit-batch-size',
       'env' => 'AUDIT_MODE_BATCH_SIZE',
@@ -199,7 +225,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.audit',
       'type' => 'int',
     ),
-    13 => 
+    15 => 
     array (
       'id' => 'setting-auto-favorite-min-uses',
       'env' => 'AUTO_FAVORITE_MIN_USES',
@@ -212,7 +238,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.favorites',
       'type' => 'int',
     ),
-    14 => 
+    16 => 
     array (
       'id' => 'setting-ai-enabled',
       'env' => 'AI_ENABLED',
@@ -225,7 +251,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    15 => 
+    17 => 
     array (
       'id' => 'setting-gemini-key',
       'env' => 'GEMINI_API_KEY',
@@ -238,7 +264,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.ai',
       'type' => 'secret',
     ),
-    16 => 
+    18 => 
     array (
       'id' => 'setting-openai-base-url',
       'env' => 'OPENAI_BASE_URL',
@@ -251,7 +277,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    17 => 
+    19 => 
     array (
       'id' => 'setting-openai-model',
       'env' => 'OPENAI_MODEL',
@@ -264,7 +290,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    18 => 
+    20 => 
     array (
       'id' => 'setting-openai-api-key',
       'env' => 'OPENAI_API_KEY',
@@ -277,7 +303,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.ai',
       'type' => 'secret',
     ),
-    19 => 
+    21 => 
     array (
       'id' => 'setting-llama-base-url',
       'env' => 'LLAMA_BASE_URL',
@@ -290,7 +316,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    20 => 
+    22 => 
     array (
       'id' => 'setting-llama-model',
       'env' => 'LLAMA_MODEL',
@@ -303,7 +329,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    21 => 
+    23 => 
     array (
       'id' => 'setting-llama-api-key',
       'env' => 'LLAMA_API_KEY',
@@ -316,7 +342,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'secret',
     ),
-    22 => 
+    24 => 
     array (
       'id' => 'setting-shopping-enabled',
       'env' => 'SHOPPING_ENABLED',
@@ -329,7 +355,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    23 => 
+    25 => 
     array (
       'id' => 'setting-bring-email',
       'env' => 'BRING_EMAIL',
@@ -342,7 +368,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.shopping',
       'type' => 'text',
     ),
-    24 => 
+    26 => 
     array (
       'id' => 'setting-bring-password',
       'env' => 'BRING_PASSWORD',
@@ -355,7 +381,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'secret',
     ),
-    25 => 
+    27 => 
     array (
       'id' => 'setting-shopping-smart-suggestions',
       'env' => 'SHOPPING_SMART_SUGGESTIONS',
@@ -368,7 +394,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    26 => 
+    28 => 
     array (
       'id' => 'setting-shopping-forecast',
       'env' => 'SHOPPING_FORECAST',
@@ -381,7 +407,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    27 => 
+    29 => 
     array (
       'id' => 'setting-shopping-auto-add',
       'env' => 'SHOPPING_AUTO_ADD_THRESHOLD',
@@ -394,7 +420,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    28 => 
+    30 => 
     array (
       'id' => 'setting-shopping-remove-plan',
       'env' => 'SHOPPING_REMOVE_ON_BUY',
@@ -407,7 +433,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.shopping',
       'type' => 'text',
     ),
-    29 => 
+    31 => 
     array (
       'id' => 'setting-price-enabled',
       'env' => 'PRICE_ENABLED',
@@ -420,7 +446,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    30 => 
+    32 => 
     array (
       'id' => 'setting-price-source',
       'env' => 'PRICE_SOURCE',
@@ -433,7 +459,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    31 => 
+    33 => 
     array (
       'id' => 'setting-price-country',
       'env' => 'PRICE_COUNTRY',
@@ -446,7 +472,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    32 => 
+    34 => 
     array (
       'id' => 'setting-price-update-months',
       'env' => 'PRICE_UPDATE_MONTHS',
@@ -459,7 +485,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    33 => 
+    35 => 
     array (
       'id' => 'setting-recipe-source',
       'env' => 'RECIPE_SOURCE',
@@ -472,7 +498,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    34 => 
+    36 => 
     array (
       'id' => 'setting-mealie-offline',
       'env' => 'MEALIE_OFFLINE',
@@ -485,7 +511,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    35 => 
+    37 => 
     array (
       'id' => 'setting-mealie-url',
       'env' => 'MEALIE_URL',
@@ -498,7 +524,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    36 => 
+    38 => 
     array (
       'id' => 'setting-mealie-token',
       'env' => 'MEALIE_API_TOKEN',
@@ -511,7 +537,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'secret',
     ),
-    37 => 
+    39 => 
     array (
       'id' => 'setting-mealie-sync-days',
       'env' => 'MEALIE_CACHE_SYNC_DAYS',
@@ -524,7 +550,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    38 => 
+    40 => 
     array (
       'id' => 'setting-recipe-shopping-mode',
       'env' => 'RECIPE_SHOPPING_MODE',
@@ -537,7 +563,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    39 => 
+    41 => 
     array (
       'id' => 'setting-default-persons',
       'env' => 'DEFAULT_PERSONS',
@@ -550,7 +576,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    40 => 
+    42 => 
     array (
       'id' => 'setting-pref-veloce',
       'env' => 'PREF_VELOCE',
@@ -563,7 +589,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    41 => 
+    43 => 
     array (
       'id' => 'setting-dietary',
       'env' => 'DIETARY',
@@ -576,7 +602,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    42 => 
+    44 => 
     array (
       'id' => 'setting-weather-enabled',
       'env' => 'WEATHER_ENABLED',
@@ -589,7 +615,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    43 => 
+    45 => 
     array (
       'id' => 'setting-weather-city-search',
       'env' => '',
@@ -602,7 +628,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    44 => 
+    46 => 
     array (
       'id' => 'setting-zerowaste-tips',
       'env' => 'ZEROWASTE_TIPS_ENABLED',
@@ -615,7 +641,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    45 => 
+    47 => 
     array (
       'id' => 'setting-med-enabled',
       'env' => 'MED_ENABLED',
@@ -628,7 +654,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    46 => 
+    48 => 
     array (
       'id' => 'med-country-select',
       'env' => '',
@@ -641,7 +667,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    47 => 
+    49 => 
     array (
       'id' => 'med-dataset-file',
       'env' => '',
@@ -654,7 +680,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'file',
     ),
-    48 => 
+    50 => 
     array (
       'id' => 'setting-health-enabled',
       'env' => 'HEALTH_ENABLED',
@@ -667,7 +693,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    49 => 
+    51 => 
     array (
       'id' => 'setting-pref-fuel',
       'env' => 'PREF_FUEL',
@@ -680,7 +706,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    50 => 
+    52 => 
     array (
       'id' => 'health-profile-sex',
       'env' => '',
@@ -693,7 +719,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    51 => 
+    53 => 
     array (
       'id' => 'setting-meal-plan-enabled',
       'env' => 'MEAL_PLAN_ENABLED',
@@ -706,7 +732,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    52 => 
+    54 => 
     array (
       'id' => 'new-appliance-input',
       'env' => '',
@@ -719,7 +745,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    53 => 
+    55 => 
     array (
       'id' => 'setting-camera-facing',
       'env' => 'CAMERA_FACING',
@@ -732,7 +758,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    54 => 
+    56 => 
     array (
       'id' => 'setting-settings-token',
       'env' => 'SETTINGS_TOKEN',
@@ -745,7 +771,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'secret',
     ),
-    55 => 
+    57 => 
     array (
       'id' => 'setting-tts-enabled',
       'env' => 'TTS_ENABLED',
@@ -758,7 +784,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    56 => 
+    58 => 
     array (
       'id' => 'setting-tts-engine',
       'env' => 'TTS_ENGINE',
@@ -771,7 +797,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    57 => 
+    59 => 
     array (
       'id' => 'setting-tts-voice',
       'env' => '',
@@ -784,7 +810,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    58 => 
+    60 => 
     array (
       'id' => 'setting-tts-rate',
       'env' => 'TTS_RATE',
@@ -797,7 +823,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    59 => 
+    61 => 
     array (
       'id' => 'setting-tts-pitch',
       'env' => 'TTS_PITCH',
@@ -810,7 +836,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    60 => 
+    62 => 
     array (
       'id' => 'setting-tts-url',
       'env' => 'TTS_URL',
@@ -823,7 +849,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    61 => 
+    63 => 
     array (
       'id' => 'setting-tts-method',
       'env' => 'TTS_METHOD',
@@ -836,7 +862,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    62 => 
+    64 => 
     array (
       'id' => 'setting-tts-auth-type',
       'env' => 'TTS_AUTH_TYPE',
@@ -849,7 +875,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    63 => 
+    65 => 
     array (
       'id' => 'setting-tts-token',
       'env' => 'TTS_TOKEN',
@@ -862,7 +888,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'secret',
     ),
-    64 => 
+    66 => 
     array (
       'id' => 'setting-tts-auth-header-name',
       'env' => 'TTS_AUTH_HEADER_NAME',
@@ -875,7 +901,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    65 => 
+    67 => 
     array (
       'id' => 'setting-tts-auth-header-value',
       'env' => 'TTS_AUTH_HEADER_VALUE',
@@ -888,7 +914,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    66 => 
+    68 => 
     array (
       'id' => 'setting-tts-content-type',
       'env' => 'TTS_CONTENT_TYPE',
@@ -901,7 +927,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    67 => 
+    69 => 
     array (
       'id' => 'setting-tts-payload-key',
       'env' => 'TTS_PAYLOAD_KEY',
@@ -914,7 +940,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    68 => 
+    70 => 
     array (
       'id' => 'setting-tts-extra-fields',
       'env' => 'TTS_EXTRA_FIELDS',
@@ -927,7 +953,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    69 => 
+    71 => 
     array (
       'id' => 'setting-ha-enabled',
       'env' => 'HA_ENABLED',
@@ -940,7 +966,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    70 => 
+    72 => 
     array (
       'id' => 'setting-ha-url',
       'env' => 'HA_URL',
@@ -953,7 +979,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.ha',
       'type' => 'text',
     ),
-    71 => 
+    73 => 
     array (
       'id' => 'setting-ha-token',
       'env' => 'HA_TOKEN',
@@ -966,7 +992,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'secret',
     ),
-    72 => 
+    74 => 
     array (
       'id' => 'setting-ha-tts-entity',
       'env' => 'HA_TTS_ENTITY',
@@ -979,7 +1005,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    73 => 
+    75 => 
     array (
       'id' => 'setting-ha-tts-platform',
       'env' => '',
@@ -992,7 +1018,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    74 => 
+    76 => 
     array (
       'id' => 'setting-ha-webhook-id',
       'env' => 'HA_WEBHOOK_ID',
@@ -1005,7 +1031,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    75 => 
+    77 => 
     array (
       'id' => 'ha-event-expiry',
       'env' => '',
@@ -1018,7 +1044,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    76 => 
+    78 => 
     array (
       'id' => 'setting-ha-expiry-days',
       'env' => 'HA_EXPIRY_DAYS',
@@ -1031,7 +1057,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    77 => 
+    79 => 
     array (
       'id' => 'setting-ha-notify-service',
       'env' => 'HA_NOTIFY_SERVICE',
@@ -1044,7 +1070,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    78 => 
+    80 => 
     array (
       'id' => 'setting-notify-enabled',
       'env' => 'NOTIFY_ENABLED',
@@ -1057,7 +1083,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    79 => 
+    81 => 
     array (
       'id' => 'notify-event-expiry',
       'env' => '',
@@ -1070,7 +1096,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    80 => 
+    82 => 
     array (
       'id' => 'setting-notify-language',
       'env' => 'NOTIFY_LANGUAGE',
@@ -1083,7 +1109,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    81 => 
+    83 => 
     array (
       'id' => 'notify-channel-ntfy',
       'env' => '',
@@ -1096,7 +1122,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    82 => 
+    84 => 
     array (
       'id' => 'setting-ntfy-url',
       'env' => 'NTFY_URL',
@@ -1109,7 +1135,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.notify',
       'type' => 'text',
     ),
-    83 => 
+    85 => 
     array (
       'id' => 'setting-ntfy-topic',
       'env' => 'NTFY_TOPIC',
@@ -1122,7 +1148,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    84 => 
+    86 => 
     array (
       'id' => 'setting-ntfy-token',
       'env' => 'NTFY_TOKEN',
@@ -1135,7 +1161,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'secret',
     ),
-    85 => 
+    87 => 
     array (
       'id' => 'setting-ntfy-priority',
       'env' => 'NTFY_PRIORITY',
@@ -1148,7 +1174,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'select',
     ),
-    86 => 
+    88 => 
     array (
       'id' => 'setting-ntfy-tags',
       'env' => 'NTFY_TAGS',
@@ -1161,7 +1187,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    87 => 
+    89 => 
     array (
       'id' => 'notify-channel-webhook',
       'env' => '',
@@ -1174,7 +1200,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    88 => 
+    90 => 
     array (
       'id' => 'setting-notify-webhook-url',
       'env' => 'NOTIFY_WEBHOOK_URL',
@@ -1187,7 +1213,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    89 => 
+    91 => 
     array (
       'id' => 'setting-notify-webhook-token',
       'env' => 'NOTIFY_WEBHOOK_TOKEN',
@@ -1200,7 +1226,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'secret',
     ),
-    90 => 
+    92 => 
     array (
       'id' => 'setting-notify-webhook-header',
       'env' => 'NOTIFY_WEBHOOK_HEADER',
@@ -1213,7 +1239,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    91 => 
+    93 => 
     array (
       'id' => 'setting-notify-insecure-ssl',
       'env' => 'NOTIFY_INSECURE_SSL',
@@ -1226,7 +1252,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    92 => 
+    94 => 
     array (
       'id' => 'setting-notify-healthcheck-url',
       'env' => 'NOTIFY_HEALTHCHECK_URL',
@@ -1239,7 +1265,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'secret',
     ),
-    93 => 
+    95 => 
     array (
       'id' => 'setting-telegram-token',
       'env' => 'TELEGRAM_BOT_TOKEN',
@@ -1252,7 +1278,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.notify',
       'type' => 'secret',
     ),
-    94 => 
+    96 => 
     array (
       'id' => 'setting-telegram-chats',
       'env' => 'TELEGRAM_ALLOWED_CHAT_IDS',
@@ -1265,7 +1291,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    95 => 
+    97 => 
     array (
       'id' => 'setting-telegram-webhook',
       'env' => '',
@@ -1278,7 +1304,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    96 => 
+    98 => 
     array (
       'id' => 'setting-webpush-enabled',
       'env' => 'WEB_PUSH_ENABLED',
@@ -1291,7 +1317,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    97 => 
+    99 => 
     array (
       'id' => 'setting-ics-enabled',
       'env' => 'ICS_ENABLED',
@@ -1304,7 +1330,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    98 => 
+    100 => 
     array (
       'id' => 'setting-ics-days',
       'env' => 'ICS_DAYS',
@@ -1317,7 +1343,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    99 => 
+    101 => 
     array (
       'id' => 'setting-ics-past-days',
       'env' => 'ICS_PAST_DAYS',
@@ -1330,7 +1356,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    100 => 
+    102 => 
     array (
       'id' => 'setting-scale-enabled',
       'env' => 'SCALE_ENABLED',
@@ -1343,7 +1369,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    101 => 
+    103 => 
     array (
       'id' => 'setting-scale-url',
       'env' => 'SCALE_GATEWAY_URL',
@@ -1356,7 +1382,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    102 => 
+    104 => 
     array (
       'id' => 'setting-backup-enabled',
       'env' => 'BACKUP_ENABLED',
@@ -1369,7 +1395,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    103 => 
+    105 => 
     array (
       'id' => 'setting-backup-retention-days',
       'env' => 'BACKUP_RETENTION_DAYS',
@@ -1382,7 +1408,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    104 => 
+    106 => 
     array (
       'id' => 'setting-gdrive-enabled',
       'env' => 'GDRIVE_ENABLED',
@@ -1395,7 +1421,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    105 => 
+    107 => 
     array (
       'id' => 'setting-gdrive-folder-id',
       'env' => 'GDRIVE_FOLDER_ID',
@@ -1408,7 +1434,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    106 => 
+    108 => 
     array (
       'id' => 'setting-gdrive-client-id',
       'env' => 'GDRIVE_CLIENT_ID',
@@ -1421,7 +1447,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    107 => 
+    109 => 
     array (
       'id' => 'setting-gdrive-client-secret',
       'env' => 'GDRIVE_CLIENT_SECRET',
@@ -1434,7 +1460,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'secret',
     ),
-    108 => 
+    110 => 
     array (
       'id' => 'gdrive-code-input',
       'env' => '',
@@ -1447,7 +1473,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    109 => 
+    111 => 
     array (
       'id' => 'setting-gdrive-retention-days',
       'env' => 'GDRIVE_RETENTION_DAYS',
@@ -1460,7 +1486,46 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    110 => 
+    112 => 
+    array (
+      'id' => 'setting-screensaver-view-alerts',
+      'env' => 'SCREENSAVER_VIEWS',
+      'tab' => 'tab-general',
+      'group' => 'general',
+      'label' => 'screensaver.view_alerts',
+      'hint' => '',
+      'card' => 'settings.screensaver.card_title',
+      'card_hint' => 'settings.screensaver.card_hint',
+      'keywords' => '',
+      'type' => 'action',
+    ),
+    113 => 
+    array (
+      'id' => 'setting-screensaver-view-nutrition',
+      'env' => 'SCREENSAVER_VIEWS',
+      'tab' => 'tab-general',
+      'group' => 'general',
+      'label' => 'screensaver.view_nutrition',
+      'hint' => '',
+      'card' => 'settings.screensaver.card_title',
+      'card_hint' => 'settings.screensaver.card_hint',
+      'keywords' => '',
+      'type' => 'action',
+    ),
+    114 => 
+    array (
+      'id' => 'setting-screensaver-view-fact',
+      'env' => 'SCREENSAVER_VIEWS',
+      'tab' => 'tab-general',
+      'group' => 'general',
+      'label' => 'screensaver.view_fact',
+      'hint' => '',
+      'card' => 'settings.screensaver.card_title',
+      'card_hint' => 'settings.screensaver.card_hint',
+      'keywords' => '',
+      'type' => 'action',
+    ),
+    115 => 
     array (
       'id' => 'setting-shopping-remove-trip',
       'env' => 'SHOPPING_REMOVE_ON_BUY',
@@ -1473,7 +1538,7 @@ function evershelfSettingsSchema(): array
       'keywords' => 'settings.search_kw.shopping',
       'type' => 'action',
     ),
-    111 => 
+    116 => 
     array (
       'id' => 'setting-pref-pocafame',
       'env' => 'PREF_POCAFAME',
@@ -1486,7 +1551,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    112 => 
+    117 => 
     array (
       'id' => 'setting-pref-scadenze',
       'env' => 'PREF_SCADENZE',
@@ -1499,7 +1564,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    113 => 
+    118 => 
     array (
       'id' => 'setting-pref-healthy',
       'env' => 'PREF_HEALTHY',
@@ -1512,7 +1577,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    114 => 
+    119 => 
     array (
       'id' => 'setting-pref-opened',
       'env' => 'PREF_OPENED',
@@ -1525,7 +1590,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    115 => 
+    120 => 
     array (
       'id' => 'setting-pref-zerowaste',
       'env' => 'PREF_ZEROWASTE',
@@ -1538,7 +1603,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    116 => 
+    121 => 
     array (
       'id' => 'setting-weather-lat',
       'env' => 'WEATHER_LAT',
@@ -1551,7 +1616,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    117 => 
+    122 => 
     array (
       'id' => 'setting-weather-lon',
       'env' => 'WEATHER_LON',
@@ -1564,7 +1629,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    118 => 
+    123 => 
     array (
       'id' => 'setting-weather-city',
       'env' => 'WEATHER_CITY',

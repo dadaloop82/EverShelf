@@ -555,6 +555,15 @@ runtime/binary files — if a task truly needs one, ask first.
   `_openCaptureSheet()` is a guard around `_openCaptureSheetInner()`: a throw closes the sheet,
   logs `shelfy-open-failed` and says `capture.open_failed` instead of leaving a half-built
   overlay. A kiosk never auto-focuses the typing field (no system keyboard over a wall tablet).
+- **The idle screen is a dashboard, not a clock with a fact.** Its views live in
+  `assets/js/screensaver.js` (`meal`/`alerts`/`nutrition`/`fact`), each read from the
+  household's data and each returning `null` when it has nothing to say — a card is never
+  painted empty, the rotation walks to the next. A **tap flips the card** (it must not close
+  the screen: a brush on the wall would take the clock away), swipe left/right does the same,
+  a **swipe up** or **«Sblocca»** unlocks, and `initInactivityWatcher` **returns early** while
+  the screen is up instead of dismissing it. Settings under Aspetto: `SCREENSAVER_VIEWS` +
+  `SCREENSAVER_INTERVAL`. `_ssNextFrame()` keeps a `setTimeout` fallback: a hidden wall never
+  calls `requestAnimationFrame`, and a card stuck at opacity 0 is a blank screen.
 - **Tablet/kiosk CSS is opt-in**: `assets/css/tablet.css` activates on `html.is-kiosk`
   / `html.is-touch-tablet` (set by `_markDeviceChrome()`), never on `min-width` alone —
   a desktop monitor keeps the base styles.

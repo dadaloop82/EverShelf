@@ -11693,135 +11693,357 @@ body.cooking-mode-active .app-header {
     color: var(--text-muted);
 }
 
-/* ===== SCREENSAVER ===== */
+/* ===== IDLE SCREEN — ambient kitchen dashboard =====
+   Pure black for OLED walls; the app's own palette on the cards (emerald = do it now /
+   positive, amber = expiring, coral = critical, sky = context), one card at a time, a
+   footer with the numbers that matter. Rendered by assets/js/screensaver.js. */
 .screensaver-overlay {
     position: fixed;
     inset: 0;
     background: #000;
     z-index: 10000;
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: center;
-    cursor: pointer;
     opacity: 0;
     transition: opacity 0.8s ease;
+    /* The idle screen's palette: the app's accents, on the dark surface. */
+    --ss-card: #121514;
+    --ss-card-border: #222926;
+    --ss-text: rgba(255, 255, 255, 0.94);
+    --ss-muted: rgba(255, 255, 255, 0.55);
+    --ss-emerald: #10b981;
+    --ss-amber: #f59e0b;
+    --ss-coral: #ef4444;
+    --ss-sky: #38bdf8;
+    --ss-radius: 20px;
 }
-.screensaver-overlay.visible {
-    opacity: 1;
+.screensaver-overlay.visible { opacity: 1; }
+
+/* Pixel drift: the stage moves a few pixels every couple of minutes (burn-in on a wall
+   that shows the same clock for hours). Transform only — no layout, no repaint. */
+.ss-stage {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: clamp(14px, 2.6vh, 30px);
+    width: min(1100px, 100%);
+    /* The bottom room keeps the footer clear of the «Sblocca» pill. */
+    padding: clamp(20px, 4.5vh, 54px) clamp(18px, 5vw, 64px)
+             max(64px, calc(env(safe-area-inset-bottom, 0px) + 52px));
+    box-sizing: border-box;
+    transition: transform 1.4s ease;
+    will-change: transform;
 }
-.screensaver-content {
+
+/* ── head: the clock, the date, the context pill ── */
+.ss-head {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 32px;
-    padding: 20px;
-    max-width: 90vw;
+    gap: 10px;
 }
-.screensaver-clock {
-    color: rgba(255,255,255,0.85);
-    font-size: 7rem;
+.ss-clock {
+    color: var(--ss-text);
+    font-size: clamp(3.4rem, 11vw, 7.5rem);
     font-weight: 200;
     font-variant-numeric: tabular-nums;
-    letter-spacing: 4px;
+    letter-spacing: 0.02em;
+    line-height: 1;
     text-align: center;
-    line-height: 1.2;
     user-select: none;
 }
-.screensaver-clock .screensaver-date {
-    font-size: 1.4rem;
+.ss-date {
+    margin-top: 6px;
+    font-size: clamp(0.9rem, 2vw, 1.25rem);
     font-weight: 300;
-    opacity: 0.45;
-    letter-spacing: 1px;
-    margin-top: 4px;
+    color: var(--ss-muted);
+    letter-spacing: 0.02em;
 }
-.screensaver-fact {
-    color: rgba(255,255,255,0.55);
-    font-size: 1.6rem;
-    font-weight: 300;
-    text-align: center;
-    line-height: 1.5;
-    max-width: 500px;
-    min-height: 2.5em;
-    opacity: 0;
-    transition: opacity 1.5s ease;
-    user-select: none;
-}
-.screensaver-fact.visible {
-    opacity: 1;
-}
-.screensaver-mealplan {
-    text-align: center;
-    user-select: none;
-    margin: -8px 0 4px;
-}
-.screensaver-mealplan-badge {
-    display: inline-block;
-    background: rgba(255,255,255,0.10);
-    color: rgba(255,255,255,0.70);
-    border: 1px solid rgba(255,255,255,0.18);
-    border-radius: 28px;
-    padding: 8px 24px;
-    font-size: 1.35rem;
-    font-weight: 400;
-    letter-spacing: 0.4px;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-}
-.screensaver-shopping {
-    text-align: center;
-    user-select: none;
-    margin: -8px 0 0;
-}
-.screensaver-shopping-card {
+/* Capitalise the first letter only: `text-transform: capitalize` turned «mercoledì 12
+   novembre» into «Mercoledì 12 Novembre». */
+.ss-date::first-letter { text-transform: uppercase; }
+.ss-context {
     display: inline-flex;
     align-items: center;
-    gap: 18px;
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.13);
-    border-radius: 20px;
-    padding: 14px 32px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    gap: 8px;
+    padding: 7px 16px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--ss-sky) 34%, transparent);
+    background: color-mix(in srgb, var(--ss-sky) 12%, transparent);
+    color: color-mix(in srgb, var(--ss-sky) 55%, white);
+    font-size: clamp(0.8rem, 1.5vw, 0.95rem);
+    font-weight: 600;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.ss-shop-col {
+.ss-context[hidden] { display: none; }
+.ss-context-sep { opacity: 0.45; }
+
+/* ── core: ONE card ── */
+.ss-core {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: 4px 0;
+}
+.ss-card {
+    width: min(760px, 100%);
+    max-height: 100%;
+    overflow-y: auto;
+    background: var(--ss-card);
+    border: 1px solid var(--ss-card-border);
+    border-radius: var(--ss-radius);
+    padding: clamp(16px, 2.6vh, 26px) clamp(18px, 3vw, 30px);
+    box-sizing: border-box;
+    color: var(--ss-text);
+    transition: opacity 0.28s ease, transform 0.28s ease;
+}
+.ss-core.is-out .ss-card { opacity: 0; transform: translateY(6px); }
+.ss-card[data-accent="emerald"] { --ss-accent: var(--ss-emerald); }
+.ss-card[data-accent="amber"]   { --ss-accent: var(--ss-amber); }
+.ss-card[data-accent="coral"]   { --ss-accent: var(--ss-coral); }
+.ss-card[data-accent="sky"]     { --ss-accent: var(--ss-sky); }
+
+.ss-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ss-accent, var(--ss-muted));
+}
+.ss-title {
+    margin: 8px 0 0;
+    font-size: clamp(1.2rem, 3.2vw, 1.9rem);
+    font-weight: 700;
+    line-height: 1.2;
+}
+.ss-sub {
+    margin: 6px 0 0;
+    font-size: clamp(0.86rem, 1.7vw, 1rem);
+    color: var(--ss-muted);
+    line-height: 1.45;
+}
+.ss-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+.ss-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border: 1px solid #2a322e;
+    background: #171c1a;
+    color: rgba(255, 255, 255, 0.8);
+}
+.ss-chip.is-ok {
+    border-color: color-mix(in srgb, var(--ss-emerald) 40%, transparent);
+    background: color-mix(in srgb, var(--ss-emerald) 14%, transparent);
+    color: #6ee7b7;
+}
+.ss-chip.is-warn {
+    border-color: color-mix(in srgb, var(--ss-amber) 40%, transparent);
+    background: color-mix(in srgb, var(--ss-amber) 14%, transparent);
+    color: #fcd34d;
+}
+.ss-chip.is-danger {
+    border-color: color-mix(in srgb, var(--ss-coral) 45%, transparent);
+    background: color-mix(in srgb, var(--ss-coral) 14%, transparent);
+    color: #fca5a5;
+}
+/* rows of the alerts card — they open the product sheet, so they are buttons */
+.ss-rows {
     display: flex;
     flex-direction: column;
+    gap: 8px;
+    margin-top: 14px;
+}
+.ss-row {
+    display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid #222926;
+    background: #161a18;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+    width: 100%;
+    cursor: pointer;
 }
-.ss-shop-sep {
-    width: 1px;
-    height: 36px;
-    background: rgba(255,255,255,0.18);
+.ss-row[data-tone="coral"] { border-color: color-mix(in srgb, var(--ss-coral) 34%, #222926); }
+.ss-row-icon { flex: 0 0 auto; font-size: 1.15rem; line-height: 1; }
+.ss-row-info { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; }
+.ss-row-name {
+    font-size: clamp(0.92rem, 1.8vw, 1.05rem);
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
-.ss-shop-value {
-    color: rgba(255,255,255,0.92);
-    font-size: 1.9rem;
-    font-weight: 300;
-    letter-spacing: 1px;
-    line-height: 1;
+.ss-row-meta { margin-top: 2px; font-size: 0.82rem; color: var(--ss-muted); }
+.ss-row-badge {
+    flex: 0 0 auto;
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
 }
-.ss-shop-label {
-    color: rgba(255,255,255,0.38);
-    font-size: 0.8rem;
-    font-weight: 400;
-    letter-spacing: 0.8px;
+.ss-row[data-tone="amber"] .ss-row-badge {
+    background: color-mix(in srgb, var(--ss-amber) 18%, transparent);
+    color: #fcd34d;
+}
+.ss-row[data-tone="coral"] .ss-row-badge {
+    background: color-mix(in srgb, var(--ss-coral) 18%, transparent);
+    color: #fca5a5;
+}
+
+/* the action of a card: ONE emerald, and only when it does something */
+.ss-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: none;
+    background: var(--ss-emerald);
+    color: #04231a;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+.ss-action:active { transform: scale(0.98); }
+
+/* ── nutrition: the ring + the three scores, high contrast ── */
+.ss-nutr {
+    display: flex;
+    gap: clamp(14px, 3vw, 28px);
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+.ss-pie {
+    width: clamp(116px, 22vw, 164px);
+    height: clamp(116px, 22vw, 164px);
+    border-radius: 50%;
+    flex: 0 0 auto;
+    /* A donut, not a pancake: the middle is punched out with a mask. */
+    mask: radial-gradient(circle, transparent 46%, #000 47%);
+    -webkit-mask: radial-gradient(circle, transparent 46%, #000 47%);
+}
+.ss-rings {
+    display: flex;
+    gap: clamp(10px, 2.4vw, 22px);
+    flex: 1 1 220px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.ss-ring-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ss-ring {
+    width: clamp(62px, 11vw, 82px);
+    height: clamp(62px, 11vw, 82px);
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: clamp(0.8rem, 1.6vw, 0.95rem);
+    color: #fff;
+    /* --pct and --ring-color are set inline by the renderer */
+    background: conic-gradient(var(--ring-color) calc(var(--pct) * 1%), #1d2422 0);
+    box-shadow: inset 0 0 0 8px #121514;
+}
+.ss-ring-label {
+    font-size: 0.72rem;
+    color: var(--ss-muted);
     text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
+.ss-legend { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+.ss-leg { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--ss-muted); }
+.ss-leg-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.ss-leg b { color: var(--ss-text); margin-left: auto; }
+
+/* ── footer: the vital numbers, one line ── */
+.ss-foot {
+    display: flex;
+    gap: clamp(10px, 2.4vw, 22px);
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    font-size: clamp(0.78rem, 1.5vw, 0.95rem);
+    color: var(--ss-muted);
+}
+.ss-foot[hidden] { display: none; }
+.ss-kpi { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.ss-kpi b { color: var(--ss-text); font-weight: 700; }
+.ss-kpi-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+
+/* ── unlock: the way back (a tap flips the view, it must NOT close) ── */
+.ss-unlock {
+    position: absolute;
+    bottom: max(18px, env(safe-area-inset-bottom, 18px));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10003;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.8);
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.ss-unlock:active { background: rgba(255, 255, 255, 0.16); }
+
+/* A phone turns the card into a stack: the charts over the length, the rows on one column.
+   The controls of a pinned run move to the BOTTOM here: at the top-right they covered the
+   clock on a 393 px screen (measured), and the clock is the one thing that must stay whole. */
+@media (max-width: 640px) {
+    .ss-stage { padding: 16px 12px 152px; gap: 10px; }
+    .ss-card { padding: 14px 14px 16px; }
+    .ss-nutr { justify-content: center; }
+    .ss-rows { gap: 6px; }
+    .ss-foot { gap: 8px 14px; font-size: 0.82rem; }
+}
+
+/* Settings: the four view switches of the idle screen, two by two */
+.ss-views-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 8px 16px;
+    margin-top: 8px;
+}
+/* Shortcuts of the idle screen (recipe / scan) and the controls of a PINNED run. */
 .screensaver-shortcuts {
     position: absolute;
     bottom: max(32px, env(safe-area-inset-bottom, 32px));
-    right: 32px;
+    right: 28px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
     z-index: 10001;
 }
-/* Controls of a PINNED screensaver (`?screensaver…` / «Anteprima»), top-right: that clock
-   does not close on a tap — a wall would lose it at the first accidental touch — so it owns
-   its own controls, and the versions of the idle screen (a fact, then the nutrition charts)
-   can be scrolled without waiting the five minutes of the automatic rotation.
-   Top-right: the recipe/scan shortcuts are bottom-right and must never sit under them. */
 .screensaver-pin-bar {
     position: absolute;
     top: max(18px, env(safe-area-inset-top, 18px));
@@ -11833,9 +12055,7 @@ body.cooking-mode-active .app-header {
     gap: 8px;
     max-width: calc(100vw - 36px);
 }
-
 .screensaver-pin-bar[hidden] { display: none; }
-
 .screensaver-pin-btn {
     display: inline-flex;
     align-items: center;
@@ -11849,11 +12069,8 @@ body.cooking-mode-active .app-header {
     font-size: 0.82rem;
     font-weight: 600;
     cursor: pointer;
-    /* No backdrop-filter: a blur over the clock repaints every frame on a low-end wall. */
 }
-
 .screensaver-pin-btn:active { background: rgba(255, 255, 255, 0.2); }
-
 .screensaver-exit-count {
     font-variant-numeric: tabular-nums;
     opacity: 0.72;
@@ -11871,8 +12088,6 @@ body.cooking-mode-active .app-header {
     display: flex;
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
     transition: background 0.2s, transform 0.15s;
     user-select: none;
     -webkit-user-select: none;
@@ -11882,141 +12097,21 @@ body.cooking-mode-active .app-header {
     transform: scale(0.92);
 }
 
-/* ── Screensaver nutrition panel ── */
-.screensaver-nutrition {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    max-width: 90vw;
-    pointer-events: none;
-    user-select: none;
-}
-.ss-nutr-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-}
-.ss-nutr-title {
-    color: rgba(255,255,255,0.75);
-    font-size: 1.3rem;
-    font-weight: 300;
-    letter-spacing: 1px;
-    text-align: center;
-}
-.ss-nutr-charts {
-    display: flex;
-    align-items: flex-start;
-    gap: 36px;
-    flex-wrap: wrap;
-    justify-content: center;
-}
-.ss-nutr-chart-block {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-}
-.ss-nutr-chart-label {
-    color: rgba(255,255,255,0.5);
-    font-size: .85rem;
-    text-align: center;
-}
-/* 3D animated pie */
-.ss-pie3d {
-    width: 140px;
-    height: 140px;
-    border-radius: 50%;
-    background: var(--pie-bg, conic-gradient(#4ade80 0deg 90deg, #60a5fa 90deg 180deg, #fbbf24 180deg 270deg, #334155 270deg 360deg));
-    transform: perspective(250px) rotateX(40deg) scale(0.82);
-    box-shadow: 0 12px 32px rgba(0,0,0,0.6), 0 4px 0 rgba(255,255,255,0.06);
-    transition: transform 0.8s cubic-bezier(.34,1.56,.64,1), box-shadow 0.8s;
-    will-change: transform;
-}
-.ss-pie3d.ss-pie3d-ready {
-    transform: perspective(250px) rotateX(30deg) scale(1);
-    animation: ss-pie-spin 18s linear infinite;
-}
-@keyframes ss-pie-spin {
-    from { transform: perspective(250px) rotateX(30deg) rotate(0deg) scale(1); }
-    to   { transform: perspective(250px) rotateX(30deg) rotate(360deg) scale(1); }
-}
-.ss-nutr-legend {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    min-width: 130px;
-}
-.ss-leg-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: rgba(255,255,255,0.65);
-    font-size: .8rem;
-}
-.ss-leg-dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-.ss-leg-pct {
-    margin-left: auto;
-    color: rgba(255,255,255,0.45);
-}
-/* Score donut column */
-.ss-nutr-scores-col {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    align-items: center;
-}
-.ss-donut-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-}
-.ss-donut-label {
-    color: rgba(255,255,255,0.45);
-    font-size: .75rem;
-}
-/* CSS-only ring donut using conic-gradient */
-.ss-donut-ring {
-    position: relative;
-    width: 72px;
-    height: 72px;
-    border-radius: 50%;
-    background: conic-gradient(var(--color, #4ade80) calc(var(--val, 0) * 1%), rgba(255,255,255,0.08) calc(var(--val, 0) * 1%));
-    transform: perspective(120px) rotateX(30deg) scale(0.7);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.5);
-    transition: transform 0.7s cubic-bezier(.34,1.56,.64,1), background 0.9s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.ss-donut-ring.ss-donut-ready {
-    transform: perspective(120px) rotateX(25deg) scale(1);
-    animation: ss-donut-bob 4s ease-in-out infinite;
-}
-@keyframes ss-donut-bob {
-    0%,100% { transform: perspective(120px) rotateX(25deg) scale(1) translateY(0); }
-    50%      { transform: perspective(120px) rotateX(25deg) scale(1) translateY(-4px); }
-}
-.ss-donut-ring::after {
-    content: '';
-    position: absolute;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: #0a0a0a;
-}
-.ss-donut-text {
-    position: relative;
-    z-index: 1;
-    color: rgba(255,255,255,0.8);
-    font-size: .8rem;
-    font-weight: 600;
+/* On a phone the pinned controls move to the BOTTOM: at the top-right they covered the
+   clock on a 393 px screen (measured), and the clock is the one thing that must stay whole.
+   This block sits after the base rules on purpose — before them, `top` would win. */
+@media (max-width: 640px) {
+    .screensaver-pin-bar {
+        top: auto;
+        bottom: max(62px, calc(env(safe-area-inset-bottom, 0px) + 58px));
+        left: 12px;
+        right: 12px;
+        justify-content: center;
+    }
+    .ss-unlock { bottom: max(14px, env(safe-area-inset-bottom, 14px)); }
+    /* The two round shortcuts are a wall feature: on a phone «Sblocca» + the nav are enough,
+       and they would overlap the pinned controls. */
+    .screensaver-shortcuts { display: none; }
 }
 
 /* ── Dashboard nutrition card ── */

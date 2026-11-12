@@ -110,6 +110,11 @@ $idToEnv = [
     // One switch, two radios (plan | trip).
     'setting-shopping-remove-plan' => 'SHOPPING_REMOVE_ON_BUY',
     'setting-shopping-remove-trip' => 'SHOPPING_REMOVE_ON_BUY',
+    // The four idle-screen switches are ONE comma list on the server.
+    'setting-screensaver-view-meal'      => 'SCREENSAVER_VIEWS',
+    'setting-screensaver-view-alerts'    => 'SCREENSAVER_VIEWS',
+    'setting-screensaver-view-nutrition' => 'SCREENSAVER_VIEWS',
+    'setting-screensaver-view-fact'      => 'SCREENSAVER_VIEWS',
 ];
 
 /**

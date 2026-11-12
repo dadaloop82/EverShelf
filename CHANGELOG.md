@@ -5,6 +5,54 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.0] - 2026-11-12
+
+### The idle screen is an ambient kitchen dashboard
+Asked for: «rifai completamente lo screensaver… visivamente risulta piatto… testi troppo generici…
+lo stile è slegato dal resto di EverShelf». The clock and a random sentence from an encyclopedia
+became a dashboard that reads the household's own database.
+
+- **A card at a time, four real views** (`assets/js/screensaver.js`, its own file like
+  `audit.js`): **meal** (the slot of the day + the plan, with a recipe from the archive the
+  pantry can cook NOW — nothing missing scores highest, an ingredient about to expire scores
+  more, plus ⏱️/🔥/🥩), **alerts** (up to three things to eat first: opened past its window,
+  expired, expiring — each row opens the product sheet; with nothing to do the card celebrates
+  the 30-day milestone), **nutrition** (the category pie + health/variety/freshness rings, high
+  contrast, plus one insight generated from the weakest score) and **fact** (five dynamic
+  templates: shopping list, savings vs waste, weather + the thing expiring first, the medicine
+  cabinet, the shape of the pantry). A view with nothing to say is skipped, never painted empty.
+- **EverShelf's own palette on pure black**: dark-glass cards (`#121514`, 1px `#222926`,
+  20px radius), emerald for what you act on, amber for expiring, coral for critical, sky for
+  context — including the **context pill** under the clock (weather from `weather_get` + the
+  plan of the moment) and a **footer** with the vital numbers (`🛒 22 in lista · €80,28 ·
+  ⚠️ 3 in scadenza · 📦 5 aperti`).
+- **Interaction that belongs to a wall**: a **tap flips the view** (it no longer closes the
+  screen — an accidental brush must not take the clock away), a swipe left/right does the same,
+  a **swipe up** unlocks, and a **«Sblocca»** pill (bottom centre) plus **Esc** are the explicit
+  way back. The idle listeners now leave the screen alone (`initInactivityWatcher` returns early
+  while it is up) instead of dismissing it on the first `pointerdown`.
+- **Burn-in**: the whole stage drifts a few pixels every 2.5 minutes (`transform` only) and the
+  card is the only thing that changes, so a wall showing the clock for hours stays even.
+- **Configurable under Aspetto**: four switches (meal / alerts / nutrition / fact) and the pace
+  (15 · 20 · 30 · 60 s, default 20) — `SCREENSAVER_VIEWS` + `SCREENSAVER_INTERVAL`, stored with
+  the rest and shown in the same card as the timeout, with a nearest-option fallback so a value
+  coming from `.env` never leaves the field blank.
+- **The forced run keeps working and gets easier**: `?screensaver[=N]` and «▶️ Anteprima 30 s»
+  still show it for N seconds without touching a setting; the pin bar's ⏭ now names the next
+  card (`_ssNextViewLabel`) and its ✕ still prints the time left.
+- **Found on the way**: `requestAnimationFrame` alone left the fade step at opacity 0 on a
+  hidden wall (a blank screen) — `_ssNextFrame()` adds a 150 ms timeout fallback; a nutrition
+  view with nothing to chart now keeps the previous card instead of an empty one; the phone
+  layout put the pinned controls over the clock (moved to the bottom below 640 px, where the
+  round shortcuts are hidden: on a phone «Sblocca» and the nav are enough).
+- Validated in headless Chromium with stubbed data: first card `meal` (emerald) with a real
+  recipe, missing/expiring chips, context `🌧️ 11°C · Bolzano · 🌙 Pesce`, footer
+  `⚠️ 3 in scadenza · 📦 1 aperto`; **tap → `alerts` and the screen stayed open**; swipe up →
+  dismissed; settings loaded `alerts,fact` + 45 s (shown as 30) and saved `meal,alerts,fact` +
+  60 s; `errors: []`. Layout checked at 1280 and 500 px.
+- Also: the old screensaver styles and the 500-line fact generator are gone, the nav index and
+  the wiki describe the new engine, and the service worker caches the new file.
+
 ## [1.32.0] - 2026-11-12
 
 ### The settings panel is a control panel now — and it saves itself
