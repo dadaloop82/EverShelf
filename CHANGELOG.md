@@ -150,7 +150,7 @@ became a dashboard that reads the household's own database.
 - The brand artwork (`logo*.png`, `social_preview.png`) and the vendored minified libraries stay:
   they are hot-linked by the website, the manifest and the service worker.
 - **The branch is not part of the product.** The README no longer names a branch (it talks about
-  «1.33 is a large refactor»), `CODEBASE-MAP` measures the release, and the **three git labels**
+  «2.0 is a large refactor»), `CODEBASE-MAP` measures the release, and the **three git labels**
   (header, splash chip, Settings → About) start **empty**: `scripts/bump-version.sh` fills them
   from git only on a feature branch and clears them on `main`/`develop`, and `:empty` hides an
   empty chip (its `margin-left` was a gap). A released install shows the version and nothing else.

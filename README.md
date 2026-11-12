@@ -20,7 +20,7 @@ Everything runs on your own hardware, and nothing about your pantry leaves it.
 
 ---
 
-## 🚧 1.33 is a large refactor
+## 🚧 2.0 is a large refactor
 
 This release rewrites the parts the household actually touches — the settings page, the idle
 screen, every list, the medicine cabinet and the stocktake. The database migrates itself on the

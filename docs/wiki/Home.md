@@ -71,7 +71,7 @@ cabinet row, and the sheet's facts wrap instead of scrolling sideways.
 one state pill, the same two actions.
 
 → The full history is in the [CHANGELOG](https://github.com/dadaloop82/EverShelf/blob/main/CHANGELOG.md);
-what changed and why is described in the [README](https://github.com/dadaloop82/EverShelf#-133-is-a-large-refactor).
+what changed and why is described in the [README](https://github.com/dadaloop82/EverShelf#-20-is-a-large-refactor).
 
 ---
 
