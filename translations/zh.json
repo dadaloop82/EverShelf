@@ -2470,6 +2470,9 @@
   },
   "scanner": {
     "camera_unavailable": "此设备无法使用相机：请在系统设置中检查相机权限（或手动搜索商品）。",
+    "camera_off_title": "相机不可用",
+    "camera_off_body": "视频流保持关闭，AI 识别已停用。可按名称搜索、手动输入条码或手动添加：其余功能仍可正常使用。",
+    "camera_off_ai": "AI 识别需要相机",
     "title_barcode": "🔖 扫描条形码",
     "barcode_hint": "将商品条形码放入取景框",
     "barcode_manual_placeholder": "或手动输入…",

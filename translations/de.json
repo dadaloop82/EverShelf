@@ -2473,6 +2473,9 @@
   },
   "scanner": {
     "camera_unavailable": "Kamera auf diesem Gerät nicht verfügbar: prüfe die Kameraberechtigung in den Systemeinstellungen (oder suche das Produkt von Hand).",
+    "camera_off_title": "Kamera nicht verfügbar",
+    "camera_off_body": "Der Stream bleibt aus und die KI-Erkennung ist deaktiviert. Suche nach Namen, tippe den Code ein oder füge es von Hand hinzu: alles andere funktioniert.",
+    "camera_off_ai": "Die KI-Erkennung braucht die Kamera",
     "title_barcode": "🔖 Barcode scannen",
     "barcode_hint": "Produktbarcode einrahmen",
     "barcode_manual_placeholder": "Oder manuell eingeben...",

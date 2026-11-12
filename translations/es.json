@@ -2470,6 +2470,9 @@
   },
   "scanner": {
     "camera_unavailable": "Cámara no disponible en este dispositivo: revisa el permiso de cámara en los ajustes del sistema (o busca el producto a mano).",
+    "camera_off_title": "Cámara no disponible",
+    "camera_off_body": "El stream queda apagado y el reconocimiento con IA está desactivado. Busca por nombre, escribe el código o añade a mano: lo demás funciona.",
+    "camera_off_ai": "El reconocimiento con IA necesita la cámara",
     "title_barcode": "🔖 Escanear código de barras",
     "barcode_hint": "Encuadra el código de barras del producto",
     "barcode_manual_placeholder": "O introduce manualmente...",

@@ -2470,6 +2470,9 @@
   },
   "scanner": {
     "camera_unavailable": "Camera not available on this device: check the camera permission in the system settings (or search for the product by hand).",
+    "camera_off_title": "Camera not available",
+    "camera_off_body": "The stream stays off and AI recognition is disabled. Search by name, type the code or add it by hand: everything else works.",
+    "camera_off_ai": "AI recognition needs the camera",
     "title_barcode": "🔖 Scan Barcode",
     "barcode_hint": "Frame the product barcode",
     "barcode_manual_placeholder": "Or enter manually...",

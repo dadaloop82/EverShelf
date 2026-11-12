@@ -12,29 +12,29 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261112p">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261112p">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261112p">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261112q">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261112q">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261112q">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261112p">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261112q">
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
-    <link rel="stylesheet" href="assets/css/tablet.css?v=20261112p">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261112p">
+    <link rel="stylesheet" href="assets/css/tablet.css?v=20261112q">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261112q">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261112p"></script>
-    <script src="assets/js/core/auth.js?v=20261112p"></script>
-    <script src="assets/js/core/med.js?v=20261112p"></script>
+    <script src="assets/js/core/dom.js?v=20261112q"></script>
+    <script src="assets/js/core/auth.js?v=20261112q"></script>
+    <script src="assets/js/core/med.js?v=20261112q"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261112p"></script>
+    <script src="assets/js/med/italy.js?v=20261112q"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261112p"></script>
+    <script src="assets/js/core/support.js?v=20261112q"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -42,7 +42,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112p';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112q';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -51,13 +51,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112p';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112q';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261112p"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261112q"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -480,6 +480,18 @@
             <h2 id="scan-title" data-i18n="scan.title">Scansiona</h2>
             <button class="scan-spesa-chip" id="scan-spesa-btn" onclick="startSpesaMode()" data-i18n="scan.spesa_btn">📷 Continua</button>
         </div>
+        <!-- No camera: the page still opens, because half of it never needed the stream — a typed
+             barcode, the name search and the manual form are the whole door for a phone that
+             refused the permission («devi disattivarmi lo stream ma non l'intera funzione»). The
+             notice is a CARD: the toast this used to be is a capsule, and this sentence is two
+             lines long («il popup è rotondo ed è brutissimo»). -->
+        <div class="scan-nocamera" id="scan-nocamera" hidden role="status">
+            <span class="scan-nocamera-icon" aria-hidden="true">📷</span>
+            <div class="scan-nocamera-text">
+                <strong class="scan-nocamera-title" data-i18n="scanner.camera_off_title">Fotocamera non disponibile</strong>
+                <p class="scan-nocamera-body" data-i18n="scanner.camera_off_body">Lo stream resta spento e il riconoscimento AI è disattivato. Cerca per nome, scrivi il codice o aggiungi a mano: il resto funziona.</p>
+            </div>
+        </div>
         <!-- The panel has TWO modes, never mixed: food (default) and medicines, chosen by the
              place the pantry is showing (the cabinet → medicines). `is-medical-scan` hides every
              food-only control in CSS; the medicine ones are shown by _setScanMode(). -->
@@ -589,7 +601,7 @@
 
             <!-- Action bar under stream -->
             <div class="scan-action-bar" id="scan-action-bar">
-                <button type="button" class="scan-action-btn scan-action-ai" id="scan-ai-manual-btn" onclick="_triggerManualAiScan()">
+                <button type="button" class="scan-action-btn scan-action-ai" id="scan-ai-manual-btn" data-camera-only onclick="_triggerManualAiScan()">
                     <span class="scan-action-icon" aria-hidden="true">🤖</span>
                     <span class="scan-action-label" data-i18n="scan.ai_manual_btn">Identifica AI</span>
                 </button>
@@ -3539,17 +3551,17 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261112p"></script>
-<script src="assets/js/food_facts.generated.js?v=20261112p"></script>
-<script src="assets/js/free_apis.generated.js?v=20261112p"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261112p"></script>
-<script src="assets/js/off_categories.generated.js?v=20261112p"></script>
-<script src="assets/js/core/vocab.js?v=20261112p"></script>
-<script src="assets/js/app.js?v=20261112p"></script>
-<script src="assets/js/audit.js?v=20261112p"></script>
-<script src="assets/js/receipt.js?v=20261112p"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261112p"></script>
-<script src="assets/js/settings_search.js?v=20261112p"></script>
+<script src="assets/js/vocab.generated.js?v=20261112q"></script>
+<script src="assets/js/food_facts.generated.js?v=20261112q"></script>
+<script src="assets/js/free_apis.generated.js?v=20261112q"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261112q"></script>
+<script src="assets/js/off_categories.generated.js?v=20261112q"></script>
+<script src="assets/js/core/vocab.js?v=20261112q"></script>
+<script src="assets/js/app.js?v=20261112q"></script>
+<script src="assets/js/audit.js?v=20261112q"></script>
+<script src="assets/js/receipt.js?v=20261112q"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261112q"></script>
+<script src="assets/js/settings_search.js?v=20261112q"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

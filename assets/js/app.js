@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112p'; // bump when translations change
+const _I18N_VERSION = '20261112q'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -5193,6 +5193,11 @@ function _updateScanAiButton() {
     const ready = _currentPageId === 'scan' && !!scannerStream && _scannerAiAllowed() && !_aiBarcodeVisualRunning && !_numOcrRunning && !_aiDetectedProductDraft;
     btn.style.display = '';
     btn.disabled = !ready;
+    // Wearing the ✕ of every camera entry (`html.no-camera`) it also SAYS why: a disabled button
+    // with no reason reads as a broken app, and the AI door is the only one the stream takes away.
+    const noCam = (typeof _cameraUsable === 'function' && !_cameraUsable());
+    btn.classList.toggle('is-disabled', noCam);
+    btn.title = noCam ? t('scanner.camera_off_ai') : '';
 }
 
 function _clearAiMatchPanel() {
@@ -5666,6 +5671,11 @@ async function _triggerManualAiScan() {
     }
     if (!_scannerAiAllowed()) {
         showToast(t('error.no_api_key'), 'error');
+        return;
+    }
+    // AI identification reads a FRAME of the stream: without a camera there is no frame to read.
+    if (typeof _cameraUsable === 'function' && !_cameraUsable()) {
+        _explainCameraUnavailable();
         return;
     }
     if (_aiBarcodeVisualRunning || _numOcrRunning) return;
@@ -9149,13 +9159,13 @@ function refreshAppDataAfterMutation() {
 }
 
 function showPage(pageId, param = null, options = {}) {
-    // A device that cannot use its camera still shows the 📷 (asked for: «meglio mettere una X
-    // sulla fotocamera quando non è disponibile, e se la clicchi viene fuori il messaggio»), so
-    // the tap must SAY why instead of opening a page whose only content is a grey box.
-    if (pageId === 'scan' && typeof _cameraUsable === 'function' && !_cameraUsable()) {
-        _explainCameraUnavailable();
-        return;
-    }
+    // A device that cannot use its camera still shows the 📷 with its ✕ («meglio mettere una X
+    // sulla fotocamera quando non è disponibile, e se la clicchi viene fuori il messaggio») — and
+    // the tap now OPENS THE PAGE. Only the stream is unavailable, and half of this page never
+    // needed it: a typed barcode, the name search and the manual form are the whole door for a
+    // phone that refused the permission («devi disattivarmi lo stream ma non l'intera funzione»).
+    // `initScanner()` is what refuses to open a stream; the page wears the notice (`#scan-nocamera`)
+    // and CSS drops the camera's own furniture.
     if (!options.skipAddGuard && pageId !== 'add' && _isAddFormLeaveGuardActive()) {
         _promptAddFormLeave(() => showPage(pageId, param, { ...options, skipAddGuard: true }));
         return;
@@ -9233,6 +9243,9 @@ function showPage(pageId, param = null, options = {}) {
             updateSpesaBanner();
             updateScanQuickRail();
             _applySpesaScanUI();
+            // The page says it when there is no camera (and drops the AI door with it): the
+            // stream is what is off, never the page.
+            _syncScanNoCameraChrome();
             _setScanHudState('idle');
             _blurActiveTextInput();
             // The scanner NEVER warms the category classifier. Opening this page used to call
@@ -10701,13 +10714,50 @@ function _cameraUsable() {
 }
 
 function _applyCameraChrome() {
-    try { document.documentElement.classList.toggle('no-camera', !_cameraUsable()); } catch (e) {}
+    const blocked = !_cameraUsable();
+    try { document.documentElement.classList.toggle('no-camera', blocked); } catch (e) { /* not reached before DOM */ }
+    _syncScanNoCameraChrome(blocked);
 }
 
-/** One sentence, the same one the scanner prints, plus a log line: no grey box, no silence. */
+/**
+ * The scan page adapted to a device without a camera: the NOTICE and the AI door.
+ *
+ * The viewport and the camera's furniture are dropped by CSS (`html.no-camera …`), because those
+ * elements also carry inline `display` written by the shopping mode. Only what a class cannot say
+ * lives here: the notice becomes visible, and the AI button says why it cannot work — the stream is
+ * what is off, never the page (typed barcode, name search, manual form stay live).
+ */
+function _syncScanNoCameraChrome(blocked) {
+    const on = blocked !== undefined ? !!blocked : !_cameraUsable();
+    const note = document.getElementById('scan-nocamera');
+    if (note) note.hidden = !on;
+    const ai = document.getElementById('scan-ai-manual-btn');
+    if (!ai) return;
+    if (!on) {
+        ai.classList.remove('is-disabled');
+        return;
+    }
+    ai.disabled = true;
+    ai.classList.add('is-disabled');
+    ai.title = t('scanner.camera_off_ai');
+}
+
+/**
+ * The camera is not there: say it ON the page, in a card, and keep the page.
+ *
+ * It used to be a toast only — a capsule with two lines inside, which the household described as
+ * «il popup è rotondo ed è brutissimo» — and the scan page never opened at all. Both were the same
+ * mistake: a missing permission is not a broken app. On the scan page the notice is part of the
+ * page (and the manual doors stay under it); anywhere else a card-shaped toast carries the
+ * sentence, because there the scan page is not on screen to say it.
+ */
 function _explainCameraUnavailable() {
-    try { showToast(t('scanner.camera_unavailable'), 'warning', 7000); } catch (e) {}
-    try { remoteLog('CAM', 'tap on a camera entry with no camera'); } catch (e) {}
+    _syncScanNoCameraChrome(true);
+    const onScan = (typeof _currentPageId === 'string' && _currentPageId === 'scan');
+    if (!onScan) {
+        try { showToast(t('scanner.camera_unavailable'), 'warning card', 7000); } catch (e) { /* toast not in the DOM yet */ }
+    }
+    try { remoteLog('CAM', onScan ? 'no camera: notice shown on the scan page' : 'no camera: explained on another page'); } catch (e) { /* logging is optional */ }
 }
 
 function _markCameraBlocked(reason) {
@@ -20816,6 +20866,19 @@ function _cameraRetry() {
 }
 
 async function initScanner() {
+    // NO STREAM, NO PAGE LOST. A phone that refused the camera permission still has the typed
+    // barcode, the name search and the manual form on this page — so this only refuses to open a
+    // `getUserMedia()` that can only fail, and leaves the rest of the page alive («devi
+    // disattivarmi lo stream ma non l'intera funzione»). Before this, `showPage('scan')` returned
+    // early: the manual doors were unreachable and the message was a capsule-shaped toast.
+    if (typeof _cameraUsable === 'function' && !_cameraUsable()) {
+        stopScanner();
+        _syncScanNoCameraChrome(true);
+        _setScanHudState('idle');
+        _updateScanAiButton();
+        scanLog('No camera: stream not opened, manual entry stays available');
+        return;
+    }
     const video = document.getElementById('scanner-video');
     const viewport = document.getElementById('scanner-viewport');
     const logEl = document.getElementById('scan-debug-log');
@@ -20913,7 +20976,10 @@ async function initScanner() {
         console.error('Camera error:', err);
         if (viewport) viewport.classList.add('scanner-off');
         const result = document.getElementById('scan-result');
-        if (result) {
+        // A camera that cannot work at all is explained BY THE PAGE (`#scan-nocamera`: the stream
+        // is off, the manual doors stay). A second panel saying the same thing, over a page that
+        // still works, is noise — so this sheet only answers a failure the device may recover from.
+        if (result && _cameraUsable()) {
             result.innerHTML = `
                 <div class="scan-result-sheet-head">
                     <span class="scan-result-sheet-title">${escapeHtml(t('error.camera'))}</span>

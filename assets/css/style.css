@@ -15617,7 +15617,7 @@ body.cooking-mode-active #shelfy-intro { z-index: 100001; }
 /* Kept VISIBLE, wearing the ✕ (asked for: «meglio mettere una X sulla fotocamera quando non è
    disponibile, e se la clicchi viene fuori il messaggio»): hiding the button left the household
    wondering where the scanner went, while a grey box answered "impossibile accedere". The tap
-   goes through `showPage('scan')`, which now explains instead of navigating. */
+   now OPENS the scan page, and the page says it: only the stream is off (see below). */
 html.no-camera #btn-header-scan,
 html.no-camera #pf-barcode-scan-btn,
 html.no-camera #screensaver-scan-btn,
@@ -15648,6 +15648,59 @@ html.no-camera [onclick*="_auditSetMode('scan')"]::after {
     line-height: 15px;
     text-align: center;
     pointer-events: none;
+}
+
+/* ON THE SCAN PAGE the answer is different: the page OPENS and only the STREAM is off. The
+   camera's own furniture goes away — an empty viewport is the «riquadro grigio» the wall kept
+   reporting — while the manual doors under it (Cerca · Manuale, and the typed barcode in the
+   medicine panel) stay exactly where they are. `!important` because those elements also carry
+   inline `display` written by the shopping mode. */
+html.no-camera #scanner-viewport,
+html.no-camera .scan-below-bar { display: none !important; }
+/* Shopping-while-scanning is a camera flow (the bags in one hand, the phone in the other): its
+   two entries have no meaning without a stream. Manual adding to the pantry is untouched. */
+html.no-camera #scan-spesa-btn,
+html.no-camera #scan-spesa-quick-btn { display: none !important; }
+
+/* The notice itself — a CARD, not the capsule toast this message used to be («il popup è rotondo
+   ed è brutissimo»): a two-line sentence inside a 9999 px pill reads as a bubble, and it left
+   while the household was still reading it. The page keeps this on screen as long as it lives. */
+.scan-nocamera {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--tone-warning, #b45309) 35%, var(--surface-border, var(--border)));
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--tone-warning, #b45309) 8%, var(--surface-bg, #fff));
+    color: var(--text-main, inherit);
+}
+.scan-nocamera[hidden] { display: none; }
+.scan-nocamera-icon { flex: 0 0 auto; font-size: 1.3rem; line-height: 1.2; }
+.scan-nocamera-text { min-width: 0; }
+.scan-nocamera-title { display: block; font-size: 0.95rem; font-weight: 800; }
+.scan-nocamera-body {
+    margin: 4px 0 0;
+    font-size: 0.85rem;
+    line-height: 1.35;
+    color: var(--text-muted, #475569);
+}
+
+/* A toast that carries a sentence instead of a word: same card grammar as a panel (the pill stays
+   for «Salvato» and the action toasts). */
+.toast.card {
+    border-radius: 14px;
+    padding: 12px 16px;
+    text-align: left;
+    line-height: 1.35;
+}
+
+/* The camera takes the AI door away: it says so, it does not pretend to be tappable. */
+.scan-action-btn[disabled],
+.scan-action-btn.is-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 /* A stocktake answer that is already given cannot be given again. */
