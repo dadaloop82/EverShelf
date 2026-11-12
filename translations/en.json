@@ -1339,9 +1339,9 @@
     "groups_aria": "Settings sections",
     "subsections_label": "Sub-sections",
     "group_app": "🤖 App & AI",
-    "group_cooking": "🍳 Cooking",
-    "group_alerts": "🔔 Alerts & services",
-    "group_system": "⚙️ System",
+    "group_cooking": "Cooking",
+    "group_alerts": "Alerts & integrations",
+    "group_system": "System",
     "checklist": {
       "title": "🧭 Setup checklist",
       "summary_ok": "Everything is configured",
@@ -1354,7 +1354,8 @@
       "configure": "Configure",
       "show": "Show items",
       "hide": "Hide items",
-      "run": "▶️ Review the options"
+      "run": "▶️ Review the options",
+      "badge_aria": "{count} options to decide"
     },
     "calendar": {
       "tab": "Calendar",
@@ -1376,7 +1377,7 @@
       "save_btn": "💾 Save calendar settings"
     },
     "title": "⚙️ Settings",
-    "tab_api": "API Keys",
+    "tab_api": "AI",
     "tab_bring": "Bring!",
     "tab_recipe": "Recipes",
     "tab_health": "Health",
@@ -1643,7 +1644,10 @@
       "pairing_copied": "Code copied",
       "pairing_refreshed": "New code generated",
       "pairing_error": "Could not load the pairing code",
-      "pairing_not_needed": "This server does not require pairing (no API_TOKEN, or API_BOOTSTRAP_OPEN)."
+      "pairing_not_needed": "This server does not require pairing (no API_TOKEN, or API_BOOTSTRAP_OPEN).",
+      "ca_help_btn": "❓ How do I install it?",
+      "ca_help_title": "🔒 Installing the CA certificate",
+      "ca_help_hint": "The step-by-step guide for Android and PC opens in a window, so it stays off the page."
     },
     "tts": {
       "title": "🔊 Voice & TTS",
@@ -1869,7 +1873,7 @@
       "pairing_hint": "To pair another device use this code (also under Settings → System → Security).",
       "pairing_open_security": "Open Security"
     },
-    "tab_general": "General",
+    "tab_general": "Appearance",
     "shopping": {
       "tab": "Shopping list",
       "title": "Shopping list",
@@ -2166,8 +2170,59 @@
       "subscribed": "Device subscribed",
       "test_ok": "Test notification sent"
     },
-    "group_medical": "💊 Medicines",
-    "tab_medical": "Medicines"
+    "group_medical": "Medicines",
+    "tab_medical": "Medicines",
+    "group_general": "General",
+    "group_ai": "AI & voice",
+    "tab_locations": "Places",
+    "tab_data": "Data",
+    "essentials": {
+      "title": "Access & status",
+      "hint": "The facts you need first: how this server is protected, how to pair another device, when the last backup ran and which version is running.",
+      "token_label": "Access token",
+      "token_active": "active",
+      "token_missing": "missing",
+      "token_open": "open access",
+      "token_required_hint": "This server requires a token: this device sends it with every request.",
+      "token_free_hint": "This server asks for no token: anyone on the same network can open it.",
+      "reveal": "Show",
+      "copy": "Copy",
+      "copy_code": "Copy code",
+      "copy_empty": "There is nothing to copy.",
+      "copy_failed": "Could not copy: select the text and copy it by hand.",
+      "copied": "Copied!",
+      "token_copied": "Token copied!",
+      "refresh_code": "New code",
+      "backup_label": "Last backup",
+      "backup_ok": "recent",
+      "backup_stale": "old",
+      "backup_none": "never",
+      "backup_hint_none": "No backup yet: check that the scheduler cron is running.",
+      "backup_error": "Backup status unavailable.",
+      "backup_now": "Back up now",
+      "version_label": "Version",
+      "version_details": "System information",
+      "manage": "Manage",
+      "pairing_label": "Pairing code"
+    },
+    "autosave": {
+      "on": "Autosave: changes save themselves",
+      "pending": "Change detected…",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "error": "Not saved: it retries as soon as you change something"
+    },
+    "retention": {
+      "card_title": "🗄️ Data retention",
+      "card_hint": "How long the app keeps what it produces on its own. Lower numbers = a lighter archive, less precise estimates.",
+      "recipe_label": "Generated recipes",
+      "recipe_hint": "Meal plans created by the AI are deleted after these days (1–365).",
+      "history_label": "Movement history",
+      "history_hint": "The shopping list learns its frequencies here: below 30 days the estimates become unreliable.",
+      "vacuum_label": "Vacuum packs",
+      "vacuum_hint": "Extra days a vacuum-packed item gains over the shelf life of its category (0 = no extension).",
+      "unit": "days"
+    }
   },
   "expiry": {
     "today": "TODAY",

@@ -1342,9 +1342,9 @@
     "groups_aria": "Bereiche der Einstellungen",
     "subsections_label": "Unterabschnitte",
     "group_app": "🤖 App & KI",
-    "group_cooking": "🍳 Kochen",
-    "group_alerts": "🔔 Hinweise & Dienste",
-    "group_system": "⚙️ System",
+    "group_cooking": "Kochen",
+    "group_alerts": "Hinweise & Integrationen",
+    "group_system": "System",
     "checklist": {
       "title": "🧭 Einrichtungs-Checkliste",
       "summary_ok": "Alles konfiguriert",
@@ -1357,7 +1357,8 @@
       "configure": "Konfigurieren",
       "show": "Einträge anzeigen",
       "hide": "Einträge ausblenden",
-      "run": "▶️ Optionen durchsehen"
+      "run": "▶️ Optionen durchsehen",
+      "badge_aria": "{count} Optionen zu entscheiden"
     },
     "calendar": {
       "tab": "Kalender",
@@ -1379,7 +1380,7 @@
       "save_btn": "💾 Kalender-Einstellungen speichern"
     },
     "title": "⚙️ Einstellungen",
-    "tab_api": "API Keys",
+    "tab_api": "KI",
     "tab_bring": "Bring!",
     "tab_recipe": "Rezepte",
     "tab_mealplan": "Wochenplan",
@@ -1602,7 +1603,10 @@
       "pairing_copied": "Code kopiert",
       "pairing_refreshed": "Neuer Code erzeugt",
       "pairing_error": "Kopplungscode konnte nicht geladen werden",
-      "pairing_not_needed": "Dieser Server braucht keine Kopplung (kein API_TOKEN oder API_BOOTSTRAP_OPEN)."
+      "pairing_not_needed": "Dieser Server braucht keine Kopplung (kein API_TOKEN oder API_BOOTSTRAP_OPEN).",
+      "ca_help_btn": "❓ Wie installiere ich es?",
+      "ca_help_title": "🔒 CA-Zertifikat installieren",
+      "ca_help_hint": "Die Schritt-für-Schritt-Anleitung für Android und PC öffnet sich in einem Fenster und belegt die Seite nicht."
     },
     "tts": {
       "title": "🔊 Sprache & TTS",
@@ -1731,7 +1735,7 @@
       "label": "Tipps beim Kochen anzeigen"
     },
     "backup": {
-      "tab": "Backup",
+      "tab": "Sicherung",
       "local_title": "Lokales Backup",
       "local_hint": "Ein Backup pro Tag, solange der Cron läuft (im Docker-Image läuft er automatisch). Die Dateien liegen in data/backups – für echte Sicherheit kopiere sie außerhalb des Daten-Volumes.",
       "checklist_hint": "Ein Backup pro Tag in data/backups: prüfe, dass der Cron läuft, und halte eine Kopie außerhalb des Daten-Volumes.",
@@ -1828,7 +1832,7 @@
       "pairing_hint": "Zum Koppeln eines weiteren Geräts diesen Code verwenden (auch unter Einstellungen → System → Sicherheit).",
       "pairing_open_security": "Sicherheit öffnen"
     },
-    "tab_general": "Allgemein",
+    "tab_general": "Aussehen",
     "shopping": {
       "tab": "Einkaufsliste",
       "title": "Einkaufsliste",
@@ -2169,8 +2173,59 @@
       "subscribed": "Gerät abonniert",
       "test_ok": "Testbenachrichtigung gesendet"
     },
-    "group_medical": "💊 Medikamente",
-    "tab_medical": "Medikamente"
+    "group_medical": "Medikamente",
+    "tab_medical": "Medikamente",
+    "group_general": "Allgemein",
+    "group_ai": "KI & Sprache",
+    "tab_locations": "Orte",
+    "tab_data": "Daten",
+    "essentials": {
+      "title": "Zugang & Status",
+      "hint": "Die Fakten, die zuerst gebraucht werden: wie dieser Server geschützt ist, wie ein weiteres Gerät verbunden wird, wann die letzte Sicherung lief und welche Version läuft.",
+      "token_label": "Zugangstoken",
+      "token_active": "aktiv",
+      "token_missing": "fehlt",
+      "token_open": "offener Zugang",
+      "token_required_hint": "Dieser Server verlangt ein Token: dieses Gerät sendet es mit jeder Anfrage.",
+      "token_free_hint": "Dieser Server verlangt kein Token: jeder im selben Netz kann ihn öffnen.",
+      "reveal": "Zeigen",
+      "copy": "Kopieren",
+      "copy_code": "Code kopieren",
+      "copy_empty": "Es gibt nichts zu kopieren.",
+      "copy_failed": "Kopieren fehlgeschlagen: Text markieren und von Hand kopieren.",
+      "copied": "Kopiert!",
+      "token_copied": "Token kopiert!",
+      "refresh_code": "Neuer Code",
+      "backup_label": "Letzte Sicherung",
+      "backup_ok": "aktuell",
+      "backup_stale": "alt",
+      "backup_none": "nie",
+      "backup_hint_none": "Noch keine Sicherung: prüfe, ob der Scheduler-Cron läuft.",
+      "backup_error": "Sicherungsstatus nicht verfügbar.",
+      "backup_now": "Jetzt sichern",
+      "version_label": "Version",
+      "version_details": "Systeminformationen",
+      "manage": "Verwalten",
+      "pairing_label": "Kopplungscode"
+    },
+    "autosave": {
+      "on": "Automatisches Speichern: Änderungen sichern sich selbst",
+      "pending": "Änderung erkannt…",
+      "saving": "Speichern…",
+      "saved": "Gespeichert",
+      "error": "Nicht gespeichert: neuer Versuch bei der nächsten Änderung"
+    },
+    "retention": {
+      "card_title": "🗄️ Datenaufbewahrung",
+      "card_hint": "Wie lange die App behält, was sie selbst erzeugt. Kleinere Zahlen = schlankeres Archiv, ungenauere Schätzungen.",
+      "recipe_label": "Erzeugte Rezepte",
+      "recipe_hint": "Von der KI erstellte Wochenpläne werden nach diesen Tagen gelöscht (1–365).",
+      "history_label": "Verlaufsbewegungen",
+      "history_hint": "Die Einkaufsliste lernt ihre Häufigkeiten hier: unter 30 Tagen werden die Schätzungen unzuverlässig.",
+      "vacuum_label": "Vakuumverpackung",
+      "vacuum_hint": "Zusätzliche Tage, die eine vakuumierte Packung gegenüber der Haltbarkeit ihrer Kategorie gewinnt (0 = keine Verlängerung).",
+      "unit": "Tage"
+    }
   },
   "expiry": {
     "today": "HEUTE",

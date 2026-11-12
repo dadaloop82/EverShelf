@@ -12,29 +12,29 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261112y">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261112y">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261112y">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261112za">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261112za">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261112za">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261112y">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261112za">
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
-    <link rel="stylesheet" href="assets/css/tablet.css?v=20261112y">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261112y">
+    <link rel="stylesheet" href="assets/css/tablet.css?v=20261112za">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261112za">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261112y"></script>
-    <script src="assets/js/core/auth.js?v=20261112y"></script>
-    <script src="assets/js/core/med.js?v=20261112y"></script>
+    <script src="assets/js/core/dom.js?v=20261112za"></script>
+    <script src="assets/js/core/auth.js?v=20261112za"></script>
+    <script src="assets/js/core/med.js?v=20261112za"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261112y"></script>
+    <script src="assets/js/med/italy.js?v=20261112za"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261112y"></script>
+    <script src="assets/js/core/support.js?v=20261112za"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -42,7 +42,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112y';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112za';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -51,13 +51,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112y';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112za';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261112y"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261112za"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -122,7 +122,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.31.35</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.32.0</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -223,7 +223,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span class="header-name" data-i18n="nav.title">EverShelf</span><span class="header-version">v1.31.35</span><span class="header-kiosk-version" id="header-kiosk-version" hidden></span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span class="header-name" data-i18n="nav.title">EverShelf</span><span class="header-version">v1.32.0</span><span class="header-kiosk-version" id="header-kiosk-version" hidden></span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -1372,10 +1372,100 @@
             <button class="back-btn root-tab-no-back" hidden onclick="goBack()" data-i18n="btn.back">← Indietro</button>
             <h2 data-i18n="settings.title">⚙️ Configurazione</h2>
         </div>
+        <!-- Search: mounted here by settings_search.js. It reads the generated
+             registry (assets/js/settings.schema.generated.js), so a control that is
+             not on this page is not findable — the two cannot drift. Ctrl/⌘+K or "/"
+             focuses it. -->
+        <div id="settings-search-mount"></div>
+
+        <!-- ESSENTIALS — the four facts a household looks for first: how this server is
+             protected, how to pair another device, when the last backup ran, which
+             version is running. They sit above the sections, never behind a tab:
+             «deve essere subito visibile». `_renderSettingsEssentials()` paints the
+             values; nothing here writes a setting. -->
+        <section class="ess-panel" id="settings-essentials" aria-labelledby="ess-title">
+            <div class="ess-panel-head">
+                <h3 class="ess-panel-title" id="ess-title">
+                    <span aria-hidden="true">🔑</span> <span data-i18n="settings.essentials.title">Accesso e stato</span>
+                </h3>
+                <p class="ess-panel-sub" data-i18n="settings.essentials.hint">Le informazioni che servono subito: come è protetto questo server, come associare un altro dispositivo, quando è stato fatto l'ultimo backup e quale versione stai usando.</p>
+            </div>
+            <div class="ess-grid">
+                <article class="ess-tile" id="ess-tile-access">
+                    <div class="ess-tile-head">
+                        <span class="ess-tile-icon" aria-hidden="true">🔑</span>
+                        <span class="ess-tile-label" data-i18n="settings.essentials.token_label">Token di accesso</span>
+                        <span class="ess-pill" id="ess-token-state" data-state="off">—</span>
+                    </div>
+                    <p class="ess-tile-value" id="ess-token-value">—</p>
+                    <p class="ess-tile-hint" id="ess-token-hint"></p>
+                    <div class="ess-tile-actions">
+                        <button type="button" class="btn btn-small btn-secondary" id="ess-token-reveal" aria-pressed="false" onclick="_essTokenReveal()">
+                            <span aria-hidden="true">👁️</span> <span data-i18n="settings.essentials.reveal">Mostra</span>
+                        </button>
+                        <button type="button" class="btn btn-small btn-secondary" onclick="_essTokenCopy()">
+                            <span aria-hidden="true">📋</span> <span data-i18n="settings.essentials.copy">Copia</span>
+                        </button>
+                        <button type="button" class="btn btn-small btn-link" onclick="_essGoTo('tab-security')">
+                            <span data-i18n="settings.essentials.manage">Gestisci</span>
+                        </button>
+                    </div>
+                </article>
+                <article class="ess-tile" id="ess-tile-pairing">
+                    <div class="ess-tile-head">
+                        <span class="ess-tile-icon" aria-hidden="true">🔗</span>
+                        <span class="ess-tile-label" data-i18n="settings.essentials.pairing_label">Codice di associazione</span>
+                    </div>
+                    <div class="ess-pairing-body" id="ess-pairing-body">
+                        <p class="ess-tile-hint" data-i18n="settings.security.pairing_loading">Caricamento codice…</p>
+                    </div>
+                    <div class="ess-tile-actions">
+                        <button type="button" class="btn btn-small btn-secondary" onclick="_copyPairingCode()">
+                            <span aria-hidden="true">📋</span> <span data-i18n="settings.essentials.copy_code">Copia codice</span>
+                        </button>
+                        <button type="button" class="btn btn-small btn-secondary" onclick="_refreshPairingCode()">
+                            <span aria-hidden="true">🔄</span> <span data-i18n="settings.essentials.refresh_code">Nuovo codice</span>
+                        </button>
+                    </div>
+                </article>
+                <article class="ess-tile" id="ess-tile-backup">
+                    <div class="ess-tile-head">
+                        <span class="ess-tile-icon" aria-hidden="true">💾</span>
+                        <span class="ess-tile-label" data-i18n="settings.essentials.backup_label">Ultimo backup</span>
+                        <span class="ess-pill" id="ess-backup-state" data-state="off">—</span>
+                    </div>
+                    <p class="ess-tile-value" id="ess-backup-value">—</p>
+                    <p class="ess-tile-hint" id="ess-backup-hint"></p>
+                    <div class="ess-tile-actions">
+                        <button type="button" class="btn btn-small btn-primary" id="ess-backup-now" onclick="_essBackupNow()">
+                            <span aria-hidden="true">💾</span> <span data-i18n="settings.essentials.backup_now">Backup adesso</span>
+                        </button>
+                        <button type="button" class="btn btn-small btn-link" onclick="_essGoTo('tab-backup')">
+                            <span data-i18n="settings.essentials.manage">Gestisci</span>
+                        </button>
+                    </div>
+                </article>
+                <article class="ess-tile" id="ess-tile-version">
+                    <div class="ess-tile-head">
+                        <span class="ess-tile-icon" aria-hidden="true">🧩</span>
+                        <span class="ess-tile-label" data-i18n="settings.essentials.version_label">Versione</span>
+                    </div>
+                    <p class="ess-tile-value" id="ess-version-value">—</p>
+                    <p class="ess-tile-hint" id="ess-server-hint"></p>
+                    <div class="ess-tile-actions">
+                        <button type="button" class="btn btn-small btn-link" onclick="_essGoTo('tab-info')">
+                            <span data-i18n="settings.essentials.version_details">Informazioni di sistema</span>
+                        </button>
+                    </div>
+                </article>
+            </div>
+        </section>
+
         <!-- Setup checklist: what is already configured, what still needs a decision,
              and the way into the guided assistant. Rendered by
              _renderSettingsChecklist() in app.js from SETTINGS_CHECKLIST (the same
-             registry the assistant asks its questions from). -->
+             registry the assistant asks its questions from). Every section it points
+             at wears a count badge, so «2 da decidere» is visible without opening it. -->
         <div class="settings-card checklist-card" id="settings-checklist" data-state="ok">
             <div class="checklist-head">
                 <h4 data-i18n="settings.checklist.title">🧭 Configurazione guidata</h4>
@@ -1383,41 +1473,60 @@
             </div>
             <div class="checklist-items" id="checklist-items" hidden></div>
             <div class="checklist-actions">
-                <button class="btn btn-small btn-accent" onclick="startSetupAssistant()" data-i18n="settings.checklist.run">▶️ Rivedi le opzioni</button>
+                <button class="btn btn-small btn-primary" onclick="startSetupAssistant()" data-i18n="settings.checklist.run">▶️ Rivedi le opzioni</button>
                 <button class="btn btn-small btn-secondary" id="checklist-toggle" onclick="_toggleChecklistItems()" data-i18n="settings.checklist.show">▼ Mostra voci</button>
             </div>
         </div>
-        <!-- Level 1 + Level 2 share the same strip style: section row, then a
-             second row of sub-sections (same buttons, new line). -->
-        <div class="settings-nav" aria-label="Navigazione impostazioni" data-i18n-aria="settings.nav_aria">
+        <!-- THE SHELL — a left rail of sections (a sticky sidebar on a monitor, a
+             scrollable strip of chips on a phone) and the section's own topics as a
+             second row. One level visible at a time, so 20 panels never look like one
+             endless page. Each rail item carries the number of options still waiting
+             for a decision inside it (`_renderSettingsChecklist`). -->
+        <div class="settings-shell">
+        <nav class="settings-nav" aria-label="Navigazione impostazioni" data-i18n-aria="settings.nav_aria">
         <div class="settings-groups" role="tablist" aria-label="Sezioni" data-i18n-aria="settings.groups_aria">
-            <button class="settings-group-btn active" data-group="app" role="tab" aria-selected="true" onclick="switchSettingsGroup('app')" data-i18n="settings.group_app">🤖 App &amp; AI</button>
-            <button class="settings-group-btn" data-group="cooking" role="tab" aria-selected="false" onclick="switchSettingsGroup('cooking')" data-i18n="settings.group_cooking">🍳 Cucina</button>
-            <button class="settings-group-btn" data-group="medical" role="tab" aria-selected="false" onclick="switchSettingsGroup('medical')" data-i18n="settings.group_medical">💊 Farmaci</button>
-            <button class="settings-group-btn" data-group="alerts" role="tab" aria-selected="false" onclick="switchSettingsGroup('alerts')" data-i18n="settings.group_alerts">🔔 Avvisi</button>
-            <button class="settings-group-btn" data-group="system" role="tab" aria-selected="false" onclick="switchSettingsGroup('system')" data-i18n="settings.group_system">⚙️ Sistema</button>
+            <button class="settings-group-btn active" data-group="general" role="tab" aria-selected="true" onclick="switchSettingsGroup('general')">
+                <span class="settings-group-icon" aria-hidden="true">🏠</span><span class="settings-group-text" data-i18n="settings.group_general">Generali</span><span class="settings-group-count" data-count-for="general" hidden></span>
+            </button>
+            <button class="settings-group-btn" data-group="cooking" role="tab" aria-selected="false" onclick="switchSettingsGroup('cooking')">
+                <span class="settings-group-icon" aria-hidden="true">🍳</span><span class="settings-group-text" data-i18n="settings.group_cooking">Cucina</span><span class="settings-group-count" data-count-for="cooking" hidden></span>
+            </button>
+            <button class="settings-group-btn" data-group="ai" role="tab" aria-selected="false" onclick="switchSettingsGroup('ai')">
+                <span class="settings-group-icon" aria-hidden="true">🤖</span><span class="settings-group-text" data-i18n="settings.group_ai">AI e voce</span><span class="settings-group-count" data-count-for="ai" hidden></span>
+            </button>
+            <button class="settings-group-btn" data-group="medical" role="tab" aria-selected="false" onclick="switchSettingsGroup('medical')">
+                <span class="settings-group-icon" aria-hidden="true">💊</span><span class="settings-group-text" data-i18n="settings.group_medical">Farmaci</span><span class="settings-group-count" data-count-for="medical" hidden></span>
+            </button>
+            <button class="settings-group-btn" data-group="alerts" role="tab" aria-selected="false" onclick="switchSettingsGroup('alerts')">
+                <span class="settings-group-icon" aria-hidden="true">🔔</span><span class="settings-group-text" data-i18n="settings.group_alerts">Avvisi e integrazioni</span><span class="settings-group-count" data-count-for="alerts" hidden></span>
+            </button>
+            <button class="settings-group-btn" data-group="system" role="tab" aria-selected="false" onclick="switchSettingsGroup('system')">
+                <span class="settings-group-icon" aria-hidden="true">🔒</span><span class="settings-group-text" data-i18n="settings.group_system">Sistema</span><span class="settings-group-count" data-count-for="system" hidden></span>
+            </button>
         </div>
-        <div class="settings-subsections-label" data-i18n="settings.subsections_label">Sottosezioni</div>
+        </nav>
+        <div class="settings-main">
         <div class="settings-tabs" role="tablist">
-            <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-general')" data-group="app" data-tab="tab-general" title="Generali" data-i18n-title="settings.tab_general"><span class="settings-tab-icon">⚙️</span><span class="settings-tab-text" data-i18n="settings.tab_general">Generali</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-api')" data-group="app" data-tab="tab-api" title="API Keys" data-i18n-title="settings.tab_api"><span class="settings-tab-icon">🔑</span><span class="settings-tab-text" data-i18n="settings.tab_api">API</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-group="cooking" data-tab="tab-bring" title="Lista spesa" data-i18n-title="settings.shopping.tab"><span class="settings-tab-icon">🛒</span><span class="settings-tab-text" data-i18n="settings.shopping.tab">Spesa</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-group="cooking" data-tab="tab-recipe" title="Ricette" data-i18n-title="settings.tab_recipe"><span class="settings-tab-icon">🍳</span><span class="settings-tab-text" data-i18n="settings.tab_recipe">Ricette</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-health'); loadHealthSettingsTab();" data-group="cooking" data-tab="tab-health" title="Salute" data-i18n-title="settings.tab_health"><span class="settings-tab-icon">🫀</span><span class="settings-tab-text" data-i18n="settings.tab_health">Salute</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-medical')" data-group="medical" data-tab="tab-medical" title="Farmaci" data-i18n-title="settings.tab_medical"><span class="settings-tab-icon">💊</span><span class="settings-tab-text" data-i18n="settings.tab_medical">Farmaci</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-mealplan')" data-group="cooking" data-tab="tab-mealplan" title="Piano Settimanale" data-i18n-title="settings.tab_mealplan"><span class="settings-tab-icon">📅</span><span class="settings-tab-text" data-i18n="settings.tab_mealplan">Piano</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-group="cooking" data-tab="tab-appliances" title="Elettrodomestici" data-i18n-title="settings.tab_appliances"><span class="settings-tab-icon">🔌</span><span class="settings-tab-text" data-i18n="settings.tab_appliances">Cucina</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-group="app" data-tab="tab-camera" title="Fotocamera" data-i18n-title="settings.tab_camera"><span class="settings-tab-icon">📷</span><span class="settings-tab-text" data-i18n="settings.tab_camera">Camera</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-group="system" data-tab="tab-security" title="Sicurezza" data-i18n-title="settings.tab_security"><span class="settings-tab-icon">🔒</span><span class="settings-tab-text" data-i18n="settings.tab_security">Sicurezza</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-tts')" data-group="app" data-tab="tab-tts" title="Voce (TTS)" data-i18n-title="settings.tab_tts"><span class="settings-tab-icon">🔊</span><span class="settings-tab-text" data-i18n="settings.tab_tts">Voce</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-ha'); _loadHaTab();" data-group="alerts" data-tab="tab-ha" title="Home Assistant" data-i18n-title="settings.ha.tab"><span class="settings-tab-icon">🏠</span><span class="settings-tab-text" data-i18n="settings.ha.tab">HA</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-notify'); _loadNotifyTab();" data-group="alerts" data-tab="tab-notify" title="Notifiche" data-i18n-title="settings.notify.tab"><span class="settings-tab-icon">🔔</span><span class="settings-tab-text" data-i18n="settings.notify.tab">Notifiche</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-scale')" data-group="alerts" data-tab="tab-scale" title="Bilancia Smart" data-i18n-title="settings.scale.tab"><span class="settings-tab-icon">⚖️</span><span class="settings-tab-text" data-i18n="settings.scale.tab">Bilancia</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-backup'); _loadBackupTab();" data-group="system" data-tab="tab-backup" title="Backup" data-i18n-title="settings.backup.tab"><span class="settings-tab-icon">💾</span><span class="settings-tab-text" data-i18n="settings.backup.tab">Backup</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-calendar'); _loadCalendarTab();" data-group="alerts" data-tab="tab-calendar" title="Calendario" data-i18n-title="settings.calendar.tab"><span class="settings-tab-icon">🗓️</span><span class="settings-tab-text" data-i18n="settings.calendar.tab">Calendario</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-info'); _loadInfoTab();" data-group="system" data-tab="tab-info" title="Info" data-i18n-title="settings.info.tab"><span class="settings-tab-icon">ℹ️</span><span class="settings-tab-text" data-i18n="settings.info.tab">Info</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-credits')" data-group="system" data-tab="tab-credits" title="Crediti" data-i18n-title="settings.tab_credits"><span class="settings-tab-icon">💚</span><span class="settings-tab-text" data-i18n="settings.tab_credits">Crediti</span></button>
-        </div>
+            <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-general')" data-group="general" data-tab="tab-general" title="Aspetto" data-i18n-title="settings.tab_general"><span class="settings-tab-icon" aria-hidden="true">⚙️</span><span class="settings-tab-text" data-i18n="settings.tab_general">Aspetto</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-locations')" data-group="general" data-tab="tab-locations" title="Luoghi" data-i18n-title="settings.tab_locations"><span class="settings-tab-icon" aria-hidden="true">📍</span><span class="settings-tab-text" data-i18n="settings.tab_locations">Luoghi</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-group="cooking" data-tab="tab-bring" title="Lista spesa" data-i18n-title="settings.shopping.tab"><span class="settings-tab-icon" aria-hidden="true">🛒</span><span class="settings-tab-text" data-i18n="settings.shopping.tab">Spesa</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-group="cooking" data-tab="tab-recipe" title="Ricette" data-i18n-title="settings.tab_recipe"><span class="settings-tab-icon" aria-hidden="true">🍳</span><span class="settings-tab-text" data-i18n="settings.tab_recipe">Ricette</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-mealplan')" data-group="cooking" data-tab="tab-mealplan" title="Piano settimanale" data-i18n-title="settings.tab_mealplan"><span class="settings-tab-icon" aria-hidden="true">📅</span><span class="settings-tab-text" data-i18n="settings.tab_mealplan">Piano</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-group="cooking" data-tab="tab-appliances" title="Elettrodomestici" data-i18n-title="settings.tab_appliances"><span class="settings-tab-icon" aria-hidden="true">🔌</span><span class="settings-tab-text" data-i18n="settings.tab_appliances">Elettrodomestici</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-health'); loadHealthSettingsTab();" data-group="cooking" data-tab="tab-health" title="Salute" data-i18n-title="settings.tab_health"><span class="settings-tab-icon" aria-hidden="true">🫀</span><span class="settings-tab-text" data-i18n="settings.tab_health">Salute</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-api')" data-group="ai" data-tab="tab-api" title="Motore AI" data-i18n-title="settings.tab_api"><span class="settings-tab-icon" aria-hidden="true">🤖</span><span class="settings-tab-text" data-i18n="settings.tab_api">AI</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-tts')" data-group="ai" data-tab="tab-tts" title="Voce (TTS)" data-i18n-title="settings.tab_tts"><span class="settings-tab-icon" aria-hidden="true">🔊</span><span class="settings-tab-text" data-i18n="settings.tab_tts">Voce</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-group="ai" data-tab="tab-camera" title="Fotocamera" data-i18n-title="settings.tab_camera"><span class="settings-tab-icon" aria-hidden="true">📷</span><span class="settings-tab-text" data-i18n="settings.tab_camera">Fotocamera</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-medical')" data-group="medical" data-tab="tab-medical" title="Farmaci" data-i18n-title="settings.tab_medical"><span class="settings-tab-icon" aria-hidden="true">💊</span><span class="settings-tab-text" data-i18n="settings.tab_medical">Farmaci</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-notify'); _loadNotifyTab();" data-group="alerts" data-tab="tab-notify" title="Notifiche" data-i18n-title="settings.notify.tab"><span class="settings-tab-icon" aria-hidden="true">🔔</span><span class="settings-tab-text" data-i18n="settings.notify.tab">Notifiche</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-ha'); _loadHaTab();" data-group="alerts" data-tab="tab-ha" title="Home Assistant" data-i18n-title="settings.ha.tab"><span class="settings-tab-icon" aria-hidden="true">🏠</span><span class="settings-tab-text" data-i18n="settings.ha.tab">Home Assistant</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-calendar'); _loadCalendarTab();" data-group="alerts" data-tab="tab-calendar" title="Calendario" data-i18n-title="settings.calendar.tab"><span class="settings-tab-icon" aria-hidden="true">🗓️</span><span class="settings-tab-text" data-i18n="settings.calendar.tab">Calendario</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-scale')" data-group="alerts" data-tab="tab-scale" title="Bilancia smart" data-i18n-title="settings.scale.tab"><span class="settings-tab-icon" aria-hidden="true">⚖️</span><span class="settings-tab-text" data-i18n="settings.scale.tab">Bilancia</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-group="system" data-tab="tab-security" title="Sicurezza" data-i18n-title="settings.tab_security"><span class="settings-tab-icon" aria-hidden="true">🔒</span><span class="settings-tab-text" data-i18n="settings.tab_security">Sicurezza</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-backup'); _loadBackupTab();" data-group="system" data-tab="tab-backup" title="Backup" data-i18n-title="settings.backup.tab"><span class="settings-tab-icon" aria-hidden="true">💾</span><span class="settings-tab-text" data-i18n="settings.backup.tab">Backup</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-data')" data-group="system" data-tab="tab-data" title="Dati" data-i18n-title="settings.tab_data"><span class="settings-tab-icon" aria-hidden="true">📦</span><span class="settings-tab-text" data-i18n="settings.tab_data">Dati</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-info'); _loadInfoTab();" data-group="system" data-tab="tab-info" title="Informazioni" data-i18n-title="settings.info.tab"><span class="settings-tab-icon" aria-hidden="true">ℹ️</span><span class="settings-tab-text" data-i18n="settings.info.tab">Info</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-credits')" data-group="system" data-tab="tab-credits" title="Crediti" data-i18n-title="settings.tab_credits"><span class="settings-tab-icon" aria-hidden="true">💚</span><span class="settings-tab-text" data-i18n="settings.tab_credits">Crediti</span></button>
         </div>
         <div class="settings-panels">
             <!-- Generali Tab -->
@@ -1449,27 +1558,6 @@
                             <option value="DKK" data-i18n="settings.currency.dkk">kr Danish krone</option>
                             <option value="PLN" data-i18n="settings.currency.pln">zł Polish złoty</option>
                         </select>
-                    </div>
-                    <div class="form-group" style="margin-top:10px">
-                        <button class="btn btn-primary" onclick="saveSettings()" data-i18n="btn.save">Salva</button>
-                    </div>
-                </div>
-                <div class="settings-card">
-                    <h4 data-i18n="settings.custom_locations.title">📍 Luoghi di conservazione</h4>
-                    <p class="settings-hint" data-i18n="settings.custom_locations.hint">Aggiungi posti oltre a Dispensa, Frigo e Freezer (es. Cantina, Garage). I nomi restano così come li scrivi.</p>
-                    <p class="settings-hint" data-i18n="settings.custom_locations.delete_hint">Ogni luogo si può eliminare, anche i predefiniti: basta che sia vuoto.</p>
-                    <div class="appliances-list" id="custom-locations-list"></div>
-                    <!-- A place deleted by mistake comes back from here: a destructive action
-                         with no way back is a trap. -->
-                    <div class="deleted-locations" id="deleted-locations-list" hidden></div>
-                    <div class="form-group mt-2">
-                        <div class="barcode-input-row">
-                            <input type="text" id="new-custom-location-input" class="form-input" data-i18n-placeholder="settings.custom_locations.placeholder" placeholder="Es: Cantina, Box garage…" onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomLocation()}">
-                            <button class="btn btn-accent" onclick="addCustomLocation()">➕</button>
-                        </div>
-                    </div>
-                    <div class="form-group" style="margin-top:10px">
-                        <button class="btn btn-primary" onclick="saveSettings()" data-i18n="btn.save">Salva</button>
                     </div>
                 </div>
                 <div class="settings-card">
@@ -1508,22 +1596,30 @@
                         </select>
                     </div>
                 </div>
+            </div>
+            <!-- Luoghi Tab: the rooms of the house (a place is a setting too,
+                 and it deserves a page of its own instead of a card under «Aspetto»). -->
+            <div class="settings-panel" id="tab-locations">
                 <div class="settings-card">
-                    <h4 data-i18n="settings.zerowaste.card_title">♻️ Suggerimenti zero-waste</h4>
-                    <p class="settings-hint" data-i18n="settings.zerowaste.card_hint">Durante la cottura, mostra consigli su come riutilizzare gli scarti prodotti in ogni passo (bucce, acqua di cottura, ecc.). Disattivo per impostazione predefinita.</p>
-                    <div class="form-group">
-                        <label class="toggle-row">
-                            <span data-i18n="settings.zerowaste.label">Mostra suggerimenti durante la cottura</span>
-                            <span class="toggle-switch">
-                                <input type="checkbox" id="setting-zerowaste-tips" onchange="this.dataset.touched='1'">
-                                <span class="toggle-slider"></span>
-                            </span>
-                        </label>
-                    </div>
-                    <div class="form-group" style="margin-top:10px">
-                        <button class="btn btn-primary" onclick="saveSettings()" data-i18n="btn.save">Salva</button>
+                    <h4 data-i18n="settings.custom_locations.title">📍 Luoghi di conservazione</h4>
+                    <p class="settings-hint" data-i18n="settings.custom_locations.hint">Aggiungi posti oltre a Dispensa, Frigo e Freezer (es. Cantina, Garage). I nomi restano così come li scrivi.</p>
+                    <p class="settings-hint" data-i18n="settings.custom_locations.delete_hint">Ogni luogo si può eliminare, anche i predefiniti: basta che sia vuoto.</p>
+                    <div class="appliances-list" id="custom-locations-list"></div>
+                    <!-- A place deleted by mistake comes back from here: a destructive action
+                         with no way back is a trap. -->
+                    <div class="deleted-locations" id="deleted-locations-list" hidden></div>
+                    <div class="form-group mt-2">
+                        <div class="barcode-input-row">
+                            <input type="text" id="new-custom-location-input" class="form-input" data-i18n-placeholder="settings.custom_locations.placeholder" placeholder="Es: Cantina, Box garage…" onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomLocation()}">
+                            <button class="btn btn-accent" onclick="addCustomLocation()">➕</button>
+                        </div>
                     </div>
                 </div>
+            </div>
+            <!-- Dati Tab: what leaves this instance (export, import) and how the
+                 article titles are written. Same shelf as Backup: it is about the
+                 data, not about how the kitchen looks. -->
+            <div class="settings-panel" id="tab-data">
                 <div class="settings-card">
                     <h4 data-i18n="export.title">📤 Esporta inventario</h4>
                     <p class="settings-hint" data-i18n="export.hint">Scarica l'inventario corrente in CSV o apri una versione stampabile (PDF).</p>
@@ -1542,6 +1638,56 @@
                     <button class="btn btn-outline full-width" onclick="_showImportModal()">
                         📥 <span data-i18n="import.btn_open">Apri importazione</span>
                     </button>
+                </div>
+                <!-- Retention: three numbers the SERVER honours and no screen could set
+                     (`RECIPE_RETENTION_DAYS`, `TRANSACTION_RETENTION_DAYS`,
+                     `VACUUM_EXPIRY_EXTENSION_DAYS`). Same one-line stepper grammar as the
+                     stocktake pace: label + hint left, [−] N [+] right. -->
+                <div class="settings-card">
+                    <h4 data-i18n="settings.retention.card_title">🗄️ Conservazione dei dati</h4>
+                    <p class="settings-hint" data-i18n="settings.retention.card_hint">Quanto a lungo l'app tiene ciò che produce da sola. Numeri più bassi = archivio più leggero, stime meno precise.</p>
+                    <div class="settings-stepper-row">
+                        <div class="settings-stepper-copy">
+                            <label class="settings-row-label" for="setting-recipe-retention-days" data-i18n="settings.retention.recipe_label">Ricette generate</label>
+                            <p class="settings-hint" data-i18n="settings.retention.recipe_hint">I piani pasto creati dall'AI vengono cancellati dopo questi giorni (1–365).</p>
+                        </div>
+                        <div class="settings-stepper-control">
+                            <span class="settings-stepper-label" data-i18n="settings.retention.unit">giorni</span>
+                            <div class="qty-control">
+                                <button type="button" class="qty-btn" onclick="adjustQty('setting-recipe-retention-days', -1, 1, 365)">−</button>
+                                <input type="number" id="setting-recipe-retention-days" value="7" min="1" max="365" class="qty-input">
+                                <button type="button" class="qty-btn" onclick="adjustQty('setting-recipe-retention-days', 1, 1, 365)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="settings-stepper-row">
+                        <div class="settings-stepper-copy">
+                            <label class="settings-row-label" for="setting-transaction-retention-days" data-i18n="settings.retention.history_label">Storico dei movimenti</label>
+                            <p class="settings-hint" data-i18n="settings.retention.history_hint">La lista della spesa impara le frequenze da qui: sotto i 30 giorni le stime diventano inaffidabili.</p>
+                        </div>
+                        <div class="settings-stepper-control">
+                            <span class="settings-stepper-label" data-i18n="settings.retention.unit">giorni</span>
+                            <div class="qty-control">
+                                <button type="button" class="qty-btn" onclick="adjustQty('setting-transaction-retention-days', -30, 30, 3650)">−</button>
+                                <input type="number" id="setting-transaction-retention-days" value="90" min="30" max="3650" step="30" class="qty-input">
+                                <button type="button" class="qty-btn" onclick="adjustQty('setting-transaction-retention-days', 30, 30, 3650)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="settings-stepper-row">
+                        <div class="settings-stepper-copy">
+                            <label class="settings-row-label" for="setting-vacuum-expiry-extension-days" data-i18n="settings.retention.vacuum_label">Sottovuoto</label>
+                            <p class="settings-hint" data-i18n="settings.retention.vacuum_hint">Giorni in più che una confezione sottovuoto guadagna rispetto alla scadenza della sua categoria (0 = nessun prolungamento).</p>
+                        </div>
+                        <div class="settings-stepper-control">
+                            <span class="settings-stepper-label" data-i18n="settings.retention.unit">giorni</span>
+                            <div class="qty-control">
+                                <button type="button" class="qty-btn" onclick="adjustQty('setting-vacuum-expiry-extension-days', -5, 0, 180)">−</button>
+                                <input type="number" id="setting-vacuum-expiry-extension-days" value="30" min="0" max="180" step="5" class="qty-input">
+                                <button type="button" class="qty-btn" onclick="adjustQty('setting-vacuum-expiry-extension-days', 5, 0, 180)">+</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <!-- Automatic product rules: the genre that leads every article title
                      ("Yogurt Fiori di latte") and the products the household keeps
@@ -1592,7 +1738,6 @@
                             </span>
                         </label>
                         <p class="settings-hint" data-i18n="settings.product_rules.receipt_hint">Una foto dello scontrino propone le righe; nulla entra in dispensa finché non confermi la tabella.</p>
-                        </div>
                     </div>
                     <!-- Quick stocktake is NOT a system switch: it is a procedure you perform
                          standing in front of a shelf, so it lives in the pantry as a banner on
@@ -1801,9 +1946,6 @@
                         </div>
                     </div>
                     <p class="settings-hint" data-i18n="settings.shopping.trip_complete_hint">In lista Spesa, «Spesa fatta» svuota tutta la lista e blocca i ri-aggiunti automatici fino al prossimo esaurimento.</p>
-                    <div class="form-group" style="margin-top:10px">
-                        <button class="btn btn-primary" onclick="saveSettings()" data-i18n="btn.save">Salva</button>
-                    </div>
                 </div>
                 <!-- Price Estimation Settings -->
                 <div class="settings-card" style="margin-top:12px" id="settings-price-card">
@@ -1856,9 +1998,6 @@
                             </div>
                             <span class="settings-hint" style="display:inline;margin-left:8px" data-i18n="settings.price.update_suffix">mesi</span>
                         </div>
-                    </div>
-                    <div class="form-group" style="margin-top:10px">
-                        <button class="btn btn-primary" onclick="saveSettings()" data-i18n="btn.save">Salva</button>
                     </div>
                 </div>
             </div>
@@ -1994,13 +2133,26 @@
                         <p class="settings-hint" style="margin-top:10px;font-size:0.78rem" data-i18n="settings.weather.attribution">Dati meteo: Open-Meteo.com (CC BY 4.0)</p>
                     </div>
                 </div>
+                <div class="settings-card">
+                    <h4 data-i18n="settings.zerowaste.card_title">♻️ Suggerimenti zero-waste</h4>
+                    <p class="settings-hint" data-i18n="settings.zerowaste.card_hint">Durante la cottura, mostra consigli su come riutilizzare gli scarti prodotti in ogni passo (bucce, acqua di cottura, ecc.). Disattivo per impostazione predefinita.</p>
+                    <div class="form-group">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.zerowaste.label">Mostra suggerimenti durante la cottura</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-zerowaste-tips" onchange="this.dataset.touched='1'">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
             </div>
             <!-- EverShelf Med — its own SECTION, like "Cucina": a household that does not
                  want medicines never meets them. OPT-IN: the switch stores the module, the
                  acceptance of the notice is what actually enables it, and the module needs a
                  DEDICATED location (create it here or pick one), painted differently. -->
             <div class="settings-panel" id="tab-medical">
-                <div class="settings-card" id="med-module-card">
+                <div class="settings-card" id="med-module-card" data-autosave="none">
                     <h4 data-i18n="medical.title">💊 Farmaci e armadietto</h4>
                     <p class="settings-hint" data-i18n="medical.hint">Modulo opzionale: separa i farmaci dal cibo e risponde a «cosa ho in casa per…» con i tuoi prodotti, non con consigli. Disattivo finché non lo accendi.</p>
                     <div class="form-group" style="margin-top:8px">
@@ -2088,7 +2240,7 @@
                             <p class="settings-hint" data-i18n="settings.health.fuel_pref_hint">Se attivo, la generazione ricette propone già il chip Fuel Mode.</p>
                         </div>
                         <h5 class="settings-subheading" data-i18n="settings.health.profile_title">Profilo biologico</h5>
-                        <div class="form-group recipe-fuel-manual-grid">
+                        <div class="form-group recipe-fuel-manual-grid" data-autosave="saveHealthProfileFromSettings">
                             <label class="recipe-fuel-field"><span data-i18n="settings.health.sex">Sesso</span>
                                 <select id="health-profile-sex" class="form-input">
                                     <option value="">—</option>
@@ -2116,7 +2268,6 @@
                                 </select>
                             </label>
                         </div>
-                        <button type="button" class="btn btn-secondary full-width" onclick="saveHealthProfileFromSettings()" data-i18n="settings.health.save">Salva profilo salute</button>
 
                         <h5 class="settings-subheading mt-2" data-i18n="settings.health.bridge_title">Health Bridge (telefono)</h5>
                         <div id="health-bridge-download" class="health-bridge-download">
@@ -2240,23 +2391,11 @@
                 <div class="settings-card">
                     <h4 data-i18n="settings.security.title">🔒 Certificato HTTPS</h4>
                     <p class="settings-hint" data-i18n="settings.security.hint">Se il browser mostra l'errore "La connessione non è privata" (ERR_CERT_AUTHORITY_INVALID), devi installare il certificato CA nel dispositivo.</p>
-                    <div class="form-group">
-                        <a href="ca.crt" download="EverShelf_CA.crt" class="btn btn-large btn-accent full-width" style="text-align:center;text-decoration:none;display:block" data-i18n="settings.security.download_btn">📥 Scarica Certificato CA</a>
+                    <div class="settings-form-actions">
+                        <a href="ca.crt" download="EverShelf_CA.crt" class="btn btn-large btn-accent" style="text-align:center;text-decoration:none;display:inline-block" data-i18n="settings.security.download_btn">📥 Scarica Certificato CA</a>
+                        <button type="button" class="btn btn-secondary" onclick="_openCaHelpDialog()" data-i18n="settings.security.ca_help_btn">❓ Come lo installo?</button>
                     </div>
-                    <div class="settings-hint" style="margin-top:12px;line-height:1.6" data-i18n-html="settings.security.cert_instructions">
-                        <strong>Istruzioni per Chrome (Android):</strong><br>
-                        1. Scarica il certificato qui sopra<br>
-                        2. Vai in <em>Impostazioni → Sicurezza e privacy → Altre impostazioni di sicurezza → Installa da archivio dispositivo</em><br>
-                        3. Seleziona il file <em>EverShelf_CA.crt</em> scaricato<br>
-                        4. Scegli "CA" e conferma<br>
-                        5. Riavvia Chrome<br><br>
-                        <strong>Istruzioni per Chrome (PC):</strong><br>
-                        1. Scarica il certificato qui sopra<br>
-                        2. Vai in <em>chrome://settings/certificates</em> (o Impostazioni → Privacy e sicurezza → Sicurezza → Gestisci certificati)<br>
-                        3. Tab "Autorità" → Importa → seleziona il file<br>
-                        4. Spunta "Considera attendibile per identificare siti web"<br>
-                        5. Riavvia Chrome
-                    </div>
+                    <p class="settings-hint" data-i18n="settings.security.ca_help_hint">Le istruzioni passo passo per Android e PC si aprono in una finestra: non occupano la pagina.</p>
                 </div>
             </div>
             <!-- TTS Tab -->
@@ -2371,7 +2510,7 @@
                 </div>
             </div>
             <!-- Home Assistant Tab -->
-            <div class="settings-panel" id="tab-ha">
+            <div class="settings-panel" id="tab-ha" data-autosave="saveHaSettings">
                 <!-- Connection card -->
                 <div class="settings-card">
                     <h4 data-i18n="settings.ha.title">🏠 Home Assistant</h4>
@@ -2479,11 +2618,10 @@
                 </div>
 
                 <!-- Save button -->
-                <button class="btn btn-large btn-accent full-width" onclick="saveHaSettings()" data-i18n="settings.ha.save_btn">💾 Salva impostazioni HA</button>
                 <div id="ha-save-status" style="display:none;margin-top:8px" class="settings-status"></div>
             </div>
             <!-- Notifications Tab (ntfy / generic webhook — works without Home Assistant) -->
-            <div class="settings-panel" id="tab-notify">
+            <div class="settings-panel" id="tab-notify" data-autosave="saveNotifySettings">
                 <!-- Master switch + events + language -->
                 <div class="settings-card">
                     <h4 data-i18n="settings.notify.title">🔔 Notifiche push</h4>
@@ -2648,7 +2786,7 @@
                 </div>
 
                 <!-- Telegram bot (optional household client) -->
-                <div class="settings-card" id="settings-telegram-card">
+                <div class="settings-card" id="settings-telegram-card" data-autosave="saveTelegramSettings">
                     <h4 data-i18n="settings.telegram.title">✈️ Bot Telegram</h4>
                     <p class="settings-hint" data-i18n="settings.telegram.hint">Per chi non installa la PWA: /lista e /scadenze nel bot. Opzionale e gratuito.</p>
                     <div class="form-group">
@@ -2666,12 +2804,11 @@
                         <input type="text" id="setting-telegram-webhook" class="form-input" readonly onclick="this.select()">
                         <p class="settings-hint" data-i18n="settings.telegram.webhook_hint">setWebhook su api.telegram.org con questo URL (HTTPS pubblico).</p>
                     </div>
-                    <button class="btn btn-primary" onclick="saveTelegramSettings()" data-i18n="btn.save">Salva</button>
                     <div id="telegram-save-status" style="display:none;margin-top:8px" class="settings-status"></div>
                 </div>
 
                 <!-- Browser Web Push (free, HTTPS + user opt-in) -->
-                <div class="settings-card" id="settings-webpush-card">
+                <div class="settings-card" id="settings-webpush-card" data-autosave="saveWebPushSettings">
                     <h4 data-i18n="settings.webpush.title">📱 Notifiche nel browser (PWA)</h4>
                     <p class="settings-hint" data-i18n="settings.webpush.hint">Gratis, senza ntfy: il browser riceve gli stessi avvisi quando la PWA è installata su HTTPS. Opzionale.</p>
                     <div class="form-group">
@@ -2685,7 +2822,6 @@
                     </div>
                     <p class="settings-hint" id="webpush-status-line"></p>
                     <div class="settings-btn-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-                        <button class="btn btn-primary" onclick="saveWebPushSettings()" data-i18n="btn.save">Salva</button>
                         <button class="btn btn-secondary" onclick="subscribeWebPush()" data-i18n="settings.webpush.subscribe">Attiva su questo dispositivo</button>
                         <button class="btn btn-secondary" onclick="testWebPush()" data-i18n="settings.webpush.test">Invia prova</button>
                     </div>
@@ -2700,11 +2836,10 @@
                 </div>
 
                 <!-- Save button -->
-                <button class="btn btn-large btn-accent full-width" onclick="saveNotifySettings()" data-i18n="settings.notify.save_btn">💾 Salva impostazioni notifiche</button>
                 <div id="notify-save-status" style="display:none;margin-top:8px" class="settings-status"></div>
             </div>
             <!-- Calendar Tab (ICS expiry feed) -->
-            <div class="settings-panel" id="tab-calendar">
+            <div class="settings-panel" id="tab-calendar" data-autosave="saveCalendarSettings">
                 <div class="settings-card">
                     <h4 data-i18n="settings.calendar.title">🗓️ Calendario scadenze</h4>
                     <p class="settings-hint" data-i18n="settings.calendar.hint">Iscriviti alle scadenze della dispensa dal tuo calendario: ogni prodotto diventa un evento di tutta la giornata, con promemoria il giorno prima.</p>
@@ -2731,7 +2866,6 @@
                         <p class="settings-hint" data-i18n="settings.calendar.past_days_hint">Le scadenze appena passate restano nel calendario con il prefisso ⚠️ (0–60).</p>
                     </div>
 
-                    <button class="btn btn-large btn-accent full-width" onclick="saveCalendarSettings()" data-i18n="settings.calendar.save_btn">💾 Salva impostazioni calendario</button>
                     <div id="ics-save-status" class="settings-status" style="display:none;margin-top:8px"></div>
                 </div>
 
@@ -3086,19 +3220,59 @@
                 </div>
             </div>
         </div>
+        </div><!-- /.settings-main -->
+        </div><!-- /.settings-shell -->
 
-        <!-- Global save: applies to every section, so it stays below the panels. -->
-        <button class="btn btn-large btn-success full-width mt-2" onclick="saveSettings()" data-i18n="btn.save_config">💾 Salva Configurazione</button>
+        <!-- There is no Save button on this page: every control writes itself
+             (`_initSettingsAutosave`), and this bar is the receipt. It is sticky above
+             the bottom nav, so the answer is visible wherever the household is on the
+             page — «Salvato» is the only thing a save has to say. -->
+        <div class="settings-savebar" id="settings-savebar" role="status" aria-live="polite" data-state="idle">
+            <span class="settings-savebar-icon" aria-hidden="true">✓</span>
+            <span class="settings-savebar-text" data-i18n="settings.autosave.on">Salvataggio automatico: le modifiche si salvano da sole</span>
+        </div>
         <div id="settings-status" class="settings-status" style="display:none"></div>
 
         <!-- Support shortcut: same dialog as the Info card, one tap from the bottom
              of the page. The household should not have to hunt for it, and it must
              stay outside .settings-panels so it is visible from every tab. -->
-        <button type="button" class="btn btn-large btn-secondary full-width mt-2" onclick="openSupportModal(true)" data-i18n="support.card_title">❤️ Sostieni EverShelf</button>
+        <button type="button" class="btn btn-outline full-width mt-2" onclick="openSupportModal(true)" data-i18n="support.card_title">❤️ Sostieni EverShelf</button>
 
     </section>
 
 </main>
+
+<!-- Install the CA on a device: the long numbered guide used to sit inline in
+     Settings → Sicurezza and took half a phone screen. It lives here, one tap away,
+     and the panel keeps only the download button + the way in. -->
+<div class="modal-overlay" id="ca-help-overlay" style="display:none" role="dialog" aria-modal="true"
+     aria-labelledby="ca-help-title" onclick="_closeCaHelpDialog()">
+    <div class="modal-content ca-help-dialog" onclick="event.stopPropagation()">
+        <button type="button" class="recipe-dialog-close" onclick="_closeCaHelpDialog()"
+                aria-label="Chiudi" data-i18n-aria="btn.close" data-i18n-title="btn.close" title="Chiudi">✕</button>
+        <h3 id="ca-help-title" data-i18n="settings.security.ca_help_title">🔒 Installare il certificato CA</h3>
+        <div class="settings-hint settings-cert-steps" data-i18n-html="settings.security.cert_instructions">
+            <strong>Istruzioni per Chrome (Android):</strong><br>
+            1. Scarica il certificato qui sopra<br>
+            2. Vai in <em>Impostazioni → Sicurezza e privacy → Altre impostazioni di sicurezza → Installa da archivio dispositivo</em><br>
+            3. Seleziona il file <em>EverShelf_CA.crt</em> scaricato<br>
+            4. Scegli "CA" e conferma<br>
+            5. Riavvia Chrome<br><br>
+            <strong>Istruzioni per Chrome (PC):</strong><br>
+            1. Scarica il certificato qui sopra<br>
+            2. Vai in <em>chrome://settings/certificates</em> (o Impostazioni → Privacy e sicurezza → Sicurezza → Gestisci certificati)<br>
+            3. Tab "Autorità" → Importa → seleziona il file<br>
+            4. Spunta "Considera attendibile per identificare siti web"<br>
+            5. Riavvia Chrome
+        </div>
+        <div class="settings-form-actions">
+            <a href="ca.crt" download="EverShelf_CA.crt" class="btn btn-accent"
+               style="text-align:center;text-decoration:none;display:inline-block"
+               data-i18n="settings.security.download_btn">📥 Scarica Certificato CA</a>
+            <button type="button" class="btn btn-secondary" onclick="_closeCaHelpDialog()" data-i18n="btn.close">Chiudi</button>
+        </div>
+    </div>
+</div>
 
 <!-- SHELFY chat: sheet over the current page (blur behind), not a full-page swap. -->
 <div class="modal-overlay chat-overlay" id="chat-overlay" style="display:none" role="dialog"
@@ -3558,17 +3732,17 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261112y"></script>
-<script src="assets/js/food_facts.generated.js?v=20261112y"></script>
-<script src="assets/js/free_apis.generated.js?v=20261112y"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261112y"></script>
-<script src="assets/js/off_categories.generated.js?v=20261112y"></script>
-<script src="assets/js/core/vocab.js?v=20261112y"></script>
-<script src="assets/js/app.js?v=20261112y"></script>
-<script src="assets/js/audit.js?v=20261112y"></script>
-<script src="assets/js/receipt.js?v=20261112y"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261112y"></script>
-<script src="assets/js/settings_search.js?v=20261112y"></script>
+<script src="assets/js/vocab.generated.js?v=20261112za"></script>
+<script src="assets/js/food_facts.generated.js?v=20261112za"></script>
+<script src="assets/js/free_apis.generated.js?v=20261112za"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261112za"></script>
+<script src="assets/js/off_categories.generated.js?v=20261112za"></script>
+<script src="assets/js/core/vocab.js?v=20261112za"></script>
+<script src="assets/js/app.js?v=20261112za"></script>
+<script src="assets/js/audit.js?v=20261112za"></script>
+<script src="assets/js/receipt.js?v=20261112za"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261112za"></script>
+<script src="assets/js/settings_search.js?v=20261112za"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

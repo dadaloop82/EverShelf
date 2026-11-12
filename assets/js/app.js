@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112y'; // bump when translations change
+const _I18N_VERSION = '20261112za'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -6045,6 +6045,8 @@ function _applySyncedSettings(serverSettings) {
         'shopping_enabled','shopping_mode','shopping_smart_suggestions',
         'shopping_forecast','shopping_auto_add_threshold',
         'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_batch_size','product_variants_enabled','receipt_ocr_enabled',
+        // What this instance keeps: the three numbers of Settings → Sistema → Dati.
+        'recipe_retention_days','transaction_retention_days','vacuum_expiry_extension_days',
         'dark_mode',
         'barcode_ai_fallback',
         'recipe_source','mealie_url','mealie_offline','mealie_cache_sync_days','mealie_usable','recipe_shopping_mode',
@@ -7137,6 +7139,7 @@ async function loadSettingsUI() {
             'shopping_enabled','shopping_mode','shopping_smart_suggestions',
             'shopping_forecast','shopping_auto_add_threshold',
             'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_batch_size','product_variants_enabled','receipt_ocr_enabled',
+            'recipe_retention_days','transaction_retention_days','vacuum_expiry_extension_days',
             'weather_enabled','weather_lat','weather_lon','weather_city',
             'ha_enabled','ha_url','ha_tts_entity','ha_webhook_id','ha_webhook_events',
             'ha_notify_service','ha_expiry_days'];
@@ -7219,6 +7222,7 @@ async function loadSettingsUI() {
             _applyShoppingSettingsUI(s);
             // Product rules (genre prefix + automatic favourites)
             _applyProductRuleSettingsUI(s);
+            _applyRetentionSettingsUI(s);
             // HA settings (server merge)
             _applyHaSettingsUI(s);
         }
@@ -7264,6 +7268,7 @@ async function loadSettingsUI() {
     _applyShoppingSettingsUI(s);
     // Product rules (genre prefix + automatic favourites)
     _applyProductRuleSettingsUI(s);
+    _applyRetentionSettingsUI(s);
     // Kiosk APK download stays visible everywhere (local server + GitHub).
     // Inside the kiosk WebView we also show the OTA / native-settings panels.
     _refreshKioskApkLinks();
@@ -7300,6 +7305,10 @@ async function loadSettingsUI() {
 
     // What is still unconfigured (checklist) + reopen the last section/tab.
     _renderSettingsChecklist();
+    // The page has no Save button: every control writes itself from here on.
+    _initSettingsAutosave();
+    // Token / pairing / backup / version, the four facts that must be visible at once.
+    _renderSettingsEssentials();
     _restoreSettingsNav();
 }
 
@@ -7346,7 +7355,7 @@ function _formatPairingCountdown(sec) {
 }
 
 function _renderPairingBodies(html) {
-    ['settings-pairing-body', 'info-pairing-body'].forEach(id => {
+    ['settings-pairing-body', 'info-pairing-body', 'ess-pairing-body'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = html;
     });
@@ -7968,6 +7977,23 @@ function _applyProductRuleSettingsUI(s) {
 }
 
 /**
+ * Retention: the three numbers the server honours and no screen could set
+ * (`RECIPE_RETENTION_DAYS`, `TRANSACTION_RETENTION_DAYS`, `VACUUM_EXPIRY_EXTENSION_DAYS`).
+ * They live in Settings → Sistema → Dati, next to export/import: they are about the
+ * data this instance keeps, not about how the kitchen looks.
+ */
+function _applyRetentionSettingsUI(s) {
+    const recipe = document.getElementById('setting-recipe-retention-days');
+    if (recipe) recipe.value = s.recipe_retention_days || 7;
+    const history = document.getElementById('setting-transaction-retention-days');
+    // 30 is the floor the server enforces: below it the purchase frequencies the
+    // shopping list learns from become noise.
+    if (history) history.value = s.transaction_retention_days || 90;
+    const vacuum = document.getElementById('setting-vacuum-expiry-extension-days');
+    if (vacuum) vacuum.value = (s.vacuum_expiry_extension_days !== undefined ? s.vacuum_expiry_extension_days : 30);
+}
+
+/**
  * "Apply to existing items": rename the titles that still lack their genre or lead with
  * a lowercase letter, and promote the products the household keeps using. Shows what
  * changed; the user can confirm with a preview first.
@@ -8026,8 +8052,43 @@ function onShoppingModeChange(value) {
     });
 }
 
-async function saveSettings() {
+/**
+ * Write every control of the Settings page (`_saveSettingsInner`) — ONE write at a
+ * time. The server rewrites `.env`, and two overlapping posts are two writers on one
+ * file: the second may read the file before the first has written it, which is how a
+ * value disappears. A caller that arrives while a write is running waits for it and
+ * then writes again, so the newer values are never dropped.
+ *
+ * @param {{autosave?: boolean}} [opts]  autosave: paint the sticky bar instead of staying quiet
+ * @returns {Promise<boolean>} false when the server refused the write
+ */
+async function saveSettings(opts = {}) {
+    const autosave = !!(opts && opts.autosave);
+    if (autosave) _settingsSaveState('saving');
+    if (_saveSettingsInFlight) {
+        try { await _saveSettingsInFlight; } catch (e) { /* the first write's answer is its own */ }
+    }
+    _saveSettingsInFlight = (async () => {
+        let ok = false;
+        try {
+            ok = (await _saveSettingsInner(opts)) !== false;
+            if (autosave) _settingsSaveState(ok ? 'saved' : 'error');
+            return ok;
+        } catch (e) {
+            if (autosave) _settingsSaveState('error', '⚠️ ' + t('settings.saved_local'));
+            return false;
+        } finally {
+            _saveSettingsInFlight = null;
+        }
+    })();
+    return _saveSettingsInFlight;
+}
+
+async function _saveSettingsInner(opts = {}) {
     const s = getSettings();
+    // The answer the caller gets: `false` means the server refused the write, and the
+    // autosave bar must say so instead of claiming «Salvato».
+    let saveOk = false;
     // Only update gemini_key if user actually typed something; preserve existing key otherwise
     const _newGeminiKey = document.getElementById('setting-gemini-key').value.trim();
     if (_newGeminiKey) s.gemini_key = _newGeminiKey;
@@ -8174,6 +8235,16 @@ async function saveSettings() {
     if (variantsToggleEl) s.product_variants_enabled = variantsToggleEl.checked;
     const receiptToggleEl = document.getElementById('setting-receipt-ocr-enabled');
     if (receiptToggleEl) s.receipt_ocr_enabled = receiptToggleEl.checked;
+    // Retention: what this instance keeps (recipes, movement history, vacuum extension).
+    const recipeRetentionEl = document.getElementById('setting-recipe-retention-days');
+    if (recipeRetentionEl) s.recipe_retention_days = Math.max(1, Math.min(365, parseInt(recipeRetentionEl.value, 10) || 7));
+    const historyRetentionEl = document.getElementById('setting-transaction-retention-days');
+    if (historyRetentionEl) s.transaction_retention_days = Math.max(30, Math.min(3650, parseInt(historyRetentionEl.value, 10) || 90));
+    const vacuumExtensionEl = document.getElementById('setting-vacuum-expiry-extension-days');
+    if (vacuumExtensionEl) {
+        const v = parseInt(vacuumExtensionEl.value, 10);
+        s.vacuum_expiry_extension_days = Number.isFinite(v) ? Math.max(0, Math.min(180, v)) : 30;
+    }
     const auditBatchField = document.getElementById('setting-audit-batch-size');
     if (auditBatchField) s.audit_mode_batch_size = Math.max(1, Math.min(50, Number(auditBatchField.value) || 5));
     const autoFavMinEl = document.getElementById('setting-auto-favorite-min-uses');
@@ -8292,25 +8363,21 @@ async function saveSettings() {
             ...(document.getElementById('setting-mealie-token')?.value.trim()
                 ? { mealie_api_token: document.getElementById('setting-mealie-token').value.trim() } : {}),
         }, tokenHeader);
-        const statusEl = document.getElementById('settings-status');
+        // The answer goes to the sticky bar: this page has no Save button any more, so
+        // the receipt has to be wherever the household is looking.
         if (result.success) {
-            statusEl.className = 'settings-status success';
-            statusEl.textContent = iconLabel('✅', 'settings.saved');
+            saveOk = true;
+            _settingsSaveState('saved');
         } else {
-            statusEl.className = 'settings-status error';
             const errMsg = result.error === 'unauthorized'
                 ? t('error.invalid_token')
-                : iconLabel('⚠️', t('settings.saved_local_error').replace('{error}', result.error || ''));
-            statusEl.textContent = errMsg;
+                : t('settings.saved_local_error').replace('{error}', result.error || '');
+            _settingsSaveState('error', '⚠️ ' + errMsg);
         }
-        statusEl.style.display = 'block';
-        setTimeout(() => statusEl.style.display = 'none', 4000);
     } catch(e) {
-        const statusEl = document.getElementById('settings-status');
-        statusEl.className = 'settings-status success';
-        statusEl.textContent = iconLabel('✅', 'settings.saved_local');
-        statusEl.style.display = 'block';
-        setTimeout(() => statusEl.style.display = 'none', 4000);
+        // Offline or the server refused mid-flight: the values stay in the browser and
+        // the next change re-sends them. Saying «saved» here would be a lie.
+        _settingsSaveState('error', '⚠️ ' + t('settings.saved_local'));
     }
     // Re-sync AI availability after save (provider / enabled / credentials)
     try {
@@ -8343,6 +8410,7 @@ async function saveSettings() {
     } catch(e) {}
     // Re-init screensaver watcher in case it was just enabled
     initInactivityWatcher();
+    return saveOk;
 }
 
 // ── Calendar (ICS expiry feed) — Settings → 🗓️ Calendar ───────────────────────
@@ -8513,7 +8581,22 @@ function switchSettingsTab(btn, tabId) {
 // declares its section in the `data-group` attribute in index.html and only the
 // active section's tabs are shown; the two lists must not drift apart.
 // ends in sync — add a group here AND a data-group there.
-const SETTINGS_GROUPS = ['app', 'cooking', 'medical', 'alerts', 'system'];
+const SETTINGS_GROUPS = ['general', 'cooking', 'ai', 'medical', 'alerts', 'system'];
+
+/**
+ * Show only the chips of one section.
+ *
+ * It is its own function because TWO paths need it: switching section, and opening a
+ * tab that already belongs to the active section (`_syncSettingsGroupForTab`). The
+ * second one used to skip the whole switch when the section matched — which on a
+ * fresh boot (no `.active` class yet) left every chip of every section on screen:
+ * twenty topics in one strip, exactly the wall this redesign removes.
+ */
+function _syncSettingsTabsVisibility(group) {
+    document.querySelectorAll('.settings-tabs .settings-tab').forEach(t => {
+        t.classList.toggle('settings-tab-hidden', t.dataset.group !== group);
+    });
+}
 
 /**
  * Show the tab strip of one section.
@@ -8528,9 +8611,7 @@ function switchSettingsGroup(group, keepTab = false) {
         b.classList.toggle('active', on);
         b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
-    document.querySelectorAll('.settings-tabs .settings-tab').forEach(t => {
-        t.classList.toggle('settings-tab-hidden', t.dataset.group !== group);
-    });
+    _syncSettingsTabsVisibility(group);
     if (keepTab) return;
     // The selected tab lives in another section: open the first tab of this
     // one through .click() so its own loader (notify, HA, info…) still runs.
@@ -8547,6 +8628,8 @@ function _syncSettingsGroupForTab(tabId) {
     const activeGroup = document.querySelector('.settings-group-btn.active');
     if (!activeGroup || activeGroup.dataset.group !== btn.dataset.group) {
         switchSettingsGroup(btn.dataset.group, true);
+    } else {
+        _syncSettingsTabsVisibility(btn.dataset.group);
     }
     try { localStorage.setItem('evershelf_settings_tab', tabId); } catch (e) {}
     if (btn.scrollIntoView) btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -8559,7 +8642,7 @@ function _restoreSettingsNav() {
     if (typeof _settingsSearchInit === 'function') _settingsSearchInit();
     _initSettingsAccordions();
     let tab = 'tab-general';
-    let group = 'app';
+    let group = SETTINGS_GROUPS[0];
     try {
         tab = localStorage.getItem('evershelf_settings_tab') || tab;
         group = localStorage.getItem('evershelf_settings_group') || group;
@@ -8654,6 +8737,341 @@ function _openSettingsCardFor(el) {
     if (!card) return;
     _closeSettingsCards(card);
     _setSettingsCardOpen(card, true);
+}
+
+// ── Settings autosave: this page has no Save button ──────────────────────────
+// Asked for: «Ogni salvataggio deve essere automatico! Il bottone Salva non deve
+// esserci». Every control writes itself: a checkbox/select/radio is written at once,
+// a field waits a moment after the last keystroke (a letter is not a decision, and
+// one POST per letter would rewrite .env forty times for a URL). The owner of a
+// control is the nearest `data-autosave` (a panel or a card that names its own saver,
+// e.g. the notifications panel); `data-autosave="none"` means the control already
+// writes itself (EverShelf Med) and a generic save would only re-post the whole page.
+// The sticky bar at the bottom is the receipt, never a button.
+
+/** A keystroke is not a decision: wait this long after the last one. */
+const SETTINGS_AUTOSAVE_DELAY = 700;
+
+let _saveSettingsInFlight = null;
+let _settingsAutosaveTimer = null;
+let _settingsAutosaveRunning = false;
+let _settingsAutosaveAgain = false;
+let _settingsSaveStateTimer = null;
+/** Savers waiting for the next flush (one entry per function, never per keystroke). */
+const _settingsAutosavePending = new Set();
+
+/** Controls of the settings page that hold a SETTING (never the search, never user data). */
+function _isSettingsControl(el) {
+    if (!el || !el.id) return false;
+    if (el.type === 'file' || el.type === 'hidden' || el.type === 'button' || el.type === 'submit') return false;
+    if (['settings-search', 'new-custom-location-input', 'new-appliance-input',
+         'med-new-location-input', 'setting-weather-city-search'].includes(el.id)) return false;
+    if (/^setting-/.test(el.id) || /^health-profile-/.test(el.id)) return true;
+    return /^shopping-(mode|remove-on-buy)$/.test(el.name || '') || (el.name || '') === 'ai-provider';
+}
+
+/**
+ * Which function writes this control.
+ * @returns {string|null} null = nobody (the control already persisted itself)
+ */
+function _settingsAutosaveOwner(el) {
+    const holder = el.closest ? el.closest('[data-autosave]') : null;
+    const name = holder ? String(holder.dataset.autosave || '') : '';
+    if (name === 'none') return null;
+    if (name && typeof window[name] === 'function') return name;
+    return 'saveSettings';
+}
+
+/** Delegated listeners, installed once, on the page (not on 140 controls). */
+function _initSettingsAutosave() {
+    const page = document.getElementById('page-settings');
+    if (!page || page.dataset.autosaveReady === '1') return;
+    page.dataset.autosaveReady = '1';
+    page.addEventListener('change', (ev) => {
+        if (_isSettingsControl(ev.target)) _settingsAutosaveSchedule(ev.target, false);
+    });
+    page.addEventListener('input', (ev) => {
+        const el = ev.target;
+        if (!_isSettingsControl(el)) return;
+        const type = el.type || 'text';
+        // Only what is typed in: a select/checkbox/radio already fires `change`.
+        if (!['text', 'password', 'number', 'url', 'email', 'tel', 'search', 'range'].includes(type)) return;
+        _settingsAutosaveSchedule(el, true);
+    });
+    // Leaving the page mid-wait must not lose the last keystroke.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && _settingsAutosavePending.size) _settingsAutosaveFlush();
+    });
+}
+
+function _settingsAutosaveSchedule(el, typed) {
+    const owner = _settingsAutosaveOwner(el);
+    if (!owner) return;
+    // Never write a half-known settings object: a page whose cache is still empty
+    // would post empty arrays for the places and the appliances and wipe them. The
+    // fields are filled from that same cache, so nothing can have been typed yet.
+    if (!_settingsCache || Object.keys(_settingsCache).length === 0) return;
+    _settingsAutosavePending.add(owner);
+    _settingsSaveState('pending');
+    if (_settingsAutosaveTimer) clearTimeout(_settingsAutosaveTimer);
+    _settingsAutosaveTimer = setTimeout(_settingsAutosaveFlush, typed ? SETTINGS_AUTOSAVE_DELAY : 0);
+}
+
+/** Write every saver that is waiting, in order, then paint the receipt. */
+async function _settingsAutosaveFlush() {
+    if (_settingsAutosaveTimer) { clearTimeout(_settingsAutosaveTimer); _settingsAutosaveTimer = null; }
+    if (!_settingsAutosavePending.size) return;
+    if (_settingsAutosaveRunning) { _settingsAutosaveAgain = true; return; }
+    _settingsAutosaveRunning = true;
+    const owners = [..._settingsAutosavePending];
+    _settingsAutosavePending.clear();
+    _settingsSaveState('saving');
+    let ok = true;
+    for (const owner of owners) {
+        try {
+            const fn = typeof window[owner] === 'function' ? window[owner] : window.saveSettings;
+            // A saver says `false` when the server refused the write; `undefined` means
+            // it does not report (the notify/HA/calendar savers paint their own status).
+            if ((await fn({ autosave: true })) === false) ok = false;
+        } catch (e) {
+            ok = false;
+        }
+    }
+    _settingsAutosaveRunning = false;
+    // A control changed while the write was running: one more pass, never a lost edit.
+    if (_settingsAutosavePending.size || _settingsAutosaveAgain) {
+        _settingsAutosaveAgain = false;
+        return _settingsAutosaveFlush();
+    }
+    _settingsSaveState(ok ? 'saved' : 'error');
+}
+
+/**
+ * Paint the autosave receipt: idle (what the page does), pending/saving (it is
+ * working) and saved/error (the answer). Never a button — a Save button on this page
+ * is exactly what this bar replaced.
+ * @param {'idle'|'pending'|'saving'|'saved'|'error'} state
+ * @param {string} [message]
+ */
+function _settingsSaveState(state, message) {
+    const bar = document.getElementById('settings-savebar');
+    if (bar) {
+        bar.dataset.state = state;
+        const icon = bar.querySelector('.settings-savebar-icon');
+        const text = bar.querySelector('.settings-savebar-text');
+        const icons = { idle: '✓', pending: '…', saving: '⏳', saved: '✓', error: '⚠️' };
+        const keys = {
+            idle: 'settings.autosave.on',
+            pending: 'settings.autosave.pending',
+            saving: 'settings.autosave.saving',
+            saved: 'settings.autosave.saved',
+            error: 'settings.autosave.error',
+        };
+        if (icon) icon.textContent = icons[state] || icons.idle;
+        if (text) text.textContent = message || t(keys[state] || keys.idle);
+    }
+    if (_settingsSaveStateTimer) { clearTimeout(_settingsSaveStateTimer); _settingsSaveStateTimer = null; }
+    if (state === 'saved' || state === 'error') {
+        _settingsSaveStateTimer = setTimeout(() => _settingsSaveState('idle'), state === 'error' ? 4200 : 2400);
+    }
+}
+
+// ── ESSENTIALS: the four facts that must be visible without opening a tab ────
+// «Le informazioni ESSENZIALI (token, ecc) devono essere subito visibili». The strip
+// lives above the sections and reads, it never writes: the token is the one THIS
+// device holds (and the server's own requirement), the pairing code is the one
+// `_loadPairingCodePanel` mints, the backup is `backup_list`, the version is the
+// header's. Every tile has one door into the section that owns the setting.
+
+let _essTokenRevealed = false;
+
+/** The API token this browser was paired with ('' when the instance is open). */
+function _essTokenValue() {
+    try { return String((typeof getApiToken === 'function' ? getApiToken() : '') || ''); } catch (e) { return ''; }
+}
+
+/** `••••••••1a2b`: enough to recognise the token, not enough to leak it on a photo. */
+function _essMaskToken(token) {
+    if (!token) return '';
+    return token.length <= 8 ? '••••••••' : '••••••••' + token.slice(-4);
+}
+
+function _essRenderToken() {
+    const token = _essTokenValue();
+    const required = !!((_serverSettings && _serverSettings.api_token_required) || window._apiTokenRequired);
+    const stateEl = document.getElementById('ess-token-state');
+    const valueEl = document.getElementById('ess-token-value');
+    const hintEl = document.getElementById('ess-token-hint');
+    const revealBtn = document.getElementById('ess-token-reveal');
+    if (valueEl) {
+        valueEl.textContent = token ? (_essTokenRevealed ? token : _essMaskToken(token)) : '—';
+        valueEl.classList.toggle('is-revealed', !!token && _essTokenRevealed);
+        valueEl.classList.toggle('is-secret', !!token && !_essTokenRevealed);
+    }
+    if (stateEl) {
+        stateEl.dataset.state = token ? 'on' : (required ? 'off' : 'open');
+        stateEl.textContent = token ? t('settings.essentials.token_active')
+            : (required ? t('settings.essentials.token_missing') : t('settings.essentials.token_open'));
+    }
+    if (hintEl) {
+        hintEl.textContent = required
+            ? t('settings.essentials.token_required_hint')
+            : t('settings.essentials.token_free_hint');
+    }
+    if (revealBtn) revealBtn.setAttribute('aria-pressed', _essTokenRevealed ? 'true' : 'false');
+}
+
+function _essTokenReveal() {
+    _essTokenRevealed = !_essTokenRevealed;
+    _essRenderToken();
+}
+
+/** Copy a value and say so — the clipboard API, with the old execCommand fallback. */
+async function _essCopy(text, okKey) {
+    const value = String(text || '').trim();
+    if (!value) { showToast(t('settings.essentials.copy_empty'), 'error'); return; }
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(value);
+        } else {
+            const area = document.createElement('textarea');
+            area.value = value;
+            document.body.appendChild(area);
+            area.select();
+            document.execCommand('copy');
+            area.remove();
+        }
+        showToast(iconLabel('📋', okKey || 'settings.essentials.copied'), 'success');
+    } catch (e) {
+        showToast(t('settings.essentials.copy_failed'), 'error');
+    }
+}
+
+async function _essTokenCopy() {
+    await _essCopy(_essTokenValue(), 'settings.essentials.token_copied');
+}
+
+/** The version chip of the header is the app version (reportError reads it too). */
+function _essRenderVersion() {
+    const valueEl = document.getElementById('ess-version-value');
+    const hintEl = document.getElementById('ess-server-hint');
+    if (valueEl) {
+        const app = (document.querySelector('.header-version')?.textContent || '').trim();
+        const kiosk = (document.getElementById('header-kiosk-version')?.textContent || '').trim();
+        valueEl.textContent = [app, kiosk].filter(Boolean).join(' · ') || '—';
+    }
+    if (hintEl) hintEl.textContent = location.host || location.origin;
+}
+
+/** Open the section/tab that owns an essential, from anywhere on the page. */
+function _essGoTo(tabId) {
+    const tabBtn = document.querySelector(`.settings-tabs .settings-tab[data-tab="${tabId}"]`);
+    if (!tabBtn) return;
+    if (typeof switchSettingsGroup === 'function') switchSettingsGroup(tabBtn.dataset.group, true);
+    tabBtn.click();
+    const shell = document.querySelector('.settings-shell');
+    if (shell && shell.scrollIntoView) shell.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
+/**
+ * Paint the last backup: «quando è stato fatto» is one of the four essentials, and a
+ * missing or old timestamp means the scheduler is not running — the state worth
+ * showing, not «mai configurato».
+ */
+async function _essRenderBackup() {
+    const valueEl = document.getElementById('ess-backup-value');
+    const hintEl = document.getElementById('ess-backup-hint');
+    const stateEl = document.getElementById('ess-backup-state');
+    if (!valueEl) return;
+    try {
+        const data = await api('backup_list');
+        if (!data || !data.success) throw new Error('backup_list');
+        if (!data.last_backup_ts) {
+            valueEl.textContent = '—';
+            if (stateEl) { stateEl.dataset.state = 'off'; stateEl.textContent = t('settings.essentials.backup_none'); }
+            if (hintEl) hintEl.textContent = t('settings.essentials.backup_hint_none');
+            return;
+        }
+        const secs = Math.max(0, Math.floor(Date.now() / 1000) - data.last_backup_ts);
+        const ago = secs < 120 ? (secs < 5 ? t('time.just_now') : t('time.seconds_ago', { n: secs }))
+            : secs < 3600 ? t('time.minutes_ago', { n: Math.floor(secs / 60) })
+            : secs < 86400 ? t('time.hours_ago', { n: Math.floor(secs / 3600) })
+            : t('time.days_ago', { n: Math.floor(secs / 86400) });
+        const stale = secs > _BACKUP_STALE_DAYS * 86400;
+        valueEl.textContent = ago;
+        if (stateEl) {
+            stateEl.dataset.state = stale ? 'off' : 'on';
+            stateEl.textContent = stale ? t('settings.essentials.backup_stale') : t('settings.essentials.backup_ok');
+        }
+        if (hintEl) hintEl.textContent = data.last_backup_file || '';
+    } catch (e) {
+        valueEl.textContent = '—';
+        if (stateEl) { stateEl.dataset.state = 'off'; stateEl.textContent = '—'; }
+        if (hintEl) hintEl.textContent = t('settings.essentials.backup_error');
+    }
+}
+
+async function _essBackupNow() {
+    const btn = document.getElementById('ess-backup-now');
+    if (btn) btn.disabled = true;
+    try {
+        const r = await api('backup_now');
+        if (r && r.success) {
+            showToast(`✅ ${r.filename || ''} ${r.size_kb ? '(' + r.size_kb + ' KB)' : ''}`.trim(), 'success');
+        } else {
+            showToast('❌ ' + _apiErrorText(r), 'error');
+        }
+    } catch (e) {
+        showToast('❌ ' + e.message, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+        _essRenderBackup();
+    }
+}
+
+/**
+ * Paint the whole strip. The pairing card is painted by `_loadPairingCodePanel` (it
+ * also owns the one-second countdown), so it is only asked to run here.
+ */
+function _renderSettingsEssentials() {
+    _essRenderToken();
+    _essRenderVersion();
+    _essRenderBackup();
+    if (typeof _loadPairingCodePanel === 'function') _loadPairingCodePanel();
+}
+
+/** The CA instructions, in a dialog: half a screen of numbered steps is not a page. */
+function _openCaHelpDialog() {
+    const overlay = document.getElementById('ca-help-overlay');
+    if (!overlay) return;
+    overlay.style.display = 'flex';
+    const close = overlay.querySelector('.recipe-dialog-close');
+    if (close && close.focus) { try { close.focus({ preventScroll: true }); } catch (e) {} }
+}
+
+function _closeCaHelpDialog() {
+    const overlay = document.getElementById('ca-help-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+/**
+ * Count the pending decisions per section, so «2 da decidere» is visible on the rail
+ * without opening the checklist. The badge is the same count the card prints.
+ */
+function _renderSettingsSectionBadges(items) {
+    const counts = {};
+    (items || []).forEach(item => {
+        const tabBtn = document.querySelector(`.settings-tabs .settings-tab[data-tab="${item.tab}"]`);
+        const group = tabBtn ? tabBtn.dataset.group : '';
+        if (group) counts[group] = (counts[group] || 0) + 1;
+    });
+    document.querySelectorAll('.settings-group-count').forEach(badge => {
+        const n = counts[badge.dataset.countFor] || 0;
+        badge.textContent = String(n);
+        badge.hidden = n === 0;
+        if (n) badge.setAttribute('aria-label', t('settings.checklist.badge_aria', { count: n }));
+        else badge.removeAttribute('aria-label');
+    });
 }
 
 function _getSelectedAiProvider() {
@@ -19660,6 +20078,9 @@ const _OVERLAY_CLOSERS = {
     // location rename. Esc closes them without leaving a half-typed rename behind.
     'free-apis-overlay': () => _closeFreeApisDialog(),
     'location-rename-overlay': () => _closeLocationRename(),
+    // The CA install guide: the long numbered steps live in a dialog now, so Esc has
+    // to put it away (and give the focus back to the "Come lo installo?" button).
+    'ca-help-overlay': () => _closeCaHelpDialog(),
 };
 
 /** Focusable children of a dialog, in tab order. */
@@ -21308,7 +21729,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112y';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112za';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21318,7 +21739,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112y';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261112za';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -44535,6 +44956,8 @@ function _renderSettingsChecklist() {
     try { if (localStorage.getItem('evershelf_checklist_open') === '1') open = true; } catch (e) {}
     box.hidden = !open;
     _syncChecklistToggle(open);
+    // The same count, on the section that owns each pending option.
+    _renderSettingsSectionBadges(todo.concat(news));
 }
 
 function _syncChecklistToggle(open) {

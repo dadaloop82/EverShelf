@@ -1339,9 +1339,9 @@
     "groups_aria": "设置分区",
     "subsections_label": "子分区",
     "group_app": "🤖 应用与 AI",
-    "group_cooking": "🍳 烹饪",
-    "group_alerts": "🔔 提醒与服务",
-    "group_system": "⚙️ 系统",
+    "group_cooking": "烹饪",
+    "group_alerts": "提醒与集成",
+    "group_system": "系统",
     "checklist": {
       "title": "🧭 配置清单",
       "summary_ok": "全部已配置",
@@ -1354,7 +1354,8 @@
       "configure": "配置",
       "show": "显示条目",
       "hide": "隐藏条目",
-      "run": "▶️ 查看选项"
+      "run": "▶️ 查看选项",
+      "badge_aria": "{count} 项待决定"
     },
     "calendar": {
       "tab": "日历",
@@ -1376,7 +1377,7 @@
       "save_btn": "💾 保存日历设置"
     },
     "title": "⚙️ 设置",
-    "tab_api": "API 密钥",
+    "tab_api": "AI",
     "tab_bring": "Bring!",
     "tab_recipe": "食谱",
     "tab_health": "健康",
@@ -1643,7 +1644,10 @@
       "pairing_copied": "已复制配对码",
       "pairing_refreshed": "已生成新配对码",
       "pairing_error": "无法加载配对码",
-      "pairing_not_needed": "此服务器不需要配对（未设置 API_TOKEN，或启用了 API_BOOTSTRAP_OPEN）。"
+      "pairing_not_needed": "此服务器不需要配对（未设置 API_TOKEN，或启用了 API_BOOTSTRAP_OPEN）。",
+      "ca_help_btn": "❓ 如何安装？",
+      "ca_help_title": "🔒 安装 CA 证书",
+      "ca_help_hint": "Android 和电脑的分步说明会在窗口中打开，不占用页面。"
     },
     "tts": {
       "title": "🔊 语音与 TTS",
@@ -1869,7 +1873,7 @@
       "pairing_hint": "配对另一台设备时使用此码（也可在 设置 → 系统 → 安全 中查看）。",
       "pairing_open_security": "打开安全"
     },
-    "tab_general": "常规",
+    "tab_general": "外观",
     "shopping": {
       "tab": "购物清单",
       "title": "购物清单",
@@ -2166,8 +2170,59 @@
       "subscribed": "设备已订阅",
       "test_ok": "测试通知已发送"
     },
-    "group_medical": "💊 药品",
-    "tab_medical": "药品"
+    "group_medical": "药品",
+    "tab_medical": "药品",
+    "group_general": "常规",
+    "group_ai": "AI 与语音",
+    "tab_locations": "存放位置",
+    "tab_data": "数据",
+    "essentials": {
+      "title": "访问与状态",
+      "hint": "最先需要的信息：这台服务器如何受到保护、如何配对另一台设备、上次备份是什么时候、正在运行哪个版本。",
+      "token_label": "访问令牌",
+      "token_active": "有效",
+      "token_missing": "缺失",
+      "token_open": "开放访问",
+      "token_required_hint": "此服务器要求令牌：本设备会在每次请求时发送它。",
+      "token_free_hint": "此服务器不要求令牌：同一网络内的任何人都可以进入。",
+      "reveal": "显示",
+      "copy": "复制",
+      "copy_code": "复制代码",
+      "copy_empty": "没有可复制的内容。",
+      "copy_failed": "复制失败：请选中文本手动复制。",
+      "copied": "已复制！",
+      "token_copied": "令牌已复制！",
+      "refresh_code": "新代码",
+      "backup_label": "上次备份",
+      "backup_ok": "最近",
+      "backup_stale": "过旧",
+      "backup_none": "从未",
+      "backup_hint_none": "还没有备份：请检查计划任务的 cron 是否在运行。",
+      "backup_error": "无法获取备份状态。",
+      "backup_now": "立即备份",
+      "version_label": "版本",
+      "version_details": "系统信息",
+      "manage": "管理",
+      "pairing_label": "配对代码"
+    },
+    "autosave": {
+      "on": "自动保存：修改会自动保存",
+      "pending": "检测到修改…",
+      "saving": "保存中…",
+      "saved": "已保存",
+      "error": "未保存：再次修改时会重试"
+    },
+    "retention": {
+      "card_title": "🗄️ 数据保留",
+      "card_hint": "应用会保留自己产生的数据多久。数字越小 = 档案越轻，估算越不精确。",
+      "recipe_label": "生成的食谱",
+      "recipe_hint": "AI 生成的膳食计划会在这些天后删除（1–365）。",
+      "history_label": "变动历史",
+      "history_hint": "购物清单在这里学习购买频率：少于 30 天，估算将不可靠。",
+      "vacuum_label": "真空包装",
+      "vacuum_hint": "真空包装在其类别保质期之外额外获得的保质天数（0 = 不延长）。",
+      "unit": "天"
+    }
   },
   "expiry": {
     "today": "今天",

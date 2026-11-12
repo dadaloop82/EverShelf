@@ -1339,9 +1339,9 @@
     "groups_aria": "Secciones de ajustes",
     "subsections_label": "Subsecciones",
     "group_app": "🤖 App e IA",
-    "group_cooking": "🍳 Cocina",
-    "group_alerts": "🔔 Avisos y servicios",
-    "group_system": "⚙️ Sistema",
+    "group_cooking": "Cocina",
+    "group_alerts": "Avisos e integraciones",
+    "group_system": "Sistema",
     "checklist": {
       "title": "🧭 Lista de configuración",
       "summary_ok": "Todo configurado",
@@ -1354,7 +1354,8 @@
       "configure": "Configurar",
       "show": "Mostrar entradas",
       "hide": "Ocultar entradas",
-      "run": "▶️ Revisar las opciones"
+      "run": "▶️ Revisar las opciones",
+      "badge_aria": "{count} opciones por decidir"
     },
     "calendar": {
       "tab": "Calendario",
@@ -1376,7 +1377,7 @@
       "save_btn": "💾 Guardar ajustes del calendario"
     },
     "title": "⚙️ Ajustes",
-    "tab_api": "Claves API",
+    "tab_api": "IA",
     "tab_bring": "Bring!",
     "tab_recipe": "Recetas",
     "tab_mealplan": "Plan semanal",
@@ -1538,7 +1539,10 @@
       "pairing_copied": "Código copiado",
       "pairing_refreshed": "Código nuevo generado",
       "pairing_error": "No se pudo cargar el código de vinculación",
-      "pairing_not_needed": "Este servidor no requiere vinculación (sin API_TOKEN o con API_BOOTSTRAP_OPEN)."
+      "pairing_not_needed": "Este servidor no requiere vinculación (sin API_TOKEN o con API_BOOTSTRAP_OPEN).",
+      "ca_help_btn": "❓ ¿Cómo lo instalo?",
+      "ca_help_title": "🔒 Instalar el certificado CA",
+      "ca_help_hint": "Las instrucciones paso a paso para Android y PC se abren en una ventana y no ocupan la página."
     },
     "tts": {
       "title": "🔊 Voz & TTS",
@@ -1939,7 +1943,7 @@
       "pairing_hint": "Para vincular otro dispositivo usa este código (también en Ajustes → Sistema → Seguridad).",
       "pairing_open_security": "Abrir Seguridad"
     },
-    "tab_general": "General",
+    "tab_general": "Aspecto",
     "kiosk_update_required": "⚠️ Actualiza la app kiosk para usar esta función",
     "tab_health": "Salud",
     "health": {
@@ -2166,8 +2170,59 @@
       "subscribed": "Dispositivo suscrito",
       "test_ok": "Notificación de prueba enviada"
     },
-    "group_medical": "💊 Medicamentos",
-    "tab_medical": "Medicamentos"
+    "group_medical": "Medicamentos",
+    "tab_medical": "Medicamentos",
+    "group_general": "General",
+    "group_ai": "IA y voz",
+    "tab_locations": "Lugares",
+    "tab_data": "Datos",
+    "essentials": {
+      "title": "Acceso y estado",
+      "hint": "Los datos que hacen falta primero: cómo está protegido este servidor, cómo emparejar otro dispositivo, cuándo se hizo la última copia y qué versión está en marcha.",
+      "token_label": "Token de acceso",
+      "token_active": "activo",
+      "token_missing": "falta",
+      "token_open": "acceso libre",
+      "token_required_hint": "Este servidor pide un token: este dispositivo lo envía en cada petición.",
+      "token_free_hint": "Este servidor no pide token: cualquiera en la misma red puede entrar.",
+      "reveal": "Mostrar",
+      "copy": "Copiar",
+      "copy_code": "Copiar código",
+      "copy_empty": "No hay nada que copiar.",
+      "copy_failed": "No se pudo copiar: selecciona el texto y cópialo a mano.",
+      "copied": "¡Copiado!",
+      "token_copied": "¡Token copiado!",
+      "refresh_code": "Nuevo código",
+      "backup_label": "Última copia",
+      "backup_ok": "reciente",
+      "backup_stale": "antigua",
+      "backup_none": "nunca",
+      "backup_hint_none": "Aún no hay copias: comprueba que el cron del planificador esté activo.",
+      "backup_error": "Estado de la copia no disponible.",
+      "backup_now": "Copiar ahora",
+      "version_label": "Versión",
+      "version_details": "Información del sistema",
+      "manage": "Gestionar",
+      "pairing_label": "Código de emparejamiento"
+    },
+    "autosave": {
+      "on": "Guardado automático: los cambios se guardan solos",
+      "pending": "Cambio detectado…",
+      "saving": "Guardando…",
+      "saved": "Guardado",
+      "error": "No guardado: lo reintenta en cuanto cambies algo"
+    },
+    "retention": {
+      "card_title": "🗄️ Conservación de datos",
+      "card_hint": "Cuánto tiempo guarda la app lo que produce por sí sola. Números más bajos = archivo más ligero, estimaciones menos precisas.",
+      "recipe_label": "Recetas generadas",
+      "recipe_hint": "Los planes de comidas creados por la IA se borran después de estos días (1–365).",
+      "history_label": "Historial de movimientos",
+      "history_hint": "La lista de la compra aprende aquí sus frecuencias: por debajo de 30 días las estimaciones dejan de ser fiables.",
+      "vacuum_label": "Al vacío",
+      "vacuum_hint": "Días extra que gana un envase al vacío respecto a la caducidad de su categoría (0 = sin prolongación).",
+      "unit": "días"
+    }
   },
   "expiry": {
     "today": "HOY",

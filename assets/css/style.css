@@ -8899,67 +8899,90 @@ body.cooking-mode-active .app-header {
 }
 
 /* ===== SETTINGS PAGE =====
-   Two-level nav in one block: section strip, then subsection strip on the next
-   row — same underline button style so the hierarchy is obvious without pills. */
-.settings-nav {
-    margin-bottom: 14px;
-}
+   A control panel, not one endless page: a rail of six sections (sticky sidebar on a
+   monitor, a swipeable strip of pills on a phone) and, for the section that is open,
+   its own topics. Everything reads the app's own tokens, so the page belongs to the
+   site and not to a different app. */
+.settings-shell { display: block; }
+.settings-nav { margin-bottom: 12px; }
 
 .settings-groups {
     display: flex;
-    flex-wrap: wrap;
-    gap: 2px;
-    overflow: visible;
-    padding-bottom: 0;
-    margin-bottom: 0;
-    border-bottom: 1px solid var(--border);
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding: 2px 2px 6px;
+    margin: 0;
+    border: none;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
 }
 
 .settings-groups::-webkit-scrollbar { display: none; }
 
-.settings-group-btn,
-.settings-tab {
-    background: none;
-    border: none;
-    border-bottom: 3px solid transparent;
-    margin-bottom: -1px;
-    padding: 10px 14px;
-    font-size: 0.88rem;
-    font-weight: 700;
-    color: var(--text-muted);
-    cursor: pointer;
-    white-space: nowrap;
-    flex-shrink: 0;
-    transition: color 0.2s, border-color 0.2s;
+.settings-group-btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    border-radius: 0;
+    gap: 7px;
+    flex: 0 0 auto;
+    padding: 9px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-card);
+    color: var(--text-light);
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
     min-width: 0;
+    transition: color 0.18s, border-color 0.18s, background 0.18s;
 }
 
-.settings-group-btn {
-    font-size: 0.92rem;
-    letter-spacing: 0.01em;
+.settings-group-btn:hover { border-color: var(--primary-light); color: var(--primary); }
+
+.settings-group-btn.active {
+    background: color-mix(in srgb, var(--primary) 12%, var(--bg-card));
+    border-color: var(--primary);
+    color: var(--primary-dark);
 }
 
-.settings-tab {
-    font-size: 0.84rem;
-    font-weight: 600;
-    padding: 8px 12px;
+.settings-group-icon { font-size: 1rem; line-height: 1; }
+
+/* How many options of this section still wait for a decision. */
+.settings-group-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--warning);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1;
 }
 
-.settings-group-btn.active,
-.settings-tab.active {
-    color: var(--primary);
-    border-bottom-color: var(--primary);
-    background: none;
-}
+.settings-group-count[hidden] { display: none; }
 
-/* Tabs of the sections that are not selected stay out of the way. */
-.settings-tab.settings-tab-hidden { display: none; }
+@media (min-width: 980px) {
+    .settings-shell {
+        display: grid;
+        grid-template-columns: 212px minmax(0, 1fr);
+        gap: 22px;
+        align-items: start;
+    }
+    .settings-nav { position: sticky; top: 76px; margin-bottom: 0; }
+    .settings-groups { flex-direction: column; overflow: visible; gap: 4px; padding: 0; }
+    .settings-group-btn {
+        width: 100%;
+        justify-content: flex-start;
+        border-radius: 10px;
+        padding: 10px 12px;
+    }
+    .settings-group-count { margin-left: auto; }
+}
 
 /* Setup checklist: one line while everything is configured, the full list once
    something still needs a decision (rendered by _renderSettingsChecklist()). */
@@ -9037,25 +9060,332 @@ body.cooking-mode-active .app-header {
 
 .settings-card.settings-card-flash { animation: settings-card-flash 1.6s ease-out; }
 
-/* ===== LEVEL 2: sub-sections — same underline style as sections, new row ===== */
-.settings-subsections-label {
-    font-size: 0.7rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
-    margin: 10px 0 0 2px;
-}
+/* ===== LEVEL 2: the topics of the open section — quiet chips, one row ===== */
+.settings-main { min-width: 0; }
 
 .settings-tabs {
     display: flex;
-    flex-wrap: wrap;
-    gap: 2px;
-    overflow: visible;
-    padding: 0;
-    margin: 0 0 4px 0;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 2px 8px;
+    margin: 0 0 12px;
     border-bottom: 1px solid var(--border);
-    border-left: none;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+.settings-tabs::-webkit-scrollbar { display: none; }
+
+.settings-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    font-weight: 600;
+    white-space: nowrap;
+    min-width: 0;
+    cursor: pointer;
+    transition: color 0.18s, background 0.18s;
+}
+
+.settings-tab:hover { background: var(--bg); color: var(--text-light); }
+
+.settings-tab.active {
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary-dark);
+}
+
+/* Tabs of the sections that are not selected stay out of the way. */
+.settings-tab.settings-tab-hidden { display: none; }
+
+/* ===== ESSENTIALS — access token, pairing code, last backup, version =====
+   A household looks for these four facts before anything else, so they sit above the
+   sections and never behind a tab. Tiles, not another card of prose: a label, the
+   value, the state, two actions. */
+.ess-panel {
+    background: var(--es-surface-tint, var(--bg-card));
+    border: 1px solid var(--es-border-subtle, var(--border));
+    border-radius: var(--es-radius-card, 12px);
+    padding: 14px;
+    margin: 0 0 14px;
+}
+
+.ess-panel-head { margin-bottom: 10px; }
+
+.ess-panel-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-main, var(--text));
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.ess-panel-sub {
+    margin: 4px 0 0;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
+.ess-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+}
+
+.ess-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.ess-tile-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.ess-tile-icon { font-size: 0.95rem; line-height: 1; }
+
+.ess-tile-label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.ess-pill {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    white-space: nowrap;
+    background: var(--bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
+
+.ess-pill[data-state="on"] {
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    color: var(--primary-dark);
+    border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+.ess-pill[data-state="off"] {
+    background: color-mix(in srgb, var(--warning) 16%, transparent);
+    color: #92400e;
+    border-color: color-mix(in srgb, var(--warning) 45%, transparent);
+}
+
+.ess-tile-value {
+    margin: 2px 0 0;
+    font-size: 0.98rem;
+    font-weight: 800;
+    color: var(--text-main, var(--text));
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.ess-tile-value.is-secret,
+.ess-tile-value.is-revealed {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.86rem;
+    letter-spacing: 0.02em;
+}
+
+.ess-tile-hint {
+    margin: 0;
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+}
+
+.ess-tile-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    /* At the foot of the tile: the four tiles are one row, and the actions of the
+       tallest one set the height — an action row that floats under the value makes
+       the other three look broken. */
+    margin-top: auto;
+    padding-top: 6px;
+}
+
+.ess-tile-actions .btn { padding: 5px 10px; font-size: 0.78rem; }
+
+/* The pairing code is drawn by _loadPairingCodePanel at 2.1 rem: inside a tile it has
+   to fit the column, or it overflows on a phone. */
+.ess-pairing-body { min-width: 0; }
+
+.ess-pairing-body .pairing-code-display {
+    font-size: 1.5rem !important;
+    letter-spacing: 0.16em !important;
+    padding: 8px 6px !important;
+}
+
+.ess-pairing-body .settings-hint { margin: 6px 0 0; font-size: 0.72rem; }
+
+@media (min-width: 560px) {
+    .ess-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 980px) {
+    .ess-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* A phone gets the same four facts in ~250 px instead of ~620: the label and the value
+   on the left, the two actions on the right, no long explanation (the pill already says
+   the verdict) and no "Gestisci" links (the section rail is one scroll below). Measured
+   in headless Chromium at 500 px. */
+@media (max-width: 559px) {
+    .ess-panel { padding: 12px; }
+    .ess-grid { gap: 8px; }
+    .ess-tile {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: "head actions" "value actions";
+        align-items: center;
+        column-gap: 8px;
+        padding: 9px 11px;
+        gap: 1px 8px;
+    }
+    .ess-tile-head { grid-area: head; min-width: 0; }
+    .ess-tile-value { grid-area: value; }
+    .ess-pairing-body { grid-area: value; min-width: 0; }
+    .ess-tile-hint { display: none; }
+    .ess-tile-actions { grid-area: actions; margin: 0; gap: 4px; justify-content: flex-end; }
+    .ess-tile-actions .btn { padding: 4px 8px; font-size: 0.74rem; }
+    /* They repeat what the section rail already offers a few lines below. */
+    .ess-tile-actions .btn-link { display: none; }
+    .ess-pairing-body .pairing-code-display {
+        font-size: 1.05rem !important;
+        letter-spacing: 0.08em !important;
+        padding: 2px 3px !important;
+    }
+    .ess-pairing-body .settings-hint { font-size: 0.66rem; margin-top: 2px; }
+}
+
+/* The receipt floats above the bottom nav, so the page needs room for it or the last
+   button sits under the pill. */
+#page-settings { padding-bottom: 52px; }
+
+/* ===== AUTOSAVE BAR — the receipt, never a Save button ===== */
+.settings-savebar {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(var(--nav-height, 70px) + 12px);
+    z-index: 95;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: calc(100vw - 28px);
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    box-shadow: var(--es-shadow-elevated, 0 6px 20px rgba(0, 0, 0, 0.16));
+    pointer-events: none;
+    transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+
+.settings-savebar-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.settings-savebar-icon { font-weight: 800; }
+
+.settings-savebar[data-state="saving"] {
+    border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+    color: var(--primary-dark);
+}
+
+.settings-savebar[data-state="saved"] {
+    background: color-mix(in srgb, var(--primary) 14%, var(--bg-card));
+    border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+    color: var(--primary-dark);
+}
+
+.settings-savebar[data-state="error"] {
+    background: color-mix(in srgb, var(--danger) 12%, var(--bg-card));
+    border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+    color: var(--danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .settings-savebar { transition: none; }
+}
+
+/* A row of actions inside a settings card (download + help, panels without a Save). */
+.settings-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+/* ===== CA help dialog: the numbered guide, one tap away ===== */
+.ca-help-dialog {
+    max-width: 540px;
+    width: 100%;
+    max-height: 86vh;
+    overflow-y: auto;
+    padding: 22px 20px 18px;
+}
+
+.ca-help-dialog h3 { margin: 0 0 10px; font-size: 1.02rem; color: var(--primary); }
+
+.settings-cert-steps {
+    font-size: 0.85rem !important;
+    line-height: 1.65 !important;
+    color: var(--text-light) !important;
+    margin-bottom: 14px !important;
+}
+
+.settings-cert-steps strong { color: var(--text-main, var(--text)); }
+
+/* ===== Settings search: the shortcut hint ===== */
+.settings-search-kbd {
+    display: none;
+    position: absolute;
+    right: 10px;
+    font-family: inherit;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 5px;
+    background: var(--bg);
+    pointer-events: none;
+}
+
+@media (min-width: 720px) {
+    .settings-search-kbd { display: inline-block; }
+    .settings-search-box .form-input { padding-right: 82px; }
 }
 
 .settings-tab-icon {

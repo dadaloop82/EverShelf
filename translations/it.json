@@ -1339,9 +1339,9 @@
     "groups_aria": "Sezioni delle impostazioni",
     "subsections_label": "Sottosezioni",
     "group_app": "🤖 App e AI",
-    "group_cooking": "🍳 Cucina",
-    "group_alerts": "🔔 Avvisi e servizi",
-    "group_system": "⚙️ Sistema",
+    "group_cooking": "Cucina",
+    "group_alerts": "Avvisi e integrazioni",
+    "group_system": "Sistema",
     "checklist": {
       "title": "🧭 Configurazione guidata",
       "summary_ok": "Tutto configurato",
@@ -1354,7 +1354,8 @@
       "configure": "Configura",
       "show": "Mostra voci",
       "hide": "Nascondi voci",
-      "run": "▶️ Rivedi le opzioni"
+      "run": "▶️ Rivedi le opzioni",
+      "badge_aria": "{count} opzioni da decidere"
     },
     "calendar": {
       "tab": "Calendario",
@@ -1376,7 +1377,7 @@
       "save_btn": "💾 Salva impostazioni calendario"
     },
     "title": "⚙️ Configurazione",
-    "tab_api": "API Keys",
+    "tab_api": "AI",
     "tab_bring": "Bring!",
     "tab_recipe": "Ricette",
     "tab_health": "Salute",
@@ -1643,7 +1644,10 @@
       "pairing_copied": "Codice copiato",
       "pairing_refreshed": "Nuovo codice generato",
       "pairing_error": "Impossibile caricare il codice di associazione",
-      "pairing_not_needed": "Questo server non richiede associazione (API_TOKEN assente o API_BOOTSTRAP_OPEN)."
+      "pairing_not_needed": "Questo server non richiede associazione (API_TOKEN assente o API_BOOTSTRAP_OPEN).",
+      "ca_help_btn": "❓ Come lo installo?",
+      "ca_help_title": "🔒 Installare il certificato CA",
+      "ca_help_hint": "Le istruzioni passo passo per Android e PC si aprono in una finestra: non occupano la pagina."
     },
     "tts": {
       "title": "🔊 Voce & TTS",
@@ -1869,7 +1873,7 @@
       "pairing_hint": "Per associare un altro dispositivo usa questo codice (anche in Impostazioni → Sistema → Sicurezza).",
       "pairing_open_security": "Apri Sicurezza"
     },
-    "tab_general": "Generali",
+    "tab_general": "Aspetto",
     "shopping": {
       "tab": "Lista spesa",
       "title": "Lista della spesa",
@@ -2166,8 +2170,59 @@
       "subscribed": "Dispositivo iscritto",
       "test_ok": "Notifica di prova inviata"
     },
-    "group_medical": "💊 Farmaci",
-    "tab_medical": "Farmaci"
+    "group_medical": "Farmaci",
+    "tab_medical": "Farmaci",
+    "group_general": "Generali",
+    "group_ai": "AI e voce",
+    "tab_locations": "Luoghi",
+    "tab_data": "Dati",
+    "essentials": {
+      "title": "Accesso e stato",
+      "hint": "Le informazioni che servono subito: come è protetto questo server, come associare un altro dispositivo, quando è stato fatto l'ultimo backup e quale versione stai usando.",
+      "token_label": "Token di accesso",
+      "token_active": "attivo",
+      "token_missing": "manca",
+      "token_open": "accesso libero",
+      "token_required_hint": "Il server chiede un token: questo dispositivo lo manda con ogni richiesta.",
+      "token_free_hint": "Questo server non chiede un token: chi è sulla stessa rete può entrare.",
+      "reveal": "Mostra",
+      "copy": "Copia",
+      "copy_code": "Copia codice",
+      "copy_empty": "Non c'è niente da copiare.",
+      "copy_failed": "Non riesco a copiare: seleziona il testo e copialo a mano.",
+      "copied": "Copiato!",
+      "token_copied": "Token copiato!",
+      "refresh_code": "Nuovo codice",
+      "backup_label": "Ultimo backup",
+      "backup_ok": "recente",
+      "backup_stale": "vecchio",
+      "backup_none": "mai fatto",
+      "backup_hint_none": "Nessun backup: controlla che il cron dello scheduler sia attivo.",
+      "backup_error": "Stato del backup non disponibile.",
+      "backup_now": "Backup adesso",
+      "version_label": "Versione",
+      "version_details": "Informazioni di sistema",
+      "manage": "Gestisci",
+      "pairing_label": "Codice di associazione"
+    },
+    "autosave": {
+      "on": "Salvataggio automatico: le modifiche si salvano da sole",
+      "pending": "Modifica rilevata…",
+      "saving": "Salvataggio…",
+      "saved": "Salvato",
+      "error": "Non salvato: riprova appena cambi qualcosa"
+    },
+    "retention": {
+      "card_title": "🗄️ Conservazione dei dati",
+      "card_hint": "Quanto a lungo l'app tiene ciò che produce da sola. Numeri più bassi = archivio più leggero, stime meno precise.",
+      "recipe_label": "Ricette generate",
+      "recipe_hint": "I piani pasto creati dall'AI vengono cancellati dopo questi giorni (1–365).",
+      "history_label": "Storico dei movimenti",
+      "history_hint": "La lista della spesa impara le frequenze da qui: sotto i 30 giorni le stime diventano inaffidabili.",
+      "vacuum_label": "Sottovuoto",
+      "vacuum_hint": "Giorni in più che una confezione sottovuoto guadagna rispetto alla scadenza della sua categoria (0 = nessun prolungamento).",
+      "unit": "giorni"
+    }
   },
   "expiry": {
     "today": "OGGI",

@@ -1339,9 +1339,9 @@
     "groups_aria": "Sections des réglages",
     "subsections_label": "Sous-sections",
     "group_app": "🤖 App & IA",
-    "group_cooking": "🍳 Cuisine",
-    "group_alerts": "🔔 Alertes & services",
-    "group_system": "⚙️ Système",
+    "group_cooking": "Cuisine",
+    "group_alerts": "Alertes & intégrations",
+    "group_system": "Système",
     "checklist": {
       "title": "🧭 Liste de configuration",
       "summary_ok": "Tout est configuré",
@@ -1354,7 +1354,8 @@
       "configure": "Configurer",
       "show": "Afficher les entrées",
       "hide": "Masquer les entrées",
-      "run": "▶️ Revoir les options"
+      "run": "▶️ Revoir les options",
+      "badge_aria": "{count} options à décider"
     },
     "calendar": {
       "tab": "Calendrier",
@@ -1376,7 +1377,7 @@
       "save_btn": "💾 Enregistrer les réglages du calendrier"
     },
     "title": "⚙️ Paramètres",
-    "tab_api": "Clés API",
+    "tab_api": "IA",
     "tab_bring": "Bring !",
     "tab_recipe": "Recettes",
     "tab_mealplan": "Plan hebdomadaire",
@@ -1538,7 +1539,10 @@
       "pairing_copied": "Code copié",
       "pairing_refreshed": "Nouveau code généré",
       "pairing_error": "Impossible de charger le code d'association",
-      "pairing_not_needed": "Ce serveur n'exige pas d'association (pas d'API_TOKEN, ou API_BOOTSTRAP_OPEN)."
+      "pairing_not_needed": "Ce serveur n'exige pas d'association (pas d'API_TOKEN, ou API_BOOTSTRAP_OPEN).",
+      "ca_help_btn": "❓ Comment l'installer ?",
+      "ca_help_title": "🔒 Installer le certificat CA",
+      "ca_help_hint": "Les instructions pas à pas pour Android et PC s'ouvrent dans une fenêtre et n'occupent pas la page."
     },
     "tts": {
       "title": "🔊 Voix & TTS",
@@ -1939,7 +1943,7 @@
       "pairing_hint": "Pour associer un autre appareil, utilisez ce code (aussi dans Paramètres → Système → Sécurité).",
       "pairing_open_security": "Ouvrir Sécurité"
     },
-    "tab_general": "Général",
+    "tab_general": "Apparence",
     "kiosk_update_required": "⚠️ Mettez à jour l'application kiosk pour utiliser cette fonction",
     "tab_health": "Santé",
     "health": {
@@ -2166,8 +2170,59 @@
       "subscribed": "Appareil inscrit",
       "test_ok": "Notification de test envoyée"
     },
-    "group_medical": "💊 Médicaments",
-    "tab_medical": "Médicaments"
+    "group_medical": "Médicaments",
+    "tab_medical": "Médicaments",
+    "group_general": "Général",
+    "group_ai": "IA & voix",
+    "tab_locations": "Lieux",
+    "tab_data": "Données",
+    "essentials": {
+      "title": "Accès et état",
+      "hint": "Les informations à avoir tout de suite : comment ce serveur est protégé, comment associer un autre appareil, quand la dernière sauvegarde a eu lieu et quelle version tourne.",
+      "token_label": "Jeton d'accès",
+      "token_active": "actif",
+      "token_missing": "manquant",
+      "token_open": "accès libre",
+      "token_required_hint": "Ce serveur exige un jeton : cet appareil l'envoie à chaque requête.",
+      "token_free_hint": "Ce serveur ne demande aucun jeton : quiconque sur le même réseau peut y entrer.",
+      "reveal": "Afficher",
+      "copy": "Copier",
+      "copy_code": "Copier le code",
+      "copy_empty": "Il n'y a rien à copier.",
+      "copy_failed": "Copie impossible : sélectionnez le texte et copiez-le à la main.",
+      "copied": "Copié !",
+      "token_copied": "Jeton copié !",
+      "refresh_code": "Nouveau code",
+      "backup_label": "Dernière sauvegarde",
+      "backup_ok": "récente",
+      "backup_stale": "ancienne",
+      "backup_none": "jamais",
+      "backup_hint_none": "Aucune sauvegarde : vérifiez que le cron du planificateur tourne.",
+      "backup_error": "État de la sauvegarde indisponible.",
+      "backup_now": "Sauvegarder maintenant",
+      "version_label": "Version",
+      "version_details": "Informations système",
+      "manage": "Gérer",
+      "pairing_label": "Code d'association"
+    },
+    "autosave": {
+      "on": "Enregistrement automatique : les modifications se sauvegardent seules",
+      "pending": "Modification détectée…",
+      "saving": "Enregistrement…",
+      "saved": "Enregistré",
+      "error": "Non enregistré : nouvel essai dès que vous modifiez quelque chose"
+    },
+    "retention": {
+      "card_title": "🗄️ Conservation des données",
+      "card_hint": "Combien de temps l'app conserve ce qu'elle produit elle-même. Des chiffres plus bas = des archives plus légères, des estimations moins précises.",
+      "recipe_label": "Recettes générées",
+      "recipe_hint": "Les plans de repas créés par l'IA sont supprimés après ces jours (1–365).",
+      "history_label": "Historique des mouvements",
+      "history_hint": "La liste de courses y apprend ses fréquences : en dessous de 30 jours, les estimations deviennent peu fiables.",
+      "vacuum_label": "Sous vide",
+      "vacuum_hint": "Jours supplémentaires qu'un emballage sous vide gagne sur la durée de conservation de sa catégorie (0 = pas de prolongation).",
+      "unit": "jours"
+    }
   },
   "expiry": {
     "today": "AUJOURD'HUI",

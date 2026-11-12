@@ -5,6 +5,98 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.32.0] - 2026-11-12
+
+### The settings panel is a control panel now — and it saves itself
+Asked for: «bisogna trovare il modo per rifare e riorganizzare tutto il pannello di
+configurazione… Ogni salvataggio deve essere automatico! Il bottone Salva non deve esserci…
+Le informazioni ESSENZIALI (token, ecc) devono essere subito visibili».
+
+- **Six sections instead of eighteen tabs in two underline strips.** The rail is
+  `🏠 Generali · 🍳 Cucina · 🤖 AI e voce · 💊 Farmaci · 🔔 Avvisi e integrazioni · 🔒 Sistema`:
+  a sticky sidebar on a monitor (`grid-template-columns: 212px minmax(0, 1fr)`), a swipeable
+  strip of pills on a phone. The topics of the open section are quiet chips under it, so one
+  level is visible at a time and the page is no longer one endless scroll.
+- **The strip used to show every chip of every section.** `_syncSettingsGroupForTab()` skipped
+  the visibility pass when the tab already belonged to the active section, which on a fresh
+  boot (no `.active` yet) left all eighteen on screen — the wall this redesign removes.
+  `_syncSettingsTabsVisibility(group)` is now the one rule both paths call (measured: 2 chips
+  in Generali, 5 in Cucina, 5 in Sistema).
+- **Essentials above the sections, never behind a tab** (`_renderSettingsEssentials()`): the
+  access token (masked, 👁 reveal, 📋 copy), the pairing code with its countdown, the last
+  backup with **💾 Backup adesso**, and the version. Four tiles — 4 columns on a desktop,
+  307 px of compact rows on a phone (measured in headless Chromium at 500 px: the first draft
+  was 620 px, so below 560 px the long hints and the «Gestisci» links — which repeat the rail
+  one scroll below — are the first things to go).
+- **No Save button anywhere on the page.** `_initSettingsAutosave()` is a delegated listener on
+  `#page-settings`: a checkbox/select/radio is written at once, a field 700 ms after the last
+  keystroke, and each control's card or panel names its own saver with
+  `data-autosave="saveNotifySettings|saveHaSettings|saveCalendarSettings|saveTelegramSettings|`
+  `saveWebPushSettings|saveHealthProfileFromSettings"`; `data-autosave="none"` marks the module
+  that already writes itself (EverShelf Med), so a generic save does not re-post the whole page
+  for nothing. `saveSettings()` is now **one write at a time** (it rewrites `.env`, and two
+  overlapping posts are two writers on one file) and returns whether the server accepted it.
+- **The sticky bar is the receipt, not a button**: pending → saving → saved/error, and it can no
+  longer say «Salvato» after a refused write — which the headless probe caught on an unpaired
+  browser (`_saveSettingsInner` now returns the verdict and the flush honours it).
+- The five inline "Salva" wrappers and the page-level one are gone; the checklist's primary is
+  emerald (`btn-primary`), not a purple button in a green page.
+- **The CA instructions moved into a dialog** (`#ca-help-overlay`, Esc closes it): the security
+  card keeps the download button and one «❓ Come lo installo?», instead of half a phone screen
+  of numbered steps.
+- **Reorganised where it was only historical**: places get their own topic (`tab-locations`),
+  export/import + the automatic naming rules become `tab-data` under Sistema, the zero-waste
+  tips join Ricette (they are about cooking), and camera/voice sit with the AI engine.
+- **Every section carries a count badge** of the options still waiting for a decision — the same
+  number the checklist prints (`_renderSettingsSectionBadges()`), so «2 da decidere» is visible
+  without opening anything. Search stays at the top in its own slot, with the Ctrl/⌘+K hint, and
+  still jumps across sections.
+- **Two bugs in the schema generator, found by this work**: a panel that grows an attribute
+  (`data-autosave`) stopped matching the panel regex, so its controls were attributed to the
+  previous panel; and the scanned region ran to the end of the file, so the recipe dialog's
+  `recipe-persons` / `recipe-opt-mealplan` were offered by the settings search although they
+  are not on this page. Fixed both (`</main>` closes the region). The sweep also learned that a
+  `.settings-stepper-row` is a block of its own and prefers `<label for="…">` as the label, so
+  the one-line steppers (`Inventario veloce`, `Preferiti automatici`, the new retention rows)
+  are named by the label the household reads — and the manual entry that used to patch the
+  stocktake stepper is gone (it became a duplicate the moment the sweep learned about rows).
+- **The double icons are gone.** The six section pills drew their own icon *and* the translated
+  label still carried its emoji (`🏠 Generali` next to a 🏠 span), and the pairing tile did the
+  same with `settings.security.pairing_title`. The labels are now emoji-free (the rail draws the
+  icon) and the tile has its own `settings.essentials.pairing_label` — verified by a script that
+  compares every icon span with the translation it sits next to (0 pairs left).
+- **Three settings the server honoured and no screen could set are now in the UI.** A coverage
+  audit of `save_settings()` (keyMap + boolMap + intMap + floatMap, 124 writable keys) against
+  the generated registry found `RECIPE_RETENTION_DAYS`, `TRANSACTION_RETENTION_DAYS` and
+  `VACUUM_EXPIRY_EXTENSION_DAYS` with no control at all: they are now the **🗄️ Conservazione dei
+  dati** card in Sistema → Dati (`setting-recipe-retention-days` 1–365,
+  `setting-transaction-retention-days` 30–3650 — 30 is the floor the server enforces —,
+  `setting-vacuum-expiry-extension-days` 0–180), loaded from `get_server_settings` (the three
+  keys were missing from both `serverKeys` whitelists too) and saved by the same autosave.
+- **The `.env` side is complete too**: 13 keys the app writes were missing from `.env.example`
+  (`DARK_MODE`, the five shopping switches, `WEATHER_*`, `GDRIVE_CLIENT_ID/SECRET`,
+  `ZEROWASTE_TIPS_ENABLED`, `APP_LANG`, `VACUUM_EXPIRY_EXTENSION_DAYS`), the generator now also
+  reads the commented optional keys (`# TELEGRAM_BOT_TOKEN=`), six controls got their real env
+  name through `$idToEnv` (a control without it is invisible to whoever searches the key), and
+  the allowlist documents the 28 keys that stay shell-only on purpose (security, logging, the
+  parked banner slots, the MCP port, the token price table). Result: **0 writable keys
+  undocumented, 0 generator warnings.**
+- **Translations**: the 43 new keys exist in all six locales with real translations (the new
+  retention card included); `scripts/i18n-audit.py` reports every locale complete and
+  `i18n-value-audit.py` has nothing new to report.
+- **Nothing was lost, one thing was doubled**: the registry went 118 → 119 controls (two dialog
+  controls that were never on this page removed, the three new retention rows added, and
+  `setting-audit-batch-size` counted once instead of twice), every panel is still there (20),
+  every card still there (63, the new retention one), 0 duplicate ids in the page and 0 entries
+  without a label.
+- Validated: `node -c assets/js/app.js`, `php scripts/gen-settings-schema.php`,
+  `php scripts/check-settings-coverage.php` (122 writable → 102 with a control, 20 documented,
+  **0 undocumented**),
+  `python3 scripts/i18n-audit.py` (six locales complete), the DOM is balanced (0 unbalanced
+  closes in the page) and a headless probe reports `groups: 6, panels: 20, essentials: 4,
+  saveButtons: 0, autosave saved/error, retention 14/120/45 loaded and 60 saved (a typed 5 is
+  clamped to 30), search jump ai → tab-tts, errors: []`.
+
 ## [1.31.35] - 2026-11-12
 
 ### The active ingredient goes on the next line instead of off the screen
