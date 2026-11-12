@@ -143,7 +143,7 @@ became a dashboard that reads the household's own database.
   from git only on a feature branch and clears them on `main`/`develop`, and `:empty` hides an
   empty chip (its `margin-left` was a gap). A released install shows the version and nothing else.
   Verified on the real page: all three `display: none`, `.header-version` `v1.33.0`, no JS error.
-  The **43 older headings** that carried `· branch ``refactor_25_10_2026``` (1.23–1.28) are plain
+  The **43 older headings** (1.23–1.28) that carried a `· branch …` suffix are plain
   `## [x.y.z] - date` again: the release history does not name a branch either.
 - `.dockerignore` keeps the `test_*.php` rule as a safeguard (no such file ships today), the
   stale `docs/openapi.yaml` and `scripts/fixtures/*` references are gone, and the tracked file
