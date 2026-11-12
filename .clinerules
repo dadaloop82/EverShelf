@@ -154,6 +154,12 @@ runtime/binary files — if a task truly needs one, ask first.
   `_syncStockHub()` when the last list answers (empty → hidden, error → skeleton removed,
   `_stockHubSelect()` counts `.list-loading` as content). The boot's first-paint wait is bounded by
   `_SPLASH_DATA_WAIT_MS` (2.5 s), or a slow answer hides the animation behind the splash entirely.
+- **A medicine's active ingredient wraps, it is never cut.** Asked for: «capita che il principio
+  attivo va fuori dallo schermo in larghezza non va bene, mettilo accapo!». A medical row
+  (`.inventory-item.is-medical-row`) wraps its meta line (`white-space: normal; overflow-wrap:
+  anywhere`) instead of the pantry's single ellipsised line; the sheet's `.item-detail-med-facts`
+  is a wrapping flex row whose pills wrap inside themselves (`mobile.css` used to make it one
+  horizontally scrollable line with a hidden scrollbar). Food rows keep their one line.
 - **The shopping list wears the SAME row as the Home.** `[photo strip] [name + brand / 📦 stock ·
   🛒 qty · 🍃 waste · 💶 price] [state] [✓] [✕]`, 132 px like the pantry: `_shopThumbHtml()` →
   `_productThumbHtml()` (same `--row-photo-w` ladder, same dissolve), `_shopRowMetaHtml()` for the

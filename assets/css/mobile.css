@@ -238,19 +238,20 @@
     }
 
     /* ── The medicine edit sheet, compact ─────────────────────────────────
-       Nine rows of form on a phone is a scroll even after the header was condensed. Three moves,
-       all inside the phone breakpoint: the read-only facts become ONE scrollable line instead of
-       a 97 px block, the groups breathe 5 px instead of 8, and the controls lose the padding a
-       desktop mouse needs. The categories and «da quanti giorni» are native <select>s already. */
+       Nine rows of form on a phone is a scroll even after the header was condensed: the groups
+       breathe 5 px instead of 8, and the controls lose the padding a desktop mouse needs. The
+       categories and «da quanti giorni» are native <select>s already. */
+    /* The read-only facts WRAP on a phone. This block used to be one horizontally scrollable
+       line (`flex-wrap: nowrap; overflow-x: auto`, scrollbar hidden): the active ingredient
+       («ACIDO IALURONICO/SULFADIAZINA ARGENTICA») ran off the right edge and was cut — «capita
+       che il principio attivo va fuori dallo schermo in larghezza non va bene, mettilo accapo!».
+       Two short pills are the same height as the scroll line, and nothing is hidden. */
     .item-detail-med-facts {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        padding-bottom: 2px;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
+        flex-wrap: wrap;
+        overflow-x: visible;
+        padding-bottom: 0;
     }
-    .item-detail-med-facts::-webkit-scrollbar { display: none; }
-    .med-fact { flex: 0 0 auto; }
+    .med-fact { flex: 0 1 auto; min-width: 0; }
 
     /* The medicine sheet IS the food sheet: same fields, same density (the old
        `#modal-content .form.is-medical-edit { … }` compaction made it a second, tighter form —

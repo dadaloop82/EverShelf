@@ -5,6 +5,27 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.35] - 2026-11-12
+
+### The active ingredient goes on the next line instead of off the screen
+Reported: «Liste farmaci: capita che il principio attivo va fuori dallo schermo in larghezza non va
+bene, mettilo accapo!».
+- In the cabinet list the medicine row's meta line was `white-space: nowrap` + ellipsis (one line,
+  by the same rule that keeps every card the same height), so «CLORTETRACICLINA CLORIDRATO» and
+  «ACIDO IALURONICO/SULFADIAZINA ARGENTICA» were **cut at the edge** — a fact the box is read for,
+  truncated. A medical row (`is-medical-row`) now wraps its meta (`white-space: normal;
+  overflow-wrap: anywhere`, so one long Latin word cannot push the card sideways); food rows keep
+  their single line, where the place and the category already say everything.
+- In the product/edit sheet the medicine facts were ONE horizontally scrollable line on a phone
+  (`flex-wrap: nowrap; overflow-x: auto` with the scrollbar hidden by `scrollbar-width: none`):
+  the ingredient ran past the right edge and nothing hinted there was more. The block wraps now
+  (`flex-wrap: wrap`) and the pills wrap inside themselves (`white-space: normal;
+  overflow-wrap: anywhere`, 12 px corners) — two short pills take the same height as the old
+  scroll line, and nothing is hidden.
+- Measured in headless Chromium at 360 / 393 / 800 px (and on the touch-tablet band at 1024):
+  page horizontal overflow 0, every meta line `scrollWidth === clientWidth`, every fact pill
+  inside its container.
+
 ## [1.31.34] - 2026-11-12
 
 ### The shopping list wears the same row as «In scadenza»

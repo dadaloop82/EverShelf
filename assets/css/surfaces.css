@@ -299,6 +299,20 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     overflow: hidden;
     text-overflow: ellipsis;
 }
+/* A MEDICINE's meta line is a fact, not a caption: the active ingredient («CLORTETRACICLINA
+   CLORIDRATO», «ACIDO IALURONICO/SULFADIAZINA ARGENTICA») is what the box is FOR, and cutting it
+   with an ellipsis at the edge of the screen is the same as not writing it.
+   Asked for: «capita che il principio attivo va fuori dallo schermo in larghezza non va bene,
+   mettilo accapo!» — so a medical row wraps its meta onto the next line (and `anywhere` so a
+   single long Latin word cannot push the card sideways). Food rows keep their one line: the
+   place and the category already say everything, and the stock is in the pill below. */
+.inventory-item.is-medical-row .inv-meta-line {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    word-break: normal;
+}
 
 /* ── The Home lists and the pantry lists are ONE list ─────────────────────────
    In the pantry a row IS a card on the canvas; on the Home the same rows sat inside a
@@ -5419,20 +5433,21 @@ button.scan-med-name-hit:focus-visible {
 }
 .med-fact {
     display: inline-flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 5px;
     max-width: 100%;
     padding: 2px 8px;
-    border-radius: 999px;
+    border-radius: 12px;
     border: 1px solid color-mix(in srgb, #6366f1 26%, var(--surface-border));
     background: color-mix(in srgb, #6366f1 6%, var(--surface-bg));
     color: var(--text-main);
     font-size: 0.79rem;
     font-weight: 600;
     line-height: 1.2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    /* A fact wraps instead of being cut: «ACIDO IALURONICO/SULFADIAZINA ARGENTICA» ellipsised is
+       the same as not writing it (and `anywhere` keeps one long Latin word inside the pill). */
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 .med-fact.is-mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
