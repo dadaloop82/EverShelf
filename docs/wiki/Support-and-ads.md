@@ -95,7 +95,7 @@ What a re-enable touches (the comments in the code name the same list):
 | 4. Un-comment the `.env` block (`SUPPORT_BANNERS_AVAILABLE`, `ADS_*`) | `.env.example` |
 | 5. Un-comment the `[data-ad-slot]` div on the dashboard | `index.html` |
 
-> The idle screen has **no banner slot** any more: the 1.33.0 redesign renders one card at a
+> The idle screen has **no banner slot** any more: the 2.0.0 redesign renders one card at a
 > time in `assets/js/screensaver.js` and there is no place a third-party banner could sit
 > without covering the clock or the card. Bringing ads back means re-introducing a slot
 > there too (and the CSS rule that went with it), not only un-commenting the dashboard one.

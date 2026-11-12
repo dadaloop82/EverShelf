@@ -58,18 +58,17 @@ All data stays on your server. No cloud, no subscriptions.
 
 ## 🆕 What's New
 
-**v1.33.0 — the idle screen is a dashboard.** Four cards read from your own data (meal &
-recipe, what to eat first, pantry charts, an idea of the day), on pure black with EverShelf's
-palette, a weather/plan pill under the clock and a footer with the vitals. A tap flips the
-card instead of closing it, a card leaves upward and the next comes down from the top, and
-*Settings → General → Appearance* chooses which cards to keep and how often they change.
-
-**v1.32.0 — the settings page is a control panel.** Six sections in a rail, four essentials
-above them (token, pairing code, backup, version) and **no Save button**: every control writes
-itself and the bar at the bottom is the receipt.
+**v2.0.0 — the big release.** The settings page is a control panel (six sections, the essentials
+above them, **no Save button**) and the idle screen is a dashboard read from your own data (meal &
+recipe, what to eat first, pantry charts, an idea of the day). One row grammar across pantry, Home
+and shopping, the medicine cabinet and the stocktake as first-class screens, an API that only
+answers a paired device, and an update that repairs and verifies the database on the first boot.
 
 **v1.31.35 — a medicine's active ingredient wraps** instead of being cut at the edge of the
 cabinet row, and the sheet's facts wrap instead of scrolling sideways.
+
+**v1.31.34 — the shopping list wears the same row as the Home**: photo strip, one meta line,
+one state pill, the same two actions.
 
 → The full history is in the [CHANGELOG](https://github.com/dadaloop82/EverShelf/blob/main/CHANGELOG.md);
 what changed and why is described in the [README](https://github.com/dadaloop82/EverShelf#-133-is-a-large-refactor).

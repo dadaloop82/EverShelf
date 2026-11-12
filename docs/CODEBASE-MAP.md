@@ -4,7 +4,7 @@
 > Line numbers are for the commit at the time of writing; regenerate the indexes
 > with `bash scripts/gen-code-index.sh` after large edits.
 >
-> Counts and line numbers below were measured on **v1.33.0** and are rounded.
+> Counts and line numbers below were measured on **v2.0.0** and are rounded.
 
 ## 1. Top-level layout
 

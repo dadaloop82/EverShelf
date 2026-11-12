@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.33.0-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.0.0-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -110,16 +110,13 @@ the gate this release was developed against.
 <details open>
 <summary><b>Last five releases</b></summary>
 
-**v1.33.0 — the idle screen became a dashboard.** Four cards read from your own data (meal &
-recipe, what to eat first, pantry charts, an idea of the day), EverShelf's palette on pure
-black, a context pill with weather and plan, a footer with the vitals, burn-in drift, a card
-that leaves upward and comes back from the top, a tap that flips instead of closing, its own
-portrait scale — and under *Appearance* which cards to keep and how often they change
-(15/20/30/45/60/90 s).
-
-**v1.32.0 — the settings page is a control panel.** Six sections in a rail, four essentials
-above them (token, pairing code, backup, version), no Save button: every control writes
-itself, and the bar at the bottom is the receipt.
+**v2.0.0 — the big one.** The settings page became a control panel (six sections, four
+essentials always visible, no Save button: every control writes itself) and the idle screen
+became a dashboard that reads your own data (meal & recipe, what to eat first, pantry charts, an
+idea of the day). One row grammar across pantry, Home and shopping; the medicine cabinet and the
+stocktake are first-class; the API is token-and-pairing only; and an update repairs and verifies
+the database on the first boot. This is the first major release after 1.16.16 — nothing about the
+data changes, every screen does.
 
 **v1.31.35 — a medicine's active ingredient wraps.** «CLORTETRACICLINA CLORIDRATO» was cut at
 the edge of the cabinet row; it goes on the next line now, and the sheet's facts wrap instead
@@ -131,6 +128,10 @@ of scrolling sideways.
 **v1.31.33 — the Home lists wait with the SHELFY skeleton.** «Expiring», «Opened» and
 «Forgotten» show the breathing skeleton instead of a blank panel, and a slow first paint no
 longer hides the animation behind the splash.
+
+**v1.31.32 — every banner reason wears its own tint.** An open yoghurt, a loss check and a
+prediction stopped being the same grey card with different words: each reason sets one soft hue,
+the theme keeps the paper and the rail keeps the urgency.
 
 </details>
 

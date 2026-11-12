@@ -5,7 +5,19 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.33.0] - 2026-11-12
+## [2.0.0] - 2026-11-12
+
+### A major release — the refactor the household feels
+
+The number changes because this is not a patch on the last tagged version on `main`
+(**1.16.16**): the settings page, the idle screen, every list, the medicine cabinet, the
+stocktake, the API's security and the upgrade path were all reworked, and almost every screen is
+the same app wearing a new grammar. Nothing about the data changes — it is repaired and verified
+on the first boot — but this is a 2.0 by any honest reading.
+
+The sections below (1.32.0, 1.31.x, …) are the detailed log of that line of work: they were never
+released on their own, and they are kept because they say *how* each piece arrived and what was
+measured.
 
 ### The idle screen is an ambient kitchen dashboard
 Asked for: «rifai completamente lo screensaver… visivamente risulta piatto… testi troppo generici…
@@ -142,7 +154,7 @@ became a dashboard that reads the household's own database.
   (header, splash chip, Settings → About) start **empty**: `scripts/bump-version.sh` fills them
   from git only on a feature branch and clears them on `main`/`develop`, and `:empty` hides an
   empty chip (its `margin-left` was a gap). A released install shows the version and nothing else.
-  Verified on the real page: all three `display: none`, `.header-version` `v1.33.0`, no JS error.
+  Verified on the real page: all three `display: none`, `.header-version` carrying the version, no JS error.
   The **43 older headings** (1.23–1.28) that carried a `· branch …` suffix are plain
   `## [x.y.z] - date` again: the release history does not name a branch either.
 - `.dockerignore` keeps the `test_*.php` rule as a safeguard (no such file ships today), the
