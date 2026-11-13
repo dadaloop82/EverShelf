@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261113j'; // bump when translations change
+const _I18N_VERSION = '20261113k'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11517,14 +11517,33 @@ function _isKioskDevice() {
  */
 let _KioskVoiceShim = null;
 
-function _kioskVoiceShimClass() {
+/**
+ * Why the native voice bridge is (not) usable, in one word — it goes into the diagnostic
+ * line, so "the wall cannot listen" answers itself:
+ *   yes        → the APK has the bridge and the device has a recognition service
+ *   old-apk    → the APK is older than 1.7.39 (`startVoice` missing on the bridge)
+ *   no-service → `SpeechRecognizer.isRecognitionAvailable()` is false: no Google app /
+ *                speech service on the tablet (the usual cause on an AOSP ROM)
+ *   error      → the bridge threw while answering
+ *   no-bridge  → not inside the kiosk app
+ */
+function _kioskVoiceDiag() {
     try {
-        if (typeof _kioskBridge === 'undefined' || !_kioskBridge) return null;
-        if (typeof _kioskBridge.startVoice !== 'function') return null;          // an older APK
-        if (typeof _kioskBridge.speechSupported === 'function' && !_kioskBridge.speechSupported()) return null;
+        if (typeof _kioskBridge === 'undefined' || !_kioskBridge) return 'no-bridge';
+        if (typeof _kioskBridge.startVoice !== 'function'
+            || typeof _kioskBridge.stopVoice !== 'function'
+            || typeof _kioskBridge.cancelVoice !== 'function') return 'old-apk';
+        if (typeof _kioskBridge.speechSupported === 'function') {
+            if (!_kioskBridge.speechSupported()) return 'no-service';
+        }
+        return 'yes';
     } catch (e) {
-        return null;
+        return 'error';
     }
+}
+
+function _kioskVoiceShimClass() {
+    if (_kioskVoiceDiag() !== 'yes') return null;
     if (_KioskVoiceShim) return _KioskVoiceShim;
     _KioskVoiceShim = class {
         constructor() {
@@ -11655,8 +11674,9 @@ function _micDiagDetail(extra) {
     const api = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
     const secure = window.isSecureContext ? 'yes' : 'no';
     // On the wall the interesting fact is not the WebView API (it has one it cannot use) but
-    // whether the APK carries the native bridge: that is what decides if SHELFY can listen.
-    const native = _isKioskDevice() ? ` native_voice=${_kioskVoiceShimClass() ? 'yes' : 'no'}` : '';
+    // whether the APK carries the native bridge and the device has a speech service — the
+    // one-word reason (`yes`, `old-apk`, `no-service`, `error`) says which.
+    const native = _isKioskDevice() ? ` native_voice=${_kioskVoiceDiag()}` : '';
     return `SpeechRecognition=${api ? 'yes' : 'no'} secure_context=${secure} kiosk=${_isKioskDevice() ? 'yes' : 'no'}${native}${extra ? ` ${extra}` : ''}`;
 }
 
@@ -21954,7 +21974,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261113j';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261113k';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21964,7 +21984,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261113j';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261113k';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

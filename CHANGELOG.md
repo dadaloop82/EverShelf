@@ -5,6 +5,18 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3] - 2026-11-13
+
+### The wall's diagnostic names the reason
+
+`native_voice` used to answer `yes`/`no`. Now it answers **why**: `yes` (bridge + a
+recognition service), `old-apk` (the installed APK predates 1.7.39 — the update did not
+take), `no-service` (`SpeechRecognizer.isRecognitionAvailable()` is false: no Google app /
+speech service on the tablet, the usual cause on an AOSP ROM), `error` (the bridge threw),
+`no-bridge` (not inside the kiosk app). One line in `data/logs/kiosk-*.log` is now enough to
+tell "the APK is old" from "the tablet has nothing to recognise with", instead of both
+looking like `native_voice=no`.
+
 ## [2.1.2] - 2026-11-13
 
 ### Fixed
