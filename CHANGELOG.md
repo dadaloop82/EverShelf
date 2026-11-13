@@ -5,6 +5,22 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-11-13
+
+Two reports from the forks, ported upstream the same day 2.1.0 shipped.
+
+### Fixed
+
+- **An in-store barcode is not a product code.** EAN-13 codes starting with `2` are the
+  shop's own numbering (and what a homemade label gets): sending them to Open Food Facts
+  or UPCitemdb returns an arbitrary match, which was then stored as a real product — two
+  devices named the same code differently. They are resolved against the local database
+  only, and never cached from outside. *(Reported and fixed upstream by
+  [@fabian1512](https://github.com/fabian1512) — thank you.)*
+- **The low-stock prompt no longer appears when shopping is switched off**
+  (`SHOPPING_ENABLED=false`): its list writes are no-ops there, so it promised something
+  the app could not do. The caller's flow simply continues. *(Same source.)*
+
 ## [2.1.0] - 2026-11-13
 
 ### Demo mode is a real flag, and it has a pantry
@@ -70,15 +86,6 @@ lived-in pantry.
 
 ### Fixed
 
-- **An in-store barcode is not a product code.** EAN-13 codes starting with `2` are the
-  shop's own numbering (and what a homemade label gets): sending them to Open Food Facts
-  or UPCitemdb returns an arbitrary match, which was then stored as a real product — two
-  devices named the same code differently. They are resolved against the local database
-  only, and never cached from outside. *(Reported and fixed upstream by
-  [@fabian1512](https://github.com/fabian1512) — thank you.)*
-- **The low-stock prompt no longer appears when shopping is switched off**
-  (`SHOPPING_ENABLED=false`): its list writes are no-ops there, so it promised something
-  the app could not do. The caller's flow simply continues. *(Same source.)*
 - **An answered support question came back at every start** (reported: «perché esce sempre
   nonostante abbia scelto "Later"?»). Two bugs, one symptom: `database.php` decided the
   demo database by asking `env()` while `DB_PATH` was still being defined, and the

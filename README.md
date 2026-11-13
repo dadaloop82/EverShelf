@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.1.0-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.1.1-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -220,6 +220,13 @@ the gate this release was developed against.
 
 <details open>
 <summary><b>Last five releases</b></summary>
+
+**v2.1.1 — two reports from the forks.** An in-store barcode (EAN-13 starting with `2`,
+the shop's own numbering and what a homemade label gets) is no longer sent to the public
+catalogues, which answered with an arbitrary product that was then stored: it is resolved
+against the local database only. And the low-stock prompt no longer appears when shopping is
+switched off, where its list writes are no-ops. Both come from
+[@fabian1512](https://github.com/fabian1512)'s fork — thank you.
 
 **v2.1.0 — demo mode that actually shows a pantry.** `DEMO_MODE=true` (or `?demo=1`,
 or serving the app under `/demo`) now opens the app on a **seeded demo database** — thirty
