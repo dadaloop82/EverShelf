@@ -4102,6 +4102,18 @@ Kiosk APK only.
   and locks the one order (Dispensa → 💊 cabinet → fridges → rest) and the one pair of icons,
   whatever order the places were typed in and whether the marking was stored as a label or a
   slug.
+`#header-kiosk-version`, which is the **first** thing the header gives up when its row is narrow,
+and the wall has no console to ask.
+- `KioskActivity.launchWebView()` shows a Toast — `EverShelf Kiosk 1.7.33 (34)` — on **every
+  launch**, before the page is loaded, so the answer does not depend on the web app at all.
+- The page prints the same two numbers in a boot banner (`_showKioskBootVersion()`): the installed
+  APK from `getAppVersion()` **and** the web app version from `.header-version` — the pair that
+  distinguishes "the APK came down" from "the app came down". Shown on every boot, dismissible
+  with a 44 px ✕, gone by itself after 9 s, and built with `textContent`.
+- The boot log line carries both values (`[KIOSK] boot version apk=… app=…`), so
+  `grep KIOSK data/logs/kiosk-*.log` answers "did I get the latest?" without a screenshot.
+- This release also carries 1.7.32 (console tail + `camera_permission` + `restarts_10min` in a dead
+  renderer's report), which no published APK had yet.
 
 ## [Unreleased] — Ideas & Roadmap
 
@@ -5214,6 +5226,129 @@ The full audit is `todo/AUDIT-2026-10-25.md` (internal, lettered sections A–M)
   never fail: it now runs `scripts/i18n-audit.py`.
 - Pull requests against `develop` run the same gates, and `auto-merge-to-main` waits
   for all of them.
+## [Kiosk 1.7.31] - 2026-11-07
+
+Kiosk APK only.
+
+### An install failure is never answered with "uninstall the app"
+- The wall asked to uninstall the app on an update while **every published APK is signed with the
+  same key** (the APK Signing Block of 1.7.26 → 1.7.31 reads SHA-256 `36:D8:4A:…:CB:25`,
+  `CN=EverShelf`): the signature was our own misdiagnosis.
+- What really happened: `STATUS_PENDING_USER_ACTION` starts the **system installer**, and the app is
+  in **lock task mode** — another app cannot be brought to the front, the launch was swallowed, the
+  result came back as *cancelled*, and `onActivityResult` popped the "uninstall" dialog for an
+  install that never ran. Lock task is now suspended for the confirmation and re-entered after.
+- The "uninstall" dialog appears **only** when the two signer fingerprints really differ; anything
+  else offers a **retry** with the APK already on disk (no second download).
+- `install_start`, `install_session`, `install_pending_user_action`, `install_confirm_result` and
+  `install_result` log status + statusMessage + extras, both versionCodes, both signer SHA-256s,
+  `signer_match`, `can_install_unknown` and the lock-task state.
+
+## [Kiosk 1.7.30] - 2026-11-07
+
+Kiosk APK only. **The build that stops the wall restarting itself.**
+
+### The renderer is never WAIVED
+- `[kiosk] [renderer-killed-oom]` reached the server with **`priority=2`** —
+  `RENDERER_PRIORITY_WAIVED`, the priority Android gives a WebView it considers *not visible* —
+  three minutes after a boot, while the household was opening SHELFY. A waived renderer is the
+  first thing the system kills under memory pressure, and the page then comes back by itself: on
+  the wall that reads as "the app restarted", and it looked like SHELFY doing it because that is
+  the first thing anyone touches.
+  `setRendererPriorityPolicy(RENDERER_PRIORITY_IMPORTANT, false)` keeps it important always — on a
+  wall tablet the page IS the appliance.
+
+### A resume never reloads the app for a URL the app itself changed
+- `onResume` compared the WebView URL strictly, so any normalisation (`host` → `host/`,
+  `…/index.html`, `?lang=`, `#page-…`) looked like "not on the app any more" and reloaded
+  everything on return from standby. It now reloads **only** when the WebView is genuinely off the
+  app (error page, `about:blank`, `data:`, another host), and it reports every such reload
+  (`forceReport = true`) instead of hiding it behind a duplicated fingerprint.
+
+### Measured, not guessed
+- The WebView cache is wiped only when the APK version changed: a recovery no longer re-downloads
+  megabytes of `app.js` and the generated data files.
+- `[kiosk] [mem]` at boot, memory numbers attached to `renderer-killed-oom`, `low-memory` and
+  `trim-memory`, and `[kiosk] [lifecycle] onPause/onResume`: the next restart has an author and a
+  device figure. The page can ask for the same numbers through the bridge (`_kioskBridge.mem()`).
+
+## [Kiosk 1.7.29] - 2026-11-07
+
+Kiosk APK only. **This is the build that can be installed on a tablet still running 1.7.26.**
+
+### A WebView download link goes through our own downloader
+- The manual fallback in Settings («📥 Scarica APK da questo server») is a plain link to the
+  `.apk`, and a WebView has no download manager of its own: on the tablet that link did **nothing
+  at all**. `setDownloadListener` now hands every download to `triggerApkDownload()`, which
+  reaches the self-signed LAN host — so the bootstrap works even when the APK already installed is
+  the one whose own updater cannot download anything (1.7.26 → `DownloadManager` → `PENDING`
+  forever).
+- With 1.7.28's direct download plus this, **every** route in — the in-app button, the native
+  update banner and the Settings link — ends in the same trusted download.
+
+## [Kiosk 1.7.28] - 2026-11-07
+
+Kiosk APK only (the web app has its own version line).
+
+### The in-app update no longer hangs on «scaricamento in corso»
+- **`DownloadManager` was the wrong tool here, twice.** It validates HTTPS against the **system**
+  trust store — a LAN install answers with a **self-signed certificate** — and it waits for a
+  network Android considers "internet", which a LAN-only tablet never has. The request sat
+  `PENDING` and **not one byte reached the server**: the Apache access log has the
+  `kiosk_update` JSON but no `GET /dispensa/releases/evershelf-kiosk.apk` at all.
+- **The app downloads it itself** (`triggerApkDownload()` → `openTrustedConnection()`, the same
+  trusted connection every other call uses) into the app's own folder, with the progress on the
+  same banner, and a failure is said out loud (`install_download_failed` + «Riprova») instead of an
+  endless wait. `installApk()`'s checks (PK magic, package name, versionCode, downgrade refusal)
+  still gate the installer, and `install_download_ok` / `install_download_failed` land in
+  `data/error_reports.log`.
+- Removed with it: the DownloadManager progress poll, `activeDownloadId`, `pollHandler` and the
+  import — dead once the download is the app's own.
+
+## [Kiosk 1.7.27] - 2026-11-07
+
+Kiosk APK only (the web app has its own version line).
+
+### The kiosk can finally tell us why it reloads
+- **Its reports never arrived.** `ErrorReporter.doPost()` used a plain
+  `URL(...).openConnection()`, so on a LAN install with a **self-signed certificate** every POST
+  died in an `SSLHandshakeException` — caught, written to logcat, invisible to the server. That is
+  why `data/error_reports.log` has never contained a single `[kiosk]` line, and why "did the
+  update install?" could not be answered. It now trusts the app's certificate exactly like
+  `openTrustedConnection()` does for every other call.
+- **The watchdog stops reloading for a hiccup.** The page probe waits 10 s (was 6) and the page
+  is reloaded only after **two consecutive misses**; both are reported (`page-watchdog-miss`, then
+  `page-watchdog-reload`). Opening a heavy overlay on a weak GPU can stall the main thread for a
+  few seconds, and reloading the whole app for that is the "it restarted on its own" on the wall.
+
+## [Kiosk 1.7.26] - 2026-11-07
+
+Kiosk APK only (the web app has its own version line). A new build is required: the tablet
+updates itself, or install `releases/evershelf-kiosk.apk`.
+
+### The tablet stops restarting the app on its own
+- **Every configuration change is declared and handled.** The manifest now lists **all** the
+  changes the Activity can handle (`screenLayout|smallestScreenSize|navigation|uiMode|density|
+  fontScale|layoutDirection|locale|colorMode|mcc|mnc|touchscreen`, on top of the four it had) and
+  `KioskActivity.onConfigurationChanged()` re-applies immersive mode instead of letting Android
+  **recreate** the Activity. A recreation builds a new WebView, which loads the URL again — on
+  the wall that is "the app restarted".
+- **`onResume` cannot reload the app for a difference that is not one.** `sameAppUrl()` treats
+  `/dispensa/`, `/dispensa/index.html` and a URL with a query string as the same page.
+- **The reload has a witness.** The APK reports `kiosk-create` (with `recreated` and
+  `changing_configurations`), `kiosk-config-change` (which change arrived) and
+  `kiosk-resume-reload` (both URLs) to `data/error_reports.log`, next to the existing
+  `renderer-crashed` / `renderer-killed-oom` / `page-watchdog-reload`.
+- **The update check is no longer six hours apart.** It was throttled to 6 h, so a release
+  published after the last check stayed invisible for the rest of the day; it is 30 minutes now
+  and it also runs on resume.
+- **`getAppVersion()` in the JS bridge**, so the web app can print the APK that is running it
+  next to its own version.
+- **«Mantieni le impostazioni» now really keeps them.** The wizard's keep answer applied four
+  switches and nothing else; the Gemini key and the Bring! account never travel to the device
+  (`get_settings` only says whether they exist), so both steps were asked again at every launch.
+  Their steps are skipped when the server already holds them, and «Riconfigura» clears those
+  flags.
 
 ## [1.16.16] - 2026-10-25
 
