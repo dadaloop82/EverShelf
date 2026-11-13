@@ -57,16 +57,20 @@ the wall, three different list layouts, and a demo that answered with an empty p
 
 ## 📸 A look at it
 
-| | | |
-|---|---|---|
-| <img src="screenshots/dashboard-v3.webp" width="320" alt="Home dashboard"> | <img src="screenshots/pantry-v3.webp" width="320" alt="Pantry list"> | <img src="screenshots/opened-items-v3.webp" width="320" alt="Opened items"> |
-| **Home** — the dashboard: what to eat first, what is opened, one strip for the month | **Pantry** — one row grammar, photo strip, state pill, stock and date | **Opened** — the PAO clock, with *Use it in a recipe* inline |
-| <img src="screenshots/shopping-list-v3.webp" width="320" alt="Shopping list"> | <img src="screenshots/product-sheet-v3.webp" width="320" alt="Product sheet"> | <img src="screenshots/use-item-v3.webp" width="320" alt="Use an item"> |
-| **Shopping list** — suggestions with anti-waste quantities, swipe to buy | **Product sheet** — photo, brand, packs, places, opened clock | **Use** — fractions, packs and *where it goes* after opening |
-| <img src="screenshots/recipes-v3.webp" width="320" alt="Recipes"> | <img src="screenshots/recipe-detail-v3.webp" width="320" alt="Recipe detail"> | <img src="screenshots/cooking-mode-v3.webp" width="320" alt="Cooking mode"> |
-| **Recipes** — generated from what is really in the pantry | **Recipe** — ingredients checked against the shelves | **Cooking mode** — steps, TTS, timers, hands-free (mic off until you ask) |
-| <img src="screenshots/scanning-v3.webp" width="320" alt="Barcode scanner"> | <img src="screenshots/shelfy-chat-v3.webp" width="320" alt="SHELFY assistant"> | |
-| **Scanner** — one lock box, the controls under the picture | **SHELFY** — voice or text, and it acts where you stand | |
+| | |
+|---|---|
+| <img src="screenshots/dashboard-v3.webp" width="460" alt="Home dashboard"> | <img src="screenshots/pantry-v3.webp" width="460" alt="Pantry list"> |
+| **Home** — what to eat first, what is opened, one strip for the month | **Pantry** — one row grammar, photo strip, state pill, stock and date |
+| <img src="screenshots/opened-items-v3.webp" width="460" alt="Opened items"> | <img src="screenshots/shopping-list-v3.webp" width="460" alt="Shopping list"> |
+| **Opened** — the PAO clock, with *Use it in a recipe* inline | **Shopping list** — anti-waste quantities, swipe left to buy, right to skip |
+| <img src="screenshots/product-sheet-v3.webp" width="460" alt="Product sheet"> | <img src="screenshots/use-item-v3.webp" width="460" alt="Use an item"> |
+| **Product sheet** — photo, brand, packs, places, opened clock | **Use** — fractions, packs and *where it goes* after opening |
+| <img src="screenshots/recipes-v3.webp" width="460" alt="Recipes"> | <img src="screenshots/recipe-detail-v3.webp" width="460" alt="Recipe detail"> |
+| **Recipes** — generated from what is really in the pantry | **Recipe** — ingredients checked against the shelves |
+| <img src="screenshots/cooking-mode-v3.webp" width="460" alt="Cooking mode"> | <img src="screenshots/scanning-v3.webp" width="460" alt="Barcode scanner"> |
+| **Cooking mode** — steps, TTS, timers, hands-free (mic off until you ask) | **Scanner** — one lock box, the controls under the picture |
+| <img src="screenshots/shelfy-chat-v3.webp" width="460" alt="SHELFY assistant"> | |
+| **SHELFY** — voice or text, and it acts where you stand | |
 
 ---
 
