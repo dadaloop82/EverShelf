@@ -59,13 +59,13 @@ the wall, three different list layouts, and a demo that answered with an empty p
 
 | | | |
 |---|---|---|
-| <img src="screenshots/dashboard-v2.webp" width="230" alt="Home dashboard"> | <img src="screenshots/pantry-v2.webp" width="230" alt="Pantry list"> | <img src="screenshots/opened-items-v2.webp" width="230" alt="Opened items"> |
+| <img src="screenshots/dashboard-v3.webp" width="320" alt="Home dashboard"> | <img src="screenshots/pantry-v3.webp" width="320" alt="Pantry list"> | <img src="screenshots/opened-items-v3.webp" width="320" alt="Opened items"> |
 | **Home** — the dashboard: what to eat first, what is opened, one strip for the month | **Pantry** — one row grammar, photo strip, state pill, stock and date | **Opened** — the PAO clock, with *Use it in a recipe* inline |
-| <img src="screenshots/shopping-list-v2.webp" width="230" alt="Shopping list"> | <img src="screenshots/product-sheet-v2.webp" width="230" alt="Product sheet"> | <img src="screenshots/use-item-v2.webp" width="230" alt="Use an item"> |
+| <img src="screenshots/shopping-list-v3.webp" width="320" alt="Shopping list"> | <img src="screenshots/product-sheet-v3.webp" width="320" alt="Product sheet"> | <img src="screenshots/use-item-v3.webp" width="320" alt="Use an item"> |
 | **Shopping list** — suggestions with anti-waste quantities, swipe to buy | **Product sheet** — photo, brand, packs, places, opened clock | **Use** — fractions, packs and *where it goes* after opening |
-| <img src="screenshots/recipes-v2.webp" width="230" alt="Recipes"> | <img src="screenshots/recipe-detail-v2.webp" width="230" alt="Recipe detail"> | <img src="screenshots/cooking-mode-v2.webp" width="230" alt="Cooking mode"> |
+| <img src="screenshots/recipes-v3.webp" width="320" alt="Recipes"> | <img src="screenshots/recipe-detail-v3.webp" width="320" alt="Recipe detail"> | <img src="screenshots/cooking-mode-v3.webp" width="320" alt="Cooking mode"> |
 | **Recipes** — generated from what is really in the pantry | **Recipe** — ingredients checked against the shelves | **Cooking mode** — steps, TTS, timers, hands-free (mic off until you ask) |
-| <img src="screenshots/scanning-v2.webp" width="230" alt="Barcode scanner"> | <img src="screenshots/shelfy-chat-v2.webp" width="230" alt="SHELFY assistant"> | |
+| <img src="screenshots/scanning-v3.webp" width="320" alt="Barcode scanner"> | <img src="screenshots/shelfy-chat-v3.webp" width="320" alt="SHELFY assistant"> | |
 | **Scanner** — one lock box, the controls under the picture | **SHELFY** — voice or text, and it acts where you stand | |
 
 ---
@@ -75,62 +75,62 @@ the wall, three different list layouts, and a demo that answered with an empty p
 <details open>
 <summary><b>Home / Dashboard</b> — counters and a list became a dashboard that tells you what to do</summary>
 
-<img src="screenshots/compare-dashboard-v2.webp" alt="Dashboard: before (1.x) and after (2.x)" width="900">
+<img src="screenshots/compare-dashboard-v3.webp" alt="Dashboard: before (1.x) and after (2.x)" width="980">
 
 </details>
 
 <details>
 <summary><b>Pantry list</b> — 88 tiles in a grid became one readable row grammar</summary>
 
-<img src="screenshots/compare-pantry-v2.webp" alt="Pantry list: before (1.x) and after (2.x)" width="900">
+<img src="screenshots/compare-pantry-v3.webp" alt="Pantry list: before (1.x) and after (2.x)" width="980">
 
 </details>
 
 <details>
 <summary><b>Shopping list</b> — its own design became the same row as the Home</summary>
 
-<img src="screenshots/compare-shopping-list-v2.webp" alt="Shopping list: before (1.x) and after (2.x)" width="900">
+<img src="screenshots/compare-shopping-list-v3.webp" alt="Shopping list: before (1.x) and after (2.x)" width="980">
 
 </details>
 
 <details>
 <summary><b>Product sheet and editing</b> — one hierarchy, photo and brand in the head, no wall of fields</summary>
 
-<img src="screenshots/compare-product-sheet-v2.webp" alt="Product sheet: before (1.x) and after (2.x)" width="900">
+<img src="screenshots/compare-product-sheet-v3.webp" alt="Product sheet: before (1.x) and after (2.x)" width="980">
 
 </details>
 
 <details>
 <summary><b>Use an item</b> — fractions, packs and the place the rest went</summary>
 
-<img src="screenshots/compare-use-item-v2.webp" alt="Use an item: before (1.x) and after (2.x)" width="900">
+<img src="screenshots/compare-use-item-v3.webp" alt="Use an item: before (1.x) and after (2.x)" width="980">
 
 </details>
 
 <details>
 <summary><b>Opened items</b> — a yellow card became the PAO clock with the two actions inline</summary>
 
-<img src="screenshots/compare-opened-items-v2.webp" alt="Opened items: before (1.x) and after (2.x)" width="900">
+<img src="screenshots/compare-opened-items-v3.webp" alt="Opened items: before (1.x) and after (2.x)" width="980">
 
 </details>
 
 <details>
 <summary><b>Recipes and recipe detail</b> — generated from the shelves, with the pantry checked</summary>
 
-<img src="screenshots/compare-recipes-v2.webp" alt="Recipes: before (1.x) and after (2.x)" width="900">
+<img src="screenshots/compare-recipes-v3.webp" alt="Recipes: before (1.x) and after (2.x)" width="980">
 
-<img src="screenshots/compare-recipe-detail-v2.webp" alt="Recipe detail: before (1.x) and after (2.x)" width="900">
+<img src="screenshots/compare-recipe-detail-v3.webp" alt="Recipe detail: before (1.x) and after (2.x)" width="980">
 
 </details>
 
 <details>
 <summary><b>Cooking mode, scanner and SHELFY</b> — the kitchen surfaces</summary>
 
-<img src="screenshots/compare-cooking-mode-v2.webp" alt="Cooking mode: before (1.x) and after (2.x)" width="900">
+<img src="screenshots/compare-cooking-mode-v3.webp" alt="Cooking mode: before (1.x) and after (2.x)" width="980">
 
-<img src="screenshots/compare-scanning-v2.webp" alt="Scanner: before (1.x) and after (2.x)" width="900">
+<img src="screenshots/compare-scanning-v3.webp" alt="Scanner: before (1.x) and after (2.x)" width="980">
 
-<img src="screenshots/compare-shelfy-chat-v2.webp" alt="SHELFY: before (1.x) and after (2.x)" width="900">
+<img src="screenshots/compare-shelfy-chat-v3.webp" alt="SHELFY: before (1.x) and after (2.x)" width="980">
 
 </details>
 
