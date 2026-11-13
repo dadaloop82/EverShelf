@@ -2474,8 +2474,6 @@
     "alerts_ok_title": "Gut gemacht",
     "alerts_ok_sub": "In 30 Tagen hast du {used} Produkte verbraucht und {wasted} weggeworfen.",
     "alerts_ok_none": "Nichts läuft ab, nichts wegzuwerfen.",
-    "meal_plan": "Plan: {plan}",
-    "meal_none": "Kein Rezept passt gerade zum Vorrat: schau auf die Daten oder setze das Fehlende auf die Liste.",
     "meal_all": "Alle Zutaten vorhanden",
     "meal_missing": "Fehlt: {items}",
     "meal_expiring": "Zuerst verbrauchen: {items}",
@@ -2504,7 +2502,16 @@
     "unlock": "Entsperren",
     "unlock_hint": "Entsperren und zurück zur App (oder nach oben wischen)",
     "view_meal": "Essen & Rezept",
-    "view_alerts": "Zuerst verbrauchen"
+    "view_alerts": "Zuerst verbrauchen",
+    "meal_from_archive": "Aus deinem Rezeptbuch",
+    "made_today": "heute gekocht",
+    "made_yesterday": "gestern gekocht",
+    "made_days_ago": "vor {n} Tagen gekocht",
+    "made_months_ago": "vor {n} Monaten gekocht",
+    "rate_question": "Hat es geschmeckt?",
+    "rate_yes": "Ja, hat geschmeckt",
+    "rate_no": "Nein, hat nicht geschmeckt",
+    "rate_thanks": "Danke! Ich merke es mir."
   },
   "days": {
     "mon": "Montag",

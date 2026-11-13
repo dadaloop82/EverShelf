@@ -1640,100 +1640,100 @@ Use with: `sed -n "<line>p" assets/js/app.js` to jump to a function.
 43339:function _screensaverForceSeconds
 43364:function _startForcedScreensaver
 43379:function _syncScreensaverPinUi
-43403:function _cycleScreensaverView
-43410:function _exitForcedScreensaver
-43420:function _previewScreensaver
-43437:function _maybeForceScreensaver
-43454:function _screensaverBlockedPage
-43479:function _noteVoiceActivity
-43484:function resetInactivityTimer
-43496:function _screensaverStopCameras
-43509:function activateScreensaver
-43529:function updateScreensaverClock
-43536:function dismissScreensaver
-43587:function _spesaScanUiBlocked
-43594:function _clearSpesaAiFallbackTimers
-43606:function _maybeStartSpesaAiFallbackTimer
-43610:function _showSpesaAiFallbackModal
-43615:function _spesaAiFallbackCancel
-43624:function toggleSpesaMode
-43629:function toggleSpesaModeFromCamera
-43634:function _spesaModeHasShoppingItem
-43654:function _syncSpesaQuickBtn
-43664:function _spesaCurrencySymbol
-43679:function _spesaFinishPrompt
-43708:function _spesaKeypad
-43720:async function _spesaFinishSave
-43735:function _spesaFinishSkip
-43741:function _spesaBeginScanning
-43755:function initSpesaMode
-43786:async function startSpesaMode
-43822:function endSpesaMode
-43839:function updateSpesaBanner
-43851:function _applySpesaScanUI
-43873:function _renderSpesaSessionList
-43908:async function _spesaSessionFieldChange
-43945:function _applyShoppingListRemovals
-43964:async function shoppingBoughtAfterAdd
-43996:async function spesaModeAfterAdd
-44054:async function _spesaRemovePurchasedFromList
-44095:function _familySiblingConfirmKey
-44099:function _getFamilySiblingConfirmed
-44113:function _isFamilySiblingRecentlyConfirmed
-44120:function _recordFamilySiblingConfirmed
-44130:function _dismissFamilySiblingPrompt
-44137:function _formatFamilySiblingDate
-44146:function _inferPackageSizeFromName
-44157:function _formatFamilySiblingStockLine
-44178:function _showFamilySiblingSuggest
-44238:function _spesaBannerStat
-44259:function _initScreensaverShortcutBtn
-44293:function initScreensaverShortcuts
-44300:function initInactivityWatcher
-44471:function _setupSeen
-44482:function _markSetupSeen
-44495:function _checklistPendingBeforeSave
-44506:function _ackSavedChecklistItems
-44519:function _checklistItemForStep
-44523:function _checklistState
-44534:function _checklistTodoItems
-44550:function _checklistNewsItems
-44562:function _assistantPendingSteps
-44581:function _renderSettingsChecklist
-44632:function _syncChecklistToggle
-44637:function _toggleChecklistItems
-44647:function _checklistGoTo
-44656:function _flashSettingsCard
-44673:function startSetupAssistant
-44691:function _setupDoneStep
-44698:function _getMissingSetupSteps
-44741:function _gdriveWizardNeeded
-44747:function _setupSteps
-44961:function showSetupWizard
-44978:function _renderSetupStep
-45009:function _setupSelectLang
-45016:function _setupGenerateTopic
-45022:function _setupPaint
-45034:async function _setupTestNotify
-45069:async function _setupTestHealthcheck
-45093:function _setupSkipStep
-45102:function _setupCollectCurrent
-45161:function setupWizardNav
-45192:async function _finishSetup
-45278:async function _runHeartbeat
-45294:function _setServerOffline
-45319:async function _flushOfflineReports
-45345:async function _handleServerRestored
-45360:function _heartbeatRetry
-45414:function _preloaderStage
-45434:function _preloaderUpdateRailProgress
-45453:async function _preloaderAwaitDwell
-45480:async function _runStartupCheck
-45817:function _startupHintText
-45825:function _showStartupWarningPopup
-45870:function _showStartupErrorPopup
-45878:function _startupRetry
-45883:function startHeartbeat
-45887:async function _initApp
-46165:async function _backgroundBringSync
+43407:function _cycleScreensaverView
+43414:function _exitForcedScreensaver
+43424:function _previewScreensaver
+43441:function _maybeForceScreensaver
+43458:function _screensaverBlockedPage
+43483:function _noteVoiceActivity
+43488:function resetInactivityTimer
+43500:function _screensaverStopCameras
+43513:function activateScreensaver
+43533:function updateScreensaverClock
+43540:function dismissScreensaver
+43591:function _spesaScanUiBlocked
+43598:function _clearSpesaAiFallbackTimers
+43610:function _maybeStartSpesaAiFallbackTimer
+43614:function _showSpesaAiFallbackModal
+43619:function _spesaAiFallbackCancel
+43628:function toggleSpesaMode
+43633:function toggleSpesaModeFromCamera
+43638:function _spesaModeHasShoppingItem
+43658:function _syncSpesaQuickBtn
+43668:function _spesaCurrencySymbol
+43683:function _spesaFinishPrompt
+43712:function _spesaKeypad
+43724:async function _spesaFinishSave
+43739:function _spesaFinishSkip
+43745:function _spesaBeginScanning
+43759:function initSpesaMode
+43790:async function startSpesaMode
+43826:function endSpesaMode
+43843:function updateSpesaBanner
+43855:function _applySpesaScanUI
+43877:function _renderSpesaSessionList
+43912:async function _spesaSessionFieldChange
+43949:function _applyShoppingListRemovals
+43968:async function shoppingBoughtAfterAdd
+44000:async function spesaModeAfterAdd
+44058:async function _spesaRemovePurchasedFromList
+44099:function _familySiblingConfirmKey
+44103:function _getFamilySiblingConfirmed
+44117:function _isFamilySiblingRecentlyConfirmed
+44124:function _recordFamilySiblingConfirmed
+44134:function _dismissFamilySiblingPrompt
+44141:function _formatFamilySiblingDate
+44150:function _inferPackageSizeFromName
+44161:function _formatFamilySiblingStockLine
+44182:function _showFamilySiblingSuggest
+44242:function _spesaBannerStat
+44263:function _initScreensaverShortcutBtn
+44297:function initScreensaverShortcuts
+44304:function initInactivityWatcher
+44475:function _setupSeen
+44486:function _markSetupSeen
+44499:function _checklistPendingBeforeSave
+44510:function _ackSavedChecklistItems
+44523:function _checklistItemForStep
+44527:function _checklistState
+44538:function _checklistTodoItems
+44554:function _checklistNewsItems
+44566:function _assistantPendingSteps
+44585:function _renderSettingsChecklist
+44636:function _syncChecklistToggle
+44641:function _toggleChecklistItems
+44651:function _checklistGoTo
+44660:function _flashSettingsCard
+44677:function startSetupAssistant
+44695:function _setupDoneStep
+44702:function _getMissingSetupSteps
+44745:function _gdriveWizardNeeded
+44751:function _setupSteps
+44965:function showSetupWizard
+44982:function _renderSetupStep
+45013:function _setupSelectLang
+45020:function _setupGenerateTopic
+45026:function _setupPaint
+45038:async function _setupTestNotify
+45073:async function _setupTestHealthcheck
+45097:function _setupSkipStep
+45106:function _setupCollectCurrent
+45165:function setupWizardNav
+45196:async function _finishSetup
+45282:async function _runHeartbeat
+45298:function _setServerOffline
+45323:async function _flushOfflineReports
+45349:async function _handleServerRestored
+45364:function _heartbeatRetry
+45418:function _preloaderStage
+45438:function _preloaderUpdateRailProgress
+45457:async function _preloaderAwaitDwell
+45484:async function _runStartupCheck
+45821:function _startupHintText
+45829:function _showStartupWarningPopup
+45874:function _showStartupErrorPopup
+45882:function _startupRetry
+45887:function startHeartbeat
+45891:async function _initApp
+46169:async function _backgroundBringSync
 ```

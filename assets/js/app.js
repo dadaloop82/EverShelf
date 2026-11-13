@@ -2168,7 +2168,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261112zl'; // bump when translations change
+const _I18N_VERSION = '20261113a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -21776,7 +21776,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261112zl';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261113a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21786,7 +21786,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261112zl';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261113a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -43380,6 +43380,10 @@ function _syncScreensaverPinUi() {
     const pinned = _screensaverPinned && _screensaverActive;
     const bar = document.getElementById('screensaver-pin-bar');
     if (bar) bar.hidden = !pinned;
+    // The stage reserves room for the pinned controls ONLY when they exist: on the idle screen
+    // (no ⏭ / ✕) those 76 px belong to the card, and a short phone needs every one of them.
+    const overlayEl = document.getElementById('screensaver');
+    if (overlayEl) overlayEl.classList.toggle('is-pinned', !!pinned);
     const count = document.getElementById('screensaver-exit-count');
     if (count) {
         if (!pinned) {

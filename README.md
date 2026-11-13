@@ -112,8 +112,8 @@ the gate this release was developed against.
 
 **v2.0.0 — the big one.** The settings page became a control panel (six sections, four
 essentials always visible, no Save button: every control writes itself) and the idle screen
-became a dashboard that reads your own data (meal & recipe, what to eat first, pantry charts, an
-idea of the day). One row grammar across pantry, Home and shopping; the medicine cabinet and the
+became a dashboard that reads your own data: a recipe you already cooked («fatta 11 giorni fa —
+ti era piaciuta?», with a thumb), what to eat first, the pantry charts and an idea of the day. One row grammar across pantry, Home and shopping; the medicine cabinet and the
 stocktake are first-class; the API is token-and-pairing only; and an update repairs and verifies
 the database on the first boot. This is the first major release after 1.16.16 — nothing about the
 data changes, every screen does.

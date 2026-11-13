@@ -42,6 +42,10 @@ let _ssShift = null;
 let _ssShiftIdx = 0;
 let _ssGesture = null;
 let _ssHintTimer = null;
+/** The recipe the meal card showed last: never the same dish twice in a row. */
+let _ssLastRecipeId = 0;
+/** Recipes voted on in this session: the card says «grazie» instead of asking again. */
+const _ssRatedNow = new Set();
 
 /* ── settings ───────────────────────────────────────────────────────────────── */
 
@@ -179,18 +183,6 @@ function _ssSlotIcon(slot) {
     return { colazione: '☀️', pranzo: '🌤️', merenda: '🍎', cena: '🌙' }[slot] || '🍽️';
 }
 
-function _ssSlotLabel(slot) {
-    // Four literal translation calls on purpose: one key built from a variable is invisible
-    // to scripts/i18n-audit.py, so a missing key would only show up on the wall.
-    const labels = {
-        colazione: t('meal_types.colazione'),
-        pranzo: t('meal_types.pranzo'),
-        merenda: t('meal_types.merenda'),
-        cena: t('meal_types.cena'),
-    };
-    const label = labels[slot];
-    return (label && label !== `meal_types.${slot}`) ? label : slot;
-}
 
 /** "15 min" from prep + cook, when the recipe carries them ("15 min", "20"…). */
 function _ssMinutes(recipe) {
@@ -203,10 +195,16 @@ function _ssMinutes(recipe) {
 }
 
 /**
- * The recipe the pantry can cook NOW: nothing missing scores highest, the slot of the day
- * counts, and an ingredient that is about to go off counts more than a perfect one.
+ * A recipe from the household's OWN archive that the pantry can cook right now.
+ *
+ * The slot of the day is not a filter any more: filing «Crostini di pan bauletto con pomodoro e
+ * stracchino» under «colazione» because the clock says nine is a guess, and a savoury crostini is
+ * not what anyone eats at nine. What the app really knows is what this household has already
+ * cooked and liked, so the card proposes THAT: nothing missing scores highest, an ingredient about
+ * to expire weighs more, a recipe rated well weighs more, one cooked yesterday weighs less and
+ * the card never shows the same dish twice in a row.
  */
-function _ssPickRecipe(slot) {
+function _ssPickRecipe() {
     const recipes = (_ssData && _ssData.recipes) || [];
     if (!recipes.length) return null;
     const stats = _ssStats();
@@ -222,38 +220,59 @@ function _ssPickRecipe(slot) {
         const info = (typeof _recipeArchiveMissingInfo === 'function')
             ? _recipeArchiveMissingInfo(r)
             : { missing: 0, pantry: 0, uncookable: false, items: [] };
-        if (info.uncookable || info.missing > 2) return;
-        const meal = (typeof _normalizeMealId === 'function')
-            ? _normalizeMealId(r.meal || (entry && entry.meal) || '')
-            : '';
+        if (info.uncookable || info.missing > 1) return;
         const expiring = r.ingredients.filter(i => i && i.product_id && expiringIds.has(String(i.product_id)));
-        let score = 100 - info.missing * 30;
-        if (meal === slot) score += 40;
-        score += expiring.length * 12;
-        if (entry && entry.is_favorite) score += 8;
-        if (!best || score > best.score) best = { score, idx, entry, recipe: r, info, expiring };
+        const rating = Number(entry.rating) || 0;
+        const ageDays = _ssAgeDays(entry);
+        let score = 100 - info.missing * 25;
+        score += expiring.length * 10;
+        if (rating >= 4) score += 12;                        // a dish this household liked
+        else if (rating > 0 && rating <= 2) score -= 10;     // one it did not
+        if (ageDays !== null) {
+            if (ageDays >= 21) score += 8;                   // not cooked for a while: fresh again
+            else if (ageDays <= 2) score -= 6;               // the same dish two days running
+        }
+        if (entry.is_favorite) score += 6;
+        if (entry.id && entry.id === _ssLastRecipeId) score -= 40;  // never twice in a row
+        if (!best || score > best.score) {
+            best = { score, idx, entry, recipe: r, info, expiring, ageDays, rating };
+        }
     });
     return best;
 }
 
-function _ssViewMeal() {
-    const slot = _ssMealSlot();
-    const typeId = (typeof getTodayMealPlanType === 'function') ? getTodayMealPlanType(slot) : null;
-    const type = (typeId && typeId !== 'libero' && typeof getMealPlanTypeMap === 'function')
-        ? getMealPlanTypeMap()[typeId] : null;
-    const pick = _ssPickRecipe(slot);
-    if (!pick && !type) return null;
-
-    const eyebrow = `<span>${_ssSlotIcon(slot)} ${escapeHtml(_ssSlotLabel(slot))}</span>`
-        + (type ? ` <span class="ss-context-sep">·</span> <span>${escapeHtml(t('screensaver.meal_plan', { plan: type.label }))}</span>` : '');
-
-    if (!pick) {
-        return {
-            view: 'meal', accent: 'emerald',
-            html: `<div class="ss-eyebrow">${eyebrow}</div>
-                   <p class="ss-sub" style="margin-top:12px">${escapeHtml(t('screensaver.meal_none'))}</p>`,
-        };
+/** How many days ago an archived recipe was cooked (null when the archive does not say). */
+function _ssAgeDays(entry) {
+    const raw = entry && (entry.date || entry.savedAt);
+    if (!raw) return null;
+    let ts;
+    if (typeof raw === 'number') {
+        ts = raw;
+    } else {
+        const d = new Date(String(raw).slice(0, 10) + 'T12:00:00');
+        ts = d.getTime();
     }
+    if (!Number.isFinite(ts)) return null;
+    return Math.max(0, Math.floor((Date.now() - ts) / 86400000));
+}
+
+function _ssAgeText(days) {
+    if (days === null) return '';
+    if (days <= 0) return t('screensaver.made_today');
+    if (days === 1) return t('screensaver.made_yesterday');
+    if (days < 30) return t('screensaver.made_days_ago', { n: days });
+    return t('screensaver.made_months_ago', { n: Math.max(1, Math.round(days / 30)) });
+}
+
+function _ssViewMeal() {
+    const pick = _ssPickRecipe();
+    // Nothing the pantry can cook: no card at all — the rotation walks to the next view rather
+    // than painting an empty recipe.
+    if (!pick) return null;
+
+    const age = _ssAgeText(pick.ageDays);
+    const eyebrow = `<span>🍳 ${escapeHtml(t('screensaver.meal_from_archive'))}</span>`
+        + (age ? `<span class="ss-eyebrow-sub">· ${escapeHtml(age)}</span>` : '');
 
     const r = pick.recipe;
     const nutr = r.nutrition || {};
@@ -271,12 +290,33 @@ function _ssViewMeal() {
     if (nutr.kcal) meta.push(`<span class="ss-chip">🔥 ${escapeHtml(t('screensaver.calories', { kcal: Math.round(nutr.kcal) }))}</span>`);
     if (nutr.protein_g) meta.push(`<span class="ss-chip">🥩 ${escapeHtml(t('screensaver.protein', { g: Math.round(nutr.protein_g) }))}</span>`);
 
+    // «Fatta 12 giorni fa: ti era piaciuta?» — the household answers with a thumb and the
+    // archive learns (`recipes_rate`), which is what makes the next choice better.
+    const recipeId = Number(pick.entry && pick.entry.id) || 0;
+    let ask = '';
+    if (recipeId > 0) {
+        if (_ssRatedNow.has(recipeId)) {
+            ask = `<div class="ss-ask is-done">⭐ ${escapeHtml(t('screensaver.rate_thanks'))}</div>`;
+        } else if (!pick.rating) {
+            ask = `<div class="ss-ask">
+                       <span class="ss-ask-q">${escapeHtml(t('screensaver.rate_question'))}</span>
+                       <button type="button" class="ss-thumb" data-ss-rate="5" data-ss-id="${recipeId}"
+                               aria-label="${escapeAttr(t('screensaver.rate_yes'))}"
+                               title="${escapeAttr(t('screensaver.rate_yes'))}">👍</button>
+                       <button type="button" class="ss-thumb" data-ss-rate="1" data-ss-id="${recipeId}"
+                               aria-label="${escapeAttr(t('screensaver.rate_no'))}"
+                               title="${escapeAttr(t('screensaver.rate_no'))}">👎</button>
+                   </div>`;
+        }
+    }
+
     return {
-        view: 'meal', accent: 'emerald',
+        view: 'meal', accent: 'emerald', recipeId,
         html: `<div class="ss-eyebrow">${eyebrow}</div>
                <h2 class="ss-title">${escapeHtml(r.title || '')}</h2>
                ${facts.length ? `<div class="ss-meta">${facts.join('')}</div>` : ''}
                ${meta.length ? `<div class="ss-meta">${meta.join('')}</div>` : ''}
+               ${ask}
                <button type="button" class="ss-action" data-ss-recipe="${pick.idx}">🍳 ${escapeHtml(t('screensaver.meal_open'))}</button>`,
     };
 }
@@ -600,6 +640,7 @@ function _ssNextFrame(fn) {
  */
 function _ssPaint(built) {
     _ssView = built.view;
+    if (built.recipeId) _ssLastRecipeId = built.recipeId;
     const core = document.getElementById('screensaver-core');
     if (!core) return;
     const html = `<section class="ss-card" data-view="${escapeAttr(built.view)}" data-accent="${escapeAttr(built.accent || 'emerald')}">${built.html}</section>`;
@@ -611,6 +652,9 @@ function _ssPaint(built) {
         void core.offsetWidth;
         core.classList.remove('is-out');
         core.classList.remove('is-pre');
+        // A card that inherits the previous scroll offset would open on its middle.
+        const cardEl = core.querySelector('.ss-card');
+        if (cardEl) cardEl.scrollTop = 0;
         _ssRefreshFooter();
         _ssPaintHead();
         if (typeof _syncScreensaverPinUi === 'function') _syncScreensaverPinUi();
@@ -764,6 +808,12 @@ function _ssOnClick(ev) {
         _ssOpenRecipe(parseInt(recipeEl.getAttribute('data-ss-recipe'), 10));
         return;
     }
+    const rateEl = target.closest('[data-ss-rate]');
+    if (rateEl) {
+        _ssRate(parseInt(rateEl.getAttribute('data-ss-id'), 10) || 0,
+                parseInt(rateEl.getAttribute('data-ss-rate'), 10) || 0);
+        return;
+    }
     const rowEl = target.closest('[data-ss-open]');
     if (rowEl) {
         _ssOpenRow(parseInt(rowEl.getAttribute('data-ss-open'), 10) || 0,
@@ -780,6 +830,26 @@ function _ssOpenRecipe(idx) {
             if (typeof viewArchivedRecipe === 'function') viewArchivedRecipe(idx);
         } catch (e) { /* the archive page is still one tap away */ }
     }, 260);
+}
+
+/**
+ * «Ti era piaciuta?» → `recipes_rate` (5 or 1). It never blocks the wall: a vote that cannot
+ * reach the server is simply not remembered, and the card keeps rotating.
+ */
+async function _ssRate(id, value) {
+    if (!id || !value) return;
+    const rating = Math.max(1, Math.min(5, value));
+    _ssRatedNow.add(id);
+    // The card thanks immediately: a tap on a wall must answer at once, not after a round trip.
+    if (_ssView === 'meal') {
+        const built = _ssBuild('meal');
+        if (built) _ssPaint(built);
+    }
+    try {
+        await api('recipes_rate', {}, 'POST', { id, rating });
+        const entry = ((_ssData && _ssData.recipes) || []).find(e => Number(e && e.id) === Number(id));
+        if (entry) entry.rating = rating;
+    } catch (e) { /* the vote is a courtesy, not a transaction */ }
 }
 
 function _ssOpenRow(invId, productId) {

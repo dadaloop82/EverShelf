@@ -2474,8 +2474,6 @@
     "alerts_ok_title": "做得很好",
     "alerts_ok_sub": "30 天内你用掉了 {used} 件产品，丢弃了 {wasted} 件。",
     "alerts_ok_none": "没有即将到期的，也没有要丢弃的。",
-    "meal_plan": "计划：{plan}",
-    "meal_none": "现有食材还做不成完整的菜谱：看看日期，或把缺的加到清单里。",
     "meal_all": "食材齐全",
     "meal_missing": "缺少：{items}",
     "meal_expiring": "优先使用：{items}",
@@ -2504,7 +2502,16 @@
     "unlock": "解锁",
     "unlock_hint": "解锁并返回应用（或上滑）",
     "view_meal": "餐食与食谱",
-    "view_alerts": "优先吃掉"
+    "view_alerts": "优先吃掉",
+    "meal_from_archive": "来自你的食谱本",
+    "made_today": "今天做过",
+    "made_yesterday": "昨天做过",
+    "made_days_ago": "{n} 天前做过",
+    "made_months_ago": "{n} 个月前做过",
+    "rate_question": "上次好吃吗？",
+    "rate_yes": "好吃",
+    "rate_no": "不好吃",
+    "rate_thanks": "谢谢！我记住了。"
   },
   "days": {
     "mon": "星期一",

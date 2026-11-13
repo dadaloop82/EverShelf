@@ -59,8 +59,9 @@ All data stays on your server. No cloud, no subscriptions.
 ## 🆕 What's New
 
 **v2.0.0 — the big release.** The settings page is a control panel (six sections, the essentials
-above them, **no Save button**) and the idle screen is a dashboard read from your own data (meal &
-recipe, what to eat first, pantry charts, an idea of the day). One row grammar across pantry, Home
+above them, **no Save button**) and the idle screen is a dashboard read from your own data: a
+recipe you already cooked («fatta 11 giorni fa — ti era piaciuta?»), what to eat first, the pantry
+charts and an idea of the day. One row grammar across pantry, Home
 and shopping, the medicine cabinet and the stocktake as first-class screens, an API that only
 answers a paired device, and an update that repairs and verifies the database on the first boot.
 

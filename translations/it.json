@@ -2474,8 +2474,6 @@
     "alerts_ok_title": "Ottimo lavoro",
     "alerts_ok_sub": "In 30 giorni hai usato {used} prodotti e buttato {wasted}.",
     "alerts_ok_none": "Nessuna scadenza in vista e niente da buttare.",
-    "meal_plan": "piano: {plan}",
-    "meal_none": "Nessuna ricetta pronta con quello che c'è adesso: guarda le scadenze o aggiungi alla spesa quello che manca.",
     "meal_all": "Hai tutti gli ingredienti",
     "meal_missing": "Manca: {items}",
     "meal_expiring": "Usa prima: {items}",
@@ -2504,7 +2502,16 @@
     "unlock": "Sblocca",
     "unlock_hint": "Sblocca e torna all'app (o scorri verso l'alto)",
     "view_meal": "Pasto e ricetta",
-    "view_alerts": "Da consumare"
+    "view_alerts": "Da consumare",
+    "meal_from_archive": "Dal tuo ricettario",
+    "made_today": "fatta oggi",
+    "made_yesterday": "fatta ieri",
+    "made_days_ago": "fatta {n} giorni fa",
+    "made_months_ago": "fatta {n} mesi fa",
+    "rate_question": "Ti era piaciuta?",
+    "rate_yes": "Sì, mi è piaciuta",
+    "rate_no": "No, non mi è piaciuta",
+    "rate_thanks": "Grazie! Lo ricorderò."
   },
   "days": {
     "mon": "Lunedì",

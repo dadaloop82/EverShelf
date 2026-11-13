@@ -2474,8 +2474,6 @@
     "alerts_ok_title": "Buen trabajo",
     "alerts_ok_sub": "En 30 días has usado {used} productos y has tirado {wasted}.",
     "alerts_ok_none": "Nada caduca y nada que tirar.",
-    "meal_plan": "plan: {plan}",
-    "meal_none": "Ninguna receta está lista con lo que hay ahora: mira las fechas o añade lo que falta a la lista.",
     "meal_all": "Tienes todos los ingredientes",
     "meal_missing": "Falta: {items}",
     "meal_expiring": "Usa primero: {items}",
@@ -2504,7 +2502,16 @@
     "unlock": "Desbloquear",
     "unlock_hint": "Desbloquear y volver a la app (o desliza hacia arriba)",
     "view_meal": "Comida y receta",
-    "view_alerts": "Consumir antes"
+    "view_alerts": "Consumir antes",
+    "meal_from_archive": "De tu recetario",
+    "made_today": "hecho hoy",
+    "made_yesterday": "hecho ayer",
+    "made_days_ago": "hecho hace {n} días",
+    "made_months_ago": "hecho hace {n} meses",
+    "rate_question": "¿Te gustó?",
+    "rate_yes": "Sí, me gustó",
+    "rate_no": "No, no me gustó",
+    "rate_thanks": "¡Gracias! Lo tendré en cuenta."
   },
   "days": {
     "mon": "Lunes",

@@ -11880,6 +11880,9 @@ body.cooking-mode-active .app-header {
     text-transform: uppercase;
     color: var(--ss-accent, var(--ss-muted));
 }
+/* «· fatta 11 giorni fa»: one unit, so the dot is never left dangling at the end of a line. */
+.ss-eyebrow-sub { white-space: nowrap; }
+
 .ss-title {
     margin: 8px 0 0;
     font-size: clamp(1.2rem, 3.2vw, 1.9rem);
@@ -11974,6 +11977,34 @@ body.cooking-mode-active .app-header {
     color: #fca5a5;
 }
 
+/* «Fatta 12 giorni fa: ti era piaciuta?» — a question the household answers with a thumb, so
+   the archive learns. Neutral pills: it is not the action that writes the pantry. */
+.ss-ask {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+    font-size: clamp(0.86rem, 1.7vw, 0.98rem);
+    color: var(--ss-muted);
+}
+.ss-ask-q { font-weight: 600; }
+.ss-ask.is-done { color: #6ee7b7; font-weight: 700; }
+.ss-thumb {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    border: 1px solid #2a322e;
+    background: #171c1a;
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.ss-thumb:active { background: #232b28; transform: scale(0.96); }
+
 /* the action of a card: ONE emerald, and only when it does something */
 .ss-action {
     display: inline-flex;
@@ -12056,6 +12087,48 @@ body.cooking-mode-active .app-header {
 .ss-kpi b { color: var(--ss-text); font-weight: 700; }
 .ss-kpi-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
 
+/* ── A phone is not a small tablet ───────────────────────────────────────────
+   The portrait scale is tuned on a 700–1000 px wide tablet; below ~460 px the same numbers
+   make the card taller than the band and the primary action ends up half cut. Everything here
+   is one step smaller, nothing is hidden. */
+@media (max-width: 460px) {
+    .ss-head { gap: 6px; }
+    .ss-clock { font-size: clamp(2.6rem, 13vw, 4rem); }
+    .ss-date { font-size: 0.95rem; margin-top: 4px; }
+    .ss-context { font-size: 0.82rem; padding: 6px 12px; }
+    .ss-card { padding: 12px 12px 14px; border-radius: 18px; }
+    .ss-eyebrow { font-size: 0.78rem; gap: 6px; }
+    .ss-title { font-size: 1.35rem; margin-top: 6px; }
+    .ss-sub { font-size: 0.9rem; }
+    .ss-meta { margin-top: 10px; gap: 6px; }
+    .ss-chip { font-size: 0.86rem; padding: 5px 10px; }
+    .ss-ask { margin-top: 10px; gap: 8px; font-size: 0.82rem; }
+    .ss-thumb { width: 40px; height: 40px; font-size: 1.05rem; }
+    .ss-action { margin-top: 12px; padding: 10px 18px; font-size: 0.9rem; }
+    .ss-rows { margin-top: 10px; gap: 6px; }
+    .ss-row { padding: 8px 10px; gap: 10px; }
+    .ss-row-icon { font-size: 1.1rem; }
+    .ss-row-name { font-size: 0.95rem; }
+    .ss-row-meta { font-size: 0.82rem; }
+    .ss-row-badge { font-size: 0.78rem; padding: 4px 9px; }
+    .ss-pie { width: min(46vw, 150px); height: min(46vw, 150px); }
+    .ss-ring { width: 56px; height: 56px; font-size: 0.8rem; }
+    .ss-ring-label { font-size: 0.7rem; }
+    .ss-leg { font-size: 0.82rem; }
+    .ss-foot { font-size: 0.85rem; }
+}
+
+/* The one-off hint («tap for the next view · swipe up to leave»), under the vitals. */
+#screensaver-hint {
+    justify-self: center;
+    align-self: end;
+    margin-top: -6px;
+    font-size: clamp(0.76rem, 1.4vw, 0.86rem);
+    color: var(--ss-muted);
+    opacity: 0.75;
+    text-align: center;
+}
+
 /* ── unlock: the way back (a tap flips the view, it must NOT close) ── */
 .ss-unlock {
     position: absolute;
@@ -12082,11 +12155,37 @@ body.cooking-mode-active .app-header {
    The controls of a pinned run move to the BOTTOM here: at the top-right they covered the
    clock on a 393 px screen (measured), and the clock is the one thing that must stay whole. */
 @media (max-width: 640px) {
-    .ss-stage { padding: 16px 12px 152px; gap: 10px; }
-    .ss-card { padding: 14px 14px 16px; }
-    .ss-nutr { justify-content: center; }
+    /* 76 px clear the «Sblocca» pill; a pinned run adds the room its own bar needs. */
+    .ss-stage { padding: 16px 12px 76px; gap: 10px; }
+    .screensaver-overlay.is-pinned .ss-stage { padding-bottom: 152px; }
+    .ss-card {
+        padding: 14px 14px 16px;
+        /* A phone has no room for the portrait panel's floor: `min-height` wins over
+           `max-height`, and a 240 px card in a 180 px band overflows *above* the top edge. */
+        min-height: 0;
+        /* `center` on a flex column whose content is TALLER than the box pushes the first
+           block above the top edge, where no scroll can reach it — the recipe's eyebrow was
+           printed over the date. Start at the top and let the card scroll. */
+        justify-content: flex-start;
+    }
+    /* The charts stack instead of sharing one row: at 360 px the pie plus three rings do not
+       fit, and the row used to push the whole card past the right edge. */
+    .ss-nutr { flex-direction: column; justify-content: center; gap: 14px; }
+    .ss-pie { width: min(54vw, 180px); height: min(54vw, 180px); }
+    .ss-rings { flex: 0 0 auto; gap: 10px; }
+    .ss-ring { width: clamp(58px, 16vw, 72px); height: clamp(58px, 16vw, 72px); font-size: 0.82rem; }
+    /* A long ingredient list or a long place name may not become a horizontal scroll. */
+    .ss-title, .ss-sub, .ss-row-name, .ss-chip, .ss-row-badge { overflow-wrap: anywhere; }
+    .ss-chip, .ss-row-badge { max-width: 100%; }
+    .ss-kpi { white-space: normal; }
     .ss-rows { gap: 6px; }
     .ss-foot { gap: 8px 14px; }
+}
+
+/* A short screen (a small phone, or a landscape one): the panel may never be taller than the
+   band it lives in, whatever the portrait scale asks for. */
+@media (max-height: 760px) {
+    .ss-card { min-height: 0; justify-content: flex-start; }
 }
 
 /* ── Portrait (a tablet standing on the counter) ─────────────────────────────
@@ -12095,7 +12194,7 @@ body.cooking-mode-active .app-header {
    floated in a black field. Here the scale follows the narrow side instead: a bigger clock,
    a full-width card and type that can be read from a metre away. The composition stays the
    three bands of the landscape one (head / card / vitals), it is the sizes that change. */
-@media (orientation: portrait) {
+@media (orientation: portrait) and (min-width: 461px) {
     .ss-stage {
         width: 100%;
         max-width: 760px;
@@ -12123,6 +12222,7 @@ body.cooking-mode-active .app-header {
         display: flex;
         flex-direction: column;
         justify-content: center;
+        justify-content: safe center;   /* falls back to flex-start when it does not fit */
         min-height: clamp(240px, 40vh, 520px);
         padding: clamp(20px, 3.2vw, 32px) clamp(18px, 3.4vw, 32px);
         border-radius: 24px;

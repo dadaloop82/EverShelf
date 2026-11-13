@@ -569,6 +569,10 @@ runtime/binary files — if a task truly needs one, ask first.
   **Portrait has its own scale** (`@media (orientation: portrait)` in `style.css`): the sizes are tuned on the
   width of a landscape screen, so upright the clock, the type, the rows and the rings step up and the card
   becomes a full-width panel with a `min-height` — never a slip of paper in a black field.
+  **A phone is not a small tablet** (below 460 px): one scale smaller and `justify-content: flex-start` on the card — a
+  flex column centred on content TALLER than its box pushes the first block above the top edge, where no scroll reaches it.
+  The meal card proposes a recipe the household ALREADY cooked («fatta N giorni fa · ti era piaciuta?», thumbs →
+  `recipes_rate`), never the slot of the day.
 - **Tablet/kiosk CSS is opt-in**: `assets/css/tablet.css` activates on `html.is-kiosk`
   / `html.is-touch-tablet` (set by `_markDeviceChrome()`), never on `min-width` alone —
   a desktop monitor keeps the base styles.

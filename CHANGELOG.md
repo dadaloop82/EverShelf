@@ -71,6 +71,24 @@ became a dashboard that reads the household's own database.
   pending clock on entry and re-arms it in `closeCookingMode()`. Both cameras are stopped while
   the screen is up (`stopScanner()`, `_auditScanStop()` — a stream behind an opaque overlay is a
   LED and a heater for hours) and the scan page gets its reader back on unlock (`resumeScanner`).
+- **The meal card proposes a recipe you have ALREADY cooked.** Filed under «colazione» it offered
+  «Crostini di pan bauletto con pomodoro e stracchino» because the clock said nine — the slot of the
+  day was a guess, not a fact. The slot is not a filter any more: the card takes a recipe from the
+  household's own archive that the pantry can cook right now and says **«fatta 11 giorni fa»**, with
+  the question **«ti era piaciuta?»** and two thumbs. The vote posts `recipes_rate` (so the archive
+  learns and the next choice is better), the card thanks at once, `_ssLastRecipeId` keeps the same
+  dish from coming back twice in a row, a well-rated recipe weighs more, one cooked yesterday
+  weighs less, and with nothing cookable the card is skipped instead of painted empty.
+- **A phone is not a small tablet.** On a 393 px screen the card is no longer taller than the band
+  (the recipe's eyebrow was printed over the date, the action half cut) and nothing overflows
+  sideways: below 460 px the whole scale is one step smaller, the charts stack (pie above the
+  rings) instead of sharing a row that pushed the card past the right edge, long chips and titles
+  wrap instead of pushing, the stage reserves the pinned bar's 152 px only when the bar exists, and
+  the card starts at `flex-start` (a flex column centred on content taller than its box pushes the
+  first block above the top edge where no scroll can reach it). The portrait panel rules are
+  `(orientation: portrait) and (min-width: 461px)`, so they cannot win back through the cascade.
+  Measured at 360×640 and 393×740 with a worst-case card: horizontal overflow **0**, no content
+  above the viewport, internal scroll **0** on the recipe card at 393.
 - **Portrait is its own layout, not a squeezed landscape** («quando lo schermo del tablet è
   portrait le scritte sono troppo piccole e c'è moltissimo spazio vuoto inutilizzato»): every
   size of the screen was tuned on the WIDTH of a landscape monitor, so standing upright the same

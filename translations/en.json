@@ -2474,8 +2474,6 @@
     "alerts_ok_title": "Great work",
     "alerts_ok_sub": "In 30 days you used {used} products and threw away {wasted}.",
     "alerts_ok_none": "Nothing expiring and nothing to throw away.",
-    "meal_plan": "plan: {plan}",
-    "meal_none": "No recipe is ready with what is on the shelf right now: check the dates or add what is missing to the list.",
     "meal_all": "You have every ingredient",
     "meal_missing": "Missing: {items}",
     "meal_expiring": "Use first: {items}",
@@ -2504,7 +2502,16 @@
     "unlock": "Unlock",
     "unlock_hint": "Unlock and go back to the app (or swipe up)",
     "view_meal": "Meal & recipe",
-    "view_alerts": "Eat first"
+    "view_alerts": "Eat first",
+    "meal_from_archive": "From your recipe book",
+    "made_today": "made today",
+    "made_yesterday": "made yesterday",
+    "made_days_ago": "made {n} days ago",
+    "made_months_ago": "made {n} months ago",
+    "rate_question": "Did you like it?",
+    "rate_yes": "Yes, I liked it",
+    "rate_no": "No, I did not like it",
+    "rate_thanks": "Thanks! I will remember that."
   },
   "days": {
     "mon": "Monday",
