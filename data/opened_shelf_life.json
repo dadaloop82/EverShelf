@@ -1,0 +1,262 @@
+{
+    "version": 1,
+    "note": "PAO — period after opening. Deterministic on purpose (no model call, no network): `warn` = start checking, `critical` = almost certainly spoiled. Sources: USDA FoodKeeper (post-opening storage), EFSA/EC guidance on 'best before' vs PAO, Open Food Facts categories for the mapping. A keyword ending with `*` matches by prefix (plural/gender variants); keywords are lowercase, matched whole-word and case-insensitively. Optional per-family keys: `icon` is the mark the UI shows instead of the generic category emoji (a wine is 🍷, not 🥤); `cook_after` + `cook_hint_key` say that from that day the product is no longer something to pour or plate but an INGREDIENT: the UI then asks to cook with it and leaves throwing it away as a neutral second choice (wine: 10 days, because an opened white keeps for months in a risotto).",
+    "defaults": {
+        "frigo":    { "warn": 5,  "critical": 10 },
+        "dispensa": { "warn": 20, "critical": 45 },
+        "freezer":  { "warn": 60, "critical": 120 }
+    },
+    "locations": {
+        "frigo": ["frigo", "fridge", "refrigerator", "kühlschrank", "réfrigérateur", "frigorifero", "冰箱"],
+        "freezer": ["freezer", "congelatore", "gefrierschrank", "congélateur", "冷冻"]
+    },
+    "categories": {
+        "latticini": "dairy",
+        "carne": "meat",
+        "pesce": "fish",
+        "frutta": "produce",
+        "verdura": "produce",
+        "pane": "bread",
+        "surgelati": "frozen",
+        "bevande": "drinks",
+        "condimenti": "condiment",
+        "snack": "biscuits",
+        "conserve": "sauce",
+        "cereali": "dry",
+        "pasta": "dry",
+        "igiene": "non_food",
+        "pulizia": "non_food",
+        "altro": "other"
+    },
+    "families": [
+        {
+            "id": "non_food",
+            "match": ["shampoo", "sapone", "detersivo", "detergente", "dentifricio", "ammorbidente"],
+            "frigo":    { "warn": 3650, "critical": 9999 },
+            "dispensa": { "warn": 3650, "critical": 9999 },
+            "freezer":  { "warn": 3650, "critical": 9999 }
+        },
+        {
+            "id": "non_perishable",
+            "match": ["sale", "sale marino", "salt", "salz", "sel", "zucchero", "sugar", "zucker", "sucre", "azúcar", "miele", "honey", "honig", "miel", "aceto", "vinegar", "essig", "vinaigre", "vinagre", "bicarbonato", "backpulver"],
+            "frigo":    { "warn": 3650, "critical": 9999 },
+            "dispensa": { "warn": 3650, "critical": 9999 },
+            "freezer":  { "warn": 3650, "critical": 9999 }
+        },
+        {
+            "id": "spirits",
+            "match": ["sambuca", "rum", "brandy", "whisky", "whiskey", "vodka", "gin", "grappa", "amaro", "aperol", "campari", "limoncello", "cognac", "porto", "marsala", "amaretto", "vermouth", "liquore*"],
+            "icon": "🥃",
+            "frigo":    { "warn": 365, "critical": 730 },
+            "dispensa": { "warn": 365, "critical": 730 },
+            "freezer":  { "warn": 3650, "critical": 9999 }
+        },
+        {
+            "id": "wine",
+            "match": ["vino*", "wine*", "wein*", "vin*", "prosecco", "spumante", "chardonnay", "trebbiano", "sangiovese", "merlot", "pinot", "cabernet", "barolo", "chianti"],
+            "icon": "🍷",
+            "cook_after": 10,
+            "cook_hint_key": "dashboard.banner_opened_cook_hint",
+            "frigo":    { "warn": 4, "critical": 10 },
+            "dispensa": { "warn": 3, "critical": 7 },
+            "freezer":  { "warn": 365, "critical": 730 }
+        },
+        {
+            "id": "beer",
+            "match": ["birra*", "beer*", "bier*", "bière*", "cerveza*"],
+            "icon": "🍺",
+            "frigo":    { "warn": 2, "critical": 5 },
+            "dispensa": { "warn": 1, "critical": 3 },
+            "freezer":  { "warn": 365, "critical": 730 }
+        },
+        {
+            "id": "plant_milk",
+            "match": ["latte di soia", "latte di riso", "latte di mandorla", "latte di cocco", "latte di avena", "bevanda di soia", "bevanda di avena", "soy milk", "oat milk", "almond milk", "hafermilch", "sojamilch"],
+            "frigo":    { "warn": 3, "critical": 7 },
+            "dispensa": { "warn": 3, "critical": 7 },
+            "freezer":  { "warn": 90, "critical": 180 }
+        },
+        {
+            "id": "milk_fresh",
+            "match": ["latte fresco", "latte intero", "latte parzialmente scremato", "latte scremato", "latte pastorizzato", "latte crudo", "fresh milk", "whole milk", "vollmilch", "frischmilch"],
+            "frigo":    { "warn": 3, "critical": 6 },
+            "dispensa": { "warn": 1, "critical": 2 },
+            "freezer":  { "warn": 30, "critical": 90 }
+        },
+        {
+            "id": "milk",
+            "match": ["latte", "milk", "milch", "lait", "leche"],
+            "frigo":    { "warn": 5, "critical": 10 },
+            "dispensa": { "warn": 4, "critical": 10 },
+            "freezer":  { "warn": 30, "critical": 90 }
+        },
+        {
+            "id": "dairy",
+            "match": ["yogurt", "yoghurt", "yaourt", "joghurt", "mozzarella", "burrata", "ricotta", "stracchino", "crescenza", "mascarpone", "philadelphia", "spalmabile*", "formaggio fresco", "panna", "dessert*", "budino*", "skyr", "kefir"],
+            "frigo":    { "warn": 4, "critical": 8 },
+            "dispensa": { "warn": 1, "critical": 2 },
+            "freezer":  { "warn": 30, "critical": 90 }
+        },
+        {
+            "id": "cheese_hard",
+            "match": ["parmigiano", "grana", "pecorino", "provolone", "asiago", "fontina", "emmental", "gruyere", "scamorza", "groviera", "formagg*", "cheese*", "käse*", "fromage*", "queso*"],
+            "frigo":    { "warn": 20, "critical": 40 },
+            "dispensa": { "warn": 5, "critical": 10 },
+            "freezer":  { "warn": 60, "critical": 180 }
+        },
+        {
+            "id": "butter",
+            "match": ["burro", "butter", "beurre", "mantequilla"],
+            "frigo":    { "warn": 30, "critical": 60 },
+            "dispensa": { "warn": 2, "critical": 5 },
+            "freezer":  { "warn": 90, "critical": 180 }
+        },
+        {
+            "id": "cured_meat",
+            "match": ["prosciutto crudo", "salame", "salumi", "bresaola", "speck", "pancetta", "nduja", "coppa", "guanciale", "lardo", "culatello", "cured meat", "schinken", "jambon", "jamón"],
+            "frigo":    { "warn": 7, "critical": 14 },
+            "dispensa": { "warn": 2, "critical": 5 },
+            "freezer":  { "warn": 60, "critical": 120 }
+        },
+        {
+            "id": "cooked_meat",
+            "match": ["prosciutto cotto", "mortadella", "wurstel", "hot dog", "arrosto", "pollo arrosto", "tacchino affettato", "pollo affettato", "carne cotta", "polpette", "cotolette", "cooked ham", "kochschinken", "jambon cuit"],
+            "frigo":    { "warn": 3, "critical": 7 },
+            "dispensa": { "warn": 1, "critical": 2 },
+            "freezer":  { "warn": 60, "critical": 120 }
+        },
+        {
+            "id": "meat",
+            "match": ["carne", "pollo", "tacchino", "manzo", "maiale", "vitello", "agnello", "coniglio", "anatra", "salsiccia", "hamburger", "macinato", "meat", "chicken", "beef", "pork", "fleisch", "huhn", "viande", "poulet"],
+            "frigo":    { "warn": 1, "critical": 3 },
+            "dispensa": { "warn": 1, "critical": 2 },
+            "freezer":  { "warn": 60, "critical": 180 }
+        },
+        {
+            "id": "canned_fish",
+            "match": ["tonno in scatola", "tonno in olio", "tonno rio", "sgombro in scatola", "alici sott'olio", "sardine in scatola", "canned tuna"],
+            "frigo":    { "warn": 4, "critical": 8 },
+            "dispensa": { "warn": 2, "critical": 5 },
+            "freezer":  { "warn": 60, "critical": 120 }
+        },
+        {
+            "id": "fish",
+            "match": ["pesce", "salmone", "trota", "tonno", "merluzzo", "baccalà", "nasello", "sgombro", "orata", "spigola", "branzino", "gamberi", "gamberetti", "calamari", "polpo", "cozze", "vongole", "frutti di mare", "fish", "salmon", "fisch", "poisson"],
+            "frigo":    { "warn": 1, "critical": 3 },
+            "dispensa": { "warn": 1, "critical": 2 },
+            "freezer":  { "warn": 60, "critical": 180 }
+        },
+        {
+            "id": "sauce",
+            "match": ["passata", "pelati", "polpa di pomodoro", "sugo", "salsa di pomodoro", "ragù", "pesto", "tomato sauce", "sauce tomate"],
+            "frigo":    { "warn": 3, "critical": 7 },
+            "dispensa": { "warn": 3, "critical": 7 },
+            "freezer":  { "warn": 60, "critical": 120 }
+        },
+        {
+            "id": "condiment",
+            "match": ["maionese", "mayonnaise", "mayo", "ketchup", "senape", "mustard", "senf", "moutarde", "mostaza", "salsa di soia", "soy sauce", "tabasco", "worcestershire", "sriracha", "salsa", "sauce", "dressing", "aceto balsamico"],
+            "frigo":    { "warn": 30, "critical": 60 },
+            "dispensa": { "warn": 7, "critical": 21 },
+            "freezer":  { "warn": 90, "critical": 180 }
+        },
+        {
+            "id": "oil",
+            "match": ["olio", "oil", "öl", "huile", "aceite"],
+            "frigo":    { "warn": 90, "critical": 365 },
+            "dispensa": { "warn": 90, "critical": 365 },
+            "freezer":  { "warn": 365, "critical": 730 }
+        },
+        {
+            "id": "coffee_tea",
+            "match": ["caffè", "caffe", "coffee", "kaffee", "tè", "tea", "tee", "thé", "tisana", "camomilla", "infuso", "rooibos"],
+            "frigo":    { "warn": 90, "critical": 365 },
+            "dispensa": { "warn": 180, "critical": 365 },
+            "freezer":  { "warn": 365, "critical": 730 }
+        },
+        {
+            "id": "fresh_pasta",
+            "match": ["pasta fresca", "gnocc*", "ravioli", "tortellini", "lasagne fresche", "cannelloni", "fresh pasta"],
+            "frigo":    { "warn": 2, "critical": 4 },
+            "dispensa": { "warn": 1, "critical": 2 },
+            "freezer":  { "warn": 60, "critical": 120 }
+        },
+        {
+            "id": "dry",
+            "match": ["pasta", "spaghetti", "penne", "rigatoni", "fusilli", "farfalle", "tagliatelle", "linguine", "bucatini", "lasagn*", "riso", "risotto", "farro", "orzo", "quinoa", "couscous", "lenticchie", "ceci", "fagioli", "farina", "semola", "maizena", "amido", "lievito", "spezie", "cereali", "rice", "flour", "reis", "mehl", "riz", "farine", "arroz", "harina"],
+            "frigo":    { "warn": 30, "critical": 90 },
+            "dispensa": { "warn": 180, "critical": 365 },
+            "freezer":  { "warn": 180, "critical": 365 }
+        },
+        {
+            "id": "breadcrumbs",
+            "match": ["pane grattugiato", "pangrattato", "panko", "briciole di pane", "crostini", "frisell*", "breadcrumbs", "bread crumbs", "semmelbrösel", "chapelure", "pan rallado"],
+            "frigo":    { "warn": 60, "critical": 180 },
+            "dispensa": { "warn": 90, "critical": 180 },
+            "freezer":  { "warn": 90, "critical": 180 }
+        },
+        {
+            "id": "bread",
+            "match": ["pane", "pancarrè", "bauletto", "piadina", "piadelle", "focaccia", "baguette", "toast", "brioche", "cornetto", "tramezzino", "panino", "bread", "brot", "pain", "brötchen"],
+            "frigo":    { "warn": 3, "critical": 6 },
+            "dispensa": { "warn": 2, "critical": 5 },
+            "freezer":  { "warn": 60, "critical": 90 }
+        },
+        {
+            "id": "biscuits",
+            "match": ["biscott*", "cracker*", "wafer", "tarall*", "grissin*", "cereal*", "muesli", "granola", "corn flakes", "patatin*", "snack*", "merendin*", "cookie*", "keks*", "biscuit*", "galleta*"],
+            "frigo":    { "warn": 20, "critical": 45 },
+            "dispensa": { "warn": 20, "critical": 45 },
+            "freezer":  { "warn": 60, "critical": 120 }
+        },
+        {
+            "id": "sweet_spread",
+            "match": ["confettura", "marmellata", "nutella", "crema di nocciole", "cioccolat*", "crema spalmabile", "jam", "marmelade", "confiture", "mermelada", "chocolate", "schokolade"],
+            "frigo":    { "warn": 30, "critical": 90 },
+            "dispensa": { "warn": 30, "critical": 90 },
+            "freezer":  { "warn": 90, "critical": 180 }
+        },
+        {
+            "id": "juice",
+            "match": ["succo", "spremuta", "nettare", "juice", "saft", "jus", "jugo", "zumo"],
+            "frigo":    { "warn": 3, "critical": 6 },
+            "dispensa": { "warn": 1, "critical": 2 },
+            "freezer":  { "warn": 30, "critical": 90 }
+        },
+        {
+            "id": "drinks",
+            "match": ["aranciata", "limonata", "cola", "coca", "gassosa", "bibita", "sciroppo", "tonica", "soda", "soft drink", "limonade", "refresco"],
+            "frigo":    { "warn": 3, "critical": 7 },
+            "dispensa": { "warn": 3, "critical": 7 },
+            "freezer":  { "warn": 30, "critical": 90 }
+        },
+        {
+            "id": "nuts_dried",
+            "match": ["frutta secca", "noci", "noce", "nocciole", "mandorle", "arachidi", "pistacchi", "anacardi", "pinoli", "uvetta", "datteri", "fichi secchi", "prugne secche", "semi di", "nuts", "almonds", "peanuts", "cashew", "walnuts", "nüsse", "mandeln", "noix", "amandes", "nueces", "almendras"],
+            "frigo":    { "warn": 90, "critical": 180 },
+            "dispensa": { "warn": 90, "critical": 180 },
+            "freezer":  { "warn": 180, "critical": 365 }
+        },
+        {
+            "id": "produce_cut",
+            "match": ["insalata", "misticanza", "rucola", "spinaci", "valeriana", "macedonia", "frutta tagliata", "verdura tagliata", "salad", "salat", "salade", "ensalada"],
+            "frigo":    { "warn": 2, "critical": 4 },
+            "dispensa": { "warn": 1, "critical": 2 },
+            "freezer":  { "warn": 60, "critical": 120 }
+        },
+        {
+            "id": "produce",
+            "match": ["frutta", "verdura", "ortaggio*", "mela", "mele", "pera", "pere", "banana", "banane", "arancia", "arance", "pomodor*", "zucchin*", "melanzan*", "carot*", "patat*", "cipoll*", "cavol*", "broccol*", "finocchi*", "sedano", "peperon*", "uva", "fragol*", "fruit", "vegetable*", "obst", "gemüse", "légumes", "fruta", "verdad*"],
+            "frigo":    { "warn": 5, "critical": 10 },
+            "dispensa": { "warn": 3, "critical": 7 },
+            "freezer":  { "warn": 60, "critical": 180 }
+        },
+        {
+            "id": "frozen",
+            "match": ["surgelat*", "congelat*", "gelato", "sorbetto", "ghiacciolo", "frozen", "gefroren", "surgelé", "congelado"],
+            "frigo":    { "warn": 1, "critical": 2 },
+            "dispensa": { "warn": 1, "critical": 2 },
+            "freezer":  { "warn": 60, "critical": 180 }
+        }
+    ]
+}

@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.16.16-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.1.0-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -15,130 +15,323 @@ git clone https://github.com/dadaloop82/EverShelf.git && cd EverShelf
 cp .env.example .env && docker compose up -d    # → http://localhost:8080
 ```
 
-<details>
-<summary><b>✨ Features</b></summary>
+No framework, no runtime build step: a PHP 8 router, one SQLite file and a vanilla-JS PWA.
+Everything runs on your own hardware, and nothing about your pantry leaves it.
 
-| | |
-|---|---|
-| **Inventory** | Scan, locations, expiry, opened packs, favourites, CSV import/export |
-| **AI** | Gemini · OpenAI · Llama — identify, OCR expiry, recipes, chat |
-| **Shopping** | Smart list, anti-waste qty, recipe → list with pantry deduction, optional [Bring!](https://www.getbring.com/) |
-| **Cooking** | Steps, TTS, timers, zero-waste tips |
-| **Calendar** | Subscribe to expiries — ICS/WebCal feed for Google/Apple Calendar |
-| **Alerts** | Expiry push without Home Assistant — [ntfy](https://ntfy.sh), JSON webhook or HA, with a test button |
-| **PWA** | Offline queue, installable, multi-device |
+---
 
-**Integrations:** [Home Assistant](https://github.com/dadaloop82/ha-evershelf) · [MCP](mcp-server/README.md) · [Health Bridge](evershelf-health-bridge/README.md) · [Kiosk](evershelf-kiosk/README.md)
+## 🎉 EverShelf 2.x — the biggest update this project has ever had
 
-**Languages:** IT · EN · DE · FR · ES · ZH — details in [wiki → Features](https://github.com/dadaloop82/EverShelf/wiki/Features)
+This is not a patch release. EverShelf 2.x is the release where the app the household
+actually touches was rebuilt from the inside: **every screen, every list, the settings
+page, the idle screen, the medicine cabinet, the stocktake, the API and the upgrade
+path** — and a demo with a real pantry in it, so you can see all of it before you
+install anything.
 
-</details>
+The pantry you already have is safe: the database repairs and verifies itself on the
+first request, and a second boot changes nothing. Everything you *look at* is new.
 
-<details>
-<summary><b>📰 What's new</b></summary>
+<img src="screenshots/hero.gif" alt="EverShelf 2.x — Home, Pantry, Opened items, Shopping list and the product sheet" width="620">
 
-**v1.16.16** — il wizard di configurazione segue il server, non il browser: con un `.env` in sola lettura un nuovo dispositivo non lo riapre, lo step Google Drive sparisce con `GDRIVE_ENABLED=false` e quello della lingua con `APP_LANG` (issue #301)  **v1.16.15** — anche le liste minori smettono di troncare: risultati della ricerca rapida, candidati del match AI (non si capiva quale articolo fosse stato scelto), righe della ricevuta e etichette del grafico “Spesa per categoria”  **v1.16.14** — le liste sono leggibili sul telefono: nuovo layer CSS mobile (testo a tutta larghezza, badge e quantità sotto, niente troncamenti né titoli schiacciati a una lettera per riga)  **v1.16.13** — il dismiss vale anche per il sync in tempo reale (un cambio di stock non rimette in lista ciò che hai scartato)  **v1.16.12** — “Non lo compro” resta valido: un dismiss con scadenza (default 14 giorni, `dismiss_days` per chiamata) che il cron rispetta, così un client esterno non ritrova i prodotti in lista dopo cinque minuti; un acquisto lo cancella  **v1.16.11** — le date seguono il paese: in Italia gg/mm/aaaa (e non "2026-10-19" né il mese a parole) in banner, import e log; fr/es non ricevono più il formato italiano, e il TTS parla la lingua dell’interfaccia  **v1.16.10** — a shopping row stops contradicting itself: it reports the stock of its whole family (no more “Esaurito” next to “Hai già 235 g”), the pantry hint counts the same family only, and raw cane sugar groups with cane sugar instead of white sugar  **v1.16.9** — a tap opens the alert rows on the phone too (the 900 ms hold was the only way in, and "aperti da troppo tempo" was not clickable at all)  **v1.16.8** — the quantities finally match the window you chose (25 days, not the inferred week: 5 lemons a month are 5, not 2), perishables are planned with the shelf life of where you actually keep them, a product that expires **today** is no longer listed as expired, one or two days past the date are “Controlla” instead of “Non mangiare”, and a drink says “Non bere”  **v1.16.7** — the shopping automations stop fighting: the prune no longer deletes the row the auto-add has just created (add → prune → add every 5 minutes), and it never touches a row you marked as finished  **v1.16.6** — a finished product gets back on the shopping list: the family rule no longer hides a real shortfall by adding grams and packs together (or counting expired batches and 0.5 g smears) — “360 g” of lemon jam used to keep every jar of jam off the list — “Usa tutto” now always lands on the list, and an expired batch with fresh stock no longer adds a row with no quantity  **v1.16.5** — the app opens in the language the link asked for (`/?lang=de`, with the picker keeping the URL in step) and the vocabulary answers again: `core/vocab.js` had lost two braces, so nine engine functions — piece produce, prepared salad, processed food, singular/plural — were undefined in the browser; a 429 now carries a translatable `error_key` (six locales), the add form's units are translated with a badge that follows the select, and the shopping list's urgency prefix is recognised by its marker instead of its Italian word  **v1.16.4** — the quick stocktake speaks: each card now reads “Ci sono ancora **120 g** di **Formaggio Morbido** di **Barilla** in **Frigo**” with the quantity in a big accent pill, and the answers really act — *Sì, confermo*, *Cambio quantità* and *Cambio posizione* (the normal edit sheet opens on top of the run, manual or from the scale, without losing it), *No, è esaurito* (the real “usa tutto”) and *No, è deperito* (the real “butta tutto”, counted as waste); a run closed by mistake resumes from the point reached for an hour, when the scale is connected *Leggi dalla bilancia* fills the quantity in one tap, and *Indietro* undoes the last answer — even the last article, from the summary  **v1.16.3** — the backup panel speaks the UI language: restore/delete/Drive messages are translated from `error_key`s in all six locales, the hardcoded English and the Italian `'gg'` fallback are gone, and a guard test keeps them out  **v1.16.2** — the daily backup actually runs: the Docker image now ships its own cron (every 5 minutes), a backup is a consistent `VACUUM INTO` snapshot, and the Backup panel warns when the last one is missing or older than 8 days; backups live inside the data volume, so copy them off-volume  **v1.16.1** — a hand-edited `.env` wins again: the database fallback written when Settings cannot save the file no longer shadows it, so changing `OPENAI_MODEL` (or any key) in `.env` and restarting takes effect; the AI connection test names the model it actually called and logs the provider's message  **v1.16.0** — installable from Unraid, with the template versioned in the repo and a container-safe `.env` (`EVERSHELF_ENV_FILE`) that survives an update  **v1.15.3** — the tablet stops “resetting”: a warm reload skips the 3 s splash, the kiosk uses the HTTP cache again and reloads a hung page once (watchdog) instead of sitting on a dead frame  **v1.15.2** — no more white flashes on the Android tablet: the root canvas paints the app background (not white) and the kiosk WebView surface matches the splash colour  **v1.15.1** — the settings checklist empties itself: an option you answered leaves “Da decidere”, and saving a configuration (or the tab a “Novità” row lives in) removes it from both lists  **v1.15.0** — Settings becomes searchable: one field at the top finds a setting by name, description, synonym or `.env` key (114 controls + 48 server-only keys, all six languages) and jumps to it; a generated registry + guard test keep it honest  **v1.14.0** — custom product tags (#97): free-form labels on a product, pills on the inventory card and a filter bar above the list (AND across the selected tags, autocomplete from the tags in use), behind a normal `TAGS_ENABLED` setting; quick stocktake (#285): one card at a time with three big answers, batched writes behind `AUDIT_MODE_*`, a summary that says what changed; parent/child products (#284): an umbrella article with its brand variants, each keeping its own stock and barcode while the family total is one line, behind `PRODUCT_VARIANTS_ENABLED`; receipt OCR (#114): one photo becomes an editable table, and nothing enters the pantry before you confirm it, behind `RECEIPT_OCR_ENABLED`; a failed refresh no longer blanks the pantry or the shopping list, the smart-shopping cache declares its schema and Bring! stops suggesting what is already in stock  **v1.13.0** — a scanned tomato is never the pantry's jar of passata: the duplicate rules, the AI name→category vocabularies (browser **and** server, one source) and the AI-identified unit/quantity were rebuilt, a new pantry row below 20 g/ml (or 1 piece, ¼ pack) is refused instead of appearing as "finished", "Spesa stimata" is one number for app/kiosk/Home Assistant, and **the vocabulary now lives in `api/vocab/<lang>.json`** (genres, brands, plurals — no product names in the code, no regex on vocabulary)  **v1.12.0** — optional support, without a paywall and **without any advertising**: a one-off dialog shows the real running costs and offers two answers — donate with PayPal (with its own server-drawn QR code) or nothing for now, which is the default. The donation link, the amounts and the disclosed costs live in `.env`; the banner slots were built and then parked, so nothing is ever advertised. The kiosk wizard carries the same two answers  **v1.11.14** — “Product ID required” when adding an AI-identified product (issue #282) fixed: the catalog row is created on the fly and backend errors are translated  **v1.11.13** — the recipe ingredient “Usa” button is double the size (1.55 rem, 48 px) so it reads as the primary action; the bump script now busts the cache correctly  **v1.11.12** — safety verdicts are one-word badges (Va bene / Controlla / Non mangiare / Buttalo) with the advice on hover; removing an out-of-season product now sticks and the seasonal card suggests only what you actually buy or eat, with the reason; Bring! wording disappears when the internal list is active; bigger “Usa” buttons; i18n gaps closed  **v1.11.11** — scan screen redesign: hero camera, favourites/recents rail, AI glass tips on-stream, speculative barcode prefetch  **v1.11.10** — recipe archive dedup by `content_hash` (no more chat clones); many free-slot recipes per day; “Usa ingrediente” shows big needed qty and scale **X / Y**  **v1.11.9** — kiosk dedicated pairing step + token hand-off to WebView (kiosk **1.7.24**)  **v1.11.8** — pairing code visible on a paired device (Settings → Security); kiosk APK from LAN + `kiosk-latest`; kiosk **1.7.23** emerald Corporate UI redesign (wizard / settings / splash)  **v1.11.7** — empty recipe “missing from pantry” stub gone; undo of location moves is a pair  **v1.11.6** — HA shopping_mode + calendar attention=1  **v1.11.5** — shopping pack-equiv restock, conf caps, Bring hard-off when internal, HA expiry = dashboard rules  **v1.11.4** — Open Prices (free) + opt-in Web Push PWA; delete undo toast; torch `fillLightMode`; settings “da decidere” for prices/push  **v1.11.3** — shopping trip mode, ntfy digest/Telegram, zerowaste tips, guided settings nav  **v1.11.2** — extending expiry refreshes banner, dashboard and the current page; optimization backlog in `docs/OPTIMIZATION-BACKLOG.md`  **v1.11.1** — faster barcode lookup, top-3 auto-favourites, smart shopping catches depleted stock, Android CI stabilisation  **v1.11.0** — an article is stored in the singular (`Fetta biscottata integrale`) and the pantry shows the plural of what is really there (`3 Uova medie`, `500 g Pasta` stays a mass); certifications keep their capitals (`IGP`, `DOP`, `EVO`); the scan step lets you correct the identified title and brand before saving  **v1.10.1** — splash boot rail: stage icons go grey → blinking → coloured with an aura, a prominent version chip, and every article title now starts with a capital letter  **v1.10.0** — the genre leads every article title (`Yogurt Fiori di latte`); products you use often become favourites  **v1.9.1** — settings collapses into sub-sections, dashboard overview/freshness/trend panels, expiry push without Home Assistant (ntfy/webhook), cron watchdog, setup checklist  **v1.9.0** — Calendar feed (ICS/WebCal); recipe → shopping list with the pantry deducted; seasonal produce filters; third CSS layer  **v1.8.10** — Docker build stops baking in local data; CSRF header required on every POST; error reports redacted and GitHub publishing opt-in  **v1.8.9** — Localised tooltips, placeholders and aria labels; fixed PWA manifest icons  **v1.8.8** — One-time **pairing code** for the API token; startup no longer dead-ends behind the splash  
+> **Before:** eighteen settings tabs and a Save button, a clock with a canned sentence on
+the wall, three different list layouts, and a demo that answered with an empty pantry.
+>
+> **After:** six settings sections that save themselves, a dashboard that reads your own
+> data, one 132 px row in every list, a medicine cabinet that reads the pack instead of
+> guessing — and a demo that opens on a real, seeded household.
 
-→ [CHANGELOG.md](CHANGELOG.md)
+| | EverShelf 1.x | EverShelf 2.x |
+|---|---|---|
+| **Settings** | 18 tabs in two strips, one *Save* | six sections, four essentials always visible, **no Save button** — every control writes itself |
+| **Idle screen** | a big clock + a sentence from a list | four cards from your own data (a recipe you already cooked, what to eat first, charts, an idea of the day) |
+| **Lists** | three different row designs | **one** 132 px row: photo strip, name + brand, stock, date, one pill, two actions |
+| **Medicines** | — | opt-in cabinet, national catalogues imported locally, PAO on the pack, **no model in the loop** |
+| **Stocktake** | one row at a time, one device | three ways, **one ledger**, resumable from any device |
+| **AI** | Gemini only | Gemini · OpenAI · Llama, one provider switch |
+| **Demo** | a “mock pantry” that did not exist | its own seeded database, English first, six languages, embeddable in a page |
+| **Security** | token optional | token **minted on first boot**, pairing code, single-use OAuth state, webhook secret |
 
-</details>
+---
 
-<details>
-<summary><b>⚙️ Install & config</b></summary>
+## 📸 A look at it
 
-**Docker** (recommended): `docker compose pull && docker compose up -d`
+| | | |
+|---|---|---|
+| <img src="screenshots/dashboard.webp" width="230" alt="Home dashboard"> | <img src="screenshots/pantry.webp" width="230" alt="Pantry list"> | <img src="screenshots/opened-items.webp" width="230" alt="Opened items"> |
+| **Home** — the dashboard: what to eat first, what is opened, one strip for the month | **Pantry** — one row grammar, photo strip, state pill, stock and date | **Opened** — the PAO clock, with *Use it in a recipe* inline |
+| <img src="screenshots/shopping-list.webp" width="230" alt="Shopping list"> | <img src="screenshots/product-sheet.webp" width="230" alt="Product sheet"> | <img src="screenshots/use-item.webp" width="230" alt="Use an item"> |
+| **Shopping list** — suggestions with anti-waste quantities, swipe to buy | **Product sheet** — photo, brand, packs, places, opened clock | **Use** — fractions, packs and *where it goes* after opening |
+| <img src="screenshots/recipes.webp" width="230" alt="Recipes"> | <img src="screenshots/recipe-detail.webp" width="230" alt="Recipe detail"> | <img src="screenshots/cooking-mode.webp" width="230" alt="Cooking mode"> |
+| **Recipes** — generated from what is really in the pantry | **Recipe** — ingredients checked against the shelves | **Cooking mode** — steps, TTS, timers, hands-free (mic off until you ask) |
+| <img src="screenshots/scanning.webp" width="230" alt="Barcode scanner"> | <img src="screenshots/shelfy-chat.webp" width="230" alt="SHELFY assistant"> | |
+| **Scanner** — one lock box, the controls under the picture | **SHELFY** — voice or text, and it acts where you stand | |
 
-**Unraid**: Community Applications template (contributed by **@DevlinDelFuego**) — `unraid/evershelf.xml`, with the guide in [docs/wiki/Unraid.md](docs/wiki/Unraid.md). It mounts the database **and** the folder holding `.env`, so both survive a container update.
+---
 
-**Manual:** clone → `cp .env.example .env` → `chmod 755 data/` → point web server at repo root.
+## 🔄 Before → After, on the same screens
 
-**Minimum `.env`:**
+<details open>
+<summary><b>Home / Dashboard</b> — counters and a list became a dashboard that tells you what to do</summary>
 
-```ini
-AI_ENABLED=true
-AI_PROVIDER=gemini
-GEMINI_API_KEY=your_key
-```
-
-**Optional:** `API_TOKEN`, `SHOPPING_MODE=bring`, cron every 5 min on `api/cron_smart_shopping.php`
-
-**Behind a reverse proxy:** set `TRUSTED_PROXIES` to the proxy IP(s)/CIDR so rate
-limiting sees real client IPs, and `EVERSHELF_CANONICAL_HOST` in the Apache vhost
-(`docker/apache-evershelf.conf`) to enable the forced-HTTPS redirect.
-
-**First run with `API_TOKEN` set:** the web UI asks for a one-time **pairing code**.
-On a device that is already paired, the live code is under **Settings → System →
-Security** (and Info). It is also printed in the server log:
-
-```bash
-grep -i "pairing code" logs/evershelf_*.log | tail -1   # bare metal
-docker logs evershelf 2>&1 | grep -i "pairing code" | tail -1   # Docker
-```
-
-The token is never handed to an anonymous request. On a fully trusted LAN you can
-opt out with `API_BOOTSTRAP_OPEN=true` (re-exposes the token — see SECURITY.md).
-
-→ [Wiki: Installation](https://github.com/dadaloop82/EverShelf/wiki/Installation) · [Configuration](https://github.com/dadaloop82/EverShelf/wiki/Configuration)
+<img src="screenshots/compare-dashboard.webp" alt="Dashboard: before (1.x) and after (2.x)" width="900">
 
 </details>
 
 <details>
-<summary><b>🔌 Integrations & API</b></summary>
+<summary><b>Pantry list</b> — 88 tiles in a grid became one readable row grammar</summary>
 
-| | Link |
-|---|---|
-| Home Assistant | [ha-evershelf](https://github.com/dadaloop82/ha-evershelf) |
-| MCP agents | [mcp-server/README.md](mcp-server/README.md) |
-| Health / Fuel Mode | [evershelf-health-bridge/README.md](evershelf-health-bridge/README.md) |
-| Android kiosk + scale | [evershelf-kiosk/README.md](evershelf-kiosk/README.md) |
-| Calendar feed (ICS) | [Wiki → Calendar Feed](https://github.com/dadaloop82/EverShelf/wiki/Calendar) |
-| REST API | [Wiki → API](https://github.com/dadaloop82/EverShelf/wiki/API-Reference) |
+<img src="screenshots/compare-pantry.webp" alt="Pantry list: before (1.x) and after (2.x)" width="900">
 
 </details>
 
 <details>
-<summary><b>🏗️ Architecture & security</b></summary>
+<summary><b>Shopping list</b> — its own design became the same row as the Home</summary>
 
-`index.html` SPA · `api/index.php` · `assets/js/app.js` · SQLite in `data/`
-
-→ [ARCHITECTURE.md](docs/ARCHITECTURE.md) · [CORPORATE-UI.md](docs/CORPORATE-UI.md) · [SECURITY.md](SECURITY.md)
+<img src="screenshots/compare-shopping-list.webp" alt="Shopping list: before (1.x) and after (2.x)" width="900">
 
 </details>
 
 <details>
-<summary><b>🤝 Contributing</b></summary>
+<summary><b>Product sheet and editing</b> — one hierarchy, photo and brand in the head, no wall of fields</summary>
 
-**[Roadmap](docs/ROADMAP.md)** — what is next, with a rough effort tag. ·
-[Issues](https://github.com/dadaloop82/EverShelf/issues) ·
-[Good first issues](https://github.com/dadaloop82/EverShelf/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) ·
-[Discussions](https://github.com/dadaloop82/EverShelf/discussions) ·
-[Project board](https://github.com/users/dadaloop82/projects/2)
-
-You do not have to write code: translations, bug reproductions, testing a PR, docs and
-UX feedback are all welcome. Pick something from the roadmap and say hello in the issue —
-the project needs more than one pair of hands. Starting point:
-[#290 — Contributing to EverShelf](https://github.com/dadaloop82/EverShelf/issues/290)
-(pinned).
-
-Add a language: copy `translations/en.json`, translate values, open a PR.
+<img src="screenshots/compare-product-sheet.webp" alt="Product sheet: before (1.x) and after (2.x)" width="900">
 
 </details>
 
 <details>
-<summary><b>📸 Demo</b></summary>
+<summary><b>Use an item</b> — fractions, packs and the place the rest went</summary>
 
-<div align="center">
+<img src="screenshots/compare-use-item.webp" alt="Use an item: before (1.x) and after (2.x)" width="900">
 
-![Demo](assets/img/demo.gif)
+</details>
 
-[Live demo](https://evershelf.site/demo) — no install, full AI.
+<details>
+<summary><b>Opened items</b> — a yellow card became the PAO clock with the two actions inline</summary>
 
-</div>
+<img src="screenshots/compare-opened-items.webp" alt="Opened items: before (1.x) and after (2.x)" width="900">
+
+</details>
+
+<details>
+<summary><b>Recipes and recipe detail</b> — generated from the shelves, with the pantry checked</summary>
+
+<img src="screenshots/compare-recipes.webp" alt="Recipes: before (1.x) and after (2.x)" width="900">
+
+<img src="screenshots/compare-recipe-detail.webp" alt="Recipe detail: before (1.x) and after (2.x)" width="900">
+
+</details>
+
+<details>
+<summary><b>Cooking mode, scanner and SHELFY</b> — the kitchen surfaces</summary>
+
+<img src="screenshots/compare-cooking-mode.webp" alt="Cooking mode: before (1.x) and after (2.x)" width="900">
+
+<img src="screenshots/compare-scanning.webp" alt="Scanner: before (1.x) and after (2.x)" width="900">
+
+<img src="screenshots/compare-shelfy-chat.webp" alt="SHELFY: before (1.x) and after (2.x)" width="900">
 
 </details>
 
 ---
 
-MIT · [Stimpfl Daniel](https://evershelf.site/) · [@dadaloop82](https://github.com/dadaloop82)
+<details>
+<summary><b>📖 The full story — the eight changes behind 2.x</b> (click)</summary>
 
-*Unrelated iOS app “EverShelf” by Joshumi Technologies — no affiliation.*
+### 1. Settings is a control panel, not a wall of fields
+
+Eighteen tabs in two strips became **six sections** (🏠 General · 🍳 Cooking · 🤖 AI & voice ·
+💊 Medicines · 🔔 Alerts & integrations · 🔒 System) in a sticky rail on a monitor and a
+swipeable strip of pills on a phone. Above the rail, always visible, the **four essentials**:
+the access token (masked, reveal/copy), the pairing code, the last backup with «Backup now»,
+and the version. **There is no Save button any more** — every control writes itself
+(checkboxes and selects at once, text 700 ms after the last keystroke) and the sticky bar at
+the bottom is a receipt: *pending → saving → saved*, or the server's refusal, which it never
+dresses up as «saved». Guides that need more than a paragraph live in a dialog.
+
+### 2. The idle screen is an ambient kitchen dashboard
+
+The kiosk used to show a big clock and a sentence picked from a static list. It is now **one
+card at a time, read from your own data**: 🍽️ the meal of the day with a real recipe from your
+archive the pantry can cook *now* (expiring ingredients weigh more), ⚠️ up to three things to
+eat first (opened past its window, expired, expiring — each row opens the product), 📊 the
+category pie with health / variety / freshness rings and one insight from the weakest number,
+💡 a dynamic idea (shopping list, saved vs wasted, weather + what expires first, medicine
+cabinet, shape of the pantry). A card with nothing to say is skipped, never painted empty.
+Pure black for OLED walls, a few pixels of drift every 2.5 minutes against burn-in, and a tap
+flips the card — **a tap never closes it** (a brush on a wall must not take the clock away):
+«Unlock», a swipe up or Esc do. It starts **always** after the timeout you set, on any page
+with any sheet open; **cooking mode is the only exception** (the recipe is the session).
+Portrait tablets get their own scale, not a squeezed landscape.
+
+### 3. One row grammar for pantry, Home and shopping
+
+`[photo strip] [name + brand / stock · qty · price] [state] [✓] [⋮]`, 132 px in every list —
+the pantry, «Expiring», «Expired», «Opened», «Forgotten» and the shopping list. One builder
+for the state pill, one for the actions, and the two facts a row is read for (stock and date)
+are the biggest things in it. A medicine is never a food surface: it has its own drawn mark,
+its own shelf in the shopping list, its own tint — and its active ingredient wraps instead of
+running off the screen.
+
+### 4. EverShelf Med — an opt-in medicine cabinet that reads, never guesses
+
+Off by default, with its own dedicated place and a closed set of categories. A box is
+identified by a printed code (Italian AIC, German PZN, US NDC…) verified against a **local
+catalogue** imported from the national open data — the reader **never calls a model**, and a
+code the catalogue does not know is treated as a misread, never as a new medicine. Every
+country rule lives in data, so adding a country means adding a file
+([docs/wiki/Medicines-Country-Schemas.md](docs/wiki/Medicines-Country-Schemas.md)).
+
+### 5. The quick stocktake: three ways, one ledger
+
+«One at a time» (the app proposes), «I'll tell you» (you type a name) and «Barcode» (its own
+camera inside the sheet) all count in the same session, and a run started at the fridge resumes
+on any device — the state lives on the server, never in one browser. One answer covers every
+pack of that article in that place, so the same name is never asked twice.
+
+### 6. Text and vocabulary are data — six locales, enforced
+
+Every user-facing string is a translation key in `translations/*.json` (IT · EN · DE · FR ·
+ES · ZH) and every product word lives in `api/vocab/<lang>.json`. CI fails on a key that is
+used but missing, on a generated file that no longer matches its JSON, and on vocabulary words
+creeping back into the logic files.
+
+### 7. Security and operations hardened
+
+Every action authenticates (token + CSRF, and a *pairing code* hands the token to a new
+device); an install with no token **mints one** on its first request instead of running open;
+the Google Drive callback consumes a single-use `state`; the Telegram webhook compares the
+secret Telegram echoes back and refuses to answer without one; `ALLOWED_HOSTS` guards against
+DNS rebinding. Logs carry levels and two rivers (`app`, `kiosk`), rotate daily, and a reload
+always names its author. Backups are `VACUUM INTO` files that a restore proves before
+promoting them, scheduled by the container's cron.
+
+### 8. Upgrade safety is a test, not a promise
+
+`php scripts/check-upgrade-migration.php` builds a database with the **old** code, fills it
+with realistic content and opens it with the **new** one: 48 checks prove that nothing is
+lost, that the repairs are the intended ones, and that a second boot changes nothing. It is
+the gate this release was developed against.
+
+</details>
+
+---
+
+## 📰 What's new
+
+<details open>
+<summary><b>Last five releases</b></summary>
+
+**v2.1.0 — demo mode that actually shows a pantry.** `DEMO_MODE=true` (or `?demo=1`,
+or serving the app under `/demo`) now opens the app on a **seeded demo database** — thirty
+products across pantry, fridge and freezer, a month of history and a real shopping list —
+instead of an empty screen. English by default and translated by `?lang=` (products
+included: each language has its own seed), no pairing, read-only with quiet no-ops, and
+embeddable in an iframe (`frame-ancestors` instead of `X-Frame-Options`). The household's
+database is never opened in demo mode. A fresh install also boots again: `initializeDB()`
+was missing `products.kind`, which the migrations read.
+
+**v2.0.0 — the big one.** The settings page became a control panel (six sections, four
+essentials always visible, no Save button: every control writes itself) and the idle screen
+became a dashboard that reads your own data: a recipe you already cooked («fatta 11 giorni fa —
+ti era piaciuta?», with a thumb), what to eat first, the pantry charts and an idea of the day. One row grammar across pantry, Home and shopping; the medicine cabinet and the
+stocktake are first-class; the API is token-and-pairing only; and an update repairs and verifies
+the database on the first boot. This is the first major release after 1.16.16 — nothing about the
+data changes, every screen does.
+
+**v1.31.35 — a medicine's active ingredient wraps.** «CLORTETRACICLINA CLORIDRATO» was cut at
+the edge of the cabinet row; it goes on the next line now, and the sheet's facts wrap instead
+of scrolling sideways.
+
+**v1.31.34 — the shopping list wears the same row as the Home.** Photo strip, one meta line
+(stock · qty · price), one state pill, the same two actions — 132 px like every other list.
+
+**v1.31.33 — the Home lists wait with the SHELFY skeleton.** «Expiring», «Opened» and
+«Forgotten» show the breathing skeleton instead of a blank panel, and a slow first paint no
+longer hides the animation behind the splash.
+
+**v1.31.32 — every banner reason wears its own tint.** An open yoghurt, a loss check and a
+prediction stopped being the same grey card with different words: each reason sets one soft hue,
+the theme keeps the paper and the rail keeps the urgency.
+
+</details>
+
+
+---
+
+## ✨ Features
+
+| | |
+|---|---|
+| **Inventory** | Scan (EAN, QR, DataMatrix), places, expiry estimates, opened packs, favourites, CSV import/export |
+| **AI** | Gemini · OpenAI · Llama — identify a product, read an expiry, propose recipes, chat with SHELFY (voice or text) |
+| **Shopping** | Smart list with anti-waste quantities, recipe → list with pantry deduction, optional [Bring!](https://www.getbring.com/) |
+| **Cooking** | Step-by-step mode, TTS, timers, zero-waste tips, hands-free commands |
+| **Calendar** | Subscribe to your expiries — an ICS/WebCal feed for Google/Apple Calendar |
+| **Alerts** | Expiry push without Home Assistant: [ntfy](https://ntfy.sh), a JSON webhook or HA, with a test button |
+| **Medicines** | Optional cabinet, national catalogues imported locally, PAO on the pack, no model in the loop |
+| **PWA** | Installable, offline queue for writes, one household across phone / tablet / kiosk |
+
+**Integrations:** [Home Assistant](https://github.com/dadaloop82/ha-evershelf) ·
+[MCP server](mcp-server/README.md) · [Health Bridge](evershelf-health-bridge/README.md) ·
+[Android kiosk](evershelf-kiosk/README.md)
+
+**Languages:** Italiano · English · Deutsch · Français · Español · 中文 — the interface is
+translated entirely, including the idle screen and every server message.
+
+---
+
+## 🧱 The repository in ten lines
+
+```
+index.html            the single page: every screen and dialog
+assets/js/app.js      the frontend (one file, indexed by docs/INDEX-app-js.md)
+assets/js/*.js        focused modules: audit (stocktake), screensaver, settings search, receipt
+assets/css/           style.css + themes, surfaces, mobile (phone geometry), tablet (kiosk)
+api/index.php         the backend: one switch(action) and its handlers
+api/lib/*.php         domain libraries (AI, health, seasonal, medicines, security, support…)
+api/database.php      schema + migrations, applied on the first request
+data/                 SQLite database, caches and logs — never served over HTTP
+translations/*.json   six locales; api/vocab/*.json holds the product vocabulary
+```
+
+The two monoliths are navigated with generated indexes (`docs/INDEX-app-js.md`,
+`docs/INDEX-api-index.md`, `docs/INDEX-actions.md`) and described in
+[docs/CODEBASE-MAP.md](docs/CODEBASE-MAP.md). Working on the code? Start from
+[AGENTS.md](AGENTS.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
+
+## 📦 Install
+
+| | |
+|---|---|
+| **Docker** (recommended) | `cp .env.example .env && docker compose up -d` — data lives in `./data` |
+| **Unraid** | [unraid/evershelf.xml](unraid/evershelf.xml) CA template · [docs/wiki/Unraid.md](docs/wiki/Unraid.md) |
+| **Manual** | PHP 8.2 with `pdo_sqlite`, `curl`, `mbstring` → `php -S 0.0.0.0:8080` |
+| **Kiosk** | Android wall tablet APK, self-updating over your LAN → [docs/wiki/Android-Kiosk.md](docs/wiki/Android-Kiosk.md) |
+| **Health Bridge** | A phone or HA as a step source → [evershelf-health-bridge/README.md](evershelf-health-bridge/README.md) |
+
+Configuration is one `.env` file (and the settings page, which writes it for you). The
+complete reference is [docs/wiki/Configuration.md](docs/wiki/Configuration.md); the step-by-step
+guides live in [docs/wiki/Installation.md](docs/wiki/Installation.md).
+
+## 🔐 Privacy
+
+Self-hosted: the database, the photos you take and the logs stay in `data/` on your machine.
+The only network calls are the ones you enable — the AI provider you configure, Open Food
+Facts for a barcode, your weather provider, your notification channel. Keys stay in `.env` and
+are never sent to the browser: the app receives a masked hint, never the secret.
+
+## 🤝 Contributing
+
+Bugs and ideas are welcome — [docs/ROADMAP.md](docs/ROADMAP.md) says what is next and which
+issues are up for grabs. Before opening a PR read [CONTRIBUTING.md](CONTRIBUTING.md) and
+[SECURITY.md](SECURITY.md); CI runs the PHP/JS syntax checks, the generated-file guards and
+the translation audit on every push.
+
+## 📄 License & credits
+
+MIT — see [LICENSE](LICENSE). Product data from
+[Open Food Facts](https://world.openfoodfacts.org/) and other open data — the splash and
+*Settings → Credits* name every source. EverShelf shows **no advertising**.
+

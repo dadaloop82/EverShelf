@@ -63,16 +63,26 @@ function vocabTokens(text) {
     return tokens;
 }
 
-/** Does an already tokenized name satisfy one term? */
-function vocabMatchesTerm(tokens, term) {
+/**
+ * Best match of one term: {pos, len} or null.
+ * "+" terms score by the earliest part and the number of required parts.
+ */
+function vocabTermMatchScore(tokens, term) {
     const t = String(term || '').trim();
-    if (!t || !tokens.length) return false;
+    if (!t || !tokens.length) return null;
     if (t.includes('+')) {
-        return t.split('+').every(part => vocabMatchesTerm(tokens, part));
+        const parts = t.split('+');
+        let earliest = null;
+        for (const part of parts) {
+            const score = vocabTermMatchScore(tokens, part);
+            if (!score) return null;
+            if (earliest === null || score.pos < earliest) earliest = score.pos;
+        }
+        return { pos: earliest, len: parts.length };
     }
     const isStem = t.endsWith('*');
     const words = vocabTokens(isStem ? t.slice(0, -1) : t);
-    if (!words.length) return false;
+    if (!words.length) return null;
     for (let i = 0; i <= tokens.length - words.length; i++) {
         let ok = true;
         for (let j = 0; j < words.length; j++) {
@@ -80,9 +90,14 @@ function vocabMatchesTerm(tokens, term) {
             const hit = (isStem && j === words.length - 1) ? token.startsWith(words[j]) : token === words[j];
             if (!hit) { ok = false; break; }
         }
-        if (ok) return true;
+        if (ok) return { pos: i, len: words.length };
     }
-    return false;
+    return null;
+}
+
+/** Does an already tokenized name satisfy one term? */
+function vocabMatchesTerm(tokens, term) {
+    return vocabTermMatchScore(tokens, term) !== null;
 }
 
 function vocabMatchesTermsTokens(tokens, terms) {
@@ -93,18 +108,65 @@ function vocabNameHasAnyTerm(name, terms) {
     return vocabMatchesTermsTokens(vocabTokens(name), terms);
 }
 
-/** The local category of a product name: brands first, then the ordered generic terms. */
+/** Best {cat,pos,len} among the terms of one rule, or null. */
+function vocabBestTermInRule(tokens, rule) {
+    const cat = (rule && rule.cat) || '';
+    if (!cat) return null;
+    let best = null;
+    for (const term of (rule.terms || [])) {
+        const score = vocabTermMatchScore(tokens, term);
+        if (!score) continue;
+        if (!best || score.len > best.len || (score.len === best.len && score.pos < best.pos)) {
+            best = { cat, pos: score.pos, len: score.len };
+        }
+    }
+    return best;
+}
+
+/**
+ * Local category of a product title.
+ *
+ * Language-neutral ranking (mirrors api/lib/vocabulary.php):
+ *   1. among category hits: longer phrase, then earliest word in the title,
+ *   2. brand → category only when the title itself named no genre.
+ * No product word belongs here.
+ */
 function vocabCategoryOfName(name, brand = '') {
     const data = _vocabData();
     const tokens = vocabTokens(String(name || '') + ' ' + String(brand || ''));
     if (!tokens.length) return 'altro';
+    let best = null;
+    for (const rule of (data.categories || [])) {
+        const hit = vocabBestTermInRule(tokens, rule);
+        if (!hit) continue;
+        if (!best || hit.len > best.len || (hit.len === best.len && hit.pos < best.pos)) {
+            best = hit;
+        }
+    }
+    if (best) return best.cat;
     for (const rule of (data.brands || [])) {
         if (vocabMatchesTermsTokens(tokens, rule.terms)) return rule.cat || 'altro';
     }
-    for (const rule of (data.categories || [])) {
-        if (vocabMatchesTermsTokens(tokens, rule.terms)) return rule.cat || 'altro';
-    }
     return 'altro';
+}
+
+/**
+ * OFF slug → local category (data/off_categories.json → off_categories.generated.js).
+ * Returns the local slug, or null when the tag is a catch-all / unknown
+ * (caller guesses from the title via vocabCategoryOfName).
+ */
+function vocabMapOffSlug(slug) {
+    let s = String(slug || '').trim().toLowerCase();
+    if (!s) return null;
+    const m = s.match(/^[a-z]{2}:(.+)$/);
+    if (m) s = m[1];
+    const table = (typeof EVERSHELF_OFF_CATEGORIES !== 'undefined' && EVERSHELF_OFF_CATEGORIES)
+        ? EVERSHELF_OFF_CATEGORIES
+        : null;
+    const map = (table && table.by_slug) || {};
+    if (!Object.prototype.hasOwnProperty.call(map, s)) return null;
+    const cat = map[s];
+    return (cat != null && cat !== '') ? String(cat) : null;
 }
 
 /** Does the title carry a pack size ("500 g", "1,5 l")? Format, not vocabulary. */
@@ -229,3 +291,182 @@ function vocabSameLemma(a, b) {
     if (!ta.length || ta.length !== tb.length) return false;
     return ta.every((word, i) => vocabSameLemmaWord(word, tb[i]));
 }
+
+// ── Capture lexicon (SHELFY: one sentence in, one confirmed action out) ─────
+// The words the capture sheet can hear are vocabulary too: they live in the same
+// api/vocab/<lang>.json ("capture"), never in app.js. The parser reads ONE merged
+// lexicon — the current language first, then every other shipped language — because the
+// recogniser listens in the device language, which is not necessarily the UI language,
+// and people mix ("ok, aggiungi il latte").
+
+/** One language's "capture" block, or null when that file does not define it. */
+function vocabCaptureOf(lang) {
+    const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
+    const data = all[String(lang || '')];
+    const capture = data && data.capture;
+    return (capture && typeof capture === 'object') ? capture : null;
+}
+
+/**
+ * The words that say nothing about WHO makes a medicine: legal forms and the bureaucratic run
+ * of a company name ("AZIENDE CHIMICHE RIUNITE … S.P.A.", "LABORATOIRES …", "… GMBH").
+ *
+ * DATA, not code: each language declares its own list under `company_stop_words` in
+ * api/vocab/<lang>.json, and every shipped language contributes — a catalogue mixes them
+ * (an Italian box printed by a German firm, "Pharmaceuticals" on a US label). Merged, deduped
+ * and lowercased once; a language that declares nothing simply adds nothing.
+ */
+/**
+ * The words the cooking screen hears for its three commands ("avanti", "indietro", "rileggi").
+ *
+ * DATA like every other word: api/vocab/<lang>.json → "cooking_voice". Every shipped language
+ * contributes, because the recogniser listens in the device language and a cook mixes them.
+ */
+function vocabCookingVoice() {
+    if (vocabCookingVoice._value) return vocabCookingVoice._value;
+    const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
+    const lang = (typeof _currentLang === 'string' && _currentLang) ? _currentLang : 'it';
+    const order = [lang].concat(Object.keys(all).filter(code => code !== lang).sort());
+    const out = { next: [], prev: [], replay: [] };
+    const seen = { next: new Set(), prev: new Set(), replay: new Set() };
+    order.forEach(code => {
+        const data = all[code];
+        const block = data && data.cooking_voice;
+        if (!block || typeof block !== 'object') return;
+        Object.keys(out).forEach(intent => {
+            (block[intent] || []).forEach(word => {
+                const key = String(word == null ? '' : word).trim().toLowerCase();
+                if (key === '' || seen[intent].has(key)) return;
+                seen[intent].add(key);
+                out[intent].push(key);
+            });
+        });
+    });
+    vocabCookingVoice._value = out;
+    return out;
+}
+
+function vocabCompanyStopWords() {
+    if (vocabCompanyStopWords._value) return vocabCompanyStopWords._value;
+    const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
+    const lang = (typeof _currentLang === 'string' && _currentLang) ? _currentLang : 'it';
+    const order = [lang].concat(Object.keys(all).filter(code => code !== lang).sort());
+    const seen = new Set();
+    const out = [];
+    order.forEach(code => {
+        const data = all[code];
+        const list = data && data.company_stop_words;
+        if (!Array.isArray(list)) return;
+        list.forEach((word) => {
+            const key = String(word == null ? '' : word).trim().toLowerCase();
+            if (key === '' || seen.has(key)) return;
+            seen.add(key);
+            out.push(key);
+        });
+    });
+    vocabCompanyStopWords._value = out;
+    return out;
+}
+
+/** One language's "locale" block (its own name, collation tag, speech tag). */
+function vocabLocale(lang) {
+    const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
+    const data = all[String(lang || '')];
+    const locale = data && data.locale;
+    return (locale && typeof locale === 'object') ? locale : {};
+}
+
+/**
+ * The shipped languages, in the data's own order: `{ it: 'Italiano', en: 'English', … }`.
+ *
+ * The selector and the `?lang=` deep link read this, so adding a language is dropping
+ * `api/vocab/<code>.json` with its "locale" block — the browser names it itself, and
+ * that name is never written in app.js.
+ */
+function vocabLanguages() {
+    const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
+    const out = {};
+    Object.keys(all).forEach(code => {
+        const locale = vocabLocale(code);
+        out[code] = String(locale.name || code);
+    });
+    return out;
+}
+
+/**
+ * Every capture word we ship, merged.
+ *
+ *   intents     { recipe, symptom, throw, consume, add: [...] }
+ *   numbers     { "due": 2 }                             spelled quantities
+ *   units       { "etti": { unit: 'g', factor: 100 } }   spoken unit → canonical + multiplier
+ *   fractions   [["mezza", 0.5]]                         "half an apple"
+ *   all_words   ["tutti", "used up"]                     the whole row
+ *   stop_words  ["il", "the", "我"]                        articles, prepositions, filler
+ *
+ * A collision keeps the current language: the first language that declares a key owns
+ * it. A file that omits a section simply contributes nothing — the data never invents.
+ * Insertion order matters for matching: recipe → symptom → throw → consume → add.
+ */
+function vocabCaptureLexicon() {
+    const lang = (typeof _currentLang === 'string' && _currentLang) ? _currentLang : 'it';
+    if (vocabCaptureLexicon._lang === lang && vocabCaptureLexicon._value) return vocabCaptureLexicon._value;
+    const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
+    const order = [lang].concat(Object.keys(all).filter(code => code !== lang).sort());
+    const intents = { recipe: [], symptom: [], throw: [], consume: [], shop: [], add: [] };
+    const out = { intents: intents, numbers: {}, units: {}, fractions: [], all_words: [], stop_words: [] };
+    const seenFractions = new Set();
+    const seenAll = new Set();
+    const seenStop = new Set();
+    const pushUnique = (list, seen, word) => {
+        const key = String(word == null ? '' : word);
+        if (key === '' || seen.has(key)) return;
+        seen.add(key);
+        list.push(key);
+    };
+    order.forEach(code => {
+        const capture = vocabCaptureOf(code);
+        if (!capture) return;
+        const spoken = capture.intent || {};
+        Object.keys(intents).forEach(intent => {
+            (spoken[intent] || []).forEach(word => {
+                if (typeof word === 'string' && word !== '' && intents[intent].indexOf(word) === -1) {
+                    intents[intent].push(word);
+                }
+            });
+        });
+        Object.entries(capture.numbers || {}).forEach(pair => {
+            if (!(pair[0] in out.numbers)) out.numbers[pair[0]] = pair[1];
+        });
+        Object.entries(capture.units || {}).forEach(pair => {
+            const word = pair[0];
+            if (word in out.units) return;
+            const spec = pair[1];
+            const unit = Array.isArray(spec) ? spec[0] : (spec && spec.unit);
+            const factor = Array.isArray(spec) ? spec[1] : (spec && spec.factor);
+            out.units[word] = { unit: String(unit || ''), factor: Number(factor) || 1 };
+        });
+        (capture.fractions || []).forEach(pair => {
+            const word = String((pair && pair[0]) || '');
+            const value = Number(pair && pair[1]);
+            if (word === '' || !(value > 0) || seenFractions.has(word)) return;
+            seenFractions.add(word);
+            out.fractions.push([word, value]);
+        });
+        (capture.all_words || []).forEach(word => pushUnique(out.all_words, seenAll, word));
+        (capture.stop_words || []).forEach(word => pushUnique(out.stop_words, seenStop, word));
+    });
+    vocabCaptureLexicon._lang = lang;
+    vocabCaptureLexicon._value = out;
+    return out;
+}
+
+/** The BCP-47 tag the recogniser should ask for ("" when the data has none). */
+function vocabCaptureSpeechTag(lang) {
+    return String(vocabLocale(lang).speech_tag || '');
+}
+
+/** The BCP-47 collation tag used by dates, numbers and the TTS voice ("" if absent). */
+function vocabCollationTag(lang) {
+    return String(vocabLocale(lang).collation || '');
+}
+

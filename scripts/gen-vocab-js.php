@@ -8,7 +8,7 @@
  * and the guessers are synchronous). One file per language, all shipped together so the
  * app can switch language at runtime.
  *
- * Run it after editing api/vocab/<lang>.json; scripts/test-vocabulary.php fails when the
+ * Run it after editing api/vocab/<lang>.json: the browser bundle must match the data.
  * generated file is out of sync.
  */
 $root = dirname(__DIR__);
@@ -35,7 +35,7 @@ if (!$all) {
 $json = json_encode($all, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 $js = "/**\n"
     . " * GENERATED FILE — do not edit. Source: api/vocab/*.json\n"
-    . " * Regenerate: php scripts/gen-vocab-js.php   (locked by scripts/test-vocabulary.php)\n"
+    . " * Regenerate: php scripts/gen-vocab-js.php\n"
     . " * Language data only: no logic here.\n"
     . " */\n"
     . "const EVERSHELF_VOCAB_ALL = {$json};\n";

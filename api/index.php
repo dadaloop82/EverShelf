@@ -13,6 +13,8 @@ require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/lib/tags.php';
 require_once __DIR__ . '/lib/product_family.php';
 require_once __DIR__ . '/lib/receipt_ocr.php';
+// The Google Drive OAuth `state`: the callback is public and overwrites the refresh token.
+require_once __DIR__ . '/lib/gdrive_state.php';
 
 const RECIPE_PANTRY_MIN_MATCH_SCORE = 80;
 const RECENTLY_EXHAUSTED_DAYS = 30;
@@ -21,7 +23,22 @@ const RECENTLY_EXHAUSTED_DAYS = 30;
 // at runtime, so constants defined further down the file are still undefined when a
 // route handler runs. Smart Shopping used to fail with "Undefined constant".
 const SMART_HIGH_USE_STOCK_PCT = 25.0;
+/**
+ * Ceiling for a pack row's "typical purchase", in PACKS.
+ *
+ * A `conf` row's purchase log is often written in grams (200 g of panna booked as 200 conf), which
+ * turned the reference into ~86 packs: «Panna da cucina» with SIX packs in the pantry read 6 % of a
+ * purchase → «near_empty» → auto-added at every cron run, and the read-path prune deleted it again.
+ */
+const SMART_PACK_REF_QTY_MAX = 10.0;
 const SHOPPING_TOTAL_CACHE_MAX = 4;
+
+/**
+ * A sealed shelf life this long means a dry staple (rice, pasta, flour, oil, tinned and
+ * jarred goods, spices): a pantry nobody writes into is its NORMAL state, so the ledger
+ * guesses must not turn into "go and check the shelf" notices. See evershelfIsDurableStaple().
+ */
+const EVERSHELF_STAPLE_SHELF_DAYS = 180;
 
 /**
  * Comprato → block until the family is finished again (cleared on deplete).
@@ -102,7 +119,8 @@ if (!defined('CRON_MODE')) {
 // ===== RATE LIMITING =====
 /**
  * Simple file-based rate limiter.
- * Limits: 120 req/min general, 15 req/min for AI endpoints, 5 req/min for recipe/login.
+ * Limits: 120/min anonymous general, 600/min paired general, 15/min AI, 5/min recipe,
+ *         boot probes (health/bootstrap/ping) on their own bucket.
  *
  * Defined here (top level, before the early-exit action branches) so it is
  * hoisted and callable from every action — including ping/health_check/get_logs
@@ -114,13 +132,23 @@ function checkRateLimit(string $action): void {
         mkdir($rateLimitDir, 0755, true);
     }
 
-    // Determine limit based on action
+    // Determine limit based on action. Buckets are named after the *abuse profile*
+    // they protect, not after the action: two actions with the same profile share a
+    // counter on purpose (price lookups), two with different profiles never do.
     $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping', 'chat_to_recipe', 'recipe_from_ingredient', 'gemini_number_ocr', 'gemini_barcode_visual', 'parse_receipt'];
-    $loginActions = [];
     $recipeActions = ['generate_recipe', 'generate_recipe_stream'];
-    $errorActions = ['report_error', 'check_update'];
+    // Public client telemetry: the kiosk APK reports a failure and probes for an
+    // update, so they share a bucket — both are cheap JSON answers a broken client
+    // can send in a loop.
+    $clientTelemetryActions = ['report_error', 'check_update'];
     $bugActions   = ['report_bug'];
     $priceActions = ['get_shopping_price', 'get_all_shopping_prices'];
+    // Boot probes must not share the general write/read torrent: a few rapid
+    // reloads (cache-bust while polishing the splash) used to 429 health_check /
+    // get_settings and the client then looked like a fresh install (wizard + empty Home).
+    $bootProbeActions = ['health_check', 'app_bootstrap', 'ping'];
+
+    $paired = function_exists('evershelfApiTokenValid') && evershelfApiTokenValid();
 
     if (in_array($action, $aiActions)) {
         $limit = 15;
@@ -145,14 +173,23 @@ function checkRateLimit(string $action): void {
         $limit = 5;
         $window = 60;
         $bucket = 'recipe';
-    } elseif (in_array($action, $errorActions)) {
+    } elseif (in_array($action, $clientTelemetryActions)) {
         $limit = 20;
         $window = 60;
-        $bucket = 'error_report';
-    } elseif (in_array($action, $loginActions)) {
-        $limit = 5;
+        $bucket = 'client_telemetry';
+    } elseif (in_array($action, $bootProbeActions, true)) {
+        // Cheap JSON, needed every reload — own bucket so polishing the UI cannot
+        // lock the household out of boot.
+        $limit = $paired ? 120 : 60;
         $window = 60;
-        $bucket = 'login';
+        $bucket = 'boot_probe';
+    } elseif ($paired) {
+        // A paired browser fires dozens of GETs per boot (settings, inventory,
+        // stats, med, shopping…). 120/min was easy to trip with a few F5s and
+        // made the pantry look wiped until the window rolled over.
+        $limit = 600;
+        $window = 60;
+        $bucket = 'general_auth';
     } else {
         $limit = 120;
         $window = 60;
@@ -271,6 +308,15 @@ if (($_GET['action'] ?? '') === 'kiosk_update') {
 // ── App bootstrap — the API token is disclosed only after pairing ────────────
 if (($_GET['action'] ?? '') === 'app_bootstrap') {
     checkRateLimit('app_bootstrap');
+    // A demo has no secret to disclose and no pairing to ask for.
+    if (evershelfDemoRequested()) {
+        echo json_encode([
+            'api_token_required' => false,
+            'demo_mode'          => true,
+            'demo_lang'          => evershelfDemoLang(),
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     $required = evershelfApiTokenRequired();
     $out = ['api_token_required' => $required];
     if ($required) {
@@ -355,6 +401,10 @@ if (($_GET['action'] ?? '') === 'get_logs') {
 
 // ── Gemini token usage + cost estimate ────────────────────────────────────────
 if (($_GET['action'] ?? '') === 'gemini_usage') {
+    // This branch answers BEFORE the router's evershelfRequireApiAuth(), so it has to ask for
+    // the token itself: it returns usage and cost history, inventory counts, DB size and the
+    // backup timestamps — nothing secret, but not the open internet's business either.
+    evershelfRequireAuthForSensitive('gemini_usage');
     checkRateLimit('gemini_usage');
     header('Content-Type: application/json; charset=utf-8');
 
@@ -568,7 +618,9 @@ if (($_GET['action'] ?? '') === 'gemini_usage') {
 // ── Health check — minimal public probe; full diagnostics require API token ──
 if (($_GET['action'] ?? '') === 'health_check') {
     checkRateLimit('health_check');
-    if (evershelfApiTokenRequired() && !evershelfApiTokenValid()) {
+    // A demo has no token to present: the visitor must see the boot rail of the app,
+    // not a pairing dialog in front of a showcase.
+    if (!evershelfDemoRequested() && evershelfApiTokenRequired() && !evershelfApiTokenValid()) {
         header('Content-Type: application/json');
         echo json_encode([
             'ok'                 => true,
@@ -655,10 +707,14 @@ if (($_GET['action'] ?? '') === 'health_check') {
     ];
 
     // ── 8. SQLite database ────────────────────────────────────────────────────
-    // Correct DB name is evershelf.db; detect legacy dispensa.db and suggest migration
-    $dbPath    = $dataDir . '/evershelf.db';
+    // DB_PATH, not a hardcoded name: in demo mode the database is the seeded demo file
+    // (`api/lib/demo.php`), and a check that looked at `evershelf.db` would report a
+    // fresh install forever while the app was serving the demo.
+    $dbPath    = defined('DB_PATH') ? DB_PATH : ($dataDir . '/evershelf.db');
     $legacyDb  = $dataDir . '/dispensa.db';
-    $hasLegacy = file_exists($legacyDb);
+    // The legacy rename below must never run on a demo: it would move a household's old
+    // database around on behalf of a read-only showcase.
+    $hasLegacy = !evershelfDemoRequested() && file_exists($legacyDb);
     $isFresh   = !file_exists($dbPath) && $dataDirOk;
 
     // Auto-migrate: if evershelf.db missing but dispensa.db exists, rename it
@@ -794,7 +850,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
         }
     }
 
-    // ── 11. Bring! — solo se EMAIL+PASSWORD sono impostate ───────────────────
+    // ── 11. Bring! — only when EMAIL + PASSWORD are set ──────────────────────
     // Se non configurata, l'utente ha scelto di non usarla → nessun check, nessun warning.
     $bringEmail    = $envGet('BRING_EMAIL');
     $bringPassword = $envGet('BRING_PASSWORD');
@@ -822,7 +878,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
     }
     // If Bring! not configured or SHOPPING_MODE != bring, skip entirely — not a warning, it is a deliberate user choice
 
-    // ── 12. TTS — solo se TTS_ENABLED ────────────────────────────────────────
+    // ── 12. TTS — only when TTS_ENABLED ──────────────────────────────────────
     if ($envGet('TTS_ENABLED') === 'true') {
         $ttsUrl = $envGet('TTS_URL');
         $checks['tts_url'] = [
@@ -832,7 +888,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
         ];
     }
 
-    // ── 13. Scale gateway — solo se SCALE_ENABLED ────────────────────────────
+    // ── 13. Scale gateway — only when SCALE_ENABLED ──────────────────────────
     if ($envGet('SCALE_ENABLED') === 'true') {
         $scaleUrl = $envGet('SCALE_GATEWAY_URL');
         $checks['scale_gateway'] = [
@@ -851,7 +907,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
         $checks['curl_ssl'] = ['ok' => false, 'optional' => true, 'hint_key' => 'startup.hint_curl_missing'];
     }
 
-    // ── 15. Internet — raggiungibilità API Gemini (solo se Gemini configurato) ─
+    // ── 15. Internet — can the Gemini API be reached (only when configured) ───
     if (!empty($geminiKey) && extension_loaded('curl')) {
         $ch = curl_init();
         curl_setopt_array($ch, [CURLOPT_URL => 'https://generativelanguage.googleapis.com/', CURLOPT_NOBODY => true,
@@ -909,11 +965,23 @@ evershelfRequireApiAuth($action, $method);
 
 if (!defined('CRON_MODE')):
 try {
-    // DEMO_MODE — block all writes and AI generation
+    // DEMO_MODE — block all writes and AI generation. A blocked write is answered with
+    // an honest no-op (`success:true, demo_mode:true`): the sample data is never touched,
+    // and a demo must not fill its screen with `demo_mode` error toasts. AI generation
+    // keeps its refusal: it costs money and would answer nothing anyway.
     if (evershelfDemoBlocksAction($action, $method)) {
-        EverLog::warn('demo_mode blocked (403)', ['action' => $action]);
-        http_response_code(403);
-        echo json_encode(['success' => false, 'error' => 'demo_mode']);
+        EverLog::warn('demo_mode blocked', ['event' => 'demo_blocked', 'action' => $action]);
+        header('Content-Type: application/json; charset=utf-8');
+        $isAi = str_starts_with($action, 'gemini_') || in_array($action, [
+            'generate_recipe', 'generate_recipe_stream', 'chat_to_recipe', 'recipe_from_ingredient',
+            'ha_suggest_recipe', 'ha_generate_recipe', 'parse_receipt',
+        ], true);
+        if ($isAi) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'demo_mode', 'demo_mode' => true]);
+            exit;
+        }
+        echo json_encode(['success' => true, 'demo_mode' => true, 'ignored' => true]);
         exit;
     }
 
@@ -936,6 +1004,9 @@ try {
             break;
         case 'product_save':
             saveProduct($db);
+            break;
+        case 'product_barcode_set':
+            setProductBarcode($db);
             break;
         case 'products_toggle_favorite':
             productToggleFavorite($db);
@@ -1005,6 +1076,18 @@ try {
             break;
         case 'inventory_update':
             updateInventory($db);
+            break;
+        // The household's own PAO: the two numbers the notice strip prints («consigliato entro
+        // 3-6 gg») are editable in the pantry edit sheet, and the value the app uses is the
+        // average of the corrections for that family in that place (`api/lib/pao_overrides.php`).
+        case 'pao_get':
+            paoGetAction($db);
+            break;
+        case 'pao_save':
+            paoSaveAction($db);
+            break;
+        case 'pao_reset':
+            paoResetAction($db);
             break;
         case 'inventory_delete':
             deleteInventory($db);
@@ -1118,6 +1201,11 @@ try {
         case 'health_bridge_token_create':
             healthBridgeTokenCreateAction($db);
             break;
+        case 'health_bridge_qr':
+            // The pairing QR, drawn by this server (api/lib/qr.php): the payload carries the
+            // bridge token, so it is never handed to a public QR service.
+            healthBridgeQrAction();
+            break;
         case 'health_unlink':
             healthUnlinkAction($db);
             break;
@@ -1158,6 +1246,12 @@ try {
         case 'shopping_add':
             shoppingAdd($db);
             break;
+        case 'shopping_dismissed':
+            shoppingDismissedList($db);
+            break;
+        case 'shopping_dismissed_restore':
+            shoppingDismissedRestore($db);
+            break;
         case 'shopping_remove':
             shoppingRemove($db);
             break;
@@ -1193,8 +1287,27 @@ try {
             saveSettings();
             break;
 
+        // POST location_rename — rename a custom storage location and move the stock with
+        // it. One action, because a label-only swap in the client would orphan the rows.
+        case 'location_rename':
+            locationRenameAction($db);
+            break;
+
+        // POST location_delete — remove a place, built-in included, but only while it is
+        // EMPTY. "Empty" is the pantry's own rule (no usable stock), so a place that the
+        // household can see on a shelf can never be deleted from under it.
+        case 'location_delete':
+            locationDeleteAction($db);
+            break;
+
+        // POST location_restore — put a deleted place back. One tap, one key: a destructive
+        // action without a way back is a trap, and a built-in has no other way in.
+        case 'location_restore':
+            locationRestoreAction($db);
+            break;
+
         case 'get_settings':
-            getServerSettings();
+            getServerSettings($db);
             break;
 
         // GET support_qr — the donation link as a QR image. Public: the native
@@ -1207,6 +1320,52 @@ try {
             // Authenticated only (router): show/renew the one-time code so a
             // paired device can hand it to a new phone/tablet/kiosk.
             pairingCodeStatus();
+            break;
+
+        // GET free_apis — the free services this instance talks to, for the credits
+        // card and the footer. Data only (data/free_apis.json): no key, no network.
+        case 'free_apis':
+            getFreeApis();
+            break;
+
+        // EverShelf Med (opt-in): module state + "what do I have for this symptom?".
+        // Both are authenticated and read-only; the answer never contains a dosage.
+        case 'med_status':
+            medStatusAction();
+            break;
+        // GET med_lookup — the local AIFA catalogue (AIC or name). Read-only, no network:
+        // the dataset is imported once with scripts/import-medicines.php --country=IT.
+        case 'med_lookup':
+            medLookupAction($db);
+            break;
+        case 'med_symptom_search':
+            medSymptomSearchAction($db);
+            break;
+        case 'med_classify':
+            medClassifyAction($db);
+            break;
+        case 'med_open':
+            medOpenAction($db);
+            break;
+        // POST med_catalog_import — load the national catalogue from a file the household picks.
+        // The free source (AIFA open data for Italy, the openFDA export for the US) is a FILE:
+        // there is no key-less REST service for medicines, so nothing is queried at scan time.
+        case 'med_catalog_import':
+            medCatalogImportAction($db);
+            break;
+        // POST med_catalog_sync — download the free national catalogue from the source the
+        // country module declares (Italy: the AIFA "Banca Dati Farmaci" export). Runs by itself
+        // when the module is switched on and when the data is older than a month.
+        case 'med_catalog_sync':
+            medCatalogSyncAction($db);
+            break;
+        // POST med_debug — TEMPORARY diagnostic sink for the medicine reader (MED_DEBUG=true).
+        // It records what each OCR pass read, the geometry of the crop and, bounded, the crop
+        // itself as a JPEG under data/med_debug/, so the household's own phone can show what the
+        // engine really sees. Nothing leaves this server, and the whole action goes quiet (403)
+        // the moment the flag is off.
+        case 'med_debug':
+            medDebugAction();
             break;
 
         case 'ai_test':
@@ -1253,6 +1412,15 @@ try {
         case 'app_settings_save':
             appSettingsSave($db);
             break;
+        case 'audit_state':
+            auditStateGet($db);
+            break;
+        case 'audit_state_save':
+            auditStateSave($db);
+            break;
+        case 'audit_state_clear':
+            auditStateClearAction($db);
+            break;
         case 'recipes_list':
             recipesList($db);
             break;
@@ -1264,6 +1432,9 @@ try {
             break;
         case 'recipes_toggle_favorite':
             recipeToggleFavorite($db);
+            break;
+        case 'recipes_rate':
+            recipeRate($db);
             break;
         case 'recipe_shopping_add':
             // Recipe ingredients → shopping list, deducting what the pantry already holds.
@@ -1334,6 +1505,30 @@ try {
         case 'mealie_sync':
             echo json_encode(mealieSyncCache(!empty($_GET['force'])), JSON_UNESCAPED_UNICODE);
             break;
+
+        case 'mealie_push': {
+            // EverShelf → Mealie. `all: true` sweeps every COOKED recipe not sent yet (the same
+            // pass the cron runs); `id` pushes one, which is what the sheet calls after a cook.
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            if (!empty($input['all'])) {
+                echo json_encode(mealiePushPendingCooked($db, (int)($input['limit'] ?? 10)), JSON_UNESCAPED_UNICODE);
+                break;
+            }
+            $id = (int)($input['id'] ?? 0);
+            if ($id <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Invalid id']);
+                break;
+            }
+            $st = $db->prepare('SELECT recipe_json FROM recipes WHERE id = ?');
+            $st->execute([$id]);
+            $recipe = json_decode((string)$st->fetchColumn(), true);
+            if (!is_array($recipe)) {
+                echo json_encode(['success' => false, 'error' => 'not_found']);
+                break;
+            }
+            echo json_encode(mealiePushRecipe($recipe, (string)$id, !empty($input['force'])), JSON_UNESCAPED_UNICODE);
+            break;
+        }
 
         case 'mealie_discover':
             echo json_encode(mealieDiscover(), JSON_UNESCAPED_UNICODE);
@@ -1443,6 +1638,9 @@ try {
                     'response_type' => 'code',
                     'access_type'   => 'offline',
                     'prompt'        => 'consent',
+                    // Single-use, 10 minutes: the callback is public and it overwrites the
+                    // refresh token, so a code that did not come from this server is refused.
+                    'state'         => evershelfGdriveStateIssue(),
                 ]);
                 echo json_encode(['success' => true, 'url' => $url, 'redirect_uri' => $redirectUri]);
             }
@@ -1875,13 +2073,70 @@ function inventorySlugifyCustomLocation(string $name): string {
 }
 
 /**
+ * A readable label for a custom-location slug: `custom_dispensa_cucina` → "Dispensa cucina".
+ * Used only for a place whose label was lost (see inventoryOrphanCustomLocations()).
+ */
+function inventoryLabelFromSlug(string $slug): string
+{
+    $name = preg_replace('/^custom_/', '', $slug) ?? $slug;
+    $name = trim(str_replace('_', ' ', $name));
+    if ($name === '') {
+        return $slug;
+    }
+    return mb_strtoupper(mb_substr($name, 0, 1)) . mb_substr($name, 1);
+}
+
+/**
+ * Custom places that still hold stock but lost their label.
+ *
+ * `CUSTOM_LOCATIONS` is the declared list, but a place can exist without it: it was created
+ * on a device whose save never reached the server (the Settings card used to keep a new
+ * place local until "Salva"), so its pantry rows kept a slug no label pointed at. The rows
+ * then showed a raw `custom_…` name and — worse — every add to that place answered
+ * **"Invalid location"**, because the allow-list was built from `CUSTOM_LOCATIONS` alone.
+ *
+ * A place with stock IS a place: it is adopted here with a label derived from its own slug.
+ * It disappears by itself as soon as the household renames it (the rename writes it into
+ * `CUSTOM_LOCATIONS`) or deletes it once empty — both go through the declared list.
+ *
+ * `$db` is REQUIRED to look at the stock, and it is never opened here: `getDB()` builds a NEW
+ * connection and runs the migrations on it, and a second connection left open turns the next
+ * `UPDATE` of the same request into "database is locked". Callers without a connection get
+ * the declared list only.
+ *
+ * @return array<string,string> slug => label, orphans only
+ */
+function inventoryOrphanCustomLocations(?PDO $db = null): array
+{
+    $out = [];
+    if (!$db instanceof PDO) {
+        return $out;
+    }
+    try {
+        $builtins = array_map('mb_strtolower', inventoryBuiltinLocations());
+        $rows = $db->query("SELECT DISTINCT location FROM inventory WHERE location LIKE 'custom\\_%' ESCAPE '\\'")
+                   ->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        foreach ($rows as $slug) {
+            $slug = mb_strtolower(trim((string)$slug));
+            if ($slug === '' || in_array($slug, $builtins, true)) {
+                continue;
+            }
+            $out[$slug] = inventoryLabelFromSlug($slug);
+        }
+    } catch (Throwable $e) {
+        EverLog::warn('custom locations with stock could not be read', [
+            'event'  => 'custom_locations_orphans_unreadable',
+            'reason' => $e->getMessage(),
+        ]);
+    }
+    return $out;
+}
+
+/**
  * @return array<string,string> slug => display label
  */
-function inventoryCustomLocationMap(): array {
+function inventoryCustomLocationMap(?PDO $db = null): array {
     $raw = env('CUSTOM_LOCATIONS', '');
-    if ($raw === '') {
-        return [];
-    }
     $out = [];
     foreach (explode(',', $raw) as $part) {
         $label = trim($part);
@@ -1894,20 +2149,161 @@ function inventoryCustomLocationMap(): array {
         }
         $out[$slug] = $label;
     }
+    // A place that still has stock is a place, even when its label went missing.
+    foreach (inventoryOrphanCustomLocations($db) as $slug => $label) {
+        if (!isset($out[$slug])) {
+            $out[$slug] = $label;
+        }
+    }
     return $out;
 }
 
 /** All allowed inventory location keys (built-in + custom). */
-function validInventoryLocations(): array {
-    return array_values(array_unique(array_merge(
+function validInventoryLocations(?PDO $db = null): array {
+    $all = array_values(array_unique(array_merge(
         inventoryBuiltinLocations(),
-        array_keys(inventoryCustomLocationMap())
+        array_keys(inventoryCustomLocationMap($db))
     )));
+    // A deleted place is not a place: the pantry refuses a row that points at it, which is
+    // what makes "delete when empty" a real removal and not a hidden tab.
+    if ($db instanceof PDO) {
+        $gone = deletedLocationsList($db);
+        if ($gone !== []) {
+            $all = array_values(array_filter($all, static fn($key) => !in_array(mb_strtolower((string)$key), $gone, true)));
+        }
+    }
+    return $all;
+}
+
+/**
+ * The places the household deleted (`app_settings.deleted_locations`, a JSON list of slugs).
+ *
+ * A built-in place (Dispensa / Frigo / Freezer) cannot be removed from a list it is not in, so
+ * deleting one records its slug here: every surface that builds the place list subtracts this
+ * list, and `validInventoryLocations()` stops accepting stock for it. A custom place disappears
+ * by dropping its label; its slug stays here too, so a stale reference cannot revive it.
+ *
+ * @return string[] lowercased slugs
+ */
+function deletedLocationsList(PDO $db): array
+{
+    try {
+        $stmt = $db->prepare("SELECT value FROM app_settings WHERE key = 'deleted_locations'");
+        $stmt->execute();
+        $raw = $stmt->fetchColumn();
+        if ($raw === false || $raw === null || $raw === '') {
+            return [];
+        }
+        $list = json_decode((string)$raw, true);
+        if (!is_array($list)) {
+            return [];
+        }
+        return array_values(array_unique(array_filter(array_map(
+            static fn($v) => mb_strtolower(trim((string)$v)),
+            $list
+        ))));
+    } catch (Throwable $e) {
+        return [];   // no marks yet
+    }
+}
+
+/** Persist the deleted-place list (one row, like `medical_locations`). */
+function saveDeletedLocations(PDO $db, array $list): void
+{
+    $clean = array_values(array_unique(array_filter(array_map(
+        static fn($v) => mb_strtolower(trim((string)$v)),
+        $list
+    ))));
+    $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('deleted_locations', ?, datetime('now'))
+                  ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+       ->execute([json_encode($clean, JSON_UNESCAPED_UNICODE)]);
 }
 
 /** Display names only (for settings UI / .env). */
-function inventoryCustomLocationLabels(): array {
-    return array_values(inventoryCustomLocationMap());
+function inventoryCustomLocationLabels(?PDO $db = null): array {
+    return array_values(inventoryCustomLocationMap($db));
+}
+
+/**
+ * Canonical keys of the place(s) marked as the medicine cabinet.
+ *
+ * `app_settings.medical_locations` may hold the typed label ("Armadietto Farmaci") or the
+ * slug (`custom_armadietto_farmaci`), depending on the client that saved it: both read as the
+ * same place here, so the domain rule below cannot be bypassed by a label.
+ *
+ * @return array<int,string>
+ */
+function medicalLocationKeys(PDO $db): array
+{
+    $labelToSlug = [];
+    foreach (inventoryCustomLocationMap($db) as $slug => $label) {
+        $labelToSlug[mb_strtolower(trim((string)$label))] = $slug;
+    }
+    $builtins = inventoryBuiltinLocations();
+    $out = [];
+    foreach (medicalLocationSlugs(_medicalSettingsMap($db)) as $value) {
+        $key = mb_strtolower(trim((string)$value));
+        if ($key === '') {
+            continue;
+        }
+        if (isset($labelToSlug[$key])) {
+            $out[] = $labelToSlug[$key];
+        } elseif (in_array($key, $builtins, true)) {
+            $out[] = $key;
+        } else {
+            $out[] = inventorySlugifyCustomLocation($key);
+        }
+    }
+    return array_values(array_unique($out));
+}
+
+/**
+ * Food and medicines never share a place.
+ *
+ * Returns an `error_key` when the location is wrong for that product, `null` when it is fine:
+ *   - a **medicine** lives only in the place the household marked as its cabinet;
+ *   - **food** never goes into that cabinet.
+ * The client already hides the wrong buttons; this is the rule that cannot be bypassed —
+ * `addToInventory()`, `updateInventory()` (a move) and the CSV import all ask here.
+ */
+function inventoryLocationDomainError(PDO $db, bool $isMedical, string $location): ?string
+{
+    $keys = medicalLocationKeys($db);
+    $loc = mb_strtolower(trim($location));
+    $inCabinet = $loc !== '' && in_array($loc, $keys, true);
+    if ($isMedical) {
+        if ($keys === []) {
+            return 'error.medicine_location_missing';
+        }
+        return $inCabinet ? null : 'error.medicine_needs_cabinet';
+    }
+    return $inCabinet ? 'error.food_in_cabinet' : null;
+}
+
+/**
+ * Move a product's stock into the cabinet — used when a row BECOMES a medicine (it was a food
+ * product being corrected), so the rule does not depend on the order of the actions.
+ * Returns the number of inventory rows moved.
+ */
+function medicalStockMoveToCabinet(PDO $db, int $productId): int
+{
+    $keys = medicalLocationKeys($db);
+    if ($keys === [] || $productId <= 0) {
+        return 0;
+    }
+    $target = $keys[0];
+    $stmt = $db->prepare('SELECT id, location FROM inventory WHERE product_id = ? AND quantity > 0');
+    $stmt->execute([$productId]);
+    $moved = 0;
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        if (mb_strtolower(trim((string)($row['location'] ?? ''))) === $target) {
+            continue;
+        }
+        $db->prepare('UPDATE inventory SET location = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+           ->execute([$target, (int)$row['id']]);
+        $moved++;
+    }
+    return $moved;
 }
 
 function inventoryImportNormalizeUnit(string $raw): ?string {
@@ -2176,6 +2572,17 @@ function inventoryImportAddStock(PDO $db, int $productId, array $data): array {
 
     $expiryUserSet = $expiry ? 1 : 0;
 
+    // The import is the other door into the pantry, and a CSV column that is empty used to
+    // store rows nobody can ever be warned about. Same rule as `addToInventory`: the article's
+    // shelf life in that KIND of place, stored as an estimate (`expiry_user_set = 0`).
+    if (($expiry === null || $expiry === '') && !$openedAt) {
+        $inferred = inventoryInferExpiryDate($db, $productId, (string)$location, $vacuumSealed === 1);
+        if ($inferred !== null) {
+            $expiry = $inferred;
+            $expiryUserSet = 0;
+        }
+    }
+
     if ($openedAt) {
         // Opened packs must stay separate — never merge into sealed stock
         $stmt = $db->prepare('INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed, expiry_user_set, opened_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
@@ -2367,6 +2774,12 @@ function importInventory(PDO $db): void {
     try {
         foreach ($toImport as $row) {
             try {
+                // Food never goes into the medicine cabinet: the row is refused here too, so a
+                // CSV cannot bypass the domain rule the pantry enforces on every add.
+                $importDomain = inventoryLocationDomainError($db, !empty($row['data']['is_medical']), (string)($row['data']['location'] ?? ''));
+                if ($importDomain !== null) {
+                    throw new RuntimeException($importDomain);
+                }
                 $prod = inventoryImportUpsertProduct($db, $row['data']);
                 $stock = inventoryImportAddStock($db, $prod['id'], $row['data']);
                 $imported++;
@@ -2437,7 +2850,7 @@ function ttsProxy() {
     }, ARRAY_FILTER_USE_KEY);
 
     $haBase = rtrim(env('HA_URL', ''), '/');
-    if ($haBase !== '' && str_starts_with($url, $haBase)) {
+    if ($haBase !== '' && evershelfSameOrigin($url, $haBase)) {
         $haTok = env('HA_TOKEN');
         if ($haTok !== '') {
             $headers['Authorization'] = 'Bearer ' . $haTok;
@@ -3701,16 +4114,92 @@ function getExpiryHistory($db): void {
     ]);
 }
 
+/**
+ * The one sink behind every client line: `data/logs/<source>-YYYYMMDD.log`.
+ *
+ * Three operational levels and two separate rivers, because a wall that dies at 08:47 and a phone
+ * logging in from the kitchen were writing into the same file with the SAME `[phone]` tag — that
+ * tag came from the User-Agent, and an Android WebView says `Android` exactly like a phone does,
+ * which is how a whole afternoon of kiosk evidence was read as "the phone". The client now says
+ * who it is (`source`: `app`/`kiosk`, `device`: `kiosk|tablet|phone|desktop`) and every line
+ * carries its level, so `grep '\[ERROR\]' data/logs/kiosk-*.log` answers in one command.
+ *
+ * Rotation: one file per day, the last `EVERSHELF_LOG_KEEP_DAYS` (14) are kept.
+ */
+function _clientLogLevels(): array {
+    // DEBUG is opt-in (LOG_LEVEL=DEBUG in .env); the three operational levels are the default.
+    return ['debug' => 10, 'info' => 20, 'warn' => 30, 'error' => 40];
+}
+
+/** Normalise whatever a client sent into one of the four level names. */
+function _clientLogLevel(string $raw, string $haystack = ''): string {
+    $lvl = strtolower(trim($raw));
+    if (in_array($lvl, ['debug', 'info', 'warn', 'warning', 'error', 'err'], true)) {
+        return $lvl === 'warning' ? 'warn' : ($lvl === 'err' ? 'error' : $lvl);
+    }
+    // No level given (an older client): read it off the line, which carries `[TAG]` first.
+    $h = strtoupper($haystack);
+    if (preg_match('/UNCAUGHT|EXCEPTION|API_ERROR|API_FAIL|FAILED|CRASH/', $h)) return 'error';
+    if (preg_match('/JANK|LONGTASK|TIMEOUT|SLOW|STALL|LOW-MEMORY/', $h))     return 'warn';
+    return 'info';
+}
+
+/** True when a line at `$level` is worth storing under the server's own LOG_LEVEL. */
+function _clientLogWanted(string $level): bool {
+    $levels = _clientLogLevels();
+    $env    = strtoupper((string)(env('LOG_LEVEL') ?: 'INFO'));
+    $min    = $levels['info'];
+    if ($env === 'DEBUG')     $min = $levels['debug'];
+    elseif ($env === 'WARN')  $min = $levels['warn'];
+    elseif ($env === 'ERROR') $min = $levels['error'];
+    return ($levels[$level] ?? $levels['info']) >= $min;
+}
+
+/**
+ * Append lines to `data/logs/<source>-YYYYMMDD.log`, then prune the old days.
+ *
+ * `$source` is an allow-listed slug (`app`/`kiosk`), never a client string used as a path.
+ */
+function _clientLogWrite(string $source, string $level, array $lines, string $device = ''): void {
+    if (!$lines) return;
+    $dir = __DIR__ . '/../data/logs';
+    if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) return;
+    $file = $dir . '/' . $source . '-' . date('Y-m-d') . '.log';
+    $tag  = $device !== '' ? $device : $source;
+    $lvl  = str_pad(strtoupper($level), 5);   // [INFO ] [WARN ] [ERROR] [DEBUG] line up
+    $ts   = date('Y-m-d H:i:s');
+    $out  = '';
+    foreach ($lines as $l) $out .= "[$ts] [$lvl] [$tag] " . $l . "\n";
+    @file_put_contents($file, $out, FILE_APPEND | LOCK_EX);
+    $keep = (int)(env('EVERSHELF_LOG_KEEP_DAYS') ?: 14);
+    if ($keep < 1) $keep = 14;
+    foreach ((array)@glob($dir . '/' . $source . '-*.log') as $old) {
+        if (preg_match('/(\d{4}-\d{2}-\d{2})\.log$/', basename($old), $m)
+            && $m[1] < date('Y-m-d', strtotime('-' . $keep . ' days'))) {
+            @unlink($old);
+        }
+    }
+}
+
 function clientLog(): void {
     EverLog::debug('clientLog');
     $input = json_decode(file_get_contents('php://input'), true);
     $logFile = __DIR__ . '/../data/client_debug.log';
     $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
-    // Identify device from UA
+    // WHO is talking: the CLIENT knows (a kiosk WebView reports `Android` in its UA exactly like a
+    // phone, which is why every wall line used to be filed under `[phone]`). The UA is only the
+    // fallback, and the value is never used as a path.
     $device = 'unknown';
     if (preg_match('/tablet|ipad|playbook|silk/i', $ua)) $device = 'tablet';
     elseif (preg_match('/mobile|android|iphone/i', $ua)) $device = 'phone';
     else $device = 'desktop';
+    $deviceIn = is_array($input) ? preg_replace('/[^a-z\-]/', '', strtolower((string)($input['device'] ?? ''))) : '';
+    if (in_array($deviceIn, ['kiosk', 'tablet', 'phone', 'desktop'], true)) $device = $deviceIn;
+    $source = ($device === 'kiosk') ? 'kiosk' : 'app';
+    if (is_array($input) && in_array(($input['source'] ?? ''), ['app', 'kiosk'], true)) {
+        $source = (string)$input['source'];
+    }
+    $levelHint = is_array($input) ? (string)($input['level'] ?? '') : '';
     $ts = date('Y-m-d H:i:s');
     // A public sink: the lines are whatever the client sent, so they can carry the
     // client's own credentials (`?api_token=…`, an Authorization header) and can be
@@ -3719,9 +4208,25 @@ function clientLog(): void {
     $msgs = (is_array($input) && is_array($input['messages'] ?? null)) ? $input['messages'] : [];
     $msgs = array_slice($msgs, -100);
     $lines = [];
+    $kept = [];
     foreach ($msgs as $m) {
         if (!is_string($m) && !is_numeric($m)) continue;
-        $lines[] = "[$ts] [$device] " . evershelfTruncateUtf8(evershelfRedactSecrets((string)$m), 1000);
+        $raw = evershelfTruncateUtf8(evershelfRedactSecrets((string)$m), 1000);
+        // The client writes `[LEVEL] [TAG] text`; an older client writes `[TAG] text` and
+        // `_clientLogLevel()` reads the level out of it.
+        $level = _clientLogLevel($levelHint, $raw);
+        if (preg_match('/^\[(DEBUG|INFO|WARN|WARNING|ERROR|ERR)\]/i', $raw, $mm)) {
+            $level = _clientLogLevel($mm[1], $raw);
+        }
+        if (!_clientLogWanted($level)) continue;   // honours LOG_LEVEL in .env
+        // The level is written by the sink, so drop the copy the client put in the line
+        // (`[INFO] [CAM] …` → `[CAM] …`); the legacy mirror keeps the original text.
+        $kept[$level][] = preg_replace('/^\[(DEBUG|INFO|WARN|WARNING|ERROR|ERR)\]\s*/i', '', $raw);
+        $lines[] = "[$ts] [$device] $raw";          // the legacy mirror below
+    }
+    // One file per source (`app` / `kiosk`) and per day, leveled.
+    foreach ($kept as $level => $group) {
+        _clientLogWrite($source, $level, $group, $device);
     }
     if ($lines) {
         // Keep log under 100KB — truncate oldest if needed
@@ -3732,7 +4237,7 @@ function clientLog(): void {
         }
         file_put_contents($logFile, implode("\n", $lines) . "\n", FILE_APPEND | LOCK_EX);
     }
-    echo json_encode(['ok' => true]);
+    echo json_encode(['ok' => true, 'source' => $source, 'device' => $device, 'level' => $levelHint ?: 'auto']);
 }
 
 function getClientLog(): void {
@@ -4153,7 +4658,13 @@ function barcodeResolveExternal(PDO $db, string $barcode, bool $forceRefresh = f
 
     $offFields = 'product_name,product_name_it,generic_name,generic_name_it,brands,categories_tags,categories_hierarchy,categories,image_front_small_url,image_url,quantity,nutriscore_grade,ingredients_text_it,ingredients_text,allergens_tags,conservation_conditions_it,conservation_conditions,origins_it,origins,manufacturing_places,nova_group,ecoscore_grade,labels,stores,nutriments';
     $altFields = 'product_name,product_name_it,brands,categories_tags,categories_hierarchy,image_front_small_url,image_url,quantity,categories';
-    $priority = ['off_it', 'off_world', 'off_v0', 'opf', 'obf', 'opff', 'upc'];
+    // The free, credited sources first. `upc` is UPCitemdb's TRIAL endpoint (commercial,
+    // rate-limited, no attribution basis): opt-in only, so a household barcode does not
+    // leave for a third party by default and the credits stay truthful.
+    $priority = ['off_it', 'off_world', 'off_v0', 'opf', 'obf', 'opff'];
+    if (strtolower(trim((string)env('UPC_LOOKUP_ENABLED', 'false'))) === 'true') {
+        $priority[] = 'upc';
+    }
     $timeout = barcodeLookupTimeoutSec();
 
     foreach (barcodeLookupCandidates($barcode) as $bc) {
@@ -4395,6 +4906,75 @@ function _barcodeLookupGemini(string $barcode, string $apiKey): ?array {
         'labels'        => '',
         'stores'        => '',
     ];
+}
+
+/**
+ * POST product_barcode_set { id, barcode }
+ *
+ * The stocktake's "which product is this?" panel: the household scanned a box no catalogue knows,
+ * searched the pantry and named it. The association is ONE field, so it must not travel through
+ * `product_save` — that is the catalogue's merge point (it re-derives name, unit, pack and kind,
+ * and can merge two articles). A hand association sent through it once came back with the pack
+ * reset (`default_quantity` 2 → 1, `package_unit` g → '') because the payload only carried what a
+ * pantry row knows. This writes `products.barcode` and nothing else, and REFUSES a code another
+ * product already owns (`barcode_already_used`) instead of merging two articles behind a tap.
+ */
+function setProductBarcode(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $id = (int)($input['id'] ?? 0);
+    $barcode = barcodeNormalizeDigits((string)($input['barcode'] ?? ''));
+    if ($id <= 0 || $barcode === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'id_and_barcode_required']);
+        return;
+    }
+    $stmt = $db->prepare('SELECT id, name, barcode FROM products WHERE id = ?');
+    $stmt->execute([$id]);
+    $product = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$product) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Product not found']);
+        return;
+    }
+    $owner = barcodeFindLocalProduct($db, $barcode);
+    if ($owner && (int)$owner['id'] !== $id) {
+        EverLog::warn('Product barcode belongs to another product', [
+            'event'      => 'api_product_barcode_taken',
+            'product_id' => $id,
+            'owner_id'   => (int)$owner['id'],
+            'barcode'    => $barcode,
+        ]);
+        http_response_code(409);
+        echo json_encode([
+            'success'       => false,
+            'error'         => 'barcode_already_used',
+            'error_key'     => 'audit.assign_taken',
+            'existing_id'   => (int)$owner['id'],
+            'existing_name' => (string)($owner['name'] ?? ''),
+        ]);
+        return;
+    }
+    try {
+        $db->prepare('UPDATE products SET barcode = ? WHERE id = ?')->execute([$barcode, $id]);
+    } catch (PDOException $e) {
+        // The UNIQUE index is the last word: another row owns this code (an alias form of it).
+        EverLog::warn('Product barcode refused by the unique index', [
+            'event'      => 'api_product_barcode_taken',
+            'product_id' => $id,
+            'barcode'    => $barcode,
+        ]);
+        http_response_code(409);
+        echo json_encode(['success' => false, 'error' => 'barcode_already_used', 'error_key' => 'audit.assign_taken']);
+        return;
+    }
+    EverLog::info('Product barcode set by hand', [
+        'event'      => 'api_product_barcode_set',
+        'product_id' => $id,
+        'name'       => (string)($product['name'] ?? ''),
+        'barcode'    => $barcode,
+        'previous'   => (string)($product['barcode'] ?? ''),
+    ]);
+    echo json_encode(['success' => true, 'id' => $id, 'barcode' => $barcode]);
 }
 
 function saveProduct(PDO $db): void {
@@ -4856,7 +5436,9 @@ function listInventory(PDO $db): void {
     $query = "
         SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit,
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, i.opened_at, p.shopping_name, COALESCE(p.kind, '') as kind,
-               COALESCE(p.is_favorite, 0) as is_favorite
+               COALESCE(p.is_favorite, 0) as is_favorite, COALESCE(p.is_medical, 0) as is_medical,
+               COALESCE(p.med_atc, '') as med_atc, COALESCE(p.med_ingredient, '') as med_ingredient,
+               COALESCE(p.med_tags, '') as med_tags, COALESCE(p.med_pao_days, 0) as med_pao_days
         FROM inventory i
         JOIN products p ON i.product_id = p.id
         WHERE i.quantity > 0
@@ -4865,6 +5447,25 @@ function listInventory(PDO $db): void {
     if (!empty($location)) {
         $query .= " AND i.location = ?";
         $params[] = $location;
+    }
+    // EverShelf Med keeps the domains apart: the recipe flow asks for `for_recipe=1`, and a
+    // medicine must never end up in a shopping suggestion or an ingredient list. The flag on
+    // the product and the location the household marked both count.
+    if (!empty($_GET['for_recipe']) && medicalEnabled($db)) {
+        $query .= " AND COALESCE(p.is_medical, 0) = 0";
+        $medLocs = [];
+        try {
+            $st = $db->prepare("SELECT value FROM app_settings WHERE key = 'medical_locations'");
+            $st->execute();
+            $rawLocs = (string)($st->fetchColumn() ?: '');
+            $parsedLocs = json_decode($rawLocs, true);
+            $medLocs = is_array($parsedLocs) ? array_values(array_filter(array_map('strval', $parsedLocs))) : [];
+        } catch (Throwable $e) { /* no marks yet */ }
+        if ($medLocs) {
+            $ph = implode(',', array_fill(0, count($medLocs), '?'));
+            $query .= " AND LOWER(COALESCE(i.location, '')) NOT IN ({$ph})";
+            foreach ($medLocs as $ml) { $params[] = mb_strtolower(trim($ml)); }
+        }
     }
     $query .= " ORDER BY COALESCE(p.is_favorite, 0) DESC, p.name ASC";
     $stmt = $db->prepare($query);
@@ -4884,6 +5485,15 @@ function listInventory(PDO $db): void {
             (string)($row['unit'] ?? ''),
             (string)($row['kind'] ?? '')
         );
+        // A wine is not a soft drink: the PAO table knows the families and their own marks, so
+        // the row can wear 🍷 instead of the category's generic 🥤. Only beverages are asked —
+        // anything else falls straight through to its category emoji.
+        if (mb_strtolower(trim((string)($row['category'] ?? ''))) === 'bevande') {
+            $familyIcon = openedShelfLifeFamilyIcon((string)$row['name'], (string)$row['category']);
+            if ($familyIcon !== '') {
+                $row['family_icon'] = $familyIcon;
+            }
+        }
     }
     unset($row);
     EverLog::debug('inventory_list fetched', [
@@ -4930,6 +5540,9 @@ function productToggleFavorite(PDO $db): void {
  *     latte") through the same dictionary → cache → one-word-AI pipeline used on save,
  *   * the titles are brought to the singular sentence case the rest of the list speaks
  *     ("Fette biscottate Integrali" → "Fetta biscottata integrale"),
+ *   * raw Open Food Facts tags left in `products.category` (`en:plant-based-…`, empty,
+ *     an image URL) are rewritten to a local slug via sanitizeProductCategory() — same
+ *     choke point as product_save, no AI,
  *   * the products consumed AUTO_FAVORITE_MIN_USES times are promoted to favourites.
  *
  * `products.shopping_name` — the buyable word of the list/Bring! — is left untouched:
@@ -4945,24 +5558,47 @@ function applyAutoProductRules(PDO $db): void {
     $lang   = productKindNormalizeLang($input['lang'] ?? env('APP_LANG', 'en'));
 
     $rows = $db->query(
-        "SELECT id, name, brand, category, COALESCE(kind, '') AS kind, COALESCE(shopping_name, '') AS shopping_name FROM products ORDER BY id"
+        "SELECT id, name, brand, category, COALESCE(kind, '') AS kind, COALESCE(shopping_name, '') AS shopping_name,
+                COALESCE(is_medical, 0) AS is_medical
+         FROM products ORDER BY id"
     )->fetchAll(PDO::FETCH_ASSOC);
 
     $update  = $db->prepare(
-        'UPDATE products SET name = ?, kind = ?, shopping_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+        'UPDATE products SET name = ?, kind = ?, shopping_name = ?, category = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
     );
     $renamed = 0;
     $stored  = 0;
+    $recategorized = 0;
     $samples = [];
+    $catSamples = [];
 
     foreach ($rows as $row) {
         $oldName  = (string)$row['name'];
         $oldKind  = (string)$row['kind'];
-        $applied  = productKindApply($oldName, (string)$row['brand'], (string)$row['category'], $lang, true, $oldKind);
-        $newName  = $applied['name'];
-        $newKind  = $applied['kind'] !== '' ? $applied['kind'] : $oldKind;
+        $oldCat   = (string)$row['category'];
+        $isMedical = !empty($row['is_medical']);
+        if ($isMedical) {
+            // Medicines are not food genres: strip a leading "Farmaco"/"Medicine" and clear
+            // a stored kind that is only the domain label.
+            $stripped = productKindStripUmbrellaCategoryPrefix($oldName);
+            $newName  = productTitleCapitalize($stripped !== '' ? $stripped : $oldName);
+            $newKind  = productKindIsPlausibleGenre($oldKind) ? $oldKind : '';
+            $source   = 'medical';
+            // Keep a medical row out of food genres; drop a leftover OFF tag.
+            $newCat   = in_array(mb_strtolower(trim($oldCat)), validProductCategories(), true)
+                ? mb_strtolower(trim($oldCat))
+                : 'altro';
+        } else {
+            $applied  = productKindApply($oldName, (string)$row['brand'], (string)$row['category'], $lang, true, $oldKind);
+            $newName  = $applied['name'];
+            $newKind  = $applied['kind'] !== '' ? $applied['kind'] : $oldKind;
+            $source   = $applied['source'];
+            // OFF catch-alls (`en:plant-based-foods-and-beverages`) and empty/URL junk
+            // become a local slug from the title — same as product_save.
+            $newCat   = sanitizeProductCategory($oldCat, $newName, (string)$row['brand']);
+        }
 
-        if ($newName === $oldName && $newKind === $oldKind) {
+        if ($newName === $oldName && $newKind === $oldKind && $newCat === $oldCat) {
             continue;
         }
         if ($newKind !== '') {
@@ -4971,7 +5607,18 @@ function applyAutoProductRules(PDO $db): void {
         if ($newName !== $oldName) {
             $renamed++;
             if (count($samples) < 5) {
-                $samples[] = ['from' => $oldName, 'to' => $newName, 'source' => $applied['source']];
+                $samples[] = ['from' => $oldName, 'to' => $newName, 'source' => $source];
+            }
+        }
+        if ($newCat !== $oldCat) {
+            $recategorized++;
+            if (count($catSamples) < 8) {
+                $catSamples[] = [
+                    'id'   => (int)$row['id'],
+                    'name' => $newName,
+                    'from' => $oldCat !== '' ? $oldCat : '(empty)',
+                    'to'   => $newCat,
+                ];
             }
         }
         if (!$dryRun) {
@@ -4980,29 +5627,37 @@ function applyAutoProductRules(PDO $db): void {
             // "Piselli", "Fette biscottate") must not lose its number just because the title
             // did: the shopping list buys "Grissini", never one "Grissino". The column is
             // historical on purpose — only a product that never got one is given its word here.
+            // Medicines keep the cleaned title as their shopping word (never "Farmaco").
             $shopping = trim((string)$row['shopping_name']);
-            if ($shopping === '') {
-                $shopping = computeShoppingName($newName, (string)$row['category'], (string)$row['brand'], false);
+            if ($isMedical) {
+                if ($shopping === '' || !productKindIsPlausibleGenre($shopping)) {
+                    $shopping = $newName;
+                }
+            } elseif ($shopping === '') {
+                $shopping = computeShoppingName($newName, $newCat, (string)$row['brand'], false);
             }
             $update->execute([
                 $newName,
                 $newKind,
                 $shopping,
+                $newCat,
                 (int)$row['id'],
             ]);
         }
     }
 
     echo json_encode([
-        'success'     => true,
-        'dry_run'     => $dryRun,
-        'scanned'     => count($rows),
-        'renamed'     => $renamed,
-        'kinds'       => $stored,
-        'favorites'   => $dryRun ? autoFavoriteSweepPreview($db) : autoFavoriteSweep($db),
-        'min_uses'    => autoFavoriteMinUses(),
-        'window_days' => autoFavoriteWindowDays(),
-        'samples'     => $samples,
+        'success'        => true,
+        'dry_run'        => $dryRun,
+        'scanned'        => count($rows),
+        'renamed'        => $renamed,
+        'kinds'          => $stored,
+        'recategorized'  => $recategorized,
+        'category_samples' => $catSamples,
+        'favorites'      => $dryRun ? autoFavoriteSweepPreview($db) : autoFavoriteSweep($db),
+        'min_uses'       => autoFavoriteMinUses(),
+        'window_days'    => autoFavoriteWindowDays(),
+        'samples'        => $samples,
     ]);
 }
 
@@ -5011,7 +5666,9 @@ function addToInventory(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $productId = (int)($input['product_id'] ?? 0);
     $quantity = (float)($input['quantity'] ?? 1);
-    $location = $input['location'] ?? 'dispensa';
+    // No place means "the first place that exists", never the literal "dispensa": a household
+    // that deleted that built-in got "Invalid location" on every add that did not name one.
+    $location = trim((string)($input['location'] ?? ''));
     $expiry = $input['expiry_date'] ?? null;
     $unit = $input['unit'] ?? null;
     
@@ -5045,11 +5702,73 @@ function addToInventory(PDO $db): void {
     }
 
     // Validate location
-    $validLocations = validInventoryLocations();
+    $validLocations = validInventoryLocations($db);
+    // A client that names no place at all (an older bundle, a legacy form) gets a place that
+    // exists instead of a refusal it could not explain.
+    if ($location === '') {
+        $location = (string)($validLocations[0] ?? 'dispensa');
+    }
     if (!in_array($location, $validLocations, true)) {
-        EverLog::warn('addToInventory: invalid location (400)');
+        // The household's own places change: a form still holding a place that has since been
+        // deleted used to end in a bare English "Invalid location" with nothing written.
+        EverLog::warn('addToInventory: invalid location (400)', [
+            'event'      => 'api_inventory_add_invalid_location',
+            'product_id' => $productId,
+            'location'   => $location,
+            'valid'      => $validLocations,
+            'error_key'  => 'error.invalid_location',
+        ]);
         http_response_code(400);
-        echo json_encode(['error' => 'Invalid location']);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Invalid location',
+            'error_key' => 'error.invalid_location',
+        ]);
+        return;
+    }
+
+    // Food and medicines never share a place (EverShelf Med): a medicine lives only in the
+    // cabinet the household marked, and food never goes into it. The client hides the wrong
+    // buttons; this is the rule that cannot be bypassed.
+    $medStmt = $db->prepare('SELECT COALESCE(is_medical, 0) AS is_medical, barcode FROM products WHERE id = ?');
+    $medStmt->execute([$productId]);
+    $medRow = $medStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $medStmt->closeCursor();   // an open read cursor blocks the write below on SQLite
+    $isMedicalProduct = (int)($medRow['is_medical'] ?? 0) === 1;
+    // Harden the classify→stock race: a cabinet write with an AIC the national catalogue knows
+    // is a medicine even if `med_classify` has not flipped the flag yet (seen in logs as
+    // food_in_cabinet on the first tap, success on the retry).
+    if (!$isMedicalProduct && medicalEnabled($db)) {
+        $keys = medicalLocationKeys($db);
+        $loc = mb_strtolower(trim((string)$location));
+        $inCabinet = $loc !== '' && in_array($loc, $keys, true);
+        $aic = medicineNormalizeAic((string)($medRow['barcode'] ?? ''));
+        if ($inCabinet && $aic !== '' && medicineFindByAic($db, $aic)) {
+            $db->prepare('UPDATE products SET is_medical = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND COALESCE(is_medical, 0) = 0')
+               ->execute([$productId]);
+            $isMedicalProduct = true;
+            EverLog::info('inventory_add promoted catalogue AIC to medical', [
+                'event' => 'api_inventory_add_med_promote',
+                'product_id' => $productId,
+                'aic' => $aic,
+            ]);
+        }
+    }
+    $domainError = inventoryLocationDomainError($db, $isMedicalProduct, (string)$location);
+    if ($domainError !== null) {
+        EverLog::warn('addToInventory: location refused by the medicine domain', [
+            'event'      => 'api_inventory_add_domain_refused',
+            'product_id' => $productId,
+            'location'   => (string)$location,
+            'is_medical' => $isMedicalProduct ? 1 : 0,
+            'error_key'  => $domainError,
+        ]);
+        http_response_code(409);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Location not allowed for this product',
+            'error_key' => $domainError,
+        ]);
         return;
     }
 
@@ -5062,7 +5781,18 @@ function addToInventory(PDO $db): void {
     $productUnit = (string)($prodUnitStmt->fetchColumn() ?: 'pz');
     $effectiveUnit = $unit !== null && $unit !== '' ? (string)$unit : $productUnit;
     $minAdd = inventoryMinAddQuantity($effectiveUnit);
-    if ($quantity < $minAdd) {
+    // A medicine is measured by what its box HOLDS: 10 ml of eye drops or 5 ml of drops is real
+    // stock, not the "2 g typed by mistake" the floor exists for.
+    //
+    // AND A PACK IS NEVER "TOO SMALL". A product sold in packs carries its size in
+    // `default_quantity` + `package_unit`; a quantity of 0.5 confezioni is half a pack, not half a
+    // gram, and one confezione is 1. Judging that number with the **g/ml floor** is what refused
+    // "una confezione da 1000 g" with «deve superare i 20 g»: the floor was reading the package's
+    // unit while the number counted packs. The floor stays for a bare weight/volume entry.
+    $floorApplies = !$isMedicalProduct
+        && $productUnit !== 'conf'
+        && !in_array(mb_strtolower($effectiveUnit), ['conf', 'pz'], true);
+    if ($floorApplies && $quantity < $minAdd) {
         EverLog::warn('addToInventory: quantity below the minimum (400)', [
             'event'      => 'api_inventory_add_below_minimum',
             'product_id' => $productId,
@@ -5113,6 +5843,29 @@ function addToInventory(PDO $db): void {
     // Normalize empty expiry to null so NULL matches NULL
     if ($expiry === '' || $expiry === false) {
         $expiry = null;
+    }
+
+    // ── Nobody typed a date → the app dates it ──────────────────────────────
+    // A row with NULL expiry never enters "in scadenza", so the pantry can never warn
+    // about it: a whole shopping trip arrived as "senza scadenza" and the household found
+    // out by smelling it. The estimate is the SAME rule the add form shows
+    // (`estimateSealedExpiryDaysPHP`, one port of `estimateExpiryDays()`), the place picks
+    // the kind (pantry / fridge / freezer) and a vacuum pack extends it. It is stored as an
+    // ESTIMATE (`expiry_user_set = 0`), so the product sheet still says "stimata" and the
+    // household can correct it in one tap.
+    if ($expiry === null && !$isMedicalProduct) {
+        $inferred = inventoryInferExpiryDate($db, $productId, (string)$location, $vacuumSealed === 1);
+        if ($inferred !== null) {
+            $expiry = $inferred;
+            $expiryUserSet = 0;
+            EverLog::info('inventory_add: expiry inferred', [
+                'event'      => 'api_inventory_add_expiry_inferred',
+                'product_id' => $productId,
+                'location'   => (string)$location,
+                'vacuum'     => $vacuumSealed,
+                'expiry'     => $inferred,
+            ]);
+        }
     }
     
     // Merge only into a SEALED row with the SAME location AND SAME expiry_date.
@@ -5168,7 +5921,22 @@ function addToInventory(PDO $db): void {
 
     clearFinishedDismissed($db, $productId);
     
-    $restock = shoppingHandleRestockAfterAdd($db, $productId);
+    // The stock is on the shelf from here on: the list sync below can fail (SQLite answers
+    // "database is locked" while a cron or a backup holds the writer) and turning that into a
+    // 500 made the household press "Aggiungi" again on a purchase that HAD been recorded —
+    // a doubled quantity and a phantom "hai più scorte del previsto" banner. The purchase is
+    // what matters; the list is synced on the next read.
+    try {
+        $restock = shoppingHandleRestockAfterAdd($db, $productId);
+    } catch (\Throwable $e) {
+        EverLog::warn('inventory_add: the shopping list sync failed after the stock was written', [
+            'event'      => 'api_inventory_add_restock_failed',
+            'product_id' => $productId,
+            'location'   => $location,
+            'reason'     => $e->getMessage(),
+        ]);
+        $restock = ['removed' => false, 'removed_names' => [], 'shopping_kept' => false, 'remaining' => null];
+    }
 
     echo json_encode([
         'success' => true,
@@ -5204,6 +5972,55 @@ function addToInventory(PDO $db): void {
         shoppingClearDismissedForProduct($db, $productId);
     }
     invalidateSmartShoppingCache();
+}
+
+/**
+ * Vacuum packing multiplies the sealed shelf life.
+ * Mirrors `getVacuumExpiryDays()` in app.js: one rule, two ports (the form and the API must
+ * date the same pack the same way).
+ */
+function inventoryVacuumExpiryDays(int $baseDays): int {
+    if ($baseDays <= 14) {
+        return (int)round($baseDays * 3);
+    }
+    if ($baseDays <= 90) {
+        return (int)round($baseDays * 2.5);
+    }
+    return (int)round($baseDays * 1.5);
+}
+
+/**
+ * The best-before date a purchase gets when nobody typed one.
+ *
+ * `estimateSealedExpiryDaysPHP()` is the shelf life of the article in that KIND of place;
+ * a medicine is refused, because a box carries a date printed on it and inventing one would
+ * be a safety claim. Returns NULL only when the product row is gone or medical.
+ *
+ * @param bool $vacuumSealed the pack went in vacuum-sealed (extends the shelf life)
+ * @return string|null YYYY-MM-DD
+ */
+function inventoryInferExpiryDate(PDO $db, int $productId, string $location, bool $vacuumSealed = false): ?string {
+    $stmt = $db->prepare('SELECT name, category, COALESCE(is_medical, 0) AS is_medical FROM products WHERE id = ?');
+    $stmt->execute([$productId]);
+    $prod = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt->closeCursor();   // an open read cursor blocks the writes that follow on SQLite
+    if (!$prod) {
+        return null;
+    }
+    if ((int)($prod['is_medical'] ?? 0) === 1) {
+        return null;
+    }
+    $days = max(1, estimateSealedExpiryDaysPHP(
+        (string)($prod['name'] ?? ''),
+        (string)($prod['category'] ?? ''),
+        $location
+    ));
+    if ($vacuumSealed) {
+        $days = max(1, inventoryVacuumExpiryDays($days));
+    }
+    // A brand-new purchase is dated from TODAY (the anchor is unknown); a non-perishable gets no
+    // date at all instead of the 2054 the 9999 sentinel used to produce.
+    return expiryDateFromDays($days);
 }
 
 /** Waste transaction notes use format Buttato|reason_key (legacy: plain "Buttato"). */
@@ -5360,8 +6177,17 @@ function _applyWasteLearning(PDO $db, int $productId, string $reason, string $lo
     $data[$pid]['count_' . $reason] = (int)($data[$pid]['count_' . $reason] ?? 0) + 1;
 
     switch ($reason) {
-        case 'expired':
         case 'spoiled':
+            // Spoiled before the printed date → shelf estimate was too optimistic.
+            $data[$pid]['alert_days_sooner'] = min(7, (int)($data[$pid]['alert_days_sooner'] ?? 0) + 2);
+            if (!empty($data[$pid]['shelf_avg_days'])) {
+                $data[$pid]['shelf_avg_days'] = max(1, (int)round((int)$data[$pid]['shelf_avg_days'] * 0.7));
+            }
+            break;
+        case 'expired':
+        case 'forgotten':
+        case 'kept_too_long':
+            // Duration was fine; the household missed it → nudge alerts earlier.
             $data[$pid]['alert_days_sooner'] = min(7, (int)($data[$pid]['alert_days_sooner'] ?? 0) + 1);
             break;
         case 'wrong_location':
@@ -5370,19 +6196,14 @@ function _applyWasteLearning(PDO $db, int $productId, string $reason, string $lo
                 $data[$pid]['preferred_location'] = $preferred;
             }
             break;
-        case 'kept_too_long':
-        case 'forgotten':
-            $data[$pid]['buy_smaller'] = true;
-            $data[$pid]['max_suggested_pz'] = 2;
-            $data[$pid]['alert_days_sooner'] = min(7, (int)($data[$pid]['alert_days_sooner'] ?? 0) + 1);
-            break;
         case 'bought_too_much':
+            // Cap the next shopping suggestion for this article.
             $data[$pid]['buy_less'] = true;
             $data[$pid]['max_suggested_conf'] = 1;
             $data[$pid]['max_suggested_pz'] = 2;
             break;
         case 'bad_quality':
-            $data[$pid]['buy_less'] = true;
+            // Lot defect — record only; do not shrink shelf life or buy qty.
             break;
     }
     _saveWasteLearning($db, $data);
@@ -5449,7 +6270,9 @@ function ensureShelfLifeLearningBackfilled(PDO $db): void {
         $wasteAgg[$pid]['last_reason'] = $reason;
         $wasteAgg[$pid]['last_at'] = strtotime((string)$wr['created_at']) ?: time();
         $wasteAgg[$pid]['count_' . $reason] = (int)($wasteAgg[$pid]['count_' . $reason] ?? 0) + 1;
-        if ($reason === 'expired' || $reason === 'spoiled' || $reason === 'kept_too_long' || $reason === 'forgotten') {
+        if ($reason === 'spoiled') {
+            $wasteAgg[$pid]['alert_days_sooner'] = min(7, (int)$wasteAgg[$pid]['alert_days_sooner'] + 2);
+        } elseif ($reason === 'expired' || $reason === 'kept_too_long' || $reason === 'forgotten') {
             $wasteAgg[$pid]['alert_days_sooner'] = min(7, (int)$wasteAgg[$pid]['alert_days_sooner'] + 1);
         }
         if ($reason === 'wrong_location') {
@@ -5461,13 +6284,9 @@ function ensureShelfLifeLearningBackfilled(PDO $db): void {
                 $wasteAgg[$pid]['preferred_location'] = $pref;
             }
         }
-        if ($reason === 'bought_too_much' || $reason === 'bad_quality') {
+        if ($reason === 'bought_too_much') {
             $wasteAgg[$pid]['buy_less'] = true;
             $wasteAgg[$pid]['max_suggested_conf'] = 1;
-            $wasteAgg[$pid]['max_suggested_pz'] = 2;
-        }
-        if ($reason === 'kept_too_long' || $reason === 'forgotten') {
-            $wasteAgg[$pid]['buy_smaller'] = true;
             $wasteAgg[$pid]['max_suggested_pz'] = 2;
         }
     }
@@ -5637,6 +6456,42 @@ function _applyWasteHintsToSuggestion(int $productId, $suggestedQty, string $sug
     return [$suggestedQty, $suggestedUnit];
 }
 
+/**
+ * The quantity that keeps a purchase inside its own shelf life.
+ *
+ * The suggested amount is what the household NEEDS over the plan horizon; the shelf is how
+ * long the food lives. When the two disagree, the difference is not stock — it is the pack
+ * that will be binned. This returns the largest amount that is still EATEN before it
+ * expires, landed on something a shop really sells (a whole piece / pack, or a round
+ * weight), never below one unit and never above the suggestion.
+ *
+ * Pure arithmetic: no network, no AI, no history beyond what `smartShopping()` already has.
+ *
+ * @param float  $keep   the theoretical amount (daily rate × shelf days), item unit
+ * @param string $unit   pz / conf / g / ml / kg / l
+ * @param float  $step   the sale step of the row (0 when unknown)
+ */
+function shoppingWasteSafeQty(float $keep, string $unit, float $step = 0.0): float {
+    if ($keep <= 0) {
+        return 0.0;
+    }
+    $u = strtolower(trim($unit));
+    if ($u === 'pz' || $u === 'conf') {
+        $stepInt = $step >= 2 ? (int)floor($step) : 1;
+        $qty = (int)floor($keep);
+        if ($stepInt > 1) {
+            $qty = (int)floor($qty / $stepInt) * $stepInt;
+        }
+        return (float)max($stepInt, $qty);
+    }
+    // g / ml / kg / l: a round, buyable weight that still fits the shelf.
+    $unitStep = $step > 0
+        ? $step
+        : ($keep >= 500 ? 100.0 : ($keep >= 100 ? 50.0 : ($keep >= 20 ? 10.0 : 1.0)));
+    $qty = floor($keep / $unitStep) * $unitStep;
+    return $qty > 0 ? round($qty, 2) : 0.0;
+}
+
 function useFromInventory(PDO $db): void {
     EverLog::info('useFromInventory');
     $input = json_decode(file_get_contents('php://input'), true);
@@ -5645,6 +6500,8 @@ function useFromInventory(PDO $db): void {
     $useAll = $input['use_all'] ?? false;
     $location = $input['location'] ?? 'dispensa';
     $notes = $input['notes'] ?? '';
+    // Household confirmed a soft duplicate (same dose again within ~30 s).
+    $confirmDuplicate = !empty($input['confirm_duplicate']);
     
     if (!$productId) {
         // Same contract as addToInventory: stable key, translated client-side.
@@ -5662,8 +6519,8 @@ function useFromInventory(PDO $db): void {
     }
 
     try {
-        dbWithRetry(function () use ($db, $productId, $quantity, $useAll, $location, $notes): void {
-            useFromInventoryCore($db, $productId, $quantity, $useAll, $location, $notes);
+        dbWithRetry(function () use ($db, $productId, $quantity, $useAll, $location, $notes, $confirmDuplicate): void {
+            useFromInventoryCore($db, $productId, $quantity, $useAll, $location, $notes, $confirmDuplicate);
             // A product the household keeps consuming moves to the favourites on its
             // own (lib/auto_favorite.php: AUTO_FAVORITE_MIN_USES uses in 90 days).
             maybeAutoFavorite($db, (int)$productId);
@@ -5756,27 +6613,16 @@ function resolveInventoryUseTarget(PDO $db, int $productId, string $location): ?
     ];
 }
 
-function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location, $notes): void {
+function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location, $notes, bool $confirmDuplicate = false): void {
     $requestedLocation = $location;
     $locationFallback = false;
     $lastTransactionId = null;
-    // ── Server-side deduplication ─────────────────────────────────────────
-    // Guard against accidental double-consume triggers (scale jitter, double tap,
-    // delayed/offline replay burst). We only apply this stricter gate to manual
-    // uses with empty notes, so recipe uses (notes="Ricetta: ...") remain unaffected.
-    $dedupWindow = $useAll ? 60 : (($notes === '') ? 120 : 12);
-    if ($useAll) {
-        $dedup = $db->prepare(
-            "SELECT id, quantity, created_at FROM transactions
-             WHERE product_id = ?
-               AND type IN ('out','waste')
-               AND undone = 0
-               AND created_at >= datetime('now', '-' || ? || ' seconds')
-             ORDER BY id DESC
-             LIMIT 1"
-        );
-        $dedup->execute([$productId, $dedupWindow]);
-    } else {
+    // ── Server-side race guard (double-submit only) ───────────────────────
+    // "Usa tutto" is NEVER a duplicate of a prior partial spoonful — skip it.
+    // Partial uses: only block a true double-fire of the same dose within ~2 s
+    // (client already disables the button for 1.5 s). No soft-confirm dialog.
+    if (!$confirmDuplicate && !$useAll && $notes === '') {
+        $dedupWindow = 2;
         $dedup = $db->prepare(
             "SELECT id, quantity, created_at FROM transactions
              WHERE product_id = ?
@@ -5789,35 +6635,33 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
              LIMIT 1"
         );
         $dedup->execute([$productId, $location, $notes, $dedupWindow]);
-    }
-    $recent = $dedup->fetch();
-    if ($recent) {
-        $recentQty = (float)($recent['quantity'] ?? 0);
-        $reqQty = $useAll ? $recentQty : (float)$quantity;
-        // Block only true double-fires (same quantity within the window), not a new partial use.
-        $sameQty = $useAll || abs($recentQty - $reqQty) <= max(0.01, $reqQty * 0.02);
-        if (!$sameQty) {
-            $recent = false;
+        $recent = $dedup->fetch();
+        if ($recent) {
+            $recentQty = (float)($recent['quantity'] ?? 0);
+            $reqQty = (float)$quantity;
+            $sameQty = abs($recentQty - $reqQty) <= max(0.01, $reqQty * 0.02);
+            if ($sameQty) {
+                EverLog::info('useFromInventory race duplicate ignored', [
+                    'event' => 'api_inventory_use_race',
+                    'product_id' => $productId,
+                    'location' => $location,
+                    'window_s' => $dedupWindow,
+                    'recent_tx_id' => $recent['id'] ?? null,
+                    'recent_qty' => $recentQty,
+                    'requested_qty' => $reqQty,
+                ]);
+                echo json_encode([
+                    'success' => false,
+                    'duplicate' => true,
+                    'race' => true,
+                    'error_key' => 'use.duplicate_recent',
+                    'error' => 'duplicate_recent',
+                    'recent_qty' => $recentQty,
+                    'requested_qty' => $reqQty,
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
         }
-    }
-    if ($recent) {
-        EverLog::warn('useFromInventory duplicate blocked', [
-            'product_id' => $productId,
-            'location' => $location,
-            'use_all' => $useAll,
-            'window_s' => $dedupWindow,
-            'recent_tx_id' => $recent['id'] ?? null,
-            'recent_qty' => $recent['quantity'] ?? null,
-            'recent_created_at' => $recent['created_at'] ?? null,
-            'requested_qty' => $quantity,
-            'notes' => $notes,
-        ]);
-        echo json_encode([
-            'success' => false,
-            'error'   => 'duplicate_recent',
-            'duplicate' => true,
-        ]);
-        return;
     }
     // ─────────────────────────────────────────────────────────────────────
     
@@ -5852,11 +6696,13 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
         }
 
         $totalRemoved = 0;
+        $txIds = [];
         foreach ($allItems as $item) {
             $totalRemoved += $item['quantity'];
             $type = _isWasteNotes($notes) ? 'waste' : 'out';
             $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$productId, $type, $item['quantity'], $item['location'], $notes]);
+            $txIds[] = (int)$db->lastInsertId();
 
             // User explicitly chose "use all/finished": do not keep qty=0 rows that
             // would trigger a redundant "are you sure it's finished" banner.
@@ -5889,6 +6735,8 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
             'removed'            => $totalRemoved,
             'added_to_shopping'  => $addedToShopping,
             'added_to_bring'     => $addedToShopping, // legacy alias
+            'transaction_id'     => $txIds ? $txIds[count($txIds) - 1] : null,
+            'transaction_ids'    => $txIds,
         ], JSON_UNESCAPED_UNICODE);
         return;
     }
@@ -5979,6 +6827,18 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
             // Opened = a fractional (non-integer) quantity remains
             $f = round($newQty - floor($newQty + 0.001), 6);
             if ($f > 0.001) $isNowOpened = true;
+        } elseif ($unit === 'pz') {
+            // A tray/bag of PIECES that lost some of them was opened: the sliced bread, the tray
+            // of eggs, the pack of rusks. What remains is not sealed stock any more, and the
+            // post-opening clock (PAO) is what tells the household how long it keeps. There is no
+            // "half a piece" accounting to split, so this is the same row marked open — and a
+            // NON-perishable (the 9999 sentinel: salt, sugar, a detergent) is never "opened",
+            // which is what keeps the Home's «Aperti» list honest.
+            $pName = (string)($prodInfo['name'] ?? '');
+            $pCat = (string)($prodInfo['category'] ?? '');
+            if (estimateOpenedExpiryDaysPHP($pName, $pCat, $location) < 9999) {
+                $isNowOpened = true;
+            }
         } elseif (in_array($unit, ['g','kg','ml','l']) && $defQty > 0) {
             // Opened = remaining qty is not a clean multiple of the package size
             $pkgRem = round($newQty - floor($newQty / $defQty + 0.001) * $defQty, 6);
@@ -5992,10 +6852,12 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
             $vacuum = (int)($existing['vacuum_sealed'] ?? 0);
             $openedDays = estimateOpenedExpiryDaysPHP($pName, $pCat, $location);
             if ($vacuum) $openedDays = (int)round($openedDays * 1.5);
-            $openedExpiry = date('Y-m-d', strtotime("+{$openedDays} days"));
-            // Respect original sealed expiry if it expires sooner
-            if (!empty($existing['expiry_date']) && strtotime($existing['expiry_date']) < strtotime($openedExpiry)) {
-                $openedExpiry = $existing['expiry_date'];
+            // A non-perishable (the 9999 sentinel) gets NO date instead of the year 2054, and the
+            // sealed date keeps winning when it is earlier — `min(sealed, opened)` never invents one.
+            $openedExpiry = expiryDateFromDays($openedDays);
+            $sealed = !empty($existing['expiry_date']) ? (string)$existing['expiry_date'] : null;
+            if ($sealed !== null && ($openedExpiry === null || strtotime($sealed) < strtotime($openedExpiry))) {
+                $openedExpiry = $sealed;
             }
 
             // Split opened portion from sealed packages into two separate rows:
@@ -6194,12 +7056,42 @@ function updateInventory(PDO $db): void {
 
     $fields = [];
     $params = [];
+    // A move must respect the medicine domain before anything is written: a medicine only to
+    // its cabinet, food never into it (EverShelf Med).
+    if (isset($input['location'])) {
+        $medStmt = $db->prepare('SELECT COALESCE(is_medical, 0) FROM products WHERE id = ?');
+        $medStmt->execute([(int)$prevRow['product_id']]);
+        $isMedicalRow = (int)($medStmt->fetchColumn() ?: 0) === 1;
+        $medStmt->closeCursor();
+        $domainError = inventoryLocationDomainError($db, $isMedicalRow, (string)$input['location']);
+        if ($domainError !== null) {
+            EverLog::warn('updateInventory: location refused by the medicine domain', [
+                'event'      => 'api_inventory_update_domain_refused',
+                'product_id' => (int)$prevRow['product_id'],
+                'location'   => (string)$input['location'],
+                'is_medical' => $isMedicalRow ? 1 : 0,
+                'error_key'  => $domainError,
+            ]);
+            http_response_code(409);
+            echo json_encode([
+                'success'   => false,
+                'error'     => 'Location not allowed for this product',
+                'error_key' => $domainError,
+            ]);
+            return;
+        }
+    }
     if (isset($input['quantity'])) { $fields[] = "quantity = ?"; $params[] = $input['quantity']; }
     if (isset($input['location'])) { $fields[] = "location = ?"; $params[] = $input['location']; }
     if (isset($input['expiry_date'])) { $fields[] = "expiry_date = ?"; $params[] = $input['expiry_date'] ?: null; }
     if (array_key_exists('expiry_user_set', $input)) { $fields[] = "expiry_user_set = ?"; $params[] = (int)$input['expiry_user_set']; }
     if (isset($input['vacuum_sealed'])) { $fields[] = "vacuum_sealed = ?"; $params[] = (int)$input['vacuum_sealed']; }
     if (isset($input['opened_at_clear']) && $input['opened_at_clear']) { $fields[] = "opened_at = NULL"; }
+    // Explicit open stamp (e.g. product sheet "Apri sottovuoto") — never invent a date here.
+    if (array_key_exists('opened_at', $input) && $input['opened_at'] !== null && $input['opened_at'] !== '') {
+        $fields[] = "opened_at = ?";
+        $params[] = (string)$input['opened_at'];
+    }
     $fields[] = "updated_at = CURRENT_TIMESTAMP";
     $params[] = $id;
 
@@ -6354,13 +7246,48 @@ function deleteInventory(PDO $db): void {
         // non-fatal
     }
 
-    $qty = (float)$row['quantity'];
-    if ($qty > 0.0001) {
-        $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'out', ?, ?, ?)")
-           ->execute([(int)$row['product_id'], $qty, $row['location'], '[Eliminazione inventario]']);
+    // TWO writes that must land together: the ledger row that says where the stock went, and the
+    // inventory row itself. They used to run bare, so a database busy with anything else answered
+    // `SQLSTATE[HY000]: General error: 5 database is locked` (HTTP 500) — and the household got
+    // «Butta» → confirm → the medicine still on the shelf, with a success toast on top of it.
+    // The IMMEDIATE transaction + retry is the pattern every other write handler already follows,
+    // and a lock that outlives it is reported as `database_busy`, which the client retries.
+    try {
+        dbWithRetry(function () use ($db, $row, $id): void {
+            dbBeginImmediate($db);
+            try {
+                $qty = (float)$row['quantity'];
+                if ($qty > 0.0001) {
+                    $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'out', ?, ?, ?)")
+                       ->execute([(int)$row['product_id'], $qty, $row['location'], '[Eliminazione inventario]']);
+                }
+                $db->prepare("DELETE FROM inventory WHERE id = ?")->execute([$id]);
+                dbCommit($db);
+            } catch (Throwable $e) {
+                dbRollback($db);
+                throw $e;
+            }
+        });
+    } catch (PDOException $e) {
+        if (str_contains($e->getMessage(), 'database is locked')) {
+            http_response_code(503);
+            echo json_encode([
+                'success' => false,
+                'error'   => 'database_busy',
+                'message' => 'Database temporaneamente occupato — riprova tra un attimo.',
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+        EverLog::error('deleteInventory failed', [
+            'event'        => 'api_inventory_delete_failed',
+            'inventory_id' => $id,
+            'msg'          => $e->getMessage(),
+        ]);
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        return;
     }
 
-    $db->prepare("DELETE FROM inventory WHERE id = ?")->execute([$id]);
     echo json_encode(['success' => true]);
 }
 
@@ -6508,8 +7435,7 @@ return vocabIsPreparedSalad($name, $brand);
  * a "Pomodoro" that is produce on one side and a conserve on the other is how a loose
  * tomato ended up weighed in grams and merged with the pantry's tin.
  *
- * scripts/test-ai-product-match.php locks the agreement by running the app's own JS in
- * node against this function over a probe list covering the whole grocery vocabulary:
+ * The two guessers agree on a probe list covering the whole grocery vocabulary:
  * PORT EVERY CHANGE TO BOTH SIDES (same order, same patterns).
  */
 function guessCategoryFromNamePHP(string $name, string $brand = ''): string {
@@ -6522,10 +7448,22 @@ function sanitizeProductCategory(string $category, string $name, string $brand =
     if (in_array($cat, $valid, true) && $cat !== 'altro') {
         return $cat;
     }
-    if (isOffLikeCategory($cat)) {
+    // Strip en:/it: … and consult the OFF → local map (data/off_categories.json).
+    // A mapped slug wins; a catch-all / unknown falls through to the title vocabulary.
+    $slug = (string)preg_replace('/^[a-z]{2}:/', '', $cat);
+    if (in_array($slug, $valid, true) && $slug !== 'altro') {
+        return $slug;
+    }
+    if ($slug !== '' && function_exists('vocabMapOffSlug')) {
+        $mapped = vocabMapOffSlug($slug);
+        if ($mapped !== null && in_array($mapped, $valid, true) && $mapped !== 'altro') {
+            return $mapped;
+        }
+    }
+    if (isOffLikeCategory($cat) || $cat === '' || !in_array($cat, $valid, true)) {
         return guessCategoryFromNamePHP($name, $brand);
     }
-    return in_array($cat, $valid, true) ? $cat : guessCategoryFromNamePHP($name, $brand);
+    return $cat;
 }
 
 function pickBetterName(string $existing, string $incoming): string {
@@ -6690,9 +7628,19 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
     // signature cache, then ONE cached AI word (lib/product_kind.php) — and never a
     // second prefix on a title that already carries a genre.
     // When the user locked the title, never mutate the name (prefix stays off).
+    // Medicines are not food genres: never prefix "Farmaco"/"Medicine" onto a box name.
     $kind = (string)($existing['kind'] ?? '');
     $nameLocked = !empty($nameUserSet);
-    if (productKindPrefixEnabled() && !$nameLocked) {
+    $isMedical = !empty($input['is_medical']) || !empty($existing['is_medical']);
+    if ($isMedical) {
+        $healed = productKindStripUmbrellaCategoryPrefix($name);
+        if ($healed !== $name) {
+            $name = productTitleCapitalize($healed);
+        }
+        if ($kind !== '' && !productKindIsPlausibleGenre($kind)) {
+            $kind = '';
+        }
+    } elseif (productKindPrefixEnabled() && !$nameLocked) {
         $applied = productKindApply($name, $brand, $category, $lang, true, $kind);
         if ($applied['kind'] !== '') {
             $kind = $applied['kind'];
@@ -6717,7 +7665,10 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
 
     // Locked title owns the buyable word: ignore catalog/OFF shopping_name and
     // recompute from the name the user chose (so "La sfogliata… piadine" → Piadina).
-    if ($nameLocked) {
+    // Medicines never ask the food AI for a shopping generic ("Farmaco").
+    if ($isMedical) {
+        $shoppingName = $name;
+    } elseif ($nameLocked) {
         $shoppingName = computeShoppingName($name, $category, $brand, false);
     } else {
         $shoppingName = array_key_exists('shopping_name', $input) && $input['shopping_name'] !== null && $input['shopping_name'] !== ''
@@ -6903,8 +7854,14 @@ function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $b
         return false;
     };
 
-    // 1. The very same words.
-    $sql = "SELECT id, name, brand, category FROM products WHERE lower(trim(name)) = ?";
+    // 1. The very same words → the same ARTICLE, whatever the pack says on the front.
+    //    The brand is a VARIANT of a food, not its identity: a supermarket's bananas are still
+    //    bananas. Requiring a compatible brand here created one product per label ("Banane
+    //    [SCB]" + "Banane [Iper Poli]", "Panna da cucina" ×3) and every one of them became its
+    //    own family in the shopping engine — which is why the list asked for food that was
+    //    already on the shelf. A barcode still wins above (the strongest identity there is) and
+    //    `$reusable` still refuses the loose-produce/tin clash.
+    $sql = "SELECT id, name, brand, category, unit, default_quantity, package_unit, image_url, barcode FROM products WHERE lower(trim(name)) = ?";
     $params = [$nName];
     if ($excludeId) {
         $sql .= " AND id != ?";
@@ -6912,27 +7869,40 @@ function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $b
     }
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
+    $exact = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
         if (!$reusable($c)) {
             continue;
         }
-        $cBrand = normalizeProductBrand($c['brand'] ?? '');
-        if ($cBrand === $targetBrand) {
+        if (normalizeProductBrand($c['brand'] ?? '') === $targetBrand) {
             return (int)$c['id'];
         }
-        if ($compatible === null && brandsCompatible($brand, $c['brand'] ?? '')) {
-            $compatible = (int)$c['id'];
-        }
+        $exact[] = $c;
+    }
+    if ($exact !== []) {
+        // No row of this brand: keep the one the household already uses (stock, barcode, a
+        // real category win), never a coin toss between two duplicates.
+        usort($exact, static fn(array $a, array $b): int => productCanonicalScore($db, $b) <=> productCanonicalScore($db, $a));
+        $keep = $exact[0];
+        EverLog::info('duplicate product reused across brands', [
+            'event'     => 'product_reuse_brand_variant',
+            'name'      => $nName,
+            'kept_id'   => (int)$keep['id'],
+            'brand_in'  => $brand,
+            'brand_kept' => (string)($keep['brand'] ?? ''),
+        ]);
+        return (int)$keep['id'];
     }
 
     // 2. The same article written at another number ("Pomodoro" ↔ "Pomodori"): the AI
     //    reads the label, the household typed the pantry, and they rarely agree on the
     //    singular — reusing the row is what keeps one article out of two. The SQL only
     //    prefilters on the first word; the decision is the vocabulary's (curated number
-    //    forms + agreement groups + per-language suffix pairs, never a regex).
+    //    forms + agreement groups + per-language suffix pairs, never a regex). The brand is
+    //    read the same way as in step 1: same article, another brand = still one row.
     $firstWord = vocabTokens($name)[0] ?? '';
     if (mb_strlen($firstWord) >= 3) {
-        $sql = "SELECT id, name, brand, category FROM products WHERE lower(trim(name)) LIKE ?";
+        $sql = "SELECT id, name, brand, category, unit, default_quantity, package_unit, image_url, barcode FROM products WHERE lower(trim(name)) LIKE ?";
         $params = [$firstWord . '%'];
         if ($excludeId) {
             $sql .= " AND id != ?";
@@ -6940,6 +7910,7 @@ function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $b
         }
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
+        $sameArticle = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
             if (!productNamesSameArticle($name, (string)($c['name'] ?? '')) || !$reusable($c)) {
                 continue;
@@ -6948,9 +7919,20 @@ function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $b
             if ($cBrand === $targetBrand) {
                 return (int)$c['id'];
             }
-            if ($compatible === null && brandsCompatible($brand, $c['brand'] ?? '')) {
-                $compatible = (int)$c['id'];
-            }
+            $sameArticle[] = $c;
+        }
+        if ($sameArticle !== []) {
+            usort($sameArticle, static fn(array $a, array $b): int => productCanonicalScore($db, $b) <=> productCanonicalScore($db, $a));
+            $keep = $sameArticle[0];
+            EverLog::info('duplicate product reused across brands', [
+                'event'      => 'product_reuse_brand_variant',
+                'name'       => $name,
+                'kept_id'    => (int)$keep['id'],
+                'kept_name'  => (string)($keep['name'] ?? ''),
+                'brand_in'   => $brand,
+                'brand_kept' => (string)($keep['brand'] ?? ''),
+            ]);
+            return (int)$keep['id'];
         }
     }
 
@@ -7065,9 +8047,10 @@ function collectDuplicateProductIds(PDO $db, array $row): array {
                 ]);
                 continue;
             }
-            if (brandsCompatible($row['brand'] ?? '', $c['brand'] ?? '')) {
-                $ids[] = (int)$c['id'];
-            }
+            // The exact same name is the same ARTICLE: the brand is a variant, so a pack of
+            // another brand must consolidate into the row the pantry already uses instead of
+            // living beside it as a second family (see findDuplicateProductId()).
+            $ids[] = (int)$c['id'];
         }
     }
 
@@ -7575,15 +8558,51 @@ function restoreGhostInventory(PDO $db): void {
     ]);
 }
 
-function inventorySummary(PDO $db): void {
+/**
+ * Counts per place for the location rail and the pantry title.
+ *
+ * The pantry a household can SEE is the pantry this returns: a row at zero quantity is
+ * history, and a trace the app itself calls finished ("2 g of Pomodoro") is not a product
+ * on a shelf. Counting every inventory row made the rail say «Dispensa 15» over a place whose
+ * list was empty — the count and the list must be the same fact.
+ */
+function inventorySummary(PDO $db): void
+{
     EverLog::debug('inventorySummary');
-    $stmt = $db->query("
-        SELECT i.location, COUNT(DISTINCT i.product_id) as product_count, 
-               SUM(i.quantity) as total_items
+    $rows = $db->query("
+        SELECT i.location, i.product_id, i.quantity, p.unit,
+               COALESCE(p.default_quantity, 0) AS default_quantity,
+               COALESCE(p.package_unit, '') AS package_unit
         FROM inventory i
-        GROUP BY i.location
-    ");
-    echo json_encode(['summary' => $stmt->fetchAll()]);
+        JOIN products p ON p.id = i.product_id
+        WHERE i.quantity > 0
+    ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $byLoc = [];
+    foreach ($rows as $row) {
+        if (isInventoryDepleted($row)) {
+            continue;   // a trace: the list hides it, so the count does too
+        }
+        $loc = (string)($row['location'] ?? '');
+        if ($loc === '') {
+            continue;
+        }
+        if (!isset($byLoc[$loc])) {
+            $byLoc[$loc] = ['products' => [], 'total' => 0.0];
+        }
+        $byLoc[$loc]['products'][(int)$row['product_id']] = true;
+        $byLoc[$loc]['total'] += (float)$row['quantity'];
+    }
+
+    $summary = [];
+    foreach ($byLoc as $loc => $info) {
+        $summary[] = [
+            'location'      => $loc,
+            'product_count' => count($info['products']),
+            'total_items'   => $info['total'],
+        ];
+    }
+    echo json_encode(['summary' => $summary]);
 }
 
 // ===== TRANSACTION FUNCTIONS =====
@@ -7783,6 +8802,26 @@ function undoTransaction(PDO $db): void {
 // ===== STATS =====
 
 /**
+ * Is this a dry staple? Rice, pasta, flour, oil, spices, tinned/jarred goods keep for
+ * months, so an empty ledger is the normal state of a pantry nobody writes into — not a
+ * shelf to go and check. The rule reads the SAME shelf-life estimates the expiry badge
+ * uses (`estimateSealedExpiryDaysPHP`), so "long life" means one thing in the whole app.
+ *
+ * @param string $name     product title
+ * @param string $category product category
+ * @param string $location where the stock is (the estimate is place-aware)
+ */
+function evershelfIsDurableStaple(string $name, string $category, string $location): bool {
+    if (!function_exists('estimateSealedExpiryDaysPHP')) return false;
+    // The short-life counters are never staples, whatever the shelf-life table answers for
+    // a name that merely CONTAINS a long-life word ("Pomodorini" hits the passata rule).
+    // These are category slugs (language-neutral keys), not product words.
+    $cat = mb_strtolower($category);
+    if (preg_match('/frutta|verdura|latticini|carne|pesce|pane|surgelat/', $cat)) return false;
+    return estimateSealedExpiryDaysPHP($name, $category, $location) >= EVERSHELF_STAPLE_SHELF_DAYS;
+}
+
+/**
  * Detect inventory items where the stored quantity is significantly inconsistent
  * with the transaction history (sum of in - sum of out/waste).
  *
@@ -7793,9 +8832,12 @@ function undoTransaction(PDO $db): void {
 function getInventoryAnomalies(PDO $db): void {
     EverLog::info('getInventoryAnomalies');
     $rows = $db->query("
-        SELECT p.id AS product_id, p.name, p.brand, p.unit,
+        SELECT p.id AS product_id, p.name, p.brand, p.unit, p.category,
                p.default_quantity, p.package_unit,
                MIN(i.id) AS inventory_id,
+               -- Where the stock actually is: an anomaly without the shelf to look at
+               -- is unusable, and a product can sit in more than one place.
+               GROUP_CONCAT(DISTINCT i.location) AS locations,
                SUM(i.quantity) AS inv_qty,
                COALESCE(tx_in.tot, 0)  AS total_in,
                COALESCE(tx_out.tot, 0) AS total_out
@@ -7810,7 +8852,7 @@ function getInventoryAnomalies(PDO $db): void {
             FROM transactions WHERE type IN ('out','waste') AND undone = 0 GROUP BY product_id
         ) tx_out ON tx_out.product_id = p.id
         WHERE i.quantity > 0
-        GROUP BY p.id, p.name, p.brand, p.unit, p.default_quantity, p.package_unit,
+        GROUP BY p.id, p.name, p.brand, p.unit, p.category, p.default_quantity, p.package_unit,
                  tx_in.tot, tx_out.tot
     ")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -7827,6 +8869,13 @@ function getInventoryAnomalies(PDO $db): void {
         $unit     = (string)($r['unit'] ?? 'pz');
         // Trace leftovers (e.g. 2.5 g) belong to the "finished?" banner, not anomalies.
         if (isInventoryDepleted(['quantity' => $invQty, 'unit' => $unit])) {
+            continue;
+        }
+        // Dry staples (rice, pasta, flour, oil, tins, spices) never ask for a shelf check:
+        // the ledger is empty because nobody registers the daily spoonful, and "you have
+        // MORE rice than expected" is not a discrepancy — it is a two-kilo bag.
+        $firstLoc = trim((string)(explode(',', (string)($r['locations'] ?? ''))[0] ?? ''));
+        if (evershelfIsDurableStaple((string)$r['name'], (string)($r['category'] ?? ''), $firstLoc)) {
             continue;
         }
         $expected = floatval($r['total_in']) - floatval($r['total_out']);
@@ -7859,6 +8908,10 @@ function getInventoryAnomalies(PDO $db): void {
             'default_quantity' => $r['default_quantity'],
             'package_unit' => $r['package_unit'],
             'inv_qty'      => round($invQty, 2),
+            // `locations` is the full list (comma separated by SQLite), `location` the
+            // first one, so old clients and the icon keep working.
+            'locations'    => array_values(array_filter(array_map('trim', explode(',', (string)($r['locations'] ?? ''))))),
+            'location'     => trim((string)(explode(',', (string)($r['locations'] ?? ''))[0] ?? '')),
             'expected_qty' => round($expected, 2),
             'diff'         => round($diff, 2),
             'direction'    => $direction,
@@ -8033,8 +9086,9 @@ function getStats(PDO $db): void {
     
     // Expiring soonest (top items needing attention)
     $expiring = $db->query("
-        SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
-               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
+        SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.default_quantity, p.package_unit,
+               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, COALESCE(p.is_medical, 0) as is_medical,
+               COALESCE(p.med_tags, '') as med_tags, COALESCE(p.med_pao_days, 0) as med_pao_days
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL AND i.expiry_date >= date('now') AND i.quantity > 0
               AND (i.opened_at IS NULL OR i.opened_at = '')
@@ -8045,8 +9099,9 @@ function getStats(PDO $db): void {
     // Expired — vacuum-sealed items get extra days beyond printed expiry before being flagged
     $vacExtDays = (int)env('VACUUM_EXPIRY_EXTENSION_DAYS', '30');
     $expiredStmt = $db->prepare("
-        SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
-               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
+        SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.default_quantity, p.package_unit,
+               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, COALESCE(p.is_medical, 0) as is_medical,
+               COALESCE(p.med_tags, '') as med_tags, COALESCE(p.med_pao_days, 0) as med_pao_days
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL
           -- Date-only on purpose: an item that expires TODAY is valid until the end of
@@ -8092,6 +9147,9 @@ function getStats(PDO $db): void {
     // Compute opened_expiry and days_to_expiry for each opened item
     $opened = [];
     $today = strtotime('today midnight');
+    // The household's own PAO averages (edit sheet → `pao_save`), asked ONCE for the whole
+    // list: the banner must print the same numbers the sheet shows, on every device.
+    $paoOverrides = paoAverageMap($db);
     foreach ($openedRaw as $item) {
         $vacuum = (int)($item['vacuum_sealed'] ?? 0);
         // originalExpiry = manufacturer date stored in inventory.expiry_date.
@@ -8156,12 +9214,14 @@ function getStats(PDO $db): void {
                     $si['days_to_expiry'] = $sealedDays;
                     $si['is_edible']     = $sealedDays >= 0;
                     $si['has_opened_at'] = false;
+                    $si['pao'] = null;   // still sealed: the post-opening clock has not started
                     $opened[] = $si;
                 }
                 // Opened fractional part: use the already-computed opened shelf-life expiry
                 if ($item['days_to_expiry'] === null || $item['days_to_expiry'] <= 365) {
                     $fi = $item;
                     $fi['quantity'] = $frac;
+                    $fi['pao'] = openedShelfLifeSummary($fi, $paoOverrides);
                     $opened[] = $fi;
                 }
                 continue;
@@ -8174,6 +9234,9 @@ function getStats(PDO $db): void {
         if (!$item['has_opened_at'] && ($item['days_to_expiry'] === null || $item['days_to_expiry'] > 14)) continue;
         // Trace leftovers (≤20 g/ml etc.) are finished — don't show in Opened widget
         if (isInventoryDepleted($item)) continue;
+        // The deterministic post-opening clock (data/opened_shelf_life.json): the dashboard
+        // needs days_open + the two thresholds, not an AI guess.
+        $item['pao'] = openedShelfLifeSummary($item, $paoOverrides);
         $opened[] = $item;
     }
     // Sort by days_to_expiry ascending (soonest first; nulls last)
@@ -8225,76 +9288,21 @@ function getStats(PDO $db): void {
 // ===== MONTHLY STATS =====
 /**
  * Normalize a raw category string (may contain OpenFoodFacts "en:slug" format)
- * to one of the app's known Italian category slugs.
+ * to one of the app's known category slugs. Mapping lives in data/off_categories.json
+ * — no OFF slug and no product word is hardcoded here.
  */
 function _normalizeCat(string $raw): string {
-    static $known = [
-        'frutta','verdura','carne','pesce','latticini',
-        'pasta','pane','cereali','bevande','condimenti',
-        'surgelati','conserve','snack','altro',
-    ];
-    $raw = trim($raw);
-    if (in_array($raw, $known, true)) return $raw;
-
-    // Strip language prefix: "en:", "it:", "fr:", etc.
+    $raw = mb_strtolower(trim($raw));
+    $known = validProductCategories();
+    if (in_array($raw, $known, true)) {
+        return $raw;
+    }
     $slug = (string)preg_replace('/^[a-z]{2}:/', '', $raw);
-    if (in_array($slug, $known, true)) return $slug;
-
-    // Map common OpenFoodFacts slugs → app categories
-    static $map = [
-        // latticini
-        'dairies'=>'latticini','dairy'=>'latticini','milk'=>'latticini',
-        'fermented-milk-products'=>'latticini','cheeses'=>'latticini',
-        'yogurts'=>'latticini','plant-based-milks'=>'latticini',
-        'cream'=>'latticini','butter'=>'latticini','eggs'=>'latticini',
-        // frutta
-        'fruits'=>'frutta','fresh-fruits'=>'frutta','tropical-fruits'=>'frutta',
-        'dried-fruits'=>'frutta','berries'=>'frutta',
-        // verdura
-        'vegetables'=>'verdura','fresh-vegetables'=>'verdura',
-        'plant-based-foods'=>'verdura','legumes'=>'verdura',
-        'mushrooms'=>'verdura','herbs'=>'verdura',
-        // carne
-        'meats'=>'carne','beef'=>'carne','pork'=>'carne',
-        'poultry'=>'carne','chicken'=>'carne','processed-meat'=>'carne',
-        'sausages'=>'carne','charcuterie'=>'carne',
-        // pesce
-        'fish'=>'pesce','seafood'=>'pesce','fish-products'=>'pesce',
-        'canned-fish'=>'conserve',
-        // pasta
-        'pastas'=>'pasta','pasta'=>'pasta','pasta-based-dishes'=>'pasta',
-        'noodles'=>'pasta',
-        // pane
-        'breads'=>'pane','bread'=>'pane','baked-goods'=>'pane',
-        'pastries'=>'pane','cakes'=>'snack',
-        // cereali
-        'cereals'=>'cereali','breakfast-cereals'=>'cereali',
-        'rice'=>'cereali','grains'=>'cereali','flours'=>'cereali',
-        'seeds'=>'cereali',
-        // bevande
-        'beverages'=>'bevande','drinks'=>'bevande','waters'=>'bevande',
-        'juices'=>'bevande','fruit-juices'=>'bevande','sodas'=>'bevande',
-        'plant-based-foods-and-beverages'=>'bevande','coffee'=>'bevande',
-        'tea'=>'bevande','alcoholic-beverages'=>'bevande','wine'=>'bevande',
-        'beer'=>'bevande',
-        // condimenti
-        'sauces'=>'condimenti','condiments'=>'condimenti',
-        'spreads'=>'condimenti','oils'=>'condimenti',
-        'vinegars'=>'condimenti','dressings'=>'condimenti',
-        'sugar'=>'condimenti','salt'=>'condimenti','spices'=>'condimenti',
-        // surgelati
-        'frozen-foods'=>'surgelati','frozen-vegetables'=>'surgelati',
-        'frozen-fish'=>'surgelati','ice-cream'=>'surgelati',
-        // conserve
-        'preserved-foods'=>'conserve','canned-foods'=>'conserve',
-        'jams'=>'conserve','pickles'=>'conserve','tomato-sauces'=>'conserve',
-        // snack
-        'snacks'=>'snack','cookies'=>'snack','chips'=>'snack',
-        'chocolates'=>'snack','candies'=>'snack','sweets'=>'snack',
-        'crackers'=>'snack','biscuits'=>'snack','nuts'=>'snack',
-    ];
-
-    return $map[$slug] ?? $map[strtolower($slug)] ?? 'altro';
+    if (in_array($slug, $known, true)) {
+        return $slug;
+    }
+    $mapped = function_exists('vocabMapOffSlug') ? vocabMapOffSlug($slug) : null;
+    return ($mapped !== null && $mapped !== '') ? $mapped : 'altro';
 }
 
 function getMonthlyStats(PDO $db): void {
@@ -8408,6 +9416,17 @@ function getMonthlyStats(PDO $db): void {
 
 // ===== SHOPPING SPEND TRACKING =====
 function _spendHistoryPath(): string {
+    // A demo reads and writes ITS OWN ledger: the household's file says what the family
+    // spent at the till, and a visitor of the marketing site must never read that.
+    if (evershelfDemoRequested()) {
+        // `__DIR__` is `api/`: the demo ledger lives next to the demo databases, in the
+        // app's own `data/demo/` (never one directory above the repo).
+        $dir = __DIR__ . '/../data/demo';
+        if (!is_dir($dir)) @mkdir($dir, 0775, true);
+        $lang = evershelfDemoLang();
+        return (is_dir($dir) && is_writable($dir) ? $dir : __DIR__ . '/../data')
+            . '/shopping_spend-' . $lang . '.json';
+    }
     return __DIR__ . '/../data/shopping_spend.json';
 }
 
@@ -8646,45 +9665,60 @@ function getMacroStats(PDO $db): void {
 }
 
 // ===== RECENT & POPULAR PRODUCTS =====
+/**
+ * GET recent_popular_products — the quick-access rail of the pantry.
+ *
+ * `location` narrows BOTH the history and the stock to the place being looked at: opening
+ * "Dispensa cucina" used to show what the whole house had used last, which is not what a
+ * place is. Without `location` the rail is the whole pantry, as before.
+ */
 function recentPopularProducts(PDO $db): void {
     EverLog::debug('recentPopularProducts');
+    $location = trim((string)($_GET['location'] ?? ''));
+    $locSql = $location !== '' ? ' AND LOWER(COALESCE(t.location, \'\')) = LOWER(?)' : '';
+    $stockSql = $location !== '' ? ' AND LOWER(COALESCE(i.location, \'\')) = LOWER(?)' : '';
+    $locArgs = $location !== '' ? [$location] : [];
+
     // Last 4 distinct products used (type='out'), most recent first
-    $recentStmt = $db->query("
+    $recentStmt = $db->prepare("
         SELECT DISTINCT t.product_id, p.name, p.brand, p.category, p.image_url, p.unit,
                MAX(t.created_at) as last_used,
                COALESCE((SELECT SUM(i.quantity) FROM inventory i
-                         WHERE i.product_id = p.id AND i.quantity > 0), 0) AS stock_qty
+                         WHERE i.product_id = p.id AND i.quantity > 0{$stockSql}), 0) AS stock_qty
         FROM transactions t
         JOIN products p ON p.id = t.product_id
-        WHERE t.type = 'out'
+        WHERE t.type = 'out'{$locSql}
         GROUP BY t.product_id
         ORDER BY last_used DESC
         LIMIT 4
     ");
+    $recentStmt->execute(array_merge($locArgs, $locArgs));
     $recent = $recentStmt->fetchAll(PDO::FETCH_ASSOC);
     $recentIds = array_map(fn($r) => (int)$r['product_id'], $recent);
 
     // Top 12 most frequently used products (to allow filtering out recent ones client-side)
-    $popularStmt = $db->query("
+    $popularStmt = $db->prepare("
         SELECT t.product_id, p.name, p.brand, p.category, p.image_url, p.unit,
                COUNT(*) as usage_count,
                COALESCE((SELECT SUM(i.quantity) FROM inventory i
-                         WHERE i.product_id = p.id AND i.quantity > 0), 0) AS stock_qty
+                         WHERE i.product_id = p.id AND i.quantity > 0{$stockSql}), 0) AS stock_qty
         FROM transactions t
         JOIN products p ON p.id = t.product_id
         WHERE t.type = 'out'
-          AND t.created_at >= datetime('now', '-90 days')
+          AND t.created_at >= datetime('now', '-90 days'){$locSql}
         GROUP BY t.product_id
         ORDER BY usage_count DESC
         LIMIT 12
     ");
+    $popularStmt->execute(array_merge($locArgs, $locArgs));
     $popular = $popularStmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode([
         'recent' => $recent,
         'popular' => $popular,
         'recent_ids' => $recentIds,
-    ]);
+        'location' => $location,
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 // ===== CONSUMPTION PREDICTIONS =====
@@ -8698,7 +9732,7 @@ function getConsumptionPredictions(PDO $db): void {
     // Get all current inventory items with their consumption history
     $items = $db->query("
         SELECT i.id AS inventory_id, i.product_id, i.quantity, i.location,
-               p.name, p.brand, p.unit, p.default_quantity, p.package_unit,
+               p.name, p.brand, p.unit, p.default_quantity, p.package_unit, p.category,
                i.updated_at
         FROM inventory i
         JOIN products p ON p.id = i.product_id
@@ -8713,6 +9747,13 @@ function getConsumptionPredictions(PDO $db): void {
 
         // Skip crumbs already treated as finished / hidden from the list
         if (isInventoryDepleted($item)) {
+            continue;
+        }
+
+        // Dry staples: three quiet months on two kilos of rice do not mean the rice
+        // disappeared by itself. Their consumption is never registered meal by meal, so a
+        // rate built from the ledger would accuse the household every time.
+        if (evershelfIsDurableStaple((string)$item['name'], (string)($item['category'] ?? ''), (string)$loc)) {
             continue;
         }
 
@@ -8934,11 +9975,29 @@ function evershelfSetupLedgerValue(string $key): mixed
     return $decoded ?? (string)$raw;
 }
 
-function getServerSettings(): void {
+/**
+ * The idle screen's timeout in MINUTES.
+ *
+ * `.env.example` documented `SCREENSAVER_TIMEOUT` in SECONDS for a long time ("300" = five
+ * minutes) while the Settings card, the select (1..60) and `_screensaverTimeoutMs()` all speak
+ * minutes: an install that followed the file waited five hours and the field showed up empty.
+ * Rather than invalidate those installations, a value above 60 is read as seconds and converted —
+ * the number keeps the meaning it was written with, and everything saved from now on is minutes.
+ */
+function screensaverTimeoutMinutes(): int {
+    $raw = (int)env('SCREENSAVER_TIMEOUT', '5');
+    if ($raw <= 0) {
+        return 5;
+    }
+    $minutes = $raw > 60 ? (int)round($raw / 60) : $raw;
+    return max(1, min(60, $minutes));
+}
+
+function getServerSettings(?PDO $db = null): void {
     EverLog::debug('getServerSettings');
     $bringEmail = env('BRING_EMAIL');
     
-    echo json_encode([
+    $settings = [
         'gemini_key_set' => aiProvider() === 'gemini' && trim((string)env('GEMINI_API_KEY', '')) !== '',
         'ai_enabled' => aiIsEnabled(),
         'ai_provider' => aiProvider(),
@@ -8949,10 +10008,12 @@ function getServerSettings(): void {
         'llama_base_url' => env('LLAMA_BASE_URL', ''),
         'llama_model' => env('LLAMA_MODEL', ''),
         'llama_key_set' => trim((string)env('LLAMA_API_KEY', '')) !== '',
-        'api_token_required' => evershelfApiTokenRequired(),
+        // A demo needs no token: say so, or the Settings card would show a "missing token"
+        // state over a showcase that has nothing to protect.
+        'api_token_required' => !evershelfDemoRequested() && evershelfApiTokenRequired(),
         'bring_email' => $bringEmail,
-        'settings_token_set' => evershelfApiTokenRequired(),
-        'demo_mode' => env('DEMO_MODE') === 'true',
+        'settings_token_set' => !evershelfDemoRequested() && evershelfApiTokenRequired(),
+        'demo_mode' => evershelfDemoRequested(),
         'bring_password_set' => !empty(env('BRING_PASSWORD')),
         'tts_url' => env('TTS_URL'),
         'tts_token_set' => !empty(env('TTS_TOKEN')),
@@ -8983,13 +10044,15 @@ function getServerSettings(): void {
         'weather_city' => env('WEATHER_CITY', ''),
         'dietary' => env('DIETARY', ''),
         'appliances' => env('APPLIANCES', '') ? array_values(array_filter(array_map('trim', explode(',', env('APPLIANCES', ''))))) : [],
-        'custom_locations' => inventoryCustomLocationLabels(),
+        'custom_locations' => inventoryCustomLocationLabels($db),
+        'deleted_locations' => deletedLocationsList($db),
+
         'camera_facing' => env('CAMERA_FACING', 'environment'),
         'scale_enabled' => env('SCALE_ENABLED', 'false') === 'true',
         'scale_gateway_url' => env('SCALE_GATEWAY_URL', ''),
         'meal_plan_enabled' => env('MEAL_PLAN_ENABLED', 'false') === 'true',
         'screensaver_enabled' => env('SCREENSAVER_ENABLED', 'false') === 'true',
-        'screensaver_timeout' => (int)env('SCREENSAVER_TIMEOUT', '5'),
+        'screensaver_timeout' => screensaverTimeoutMinutes(),
         'zerowaste_tips_enabled' => env('ZEROWASTE_TIPS_ENABLED', 'false') === 'true',
         'zerowaste_tips_set' => env('ZEROWASTE_TIPS_ENABLED', '') !== '',
         // Expiry calendar feed: the subscribe URL is minted by get_ics_settings, but
@@ -9010,7 +10073,12 @@ function getServerSettings(): void {
         'web_push_subscriber_count' => (function () {
             try {
                 $db = getDB();
-                evershelfWebPushEnsureTable($db);
+                // get_settings runs on every boot: ask the catalog before running any
+                // DDL (audit D2), and run it only when the table is really missing.
+                $exists = $db->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'webpush_subscriptions'")->fetchColumn();
+                if (!$exists) {
+                    evershelfWebPushEnsureTable($db);
+                }
                 return (int)$db->query('SELECT COUNT(*) FROM webpush_subscriptions')->fetchColumn();
             } catch (Throwable $e) {
                 return 0;
@@ -9055,6 +10123,20 @@ function getServerSettings(): void {
             $v = evershelfSetupLedgerValue('setup_seen');
             return is_array($v) ? $v : [];
         })(),
+        // One-shot data-migration notices. "Altro" was removed as a location
+        // (1.16.19): its stock moved to the first location and the client says so
+        // once per device, with the number and the destination.
+        'location_altro_migration' => (function (): ?array {
+            $v = evershelfSetupLedgerValue('migration_location_altro_v1');
+            if (!is_array($v) || (int)($v['moved'] ?? 0) <= 0) {
+                return null;
+            }
+            return [
+                'from'  => (string)($v['from'] ?? 'altro'),
+                'to'    => (string)($v['to'] ?? 'dispensa'),
+                'moved' => (int)$v['moved'],
+            ];
+        })(),
         // Shopping list
         'shopping_enabled'            => env('SHOPPING_ENABLED', 'true') === 'true',
         'shopping_mode'               => env('SHOPPING_MODE', 'internal'),
@@ -9069,7 +10151,6 @@ function getServerSettings(): void {
         'product_variants_enabled'    => productVariantsEnabled(),
         'receipt_ocr_enabled'         => receiptOcrEnabled(),
         'receipt_ocr_max_items'       => receiptOcrMaxItems(),
-        'audit_mode_enabled'          => env('AUDIT_MODE_ENABLED', 'true') === 'true',
         'audit_mode_batch_size'       => (int)env('AUDIT_MODE_BATCH_SIZE', '5'),
         'auto_favorite_min_uses'      => (int)env('AUTO_FAVORITE_MIN_USES', '3'),
         'auto_favorite_top_n'         => (int)env('AUTO_FAVORITE_TOP_N', '3'),
@@ -9124,7 +10205,54 @@ function getServerSettings(): void {
         // inside get_settings keeps the startup dialog to zero extra requests (see
         // api/lib/support.php). The banner slots are parked and reported as off.
         'support'                     => evershelfSupportPayload(),
-    ]);
+    ];
+
+    // A demo describes ITSELF, never the instance hosting it. The demo database already
+    // answers its own content, but these keys come from `.env` / the household's files:
+    // rooms, coordinates, e-mail, integrations, personal preferences. A visitor of the
+    // marketing site must not read where the family lives or what it owns.
+    if (evershelfDemoRequested()) {
+        $settings = array_merge($settings, [
+            'bring_email'                => '',
+            'shopping_mode'              => 'internal',
+            'shopping_enabled'           => true,
+            'openai_base_url'            => '',
+            'openai_model'               => '',
+            'llama_base_url'             => '',
+            'llama_model'                => '',
+            'tts_url'                    => '',
+            'tts_token_set'              => false,
+            'tts_engine'                 => '',
+            'tts_extra_fields'           => '',
+            'weather_enabled'            => false,
+            'weather_lat'                => '',
+            'weather_lon'                => '',
+            'weather_city'               => '',
+            'dietary'                    => '',
+            'appliances'                 => [],
+            'custom_locations'           => [],
+            'deleted_locations'          => [],
+            'ha_enabled'                 => false,
+            'ha_url'                     => '',
+            'ha_token_set'               => false,
+            'ha_tts_entity'              => '',
+            'ha_webhook_id'              => '',
+            'ha_notify_service'          => '',
+            'ntfy_topic'                 => '',
+            'ntfy_token_set'             => false,
+            'notify_webhook_url'         => '',
+            'notify_webhook_token_set'   => false,
+            'notify_webhook_header'      => '',
+            'mealie_url'                 => '',
+            'mealie_token_set'           => false,
+            'mealie_usable'              => false,
+            'mealie_cache_count'         => 0,
+            'mealie_cache_synced_at'     => null,
+            'recipe_source'              => 'internal',
+        ]);
+    }
+
+    echo json_encode($settings, JSON_UNESCAPED_UNICODE);
 }
 
 /** POST ai_test — ping active AI provider and return latency. */
@@ -9321,6 +10449,765 @@ function dbCleanup(?PDO $db = null): void {
 }
 
 /**
+ * GET med_status — is the opt-in module on, did the household accept the notice, and what
+ * may a box be classified as? (The taxonomy is CLOSED: 8 household categories.)
+ */
+/**
+ * POST med_debug — TEMPORARY diagnostic sink for the medicine reader (opt-in, `MED_DEBUG=true`).
+ *
+ * The reader on a phone is a black box: "it reads nothing" can be a crop on the wrong pixels, a
+ * canvas too big for the device, or a `recognize()` that never returns. This action lets the
+ * household's own device report, per OCR pass, the geometry, the text it got and — bounded to a
+ * dozen small JPEGs per session — the picture it read it from, so the problem can be SEEN.
+ *
+ * Safety rails: off unless the flag says so (403), token + CSRF like every POST, nothing leaves
+ * this server, at most 20 events per request, 700 kB per image, and the folder is pruned to the
+ * last 400 events and 40 pictures. Delete the folder or turn the flag off and it is inert.
+ */
+function medDebugAction(): void {
+    if (!medicalDebugEnabled()) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error_key' => 'error.med_debug_off'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $input = json_decode((string)file_get_contents('php://input'), true) ?: [];
+    $events = $input['events'] ?? [];
+    if (!is_array($events)) {
+        $events = [];
+    }
+    $dir = __DIR__ . '/../data/med_debug';
+    $framesDir = $dir . '/frames';
+    foreach ([$dir, $framesDir] as $d) {
+        if (!is_dir($d)) {
+            @mkdir($d, 0775, true);
+        }
+    }
+    $written = 0;
+    $frames = 0;
+    foreach (array_slice($events, 0, 20) as $event) {
+        if (!is_array($event)) {
+            continue;
+        }
+        $image = (string)($event['image'] ?? '');
+        unset($event['image']);
+        $event['at'] = date('c');
+        if ($image !== '' && preg_match('#^data:image/jpeg;base64,([A-Za-z0-9+/=]+)$#', $image, $m)) {
+            $bin = base64_decode($m[1], true);
+            if ($bin !== false && $bin !== '' && strlen($bin) <= 700000) {
+                $label = preg_replace('/[^a-z0-9_-]+/i', '', (string)($event['label'] ?? $event['kind'] ?? 'frame'));
+                $name = date('Ymd_His') . '_' . ($label !== '' ? $label : 'frame') . '_' . substr(sha1($bin), 0, 6) . '.jpg';
+                if (@file_put_contents($framesDir . '/' . $name, $bin) !== false) {
+                    $event['frame'] = 'frames/' . $name;
+                    $frames++;
+                }
+            }
+        }
+        if (@file_put_contents($dir . '/events.jsonl', json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND) !== false) {
+            $written++;
+        }
+    }
+    // Bounded on disk: the last 400 events and 40 pictures, nothing accumulates.
+    $log = $dir . '/events.jsonl';
+    if (is_readable($log)) {
+        $lines = file($log, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+        if (count($lines) > 400) {
+            @file_put_contents($log, implode("\n", array_slice($lines, -400)) . "\n");
+        }
+    }
+    $shots = glob($framesDir . '/*.jpg') ?: [];
+    if (count($shots) > 40) {
+        sort($shots);
+        foreach (array_slice($shots, 0, count($shots) - 40) as $old) {
+            @unlink($old);
+        }
+    }
+    EverLog::info('Medicine read diagnostic received', [
+        'event' => 'med_debug_received',
+        'events' => $written,
+        'frames' => $frames,
+    ]);
+    echo json_encode(['success' => true, 'events' => $written, 'frames' => $frames], JSON_UNESCAPED_UNICODE);
+}
+
+
+function medStatusAction(): void {
+    $db = getDB();
+    $accepted = false;
+    try {
+        $stmt = $db->prepare("SELECT value FROM app_settings WHERE key = 'med_disclaimer_accepted'");
+        $stmt->execute();
+        $raw = (string)($stmt->fetchColumn() ?: '');
+        $accepted = in_array(strtolower(trim($raw, " \t\n\r\"")), ['1', 'true', 'yes', 'on'], true);
+    } catch (Throwable $e) { /* no setting yet: not accepted */ }
+    $categories = [];
+    foreach (medicalCategories() as $c) {
+        $categories[] = [
+            'slug' => (string)($c['slug'] ?? ''),
+            'label_key' => (string)($c['label_key'] ?? ''),
+            'atc' => array_values((array)($c['atc'] ?? [])),
+        ];
+    }
+    $setupDone = false;
+    try {
+        $stmt = $db->prepare("SELECT value FROM app_settings WHERE key = 'med_setup_done'");
+        $stmt->execute();
+        $setupDone = in_array(strtolower(trim((string)($stmt->fetchColumn() ?: ''), " \t\n\r\"")), ['1', 'true', 'yes', 'on'], true);
+    } catch (Throwable $e) { /* never asked */ }
+    // Which country's labels are on the box: the app refuses to guess (an English UI says
+    // nothing about the pharmacy), so the household picks it and the schema follows. The
+    // client's UI language is the last fallback behind `MED_COUNTRY` / `med_country`.
+    $country = medicalActiveCountry($db, (string)($_GET['lang'] ?? ''));
+    $schema = medicalCountrySchema($country);
+    // The medicine cabinet itself, as stored: the client needs it at BOOT to paint the place
+    // with its own pill and right after Dispensa, not only after someone opens this card.
+    $medLocations = medicalLocationSlugs(_medicalSettingsMap($db));
+    $countries = [];
+    foreach ((array)(medicalCodeSchemas()['countries'] ?? []) as $cc => $block) {
+        $countries[] = ['cc' => (string)$cc, 'status' => (string)($block['status'] ?? 'none')];
+    }
+    echo json_encode([
+        'success' => true,
+        'enabled' => medicalEnabled($db),
+        // TEMPORARY: the reader reports what it sees only when the server asks (MED_DEBUG).
+        'debug' => medicalDebugEnabled(),
+        'disclaimer_accepted' => $accepted,
+        'setup_done' => $setupDone,
+        'disclaimer_key' => 'medical.disclaimer',
+        'categories' => $categories,
+        'country' => $country,
+        'countries' => $countries,
+        'schema' => $schema,
+        // Can this country be scanned at all? `false` makes the client BLOCK the panel with a
+        // dialog (contribution guide + manual entry) instead of pretending to read a label.
+        'scan_supported' => medicalScanSupported($country),
+        'contrib_doc' => (string)(medicalCodeSchemas()['contrib_doc'] ?? ''),
+        // The local AIFA catalogue: how many medicines the importer left behind and when.
+        // `loaded: false` is a fact the UI has to be able to say out loud.
+        'dataset' => medicinesDatasetInfo($db),
+        // Where the medicine cabinet is (label or slug, as stored): the client normalises it.
+        'medical_locations' => array_values($medLocations),
+        'unsupported_note_key' => (string)(medicalCodeSchemas()['unsupported_note_key'] ?? 'medical.country_none_hint'),
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/** The app_settings map, as a plain key → value array (raw JSON strings). */
+function _medicalSettingsMap(PDO $db): array {
+    $out = [];
+    try {
+        foreach ($db->query("SELECT key, value FROM app_settings")->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $out[(string)$row['key']] = $row['value'];
+        }
+    } catch (Throwable $e) { /* no settings: the product flag is enough */ }
+    return $out;
+}
+
+/**
+ * GET med_lookup — what the local AIFA catalogue knows about this AIC (or this name).
+ *
+ * The dataset is a local SQLite table imported from the AIFA open data
+ * (`scripts/import-medicines.php --country=IT`): no request ever leaves this server, no key, no quota. The answer
+ * is identification only — AIC, commercial name, active ingredient, form, pack, company — and
+ * says `dataset.loaded=false` when nothing has been imported yet, so the UI can tell "I have no
+ * catalogue" from "I do not know this box".
+ *
+ * Params: `aic` (A+9 or 9 digits, or an FMD DataMatrix that carries it) or `q` (a name read off
+ * the box). Both may be sent: the AIC wins.
+ */
+function medLookupAction(PDO $db): void {
+    if (!medicalEnabled($db)) {
+        echo json_encode(['success' => true, 'enabled' => false, 'results' => [], 'dataset' => medicinesDatasetInfo($db)], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $country = medicalActiveCountry($db, (string)($_GET['lang'] ?? ''));
+    $raw = (string)($_GET['aic'] ?? '');
+    $query = trim((string)($_GET['q'] ?? ''));
+    // Country-specific non-catalogue pack codes (Italy: Farmadati PARAF 9xxxxxxxx) are not AIFA
+    // AICs — never invent near/name rows for them; the client opens the Farmadati confirm dialog.
+    $paraf = $raw !== '' ? medicalParafCode($raw, $country) : null;
+    if (is_array($paraf) && !empty($paraf['code'])) {
+        echo json_encode([
+            'success' => true,
+            'enabled' => true,
+            'country' => $country,
+            'aic' => '',
+            'paraf' => true,
+            'paraf_code' => (string)$paraf['code'],
+            'exact' => false,
+            'implausible' => false,
+            'results' => [],
+            'dataset' => medicinesDatasetInfo($db),
+            'dataset_key' => 'medical.dataset_aifa',
+            'advice_key' => 'medical.no_dosage',
+        ], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    // The country module says which number a read carries (Italy: the AIC); the catalogue is
+    // keyed by that number, in its canonical 9-digit form.
+    $local = $raw !== '' ? medicalLocalCode($raw, $country) : null;
+    $aic = (string)($local['aic'] ?? '');
+    if ($aic === '' && $raw !== '') {
+        $aic = medicineNormalizeAic($raw);
+    }
+    $results = [];
+    $exact = false;
+    if ($aic !== '') {
+        $row = medicineFindByAic($db, (string)$aic);
+        if ($row) {
+            $results[] = medicinePublicRow($row) + ['distance' => 0];
+            $exact = true;
+        }
+    }
+    // `near=1`: the caller cannot trust the last digit (it is an OCR read), so it wants the REAL
+    // codes around it to choose from. An AIC is dense: the boxes that differ by a digit or two
+    // are genuine rows — the same medicine at another pack size — and each carries its name, so
+    // a wrong digit becomes visible instead of silent. Ranked by distance from the read.
+    $near = in_array(strtolower((string)($_GET['near'] ?? '')), ['1', 'true', 'yes'], true);
+    // Exact hit: the box is known — skip neighbour/one-edit work (the client clears alt chips).
+    if ($near && $aic !== '' && !$exact) {
+        $seen = [];
+        foreach ($results as $r) { $seen[(string)$r['aic']] = true; }
+        $code = medicineNormalizeAic($aic);
+        $familyPrefix = strlen($code) >= 6 ? substr($code, 0, 6) : '';
+        // Pack suffix is what OCR usually mangling (029788027 vs real 029788041 gocce): pull the
+        // WHOLE 6-digit family first, before any looser neighbour that shares only "02978…".
+        foreach ([6, 7] as $take) {
+            if ($take > strlen($code)) { continue; }
+            foreach (medicineFindNeighbours($db, substr($code, 0, $take), 24) as $row) {
+                $rowAic = (string)($row['aic'] ?? '');
+                if ($rowAic === '' || isset($seen[$rowAic])) { continue; }
+                $seen[$rowAic] = true;
+                $results[] = medicinePublicRow($row) + ['distance' => medicineLevenshtein($code, $rowAic)];
+            }
+        }
+        $hasFamily = false;
+        if ($familyPrefix !== '') {
+            foreach ($results as $r) {
+                if (str_starts_with((string)($r['aic'] ?? ''), $familyPrefix)) {
+                    $hasFamily = true;
+                    break;
+                }
+            }
+        }
+        // A single wrong digit in the middle shares no long prefix: try the 90 one-edit codes.
+        if (!$hasFamily && count($results) < 4) {
+            foreach (medicineFindOneEdit($db, $code, 8) as $row) {
+                $rowAic = (string)($row['aic'] ?? '');
+                if ($rowAic === '' || isset($seen[$rowAic])) { continue; }
+                $seen[$rowAic] = true;
+                $results[] = medicinePublicRow($row) + ['distance' => medicineLevenshtein($code, $rowAic)];
+            }
+        }
+        // 5-digit prefix only when NOTHING in the 6-digit family exists — otherwise it pulls
+        // unrelated Sella packs at distance 2 (Argento/Canfora) and crowds out the real gocce.
+        if (!$hasFamily && count($results) < 4) {
+            foreach (medicineFindNeighbours($db, substr($code, 0, 5), 24) as $row) {
+                $rowAic = (string)($row['aic'] ?? '');
+                if ($rowAic === '' || isset($seen[$rowAic])) { continue; }
+                $dist = medicineLevenshtein($code, $rowAic);
+                if ($dist > 2) { continue; }
+                $seen[$rowAic] = true;
+                $results[] = medicinePublicRow($row) + ['distance' => $dist];
+            }
+        }
+        usort($results, static function ($a, $b) use ($familyPrefix) {
+            $aFam = ($familyPrefix !== '' && str_starts_with((string)($a['aic'] ?? ''), $familyPrefix)) ? 0 : 1;
+            $bFam = ($familyPrefix !== '' && str_starts_with((string)($b['aic'] ?? ''), $familyPrefix)) ? 0 : 1;
+            if ($aFam !== $bFam) { return $aFam <=> $bFam; }
+            $d = ((int)$a['distance']) <=> ((int)$b['distance']);
+            return $d !== 0 ? $d : strcmp((string)$a['aic'], (string)$b['aic']);
+        });
+        $results = array_values(array_filter($results, static function ($r) {
+            return (int)($r['distance'] ?? 99) <= 2;
+        }));
+        // Prefer keeping the whole family (up to 4) over padding with strangers.
+        if ($hasFamily && $familyPrefix !== '') {
+            $familyOnly = array_values(array_filter($results, static function ($r) use ($familyPrefix) {
+                return str_starts_with((string)($r['aic'] ?? ''), $familyPrefix);
+            }));
+            if ($familyOnly !== []) {
+                $results = $familyOnly;
+            }
+        }
+        $results = array_slice($results, 0, 4);
+    }
+    if (!$results && $query !== '') {
+        $limit = max(1, min(25, (int)($_GET['limit'] ?? 4)));
+        $offset = max(0, min(200, (int)($_GET['offset'] ?? 0)));
+        foreach (medicineSearch($db, $query, $limit, $offset) as $row) {
+            $results[] = medicinePublicRow($row);
+        }
+    }
+    // The OPTIONAL online provider (off unless MED_LOOKUP_PROVIDER says otherwise): asked ONLY for
+    // a code the local catalogue knows nowhere, and the answer is written into the local table, so
+    // this is a way to FILL the catalogue — never a dependency of the scan.
+    if (!$results && $aic !== '') {
+        $remote = medicinesProviderLookup($db, $country, (string)$aic);
+        if ($remote) {
+            $results[] = medicinePublicRow($remote) + ['distance' => 0, 'source' => 'provider'];
+            $exact = true;
+        }
+    }
+    EverLog::info('Medicine catalogue lookup', [
+        'event' => 'med_lookup',
+        'country' => $country,
+        'aic' => (string)$aic,
+        'query_len' => mb_strlen($query),
+        'results' => count($results),
+    ]);
+    echo json_encode([
+        'success' => true,
+        'enabled' => true,
+        'country' => $country,
+        'aic' => (string)$aic,
+        'results' => $results,
+        'exact' => $exact,
+        // Hint for the client: a 9-digit read that cannot be a current AIFA pack (e.g. starts
+        // with 9) should not be framed as “medicine missing from the catalogue”.
+        'implausible' => (!$exact && $aic !== '' && medicineAicLooksImplausible((string)$aic)),
+        'dataset' => medicinesDatasetInfo($db),
+        // The source and the licence are shown next to the result: the household must know
+        // where the name came from, and that it is an identification, not advice.
+        'dataset_key' => 'medical.dataset_aifa',
+        'advice_key' => 'medical.no_dosage',
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST med_catalog_sync — fetch the free national catalogue from the official source.
+ *
+ * The module declares WHERE (`dataset_sync`): Italy points at the AIFA "confezioni" export, one
+ * ~82 MB CSV with every authorised pack — AIC, name, company, pack, form, ATC, active ingredients
+ * — which is the WHOLE formulary, not the class-A subset. That completeness is what makes a scan
+ * verifiable: a read the catalogue does not contain is a misread digit, not a product.
+ *
+ * Runs without a key, without a quota, and without a per-scan request: the file lands in the
+ * local table and every lookup afterwards is offline. A failed download never empties what is
+ * already there (the import is an upsert).
+ */
+function medCatalogSyncAction(PDO $db): void {
+    if (!medicalEnabled($db)) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $country = medicalActiveCountry($db, (string)($_POST['lang'] ?? ($_GET['lang'] ?? '')));
+    $module = medicalCountryModule($country);
+    $sync = (array)($module['dataset_sync'] ?? []);
+    $columnsFn = (string)($module['dataset_columns'] ?? '');
+    if (!$sync || $columnsFn === '' || !is_callable($columnsFn)) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.sync_no_source', 'country' => $country], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    // Tens of thousands of rows: the ceiling of a web request must not cut the import in half.
+    @set_time_limit(0);
+    @ini_set('memory_limit', '512M');
+    $started = microtime(true);
+    $result = medicinesSyncSources($db, $sync, (array)$columnsFn(), [
+        'truncate' => false,
+        'limit' => 0,
+    ]);
+    $saved = (int)($result['saved'] ?? 0);
+    EverLog::info('Medicine catalogue sync', [
+        'event' => 'med_catalog_sync',
+        'country' => $country,
+        'saved' => $saved,
+        'skipped' => (int)($result['skipped'] ?? 0),
+        'error' => (string)($result['error'] ?? ''),
+        'files' => count((array)($result['files'] ?? [])),
+        'seconds' => round(microtime(true) - $started, 1),
+    ]);
+    if (!$result['ok']) {
+        echo json_encode([
+            'success' => false,
+            'error_key' => 'medical.sync_failed',
+            'files' => $result['files'] ?? [],
+            'dataset' => medicinesDatasetInfo($db),
+        ], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    echo json_encode([
+        'success' => true,
+        'saved' => $saved,
+        'skipped' => (int)($result['skipped'] ?? 0),
+        'seconds' => round(microtime(true) - $started, 1),
+        'files' => $result['files'] ?? [],
+        'dataset' => medicinesDatasetInfo($db),
+        'message_key' => 'medical.sync_done',
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST med_catalog_import — load the national medicine catalogue from the browser.
+ *
+ * Why an upload and not an API call: the official free dataset of a national formulary is a FILE
+ * (Italy: AIFA open data CSV/XML; US: the openFDA JSON export). No key-less REST service exists
+ * for "which medicine is AIC 040313076", so the honest implementation is to load the free file
+ * once — here, from Settings, without SSH — and answer every scan from the local table. Nothing
+ * of the household's data leaves this server, and no scan ever reaches a third party.
+ *
+ * The columns of the file come from the country module (`dataset_columns`), so the same endpoint
+ * imports a PZN list, an NDC list or the Italian CSV.
+ */
+function medCatalogImportAction(PDO $db): void {
+    if (!medicalEnabled($db)) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $country = medicalActiveCountry($db, (string)($_POST['lang'] ?? ''));
+    $module = medicalCountryModule($country);
+    $columnsFn = (string)(($module['dataset_columns'] ?? ''));
+    if ($columnsFn === '' || !is_callable($columnsFn)) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.import_no_country', 'country' => $country], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $file = $_FILES['file'] ?? null;
+    if (!is_array($file) || (int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
+        || !is_uploaded_file((string)($file['tmp_name'] ?? ''))) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.import_no_file'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $maxBytes = 96 * 1024 * 1024;
+    if ((int)($file['size'] ?? 0) > $maxBytes) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.import_too_big'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $ext = strtolower(pathinfo((string)($file['name'] ?? ''), PATHINFO_EXTENSION));
+    if (!in_array($ext, ['csv', 'xml', 'json'], true)) {
+        $ext = 'csv';
+    }
+    $tmp = tempnam(sys_get_temp_dir(), 'evershelf_med_');
+    $path = $tmp !== false ? $tmp . '.' . $ext : '';
+    if ($path === '' || !move_uploaded_file((string)$file['tmp_name'], $path)) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.import_no_file'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $result = medicinesImportFile($db, $path, ['limit' => 0], (array)$columnsFn());
+    @unlink($path);
+    if ($tmp !== false) {
+        @unlink($tmp);
+    }
+    $saved = (int)($result['saved'] ?? 0);
+    EverLog::info('Medicine catalogue imported from the browser', [
+        'event' => 'med_catalog_import',
+        'country' => $country,
+        'format' => (string)($result['format'] ?? ''),
+        'rows' => (int)($result['rows'] ?? 0),
+        'saved' => $saved,
+        'skipped' => (int)($result['skipped'] ?? 0),
+        'error' => (string)($result['error'] ?? ''),
+    ]);
+    if ($saved <= 0) {
+        echo json_encode([
+            'success' => false,
+            'error_key' => (($result['error'] ?? '') === 'missing_columns') ? 'medical.import_no_columns' : 'medical.import_failed',
+            'format' => (string)($result['format'] ?? ''),
+            'rows' => (int)($result['rows'] ?? 0),
+        ], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    echo json_encode([
+        'success' => true,
+        'saved' => $saved,
+        'skipped' => (int)($result['skipped'] ?? 0),
+        'format' => (string)($result['format'] ?? ''),
+        'dataset' => medicinesDatasetInfo($db),
+        'message_key' => 'medical.import_done',
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * GET med_symptom_search?q=mal+di+testa — what is already in the house for this symptom.
+ *
+ * Deterministic on purpose: the taxonomy is a local file, the inventory is our own database,
+ * and no model is involved. The response carries `disclaimer_key` so the UI pins the warning
+ * above the list, and it never contains a dosage: the app lists boxes, the doctor treats people.
+ */
+function medSymptomSearchAction(PDO $db): void {
+    $q = trim((string)($_GET['q'] ?? ''));
+    if (!medicalEnabled($db)) {
+        echo json_encode(['success' => true, 'enabled' => false, 'matches' => [], 'items' => [], 'disclaimer_key' => 'medical.disclaimer'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $matches = medicalMatchSymptom($q);
+    $slugs = array_map(static fn($m) => $m['slug'], $matches);
+    $atcs = [];
+    foreach ($matches as $m) {
+        foreach ((array)$m['atc'] as $a) { $atcs[] = strtoupper((string)$a); }
+    }
+    $items = [];
+    if ($slugs) {
+        // Medical rows only: the product flag, or the location the household marked as medical.
+        $medLocs = medicalLocationSlugs(_medicalSettingsMap($db));
+        $rows = $db->query("SELECT i.id, i.product_id, p.name, p.brand, p.category, p.image_url, p.unit, i.quantity,
+                                   p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
+                                   p.is_medical, p.med_atc, p.med_tags, p.med_ingredient, p.med_pao_days
+                            FROM inventory i JOIN products p ON p.id = i.product_id
+                            WHERE i.quantity > 0.001")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $row) {
+            if (!medicalIsMedicalRow($row, $medLocs)) continue;
+            $tags = medicalTagsOf($row);
+            $hit = (bool)array_intersect($tags, $slugs);
+            if (!$hit && $atcs) {
+                // Phase 2 (AIFA): an ATC prefix matches both ways, so N02BE01 belongs to N02B.
+                $atc = strtoupper(trim((string)($row['med_atc'] ?? '')));
+                foreach ($atcs as $want) {
+                    if ($atc !== '' && (stripos($atc, $want) === 0 || stripos($want, $atc) === 0)) { $hit = true; break; }
+                }
+            }
+            if (!$hit) continue;
+            $items[] = [
+                'inventory_id' => (int)$row['id'],
+                'product_id' => (int)$row['product_id'],
+                'name' => (string)$row['name'],
+                'brand' => (string)($row['brand'] ?? ''),
+                'ingredient' => (string)($row['med_ingredient'] ?? ''),
+                'tags' => $tags,
+                'atc' => strtoupper(trim((string)($row['med_atc'] ?? ''))),
+                'pao_days' => (int)($row['med_pao_days'] ?? 0),
+                'quantity' => (float)$row['quantity'],
+                'unit' => (string)($row['unit'] ?? 'pz'),
+                'default_quantity' => (float)($row['default_quantity'] ?? 0),
+                'package_unit' => (string)($row['package_unit'] ?? ''),
+                'location' => (string)($row['location'] ?? ''),
+                'expiry_date' => (string)($row['expiry_date'] ?? ''),
+                'opened_at' => (string)($row['opened_at'] ?? ''),
+                'image_url' => (string)($row['image_url'] ?? ''),
+                'is_medical' => true,
+            ];
+        }
+    }
+    echo json_encode([
+        'success' => true,
+        'enabled' => true,
+        'matches' => $matches,
+        'items' => $items,
+        'disclaimer_key' => 'medical.disclaimer',
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST med_classify — teach the module what a box is.
+ *
+ * Phase 1: the household picks one or more of the 8 CLOSED categories (never free text, or the
+ * offline search would rot), types the active ingredient (for the duplicate warning) and, for
+ * syrups/drops/creams, the "expires N days after opening" number. This also sets
+ * `is_medical`, so the row leaves the food domain from now on.
+ */
+function medClassifyAction(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    if (!medicalEnabled($db)) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $productId = (int)($input['product_id'] ?? 0);
+    $valid = medicalCategorySlugs();
+    $tags = [];
+    foreach ((array)($input['tags'] ?? []) as $t) {
+        $t = strtolower(trim((string)$t));
+        if ($t !== '' && in_array($t, $valid, true) && !in_array($t, $tags, true)) { $tags[] = $t; }
+    }
+    $atc = strtoupper(trim((string)($input['atc'] ?? '')));
+    // The catalogue hands a FULL ATC (`N02BE01`); the closed taxonomy only lists the household
+    // PREFIXES (`N02B`). Accept a code that starts with one of those prefixes — an exact match
+    // against the prefix list rejected every real AIFA code and left the category unsaved.
+    $atcOk = ($atc === '');
+    if (!$atcOk) {
+        foreach (medicalCategories() as $c) {
+            foreach ((array)($c['atc'] ?? []) as $a) {
+                $prefix = strtoupper((string)$a);
+                if ($prefix !== '' && str_starts_with($atc, $prefix)) { $atcOk = true; break 2; }
+            }
+        }
+    }
+    $ingredient = mb_substr(trim((string)($input['ingredient'] ?? '')), 0, 80);
+    $paoDays = max(0, min(365, (int)($input['pao_days'] ?? 0)));
+    if ($productId <= 0 || !$atcOk) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    // An empty PAO is not an answer: opening the box would mark the row open and leave the date
+    // alone ("non so per quanto tiene"). The FORM the name declares suggests it
+    // (`data/medical_pao.json`: a collirio keeps 28 days, a syrup 30, tablets nothing), and the
+    // household can always change the number in the sheet.
+    if ($paoDays === 0) {
+        $nameForPao = trim((string)($input['name'] ?? ''));
+        $notesForPao = '';
+        // The FORM usually lives in the pack notes ("Fastum" + "gel 2,5% 25 mg/g tubo 50 g"),
+        // not in the title: read them from the product when the caller did not send them.
+        $nameRowPao = $db->prepare('SELECT name, notes FROM products WHERE id = ?');
+        $nameRowPao->execute([$productId]);
+        $paoRow = $nameRowPao->fetch(PDO::FETCH_ASSOC) ?: [];
+        if ($nameForPao === '') {
+            $nameForPao = (string)($paoRow['name'] ?? '');
+        }
+        $notesForPao = (string)($input['notes'] ?? ($paoRow['notes'] ?? ''));
+        $paoDays = medicalPaoDaysForName($nameForPao, $notesForPao);
+    }
+    // Settings classify posts tags/ingredient/PAO with no ATC: never wipe the AIFA code the
+    // scan stored (`med_atc = ''` broke Phase-2 symptom search for that box).
+    if ($atc === '') {
+        $db->prepare("UPDATE products SET is_medical = 1, med_tags = ?, med_ingredient = ?, med_pao_days = ? WHERE id = ?")
+           ->execute([implode(',', $tags), $ingredient, $paoDays, $productId]);
+    } else {
+        $db->prepare("UPDATE products SET is_medical = 1, med_tags = ?, med_atc = ?, med_ingredient = ?, med_pao_days = ? WHERE id = ?")
+           ->execute([implode(',', $tags), $atc, $ingredient, $paoDays, $productId]);
+    }
+    // A medicine is not a food genre: drop a leading "Farmaco"/"Medicine" the title AI may
+    // have stamped, and clear a kind/shopping_name that is only the domain label.
+    $nameRow = $db->prepare('SELECT name, kind, shopping_name FROM products WHERE id = ?');
+    $nameRow->execute([$productId]);
+    $prod = $nameRow->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($prod) {
+        $oldName = (string)($prod['name'] ?? '');
+        $stripped = productKindStripUmbrellaCategoryPrefix($oldName);
+        $newName = productTitleCapitalize($stripped !== '' ? $stripped : $oldName);
+        $newKind = productKindIsPlausibleGenre((string)($prod['kind'] ?? '')) ? (string)$prod['kind'] : '';
+        $shop = trim((string)($prod['shopping_name'] ?? ''));
+        if ($shop === '' || !productKindIsPlausibleGenre($shop)) {
+            $shop = $newName;
+        }
+        if ($newName !== $oldName || $newKind !== (string)($prod['kind'] ?? '') || $shop !== (string)($prod['shopping_name'] ?? '')) {
+            $db->prepare('UPDATE products SET name = ?, kind = ?, shopping_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+               ->execute([$newName, $newKind, $shop, $productId]);
+        }
+    }
+    // A medicine lives in the cabinet: a product that already had stock (it was a food row
+    // being corrected) moves there now, so the domain rule never depends on the order in
+    // which the household did things.
+    $movedToCabinet = medicalStockMoveToCabinet($db, $productId);
+    EverLog::info('Medical product classified', [
+        'event' => 'med_classify',
+        'product_id' => $productId,
+        'tags' => $tags,
+        'pao_days' => $paoDays,
+        'moved_to_cabinet' => $movedToCabinet,
+    ]);
+    echo json_encode(['success' => true, 'tags' => $tags, 'pao_days' => $paoDays, 'moved_to_cabinet' => $movedToCabinet], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST med_open — "segna come aperto": a medicine's operational expiry is the printed date
+ * UNTIL the seal is broken; after that it is today + the N days the box declares. Only a
+ * product with `med_pao_days > 0` rewrites the expiry, and the rewrite is explicit
+ * (`expiry_user_set = 1`) so a later rescan cannot silently undo it.
+ */
+function medOpenAction(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $invId = (int)($input['inventory_id'] ?? 0);
+    if (!medicalEnabled($db) || $invId <= 0) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $stmt = $db->prepare("SELECT i.id, p.med_pao_days FROM inventory i JOIN products p ON p.id = i.product_id WHERE i.id = ?");
+    $stmt->execute([$invId]);
+    $found = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$found) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $pao = (int)($found['med_pao_days'] ?? 0);
+    // "Da quanto è aperto?" — the household may mark a box open three weeks after the fact, and
+    // the answer is what makes the PAO date honest: opened_at = today − N, expiry = opened_at + PAO.
+    $daysAgo = max(0, min(3650, (int)($input['days_ago'] ?? 0)));
+    $openMod = '-' . $daysAgo . ' day';
+    $db->prepare("UPDATE inventory SET opened_at = date('now', ?) WHERE id = ?")->execute([$openMod, $invId]);
+    // The DATE PRINTED ON THE BOX IS THE BOX'S OWN BUSINESS: opening it must not rewrite it.
+    // What changes is the SECOND clock — opened_at + PAO — and the row is late when EITHER one
+    // has passed: «un prodotto aperto superati i X giorni di apertura potrebbe essere scaduto
+    // anche se la data di scadenza non è ancora arrivata».
+    $openedAt = (string)$db->query("SELECT opened_at FROM inventory WHERE id = " . (int)$invId)->fetchColumn();
+    $printedExpiry = (string)$db->query("SELECT COALESCE(expiry_date, '') FROM inventory WHERE id = " . (int)$invId)->fetchColumn();
+    $paoExpiry = '';
+    if ($pao > 0 && $openedAt !== '') {
+        $left = $pao - $daysAgo;
+        $paoExpiry = (string)$db->query("SELECT date('now', '" . ($left >= 0 ? '+' : '-') . abs($left) . " day')")->fetchColumn();
+    }
+    EverLog::info('Medicine marked as opened', [
+        'event' => 'med_open',
+        'inventory_id' => $invId,
+        'pao_days' => $pao,
+        'days_ago' => $daysAgo,
+        'pao_expiry' => $paoExpiry,
+    ]);
+    echo json_encode([
+        'success'       => true,
+        'opened_at'     => $openedAt,
+        'expiry_date'   => $printedExpiry,
+        'pao_expiry'    => $paoExpiry,
+        'pao_days'      => $pao,
+        'days_ago'      => $daysAgo,
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * GET free_apis — the free services this instance talks to.
+ *
+ * The list is DATA (`data/free_apis.json`): a new integration is one row, never a
+ * template edit. The sentence that says what each one is used for is a translated UI
+ * string resolved by id (`_freeApiUsage`), so it follows the six locales.
+ */
+function getFreeApis(): void {
+    $path = __DIR__ . '/../data/free_apis.json';
+    $data = is_readable($path) ? json_decode((string)file_get_contents($path), true) : null;
+    $apis = is_array($data) && is_array($data['apis'] ?? null) ? $data['apis'] : [];
+    $out = [];
+    foreach ($apis as $api) {
+        if (!is_array($api) || trim((string)($api['id'] ?? '')) === '') {
+            continue;
+        }
+        $url = (string)($api['url'] ?? '');
+        $logo = (string)($api['logo'] ?? '');
+        $logoOk = preg_match('#^assets/img/[A-Za-z0-9_./-]+\.(svg|png)$#', $logo) && !str_contains($logo, '..');
+        $out[] = [
+            'id'      => (string)$api['id'],
+            'name'    => (string)($api['name'] ?? $api['id']),
+            'mark'    => (string)($api['mark'] ?? ''),
+            // A local asset only: the splash paints it offline, and a remote URL in the
+            // data must never turn into a request (or a tracking pixel) behind our back.
+            'logo'    => $logoOk ? $logo : '',
+            // Only a real http(s) URL becomes a link: the field cannot become javascript:.
+            'url'     => preg_match('#^https?://#i', $url) ? $url : '',
+            'licence' => (string)($api['licence'] ?? ''),
+            // Same two flags the generated file carries: a horizontal wordmark needs a wide
+            // box, and `splash: false` keeps it off the boot splash (see data/free_apis.json).
+            'wide'    => !empty($api['wide']),
+            'splash'  => !array_key_exists('splash', $api) || $api['splash'] !== false,
+            // A CONDITIONAL source (`when`): only shown when the module it belongs to is on and
+            // the country matches. Without this field the offline fallback would paint the
+            // national catalogue on an instance that never imported it.
+            'when'    => _freeApiWhenPublic($api['when'] ?? null),
+        ];
+    }
+    echo json_encode(['success' => true, 'apis' => $out], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * The `when` gate of a source, normalised for the client (same shape the generated file has).
+ *
+ * @return array{medical?:bool,country?:array<int,string>}|null
+ */
+function _freeApiWhenPublic($when): ?array
+{
+    if (!is_array($when)) {
+        return null;
+    }
+    $out = [];
+    if (!empty($when['medical'])) {
+        $out['medical'] = true;
+    }
+    $countries = [];
+    foreach ((array)($when['country'] ?? []) as $cc) {
+        $cc = strtoupper(trim((string)$cc));
+        if (preg_match('/^[A-Z]{2}$/', $cc) === 1) {
+            $countries[] = $cc;
+        }
+    }
+    if ($countries) {
+        $out['country'] = $countries;
+    }
+    return $out ?: null;
+}
+
+/**
  * GET support_qr — the donation link (or one of its published amounts) as a QR
  * image. SVG for browsers and Android WebViews, PNG for an Android ImageView.
  *
@@ -9474,6 +11361,8 @@ function saveSettings(): void {
         //   'adsense_slot_app'         => 'ADSENSE_SLOT_APP',
         //   'adsense_slot_screensaver' => 'ADSENSE_SLOT_SCREENSAVER',
         'support_mode'          => 'SUPPORT_MODE',
+        // When the answer was recorded (unix seconds): the question stays away for a month.
+        'support_answered_at'   => 'SUPPORT_ANSWERED_AT',
         'support_paypal_url'    => 'SUPPORT_PAYPAL_URL',
         'support_paypal_currency' => 'SUPPORT_PAYPAL_CURRENCY',
         'support_paypal_amounts'  => 'SUPPORT_PAYPAL_AMOUNTS',
@@ -9531,7 +11420,6 @@ function saveSettings(): void {
         'product_variants_enabled'       => 'PRODUCT_VARIANTS_ENABLED',
         'receipt_ocr_enabled'            => 'RECEIPT_OCR_ENABLED',
         'receipt_ocr_max_items'          => 'RECEIPT_OCR_MAX_ITEMS',
-        'audit_mode_enabled'             => 'AUDIT_MODE_ENABLED',
         'audit_mode_batch_size'          => 'AUDIT_MODE_BATCH_SIZE',
         'auto_favorite_min_uses'         => 'AUTO_FAVORITE_MIN_USES',
         'auto_favorite_top_n'            => 'AUTO_FAVORITE_TOP_N',
@@ -9583,7 +11471,14 @@ function saveSettings(): void {
     }
     foreach ($intMap as $inKey => $envKey) {
         if (array_key_exists($inKey, $input)) {
-            $envVars[$envKey] = (string)intval($input[$inKey]);
+            $value = intval($input[$inKey]);
+            // The idle screen's timeout is minutes, 1..60: the card cannot offer more, and a
+            // number outside that range would be read back as seconds (see
+            // `screensaverTimeoutMinutes()`), i.e. silently changed.
+            if ($inKey === 'screensaver_timeout') {
+                $value = max(1, min(60, $value));
+            }
+            $envVars[$envKey] = (string)$value;
         }
     }
     foreach ($floatMap as $inKey => $envKey) {
@@ -9697,6 +11592,431 @@ function saveSettings(): void {
         'success' => false,
         'error'   => 'Could not write .env file (permessi insufficienti sul server)',
     ]);
+}
+
+/**
+ * POST location_rename — give a custom storage location a new name.
+ *
+ * A custom location is three things at once, and they must not disagree:
+ *   - a display label in `CUSTOM_LOCATIONS` (.env, or its DB fallback when the file is
+ *     read-only),
+ *   - a slug on every pantry row (`inventory.location`, e.g. `custom_armadietto_farmaci`),
+ *   - a value in `app_settings.medical_locations`, where the first-run wizard stored the
+ *     label the household typed.
+ * Renaming only the label would leave the pantry pointing at a place that no longer exists
+ * (the tab stays empty and the medicine tint disappears), so this action moves the stock, the
+ * history and the medicine marking together, and only then writes the new label. Every
+ * refusal carries an `error_key`: the client prints it through `t()`, never the English prose.
+ */
+function locationRenameAction(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true);
+    $input = is_array($input) ? $input : [];
+    $old = trim((string)($input['old'] ?? ''));
+    $new = trim((string)($input['new'] ?? ''));
+
+    $map = inventoryCustomLocationMap($db);       // slug => label
+    $oldSlug = $old !== '' ? inventorySlugifyCustomLocation($old) : '';
+    if ($old === '' || $oldSlug === '' || !isset($map[$oldSlug])) {
+        EverLog::warn('location rename: unknown location', ['event' => 'location_rename_unknown', 'from' => $old]);
+        http_response_code(404);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Unknown location',
+            'error_key' => 'settings.custom_locations.rename_missing',
+        ]);
+        return;
+    }
+    $oldLabel = (string)$map[$oldSlug];
+
+    // `CUSTOM_LOCATIONS` is a comma separated list and the dashboard prints the label as
+    // typed: a comma would split the place in two. 40 characters is the input's own limit.
+    if ($new === '' || mb_strlen($new) > 40 || str_contains($new, ',') || str_contains($new, "\n")) {
+        http_response_code(400);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Invalid location name',
+            'error_key' => 'settings.custom_locations.invalid',
+        ]);
+        return;
+    }
+    $builtinKeys = array_map('mb_strtolower', inventoryBuiltinLocations());
+    $newSlug = inventorySlugifyCustomLocation($new);
+    if (in_array(mb_strtolower($new), $builtinKeys, true) || in_array($newSlug, $builtinKeys, true)) {
+        http_response_code(400);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Reserved name',
+            'error_key' => 'settings.custom_locations.reserved',
+        ]);
+        return;
+    }
+    if (isset($map[$newSlug]) && $newSlug !== $oldSlug) {
+        http_response_code(409);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Location already exists',
+            'error_key' => 'error.already_exists',
+        ]);
+        return;
+    }
+
+    $moved = 0;
+    $inTransaction = false;
+    try {
+        // 1) The stock and its history follow the new slug (a label-only change keeps them).
+        if ($newSlug !== $oldSlug) {
+            $db->beginTransaction();
+            $inTransaction = true;
+            $stmt = $db->prepare('UPDATE inventory SET location = ? WHERE location = ?');
+            $stmt->execute([$newSlug, $oldSlug]);
+            $moved = (int)$stmt->rowCount();
+            $db->prepare('UPDATE transactions SET location = ? WHERE location = ?')
+               ->execute([$newSlug, $oldSlug]);
+        }
+
+        // 2) The label list, in the position the household gave it.
+        $labels = array_values($map);
+        $pos = array_search($oldLabel, $labels, true);
+        if ($pos === false) {
+            $labels[] = $new;
+        } else {
+            $labels[$pos] = $new;
+        }
+        $updates = ['CUSTOM_LOCATIONS' => implode(',', $labels)];
+        $envFile = evershelfEnvFile();
+        $written = false;
+        if (is_writable($envFile) || (!file_exists($envFile) && is_writable(dirname($envFile)))) {
+            $written = evershelfWriteEnvFile($envFile, $updates, __DIR__ . '/../.env.example');
+        }
+        if ($written) {
+            clearEnvOverrides(['CUSTOM_LOCATIONS']);
+        } elseif (!saveEnvOverrides($updates) || env('CUSTOM_LOCATIONS') !== $updates['CUSTOM_LOCATIONS']) {
+            // A rename that is not read back is worse than an error: the stock has moved and
+            // the label would still be the old one (same rule as saveSettings, issue #261).
+            throw new RuntimeException('settings_not_persisted');
+        }
+
+        if ($inTransaction) {
+            $db->commit();
+        }
+    } catch (Throwable $e) {
+        if ($inTransaction && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        EverLog::error('location rename failed', [
+            'event'  => 'location_rename_failed',
+            'from'   => $oldLabel,
+            'to'     => $new,
+            'reason' => $e->getMessage(),
+        ]);
+        http_response_code(500);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Could not rename the location',
+            'error_key' => 'settings.custom_locations.rename_failed',
+        ]);
+        return;
+    }
+
+    // 3) The marked medicine location follows the rename, whether it was stored as the label
+    //    the wizard typed or as the slug a newer client sends.
+    try {
+        $stmt = $db->prepare("SELECT value FROM app_settings WHERE key = 'medical_locations'");
+        $stmt->execute();
+        $raw = $stmt->fetchColumn();
+        if ($raw !== false && $raw !== null) {
+            $list = json_decode((string)$raw, true);
+            $list = is_array($list) ? $list : [];
+            $changed = false;
+            foreach ($list as $i => $value) {
+                $v = strtolower(trim((string)$value));
+                if ($v === strtolower($oldLabel) || $v === $oldSlug) {
+                    $list[$i] = $new;
+                    $changed = true;
+                }
+            }
+            if ($changed) {
+                $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('medical_locations', ?, datetime('now'))
+                              ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+                   ->execute([json_encode(array_values($list), JSON_UNESCAPED_UNICODE)]);
+            }
+        }
+    } catch (Throwable $e) {
+        EverLog::warn('medical location not renamed', [
+            'event'  => 'location_rename_medical_skipped',
+            'reason' => $e->getMessage(),
+        ]);
+    }
+
+    EverLog::info('renamed a storage location', [
+        'event' => 'location_rename',
+        'from'  => $oldLabel,
+        'to'    => $new,
+        'items' => $moved,
+        'slug'  => $newSlug,
+    ]);
+
+    echo json_encode([
+        'success'  => true,
+        'label'    => $new,
+        'old_slug' => $oldSlug,
+        'new_slug' => $newSlug,
+        'moved'    => $moved,
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST location_delete — remove a storage place, built-in included, **only while it is empty**.
+ *
+ * Why an action and not a settings field: removing a place is a promise. "Dispensa" can go, but
+ * only when nothing lives there — a place the household can still see a jar in must never vanish
+ * from under it. Emptiness is judged the way the pantry judges it (`isInventoryDepleted`), so a
+ * 2 g trace the list already hides does not keep a room alive forever.
+ *
+ * The last remaining place cannot be deleted: the add form and every picker need somewhere to
+ * put the next product (`settings.custom_locations.last_place`).
+ *
+ * What happens per kind:
+ *   - built-in  → its slug is recorded in `app_settings.deleted_locations`;
+ *   - custom    → its label leaves `CUSTOM_LOCATIONS` (the rows are gone, the label would
+ *                 otherwise re-create the place) and its slug is recorded too;
+ *   - in both cases the medicine marking is dropped if it pointed here.
+ */
+function locationDeleteAction(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true);
+    $input = is_array($input) ? $input : [];
+    $key = mb_strtolower(trim((string)($input['key'] ?? '')));
+
+    $builtins = array_map('mb_strtolower', inventoryBuiltinLocations());
+    $customMap = inventoryCustomLocationMap($db);   // slug => label
+    $isBuiltin = in_array($key, $builtins, true);
+    $isCustom = isset($customMap[$key]);
+    if ($key === '' || (!$isBuiltin && !$isCustom)) {
+        EverLog::warn('location delete: unknown location', ['event' => 'location_delete_unknown', 'location' => $key]);
+        http_response_code(404);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Unknown location',
+            'error_key' => 'settings.custom_locations.delete_missing',
+        ]);
+        return;
+    }
+
+    // Empty means what the pantry means: no usable stock (a trace is not a product).
+    $stocked = 0;
+    try {
+        $stmt = $db->prepare('
+            SELECT i.quantity, p.unit
+            FROM inventory i JOIN products p ON p.id = i.product_id
+            WHERE LOWER(i.location) = ? AND i.quantity > 0
+        ');
+        $stmt->execute([$key]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            if (!isInventoryDepleted($row)) {
+                $stocked++;
+            }
+        }
+    } catch (Throwable $e) {
+        EverLog::error('location delete: stock check failed', [
+            'event'    => 'location_delete_check_failed',
+            'location' => $key,
+            'reason'   => $e->getMessage(),
+        ]);
+        http_response_code(500);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Could not check the location',
+            'error_key' => 'settings.custom_locations.delete_failed',
+        ]);
+        return;
+    }
+    if ($stocked > 0) {
+        EverLog::info('location delete refused: still in use', [
+            'event'    => 'location_delete_in_use',
+            'location' => $key,
+            'items'    => $stocked,
+        ]);
+        http_response_code(409);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Location still in use',
+            'error_key' => 'settings.custom_locations.in_use',
+            'count'     => $stocked,
+        ]);
+        return;
+    }
+
+    // Somewhere has to stay: the next product needs a place to go. `altro` does not count —
+    // it is the legacy alias of Dispensa (the client normalises it away), not a room.
+    $remaining = array_values(array_filter(
+        validInventoryLocations($db),
+        static fn($k) => !in_array(mb_strtolower((string)$k), [$key, 'altro'], true)
+    ));
+    if ($remaining === []) {
+        http_response_code(409);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'The last location cannot be deleted',
+            'error_key' => 'settings.custom_locations.last_place',
+        ]);
+        return;
+    }
+
+    $label = $isBuiltin
+        ? (string)($input['label'] ?? $key)
+        : (string)$customMap[$key];
+    _locationDeletePersist($db, $key, $label, $isCustom, $customMap);
+
+    EverLog::info('deleted a storage location', [
+        'event'    => 'location_delete',
+        'location' => $key,
+        'label'    => $label,
+        'builtin'  => $isBuiltin,
+    ]);
+
+    echo json_encode([
+        'success'           => true,
+        'deleted_locations' => deletedLocationsList($db),
+        'custom_locations'  => inventoryCustomLocationLabels($db),
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * The writes of `locationDeleteAction()`: label list, deleted list, medicine marking.
+ *
+ * Kept apart so the guards above stay readable — and so a failure in any of the three
+ * surfaces as one error instead of a half-deleted place.
+ *
+ * @param array<string,string> $customMap slug => label, read before the change
+ */
+function _locationDeletePersist(PDO $db, string $key, string $label, bool $isCustom, array $customMap): void
+{
+    // 1) A custom place disappears through its label list (comma separated .env value).
+    if ($isCustom) {
+        $labels = array_values($customMap);
+        $pos = array_search($label, $labels, true);
+        if ($pos !== false) {
+            unset($labels[$pos]);
+        }
+        $labels = array_values($labels);
+        $updates = ['CUSTOM_LOCATIONS' => implode(',', $labels)];
+        $envFile = evershelfEnvFile();
+        $written = false;
+        if (is_writable($envFile) || (!file_exists($envFile) && is_writable(dirname($envFile)))) {
+            $written = evershelfWriteEnvFile($envFile, $updates, __DIR__ . '/../.env.example');
+        }
+        if ($written) {
+            clearEnvOverrides(['CUSTOM_LOCATIONS']);
+        } elseif (!saveEnvOverrides($updates) || ($labels !== [] && env('CUSTOM_LOCATIONS') !== $updates['CUSTOM_LOCATIONS'])) {
+            // A place whose label was not really removed comes back on the next load.
+            throw new RuntimeException('settings_not_persisted');
+        }
+    }
+
+    // 2) The slug is remembered as deleted, built-in or not. Deleting Dispensa also retires
+    //    `altro`, its legacy alias: an old row must not bring the room back.
+    $gone = deletedLocationsList($db);
+    if (!in_array($key, $gone, true)) {
+        $gone[] = $key;
+    }
+    if ($key === 'dispensa' && !in_array('altro', $gone, true)) {
+        $gone[] = 'altro';
+    }
+    saveDeletedLocations($db, $gone);
+
+    // 3) A place that was the medicine cabinet stops being one.
+    try {
+        $stmt = $db->prepare("SELECT value FROM app_settings WHERE key = 'medical_locations'");
+        $stmt->execute();
+        $raw = $stmt->fetchColumn();
+        if ($raw !== false && $raw !== null) {
+            $list = json_decode((string)$raw, true);
+            $list = is_array($list) ? $list : [];
+            $kept = array_values(array_filter($list, static function ($v) use ($key, $label) {
+                $val = mb_strtolower(trim((string)$v));
+                return $val !== $key && $val !== mb_strtolower(trim($label));
+            }));
+            if (count($kept) !== count($list)) {
+                $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('medical_locations', ?, datetime('now'))
+                              ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+                   ->execute([json_encode($kept, JSON_UNESCAPED_UNICODE)]);
+            }
+        }
+    } catch (Throwable $e) {
+        EverLog::warn('medical location not cleared on delete', [
+            'event'    => 'location_delete_medical_skipped',
+            'location' => $key,
+            'reason'   => $e->getMessage(),
+        ]);
+    }
+}
+
+/**
+ * POST location_restore — bring back a deleted place (built-in or custom).
+ *
+ * Deleting is guarded (empty, not the last one), so the reverse has to exist: a place deleted by
+ * mistake must not need a hand-edited database. For a custom place the label was the household's
+ * word and it left `CUSTOM_LOCATIONS` with the place — it is restored from the slug, which is the
+ * same name in lower case (`custom_cantina` → «Cantina»), and can be renamed afterwards.
+ */
+function locationRestoreAction(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true);
+    $input = is_array($input) ? $input : [];
+    $key = mb_strtolower(trim((string)($input['key'] ?? '')));
+
+    $gone = deletedLocationsList($db);
+    if ($key === '' || !in_array($key, $gone, true)) {
+        http_response_code(404);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Not a deleted location',
+            'error_key' => 'settings.custom_locations.delete_missing',
+        ]);
+        return;
+    }
+
+    $restored = array_values(array_filter($gone, static fn($k) => $k !== $key));
+    // Deleting Dispensa retired `altro` with it: restoring brings the alias back too.
+    if ($key === 'dispensa') {
+        $restored = array_values(array_filter($restored, static fn($k) => $k !== 'altro'));
+    }
+    saveDeletedLocations($db, $restored);
+
+    // A custom place needs its label back, or the pantry would show a raw slug.
+    $labels = inventoryCustomLocationLabels($db);
+    $isBuiltin = in_array($key, array_map('mb_strtolower', inventoryBuiltinLocations()), true);
+    if (!$isBuiltin && !in_array($key, array_map('inventorySlugifyCustomLocation', $labels), true)) {
+        $label = inventoryLabelFromSlug($key);
+        $labels[] = $label;
+        $updates = ['CUSTOM_LOCATIONS' => implode(',', $labels)];
+        $envFile = evershelfEnvFile();
+        $written = false;
+        if (is_writable($envFile) || (!file_exists($envFile) && is_writable(dirname($envFile)))) {
+            $written = evershelfWriteEnvFile($envFile, $updates, __DIR__ . '/../.env.example');
+        }
+        if ($written) {
+            clearEnvOverrides(['CUSTOM_LOCATIONS']);
+        } elseif (!saveEnvOverrides($updates)) {
+            EverLog::warn('restored place keeps no label', [
+                'event'    => 'location_restore_label_skipped',
+                'location' => $key,
+            ]);
+        }
+    }
+
+    EverLog::info('restored a storage location', [
+        'event'    => 'location_restore',
+        'location' => $key,
+    ]);
+
+    echo json_encode([
+        'success'           => true,
+        'deleted_locations' => deletedLocationsList($db),
+        'custom_locations'  => inventoryCustomLocationLabels($db),
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 // ===== GEMINI AI FUNCTIONS =====
@@ -10318,6 +12638,59 @@ function geminiReadExpiry(): void {
 }
 
 // ===== GEMINI CHAT =====
+/**
+ * Structured medicine rows for SHELFY pharmacy mode (food excluded).
+ * Shape matches the client `_medCabinetContextPayload()` so either source works.
+ *
+ * @return list<array<string,mixed>>
+ */
+function geminiChatPharmacyMedicines(PDO $db): array {
+    $medLocs = medicalLocationSlugs(_medicalSettingsMap($db));
+    try {
+        $rows = $db->query(
+            "SELECT i.id, i.quantity, i.expiry_date, i.opened_at, i.location,
+                    p.name, p.brand, p.unit, p.default_quantity, p.package_unit,
+                    p.is_medical, p.med_atc, p.med_tags, p.med_ingredient, p.med_pao_days
+             FROM inventory i JOIN products p ON p.id = i.product_id
+             WHERE i.quantity > 0.001"
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        EverLog::warn('geminiChat pharmacy medicines', ['event' => 'gemini_chat_pharmacy_meds', 'error' => $e->getMessage()]);
+        return [];
+    }
+    $out = [];
+    foreach ($rows as $row) {
+        if (!medicalIsMedicalRow($row, $medLocs)) continue;
+        if (function_exists('isInventoryDepleted') && isInventoryDepleted($row)) continue;
+        $unit = strtolower(trim((string)($row['unit'] ?? 'pz')));
+        $qty = (float)($row['quantity'] ?? 0);
+        $stock = trim(rtrim(rtrim(sprintf('%.3f', $qty), '0'), '.')) . ' ' . $unit;
+        $openedAt = trim((string)($row['opened_at'] ?? ''));
+        $daysOpen = null;
+        if ($openedAt !== '') {
+            try {
+                $daysOpen = (int)floor((time() - strtotime($openedAt)) / 86400);
+                if ($daysOpen < 0) $daysOpen = 0;
+            } catch (Throwable $e) {
+                $daysOpen = null;
+            }
+        }
+        $tags = medicalTagsOf($row);
+        $out[] = [
+            'name' => (string)($row['name'] ?? ''),
+            'active_ingredient' => trim((string)($row['med_ingredient'] ?? '')),
+            'form' => $unit,
+            'stock' => $stock,
+            'opened' => $openedAt !== '',
+            'days_open' => $daysOpen,
+            'expiry' => ($row['expiry_date'] ?? null) ?: null,
+            'tags' => $tags,
+            'pao_days' => (int)($row['med_pao_days'] ?? 0) ?: null,
+        ];
+    }
+    return $out;
+}
+
 function geminiChat(PDO $db): void {
     $apiKey = aiCredential();
     if (empty($apiKey)) {
@@ -10333,48 +12706,78 @@ function geminiChat(PDO $db): void {
     $dietaryRestrictions = $input['dietary_restrictions'] ?? '';
     $lang = recipeNormalizeLang($input['lang'] ?? 'en');
     $langName = recipeLangName($lang);
+    $mode = strtolower(trim((string)($input['mode'] ?? 'kitchen')));
 
     if (empty($message)) {
         echo json_encode(['success' => false, 'error' => 'Empty message']);
         return;
     }
 
-    // Fetch cookable inventory context for the chat assistant
-    $items = recipeFetchPantryItems($db);
-
-    $ingredientLines = [];
-    foreach ($items as $item) {
-        $line = "- {$item['name']}";
-        if ($item['brand']) $line .= " ({$item['brand']})";
-        $line .= ": {$item['quantity']} {$item['unit']}";
-        if ($item['unit'] === 'conf' && !empty($item['package_unit']) && $item['default_quantity'] > 0) {
-            $line .= " (da {$item['default_quantity']} {$item['package_unit']} ciascuna)";
+    if ($mode === 'pharmacy') {
+        // Medicine-cabinet companion: never invent boxes, never prescribe doses.
+        // Prefer the live cabinet from SQLite; the client list is only a fallback.
+        $medicines = geminiChatPharmacyMedicines($db);
+        if (!$medicines) {
+            $clientMeds = $input['medicines'] ?? [];
+            $medicines = is_array($clientMeds) ? array_values($clientMeds) : [];
         }
-        $isOpen = !empty($item['opened_at']) ||
-                  (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
-        if ($isOpen) $line .= ' [APERTO]';
-        $loc = mb_strtolower(trim((string)($item['location'] ?? '')));
-        $inFreezer = ($loc === 'freezer' || $loc === 'surgelati');
-        if ($item['expiry_date'] && !$inFreezer) {
-            $daysLeft = (int)$item['days_left'];
-            $line .= recipeFormatExpiryLabel($daysLeft, (string)$item['expiry_date']);
-        } elseif ($item['expiry_date'] && $inFreezer) {
-            $line .= ' [freezer — scadenza lunga, non urgente]';
+        $medicinesJson = json_encode($medicines, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($medicinesJson === false) $medicinesJson = '[]';
+        $systemPrompt = <<<PROMPT
+You are SHELFY, a careful, empathetic household companion. Right now you are in the medicine cabinet ("Armadietto Farmaci" / pharmacy) section — NOT the kitchen.
+You are NOT a doctor and NOT a pharmacist. Your only job is to help the household take stock of medicines they already own at home.
+
+IMPORTANT: Always reply in {$langName}, in a warm, plain, reassuring tone.
+
+CONTEXT — MEDICINES CURRENTLY IN THE HOUSEHOLD CABINET (JSON; cite ONLY these boxes):
+{$medicinesJson}
+
+MANDATORY RULES:
+1. Always reply in {$langName}.
+2. Open with a clear medical disclaimer: you are not a doctor/pharmacist; for diagnosis, dosage, interactions or suitability they must ask their doctor or pharmacist and read the package leaflet (bugiardino).
+3. List only medicines that appear in the JSON above and that plausibly match the symptom or question. Name the commercial product using the exact `name` field from the JSON (so the app can offer a Use button), the active ingredient when known, and whether the pack is sealed or already opened (and days open / PAO when provided).
+4. NEVER give dosages, schedules, or "take N tablets every X hours". Always redirect to the leaflet / a professional.
+5. You may suggest gentle non-drug comfort tips (rest, hydration, dark room for headache, warm/cold compress). If a kitchen pantry tip helps (e.g. herbal tea), keep it optional and secondary.
+6. If nothing in the cabinet fits, say so honestly — do not invent products.
+7. Remember the previous conversation turns.
+8. Stay concise; no scare tactics and no clinical jargon wall.
+PROMPT;
+    } else {
+        // Fetch cookable inventory context for the chat assistant
+        $items = recipeFetchPantryItems($db);
+
+        $ingredientLines = [];
+        foreach ($items as $item) {
+            $line = "- {$item['name']}";
+            if ($item['brand']) $line .= " ({$item['brand']})";
+            $line .= ": {$item['quantity']} {$item['unit']}";
+            if ($item['unit'] === 'conf' && !empty($item['package_unit']) && $item['default_quantity'] > 0) {
+                $line .= " (da {$item['default_quantity']} {$item['package_unit']} ciascuna)";
+            }
+            $isOpen = !empty($item['opened_at']) ||
+                      (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
+            if ($isOpen) $line .= ' [APERTO]';
+            $loc = mb_strtolower(trim((string)($item['location'] ?? '')));
+            $inFreezer = ($loc === 'freezer' || $loc === 'surgelati');
+            if ($item['expiry_date'] && !$inFreezer) {
+                $daysLeft = (int)$item['days_left'];
+                $line .= recipeFormatExpiryLabel($daysLeft, (string)$item['expiry_date']);
+            } elseif ($item['expiry_date'] && $inFreezer) {
+                $line .= ' [freezer — scadenza lunga, non urgente]';
+            }
+            $line .= " (in {$item['location']})";
+            $ingredientLines[] = $line;
         }
-        $line .= " (in {$item['location']})";
-        $ingredientLines[] = $line;
-    }
-    $ingredientsText = implode("\n", $ingredientLines);
+        $ingredientsText = implode("\n", $ingredientLines);
 
-    $appliancesText = _buildAppliancesPrompt($appliances, compact: true);
+        $appliancesText = _buildAppliancesPrompt($appliances, compact: true);
 
-    $dietaryText = '';
-    if (!empty($dietaryRestrictions)) {
-        $dietaryText = "\nUser dietary restrictions: {$dietaryRestrictions}. Always respect these restrictions.";
-    }
+        $dietaryText = '';
+        if (!empty($dietaryRestrictions)) {
+            $dietaryText = "\nUser dietary restrictions: {$dietaryRestrictions}. Always respect these restrictions.";
+        }
 
-    $langName = recipeLangName($lang);
-    $systemPrompt = <<<PROMPT
+        $systemPrompt = <<<PROMPT
 You are an expert kitchen assistant, friendly and concise. The user has a pantry and asks you for advice on what to prepare.
 IMPORTANT: Always respond in {$langName}, using a colloquial and friendly tone.
 
@@ -10394,6 +12797,7 @@ RULES:
 9. Remember the context of the previous conversation
 10. If the user explicitly asks for a recipe for a specific appliance (e.g. bread machine, Cookeo, air fryer), provide the recipe ONLY for that appliance, with device-specific instructions (programs, ingredient order, times, temperatures)
 PROMPT;
+    }
 
     // Build conversation for Gemini
     // systemInstruction is passed separately in the payload; contents only contains the actual chat turns.
@@ -11247,7 +13651,22 @@ function recipeNormalizeParsedRecipe(array $recipe): array {
                 return $s;
             }
             if (is_array($s)) {
-                return $s['text'] ?? $s['description'] ?? $s['step'] ?? $s['instruction'] ?? json_encode($s, JSON_UNESCAPED_UNICODE);
+                // The FIELDS are not ordered. A model that emits both `text` and `instruction`
+                // may leave a fragment in one and the whole sentence in the other, and a fixed
+                // priority (`text` first) printed "confezione di Tonno all'olio…" with the
+                // beginning of the step — "Nel Frullatore/Mixer: unire la…" — silently gone.
+                // The step IS the sentence, so take the fullest candidate, whichever key it is.
+                $candidates = [];
+                foreach (['instruction', 'text', 'description', 'step'] as $field) {
+                    if (isset($s[$field]) && is_string($s[$field]) && trim($s[$field]) !== '') {
+                        $candidates[] = trim($s[$field]);
+                    }
+                }
+                if ($candidates) {
+                    usort($candidates, static fn(string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+                    return $candidates[0];
+                }
+                return json_encode($s, JSON_UNESCAPED_UNICODE);
             }
             return (string)$s;
         }, $recipe['steps']));
@@ -11804,6 +14223,38 @@ function healthBridgeTokenCreateAction(PDO $db): void {
     echo json_encode(['success' => true, 'token' => $created]);
 }
 
+/**
+ * Render the Health Bridge pairing QR LOCALLY (api/lib/qr.php).
+ *
+ * The payload carries the bridge token in clear, and it used to be drawn by
+ * api.qrserver.com: a third party received the household's token in a GET whose URL any
+ * proxy or access log keeps. Same picture, one request, no network.
+ */
+function healthBridgeQrAction(): void {
+    require_once __DIR__ . '/lib/qr.php';
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $data  = trim((string)($input['data'] ?? ''));
+    $obj   = json_decode($data, true);
+    if ($data === '' || strlen($data) > 1200 || !is_array($obj) || ($obj['service'] ?? '') !== 'evershelf_health') {
+        echo json_encode(['success' => false, 'error' => 'invalid_payload', 'error_key' => 'error.generic']);
+        return;
+    }
+    try {
+        $svg = evershelfQrSvg($data, 6, 4, 'M');
+        $png = evershelfQrPng($data, 8, 4, 'M');
+    } catch (Throwable $e) {
+        EverLog::warn('Health Bridge QR could not be rendered', ['event' => 'health_bridge_qr_failed', 'message' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'qr_failed', 'error_key' => 'error.generic']);
+        return;
+    }
+    EverLog::debug('Health Bridge QR rendered locally', ['event' => 'health_bridge_qr', 'png' => $png !== null]);
+    echo json_encode([
+        'success' => true,
+        'svg'     => 'data:image/svg+xml;base64,' . base64_encode($svg),
+        'png'     => $png !== null ? 'data:image/png;base64,' . base64_encode($png) : null,
+    ]);
+}
+
 function healthUnlinkAction(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
     $tokenId = isset($input['token_id']) ? (int)$input['token_id'] : null;
@@ -12262,6 +14713,7 @@ REGOLE:
 2. La ricetta deve essere eseguibile ORA con SOLO ciò che è in DISPENSA + acqua/sale/pepe/olio. VIETATO includere ingredienti assenti.
 3. Quantità MASSIME per $persons persona/e (NON superare mai): pasta/riso asciutto 90g/pers, carne 150g/pers, affettati/salumi/speck/prosciutto 70g/pers, pesce 180g/pers, legumi secchi 80g/pers (lessi 200g/pers), verdure contorno 150g/pers, verdure intere grosse (peperoni/melanzane/zucchine/finocchio) 1 pz/pers, cipolla grande 1 pz/pers (per soffritto mezza basta), formaggio 70g/pers, latte 200ml/pers, farina per dolci 200g/pers, piadina/tortilla/wrap 1-2 pz/pers. Se un ingrediente rimasto è inferiore a questi limiti, usalo tutto.
 4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf, MAI kg o litri). IMPORTANTE: per unità "pz" scrivi PEZZI (es. 1 cipolla = 1, anche ½ = 0.5).
+4b. COERENZA NUMERICA (vincolante): ogni quantità citata nei `steps` DEVE coincidere al 100% con il valore della lista `ingredients`. Se in `ingredients` c’è «Pan Bauletto: 1 pz», il passo dice «1 fetta di Pan Bauletto» e MAI «2 fette». Se la preparazione richiede più unità, correggi `qty_number` di conseguenza: il testo del procedimento non può contraddire la tabella degli ingredienti.
 5. "name": usa ESATTAMENTE il nome dalla lista (copia-incolla).
 6. In `ingredients` metti SOLO prodotti presenti in DISPENSA (tutti con from_pantry:true). Includi tutti quelli citati nei passi (tranne acqua/sale/pepe/olio e erbe in pizzico: prezzemolo, origano, basilico — solo nei passi, NON in ingredients).
 7. Se manca un carboidrato (couscous, pasta, riso…), usa un carboidrato PRESENTE in lista (es. riso/pasta che hai) oppure scegli un piatto senza quel componente. NON citare nei passi ingredienti che non sono in DISPENSA.
@@ -12821,17 +15273,17 @@ function generateRecipeStream(PDO $db): void {
         }
     }
 
-    // ── AGENTE PASSO 2: Selezione concetto (locale, nessuna chiamata AI) ────────
-    // Determina il concetto della ricetta in base agli ingredienti disponibili
-    // e ai parametri selezionati — senza consumare quote Gemini.
+    // ── AGENT STEP 2: concept selection (local, no AI call) ────────────────────
+    // Works out what the dish is about from the ingredients on hand and the chosen
+    // parameters — without spending a single Gemini token.
     $send('status', ['step' => 2, 'message' => recipeText($lang, 'status_evaluate_ingredients')]);
 
-    // Raccoglie i nomi degli ingredienti di maggiore priorità
+    // Collects the names of the highest-priority ingredients
     $conceptIngredients = [];
     foreach ([1, 2, 3, 5, 6] as $g) {
         foreach (array_slice($priorityGroups[$g] ?? [], 0, 4) as $line) {
             $name = trim(explode(':', ltrim($line, '- '))[0]);
-            // Rimuove emoji e flag di urgenza
+            // Strips the emoji and the urgency flags
             $name = trim(preg_replace('/\s*[\x{26A0}\x{1F534}\x{1F7E0}].*$/u', '', $name));
             $name = trim(preg_replace('/\s*\[.*\]/', '', $name));
             if ($name) $conceptIngredients[] = $name;
@@ -12839,20 +15291,20 @@ function generateRecipeStream(PDO $db): void {
         if (count($conceptIngredients) >= 6) break;
     }
 
-    // Costruisce un messaggio di stato informativo basato su ciò che verrà cucinato
+    // Builds an informative status line from what is about to be cooked
     $conceptMsg = recipeText($lang, 'status_preparing_recipe');
     if (!empty($mealPlanType) && isset($mealPlanTypeLabels[$mealPlanType]) && $mealPlanTypeLabels[$mealPlanType] !== '') {
-        // Tipo di pasto dal piano settimanale — mostra la categoria
+        // A meal type from the weekly plan: show its category
         $shortLabel = explode(' (', $mealPlanTypeLabels[$mealPlanType])[0];
         $conceptMsg = recipeText($lang, 'status_dish_based_on', ['type' => $shortLabel]);
-        // Aggiungi l'ingrediente principale se disponibile
+        // Add the main ingredient when there is one
         if (!empty($matchingItems)) {
             $firstMatch = ltrim(reset($matchingItems), '→ ');
             $fName = trim(explode(':', $firstMatch)[0]);
             if ($fName) $conceptMsg .= " ({$fName})";
         }
     } elseif (!empty($conceptIngredients)) {
-        // Mostra i primi 2 ingredienti più urgenti
+        // Show the two most urgent ingredients
         $shown = array_slice($conceptIngredients, 0, 2);
         $a = mb_strtolower($shown[0] ?? '');
         $b = mb_strtolower($shown[1] ?? '');
@@ -12881,6 +15333,7 @@ REGOLE:
 2. La ricetta deve essere eseguibile ORA con SOLO ciò che è in DISPENSA + acqua/sale/pepe/olio. VIETATO includere ingredienti assenti.
 3. Quantità MASSIME per $persons persona/e (NON superare mai): pasta/riso asciutto 90g/pers, carne 150g/pers, affettati/salumi/speck/prosciutto 70g/pers, pesce 180g/pers, legumi secchi 80g/pers (lessi 200g/pers), verdure contorno 150g/pers, verdure intere grosse (peperoni/melanzane/zucchine/finocchio) 1 pz/pers, cipolla grande 1 pz/pers (per soffritto mezza basta), formaggio 70g/pers, latte 200ml/pers, farina per dolci 200g/pers, piadina/tortilla/wrap 1-2 pz/pers. Se un ingrediente rimasto è inferiore a questi limiti, usalo tutto.
 4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf, MAI kg o litri). IMPORTANTE: per unità "pz" scrivi PEZZI (es. 1 cipolla = 1, anche ½ = 0.5).
+4b. COERENZA NUMERICA (vincolante): ogni quantità citata nei `steps` DEVE coincidere al 100% con il valore della lista `ingredients`. Se in `ingredients` c’è «Pan Bauletto: 1 pz», il passo dice «1 fetta di Pan Bauletto» e MAI «2 fette». Se la preparazione richiede più unità, correggi `qty_number` di conseguenza: il testo del procedimento non può contraddire la tabella degli ingredienti.
 5. "name": usa ESATTAMENTE il nome dalla lista (copia-incolla).
 6. In `ingredients` metti SOLO prodotti presenti in DISPENSA (tutti con from_pantry:true). Includi tutti quelli citati nei passi (tranne acqua/sale/pepe/olio e erbe in pizzico: prezzemolo, origano, basilico — solo nei passi, NON in ingredients).
 7. Se manca un carboidrato (couscous, pasta, riso…), usa un carboidrato PRESENTE in lista (es. riso/pasta che hai) oppure scegli un piatto senza quel componente. NON citare nei passi ingredienti che non sono in DISPENSA.
@@ -12999,7 +15452,7 @@ PROMPT;
             if ($httpCode !== 429 && $httpCode !== 503) break;
             if ($attempt >= $maxRetries) break;
 
-            // Calcola attesa: usa Retry-After se presente, altrimenti 30s (poi cambieremo modello)
+            // Back-off: honour Retry-After when the provider sends one, otherwise 30 s (then we switch model)
             $waitSec = $retryAfterHeader ?? 30;
             if ($body) {
                 $errData = json_decode($body, true);
@@ -13019,7 +15472,7 @@ PROMPT;
             $send('status', ['step' => 3, 'message' => recipeText($lang, 'status_retry_generation')]);
         }
 
-        // C: se primario esaurito dopo tutti i retry, cambia modello immediatamente
+        // C: the primary model is spent after every retry — switch model right away
         if (($httpCode === 429 || geminiModelUnavailable($httpCode, $result['data'] ?? null)) && $modelIdx < count($models) - 1) {
             $fallbackName = str_replace('gemini-', 'Gemini ', $models[$modelIdx + 1]);
             $send('status', ['step' => 3, 'message' => recipeText($lang, 'status_switch_model', ['model' => $fallbackName])]);
@@ -13690,6 +16143,13 @@ function productMatchesShoppingFamily(string $productName, string $shoppingName)
     $computed = mb_strtolower(computeShoppingName($productName, '', '', false));
     $snComputed = mb_strtolower(computeShoppingName($shoppingName, '', '', false));
     if ($computed === $sn || $computed === $snComputed) return true;
+    // A generic and its own truncation are the SAME family: the dictionary keeps the stem
+    // the title uses («Pan Bauletto al Grano Duro» → «Pan», curated as «Pane»), and the old
+    // exact comparison threw those rows out of the family they were filed under — the
+    // pantry held 23 slices of bread while the list asked for «Pane». Prefix in either
+    // direction, at least three letters, so «Tè al limone» never becomes «Limone».
+    $minLen = min(mb_strlen($computed), mb_strlen($sn));
+    if ($minLen >= 3 && (str_starts_with($computed, $sn) || str_starts_with($sn, $computed))) return true;
     $nameLower = mb_strtolower(trim($productName));
     return $nameLower === $sn || str_starts_with($nameLower, $sn . ' ');
 }
@@ -13707,7 +16167,20 @@ function isPreparedSaladProduct(string $name, string $brand = ''): bool {
     return false;
 }
 
+/**
+ * The buyable generic of a product, at the number a shopping list writes it.
+ *
+ * Every title in this app is SINGULAR in the pantry ("Uovo medio") and PLURAL on the
+ * list ("Uova medie"): a list is a list of things to buy, and "Peperone" next to
+ * "Peperoni" was two rows of the same vegetable. The number comes from the language
+ * data via productKindShoppingPlural(), so a mass noun (latte, pane, pasta) is never
+ * given an invented plural.
+ */
 function computeShoppingName(string $name, string $category = '', string $brand = '', bool $allowAi = false): string {
+    return productKindShoppingPlural(computeShoppingNameBase($name, $category, $brand, $allowAi));
+}
+
+function computeShoppingNameBase(string $name, string $category = '', string $brand = '', bool $allowAi = false): string {
     $lower = mb_strtolower(trim($name));
     if (isPreparedSaladProduct($name, $brand) && !preg_match('/insalata\s+di\s+riso/u', $lower)) {
         return 'Insalata di riso';
@@ -13727,7 +16200,11 @@ function computeShoppingName(string $name, string $category = '', string $brand 
     //      name — stay exactly what they have always been.
     $curated = productKindFromDictionary($name);
     if ($curated['kind'] !== '') {
-        return $curated['kind'];
+        // A title that leads with a CONTAINER word ("Verdura peperone", "Frutta
+        // limoni") must not title the shopping line: ask the rest of the name to the
+        // same dictionary first, and fall back to the curated kind when it is silent.
+        $specific = productKindShoppingGeneric($name, $brand);
+        return $specific !== '' ? $specific : $curated['kind'];
     }
 
     // 2. Bring! catalog back-translation — only when Bring mode is on.
@@ -13760,12 +16237,21 @@ function computeShoppingName(string $name, string $category = '', string $brand 
     if ($allowAi && $needsAI) {
         $aiResult = _geminiClassifyProduct($name, $brand, $category);
         // The AI word goes straight into the shopping list: give it the capital letter
-        // every other branch of this function already produces.
-        if ($aiResult !== null) return productTitleCapitalize($aiResult);
+        // every other branch of this function already produces. Domain labels ("Farmaco",
+        // "Dairy") are not buyable words — the same gate the title genre uses.
+        if ($aiResult !== null && productKindIsPlausibleGenre($aiResult)) {
+            return productTitleCapitalize($aiResult);
+        }
     }
 
     // 4. Fallback: capitalize the first meaningful token.
     if (!empty($tokens)) {
+        // …unless the first token alone truncates a real product name: "Petto di pollo
+        // a fette" is bought as "Petto di pollo", never as "Petto".
+        $phrase = productKindShoppingPhrase($name);
+        if ($phrase !== '') {
+            return $phrase;
+        }
         return mb_strtoupper(mb_substr($firstToken, 0, 1)) . mb_substr($firstToken, 1);
     }
     return ucfirst($name);
@@ -13836,6 +16322,14 @@ function bringQuickSyncProduct(PDO $db, int $productId): void {
             EverLog::info('bringQuickSync: added to Bring!', ['product_id' => $productId, 'name' => $bringName]);
         } elseif ($totalQty > 0 && $onBring
             && !familyHasRecentlyDepletedSiblings($db, $productId, $genericName)) {
+            // Same rule as the internal branch below: no cache, no deletion.
+            if ($smartItems === []) {
+                EverLog::debug('bringQuickSync: no cache, nothing removed', [
+                    'event' => 'shopping_quick_sync_no_cache',
+                    'product_id' => $productId,
+                ]);
+                return;
+            }
             $eval = shoppingEvaluateFamilyRestock($db, $productId);
             if (!empty($eval['covered'])) {
                 bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}",
@@ -13874,6 +16368,20 @@ function bringQuickSyncProduct(PDO $db, int $productId): void {
                ->execute([$genericName, $prod['name'], $spec]);
             EverLog::info('shoppingQuickSync: added to internal list', ['product_id' => $productId, 'name' => $genericName]);
         } elseif ($totalQty > $threshold && $onList) {
+            // NO CACHE = NO KNOWLEDGE, and this runs on EVERY inventory write (a stocktake answers
+            // one card at a time). `$si === null` above means "the cache stopped asking" OR "there
+            // is no cache at all" — `shopping_remove` unlinks it on purpose — and deleting on the
+            // second case is what took shopping rows off the list answer after answer while the
+            // next cron put them straight back: «mette e toglie». Only a cache that EXISTS and does
+            // not ask may remove a row.
+            if ($smartItems === []) {
+                EverLog::debug('shoppingQuickSync: no cache, nothing removed', [
+                    'event' => 'shopping_quick_sync_no_cache',
+                    'product_id' => $productId,
+                    'name' => $genericName,
+                ]);
+                return;
+            }
             // Only remove when remaining family need is covered (partial restock keeps the row)
             $eval = shoppingEvaluateFamilyRestock($db, $productId);
             if (!empty($eval['covered'])) {
@@ -13934,6 +16442,29 @@ function createLocalBackup(?PDO $db = null): array {
         } catch (Throwable $e) { /* non-fatal */ }
         @unlink($tmpPath);
         $made = @copy($dbFile, $tmpPath);
+    }
+    // A snapshot is only a backup if it opens: verify it before it replaces anything
+    // (audit G3). `quick_check` is the cheap structural check (O(pages), no repair);
+    // a truncated or half-copied file fails here instead of being promoted to "the
+    // backup" and discovered on restore day.
+    if ($made) {
+        $integrity = 'unreadable';
+        try {
+            $probe = new PDO('sqlite:' . $tmpPath);
+            $probe->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $integrity = (string)$probe->query('PRAGMA quick_check')->fetchColumn();
+            $probe = null;
+        } catch (Throwable $e) {
+            $integrity = 'unreadable: ' . $e->getMessage();
+        }
+        if ($integrity !== 'ok') {
+            @unlink($tmpPath);
+            EverLog::error('Backup failed its integrity check', [
+                'event'  => 'backup_integrity_failed',
+                'result' => substr($integrity, 0, 200),
+            ]);
+            return ['success' => false, 'error' => 'Backup failed the integrity check', 'error_key' => 'error.backup_integrity'];
+        }
     }
     if (!$made || !@rename($tmpPath, $destPath)) {
         @unlink($tmpPath);
@@ -14109,8 +16640,24 @@ function _gdriveGetTokenOAuth(): array {
 /**
  * Handle the OAuth 2.0 callback: exchange the code for tokens, store refresh_token.
  * Returns HTML (not JSON) — must be called before Content-Type header is sent.
+ *
+ * The `state` rule itself lives in api/lib/gdrive_state.php (public endpoint, single use).
  */
 function _gdriveHandleOAuthCallback(): void {
+    // The `state` check comes FIRST: this endpoint is public and it overwrites the refresh
+    // token, so an unverified code must never reach Google (see evershelfGdriveStateIssue()).
+    $state = (string)($_GET['state'] ?? '');
+    if (!evershelfGdriveStateConsume($state)) {
+        EverLog::warn('Google Drive OAuth callback rejected: missing, expired or reused state', [
+            'event' => 'gdrive_oauth_bad_state',
+        ]);
+        http_response_code(403);
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<html><body style="font-family:sans-serif;padding:2rem"><h2>&#10060; Authorisation rejected</h2>'
+           . '<p>This link is not valid any more. Start the Google Drive connection again from Settings &rarr; Backup.</p>'
+           . '</body></html>';
+        return;
+    }
     $code = $_GET['code'] ?? '';
     if (empty($code)) {
         http_response_code(400);
@@ -15795,6 +18342,68 @@ function shoppingClearDismissedForProduct(PDO $db, int $productId): void
     shoppingClearDismissed($db, array_merge([$name, $generic], shoppingDismissKeys($db, $generic, $name)));
 }
 
+/**
+ * GET shopping_dismissed — the "Non comprati" drawer.
+ *
+ * `shopping_dismissed` is a map of lowercased name → date-until. It was write-only from the UI:
+ * the household could say "this week I don't want broccoli" and had no way of seeing or undoing
+ * it. This lists what is out and for how long, so the drawer can offer Ripristina.
+ */
+function shoppingDismissedList(PDO $db): void
+{
+    $map = shoppingDismissLoad($db);
+    $today = strtotime(date('Y-m-d'));
+    $items = [];
+    foreach ($map as $key => $until) {
+        $items[] = [
+            'key'      => (string)$key,
+            'name'     => shoppingDismissedDisplayName($db, (string)$key),
+            'until'    => (string)$until,
+            'days_left'=> max(0, (int)round((strtotime((string)$until) - $today) / 86400)),
+        ];
+    }
+    usort($items, static fn(array $a, array $b): int => strcmp($a['name'], $b['name']));
+    echo json_encode(['success' => true, 'items' => $items, 'count' => count($items)], JSON_UNESCAPED_UNICODE);
+}
+
+/** The real spelling of a dismissed key: a product that carries it, else the key title-cased. */
+function shoppingDismissedDisplayName(PDO $db, string $key): string
+{
+    $key = trim($key);
+    if ($key === '') {
+        return '';
+    }
+    try {
+        $stmt = $db->prepare('SELECT name FROM products WHERE LOWER(TRIM(name)) = ? OR LOWER(TRIM(shopping_name)) = ? LIMIT 1');
+        $stmt->execute([$key, $key]);
+        $found = (string)($stmt->fetchColumn() ?: '');
+        if ($found !== '') {
+            return $found;
+        }
+    } catch (Throwable $e) { /* no products table: fall back to the key */ }
+    return mb_convert_case($key, MB_CASE_TITLE, 'UTF-8');
+}
+
+/** POST shopping_dismissed_restore — put one product (or all) back on the list. */
+function shoppingDismissedRestore(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    if (!empty($input['all'])) {
+        shoppingDismissSave($db, []);
+        echo json_encode(['success' => true, 'restored' => 'all', 'remaining' => 0]);
+        return;
+    }
+    $key = mb_strtolower(trim((string)($input['key'] ?? '')));
+    if ($key === '') {
+        echo json_encode(['success' => false, 'error' => 'Invalid key']);
+        return;
+    }
+    shoppingClearDismissed($db, [$key]);
+    $remaining = count(shoppingDismissLoad($db));
+    EverLog::info('Shopping dismissed restored', ['event' => 'shopping_dismissed_restore', 'key' => $key, 'remaining' => $remaining]);
+    echo json_encode(['success' => true, 'key' => $key, 'remaining' => $remaining], JSON_UNESCAPED_UNICODE);
+}
+
 /** Mark Bring! "recently purchased" items so cron/client do not re-add them. */
 function bringSyncPurchasedFromBringList(PDO $db, array $recently): void {
     if (empty($recently)) {
@@ -16500,17 +19109,29 @@ function internalShoppingCleanupObsolete(PDO $db): array {
         => evershelfFamilyUsableStockQtyMemo($db, $generic, $unit, $pkgSize, $pkgUnit);
     $removed     = 0;
     $candidates  = 0;
+    $cleared     = 0;   // «🛒 Esaurito» rows the shelf has since refilled
     $rows = $db->query("SELECT id, name, raw_name, specification FROM shopping_list")->fetchAll(PDO::FETCH_ASSOC);
     $del  = $db->prepare("DELETE FROM shopping_list WHERE id = ?");
 
     foreach ($rows as $row) {
         $spec = (string)($row['specification'] ?? '');
-        // Only EverShelf-owned rows; never a row the user marked as finished.
-        if (!evershelfSpecIsAppManaged($spec) || evershelfSpecIsDeliberate($spec)) {
+        // Only EverShelf-owned rows reach this point.
+        if (!evershelfSpecIsAppManaged($spec)) {
             continue;
         }
         $name = trim((string)($row['name'] ?? ''));
         $raw  = trim((string)($row['raw_name'] ?? ''));
+        if (evershelfSpecIsDeliberate($spec)) {
+            // «🛒 Esaurito» is a decision, never a prediction — but a shelf refilled since
+            // then makes the row a lie («Banane · 🛒 Esaurito» next to three bananas). It is
+            // cleared only on evidence, and the line says so.
+            if (!evershelfFamilyBackInStock($db, $name)) {
+                continue;
+            }
+            $cleared++;
+            $del->execute([(int)$row['id']]);
+            continue;
+        }
 
         if (evershelfShoppingRowStillNeeded($db, $index, $name, $raw, $familyUsableQty)) {
             continue;
@@ -16524,7 +19145,14 @@ function internalShoppingCleanupObsolete(PDO $db): array {
         }
     }
 
-    return ['candidates' => $candidates, 'removed' => $removed];
+    if ($cleared > 0) {
+        EverLog::info('shopping_finished_row_cleared', [
+            'event' => 'shopping_finished_row_cleared',
+            'cleared' => $cleared,
+        ]);
+    }
+
+    return ['candidates' => $candidates, 'removed' => $removed, 'cleared' => $cleared];
 }
 
 function bringGetList(): void {
@@ -16811,14 +19439,22 @@ function shoppingAddDepletedInternal(
             $out['reason'] = 'already_on_list';
         }
     } else {
-        $db->prepare('INSERT INTO shopping_list (name, raw_name, specification) VALUES (?, ?, ?)')
-           ->execute([$genericName, $rawName, dedupeBringSpec($spec)]);
-        $out['added'] = true;
-        EverLog::info('shoppingAddDepletedInternal: added', [
-            'name' => $genericName,
-            'raw'  => $rawName,
-        ]);
-        _fireHaWebhook('shopping_add', ['item' => $genericName, 'specification' => $spec]);
+        // INSERT OR IGNORE: the list is keyed by lower(name) (idx_shopping_list_name) and
+        // two paths can resolve the same generic at once — the lookup above is a check,
+        // not a lock. Without this a race surfaced the raw SQLSTATE to the household.
+        $ins = $db->prepare('INSERT OR IGNORE INTO shopping_list (name, raw_name, specification) VALUES (?, ?, ?)');
+        $ins->execute([$genericName, $rawName, dedupeBringSpec($spec)]);
+        $out['added'] = $ins->rowCount() > 0;
+        if ($out['added']) {
+            EverLog::info('shoppingAddDepletedInternal: added', [
+                'name' => $genericName,
+                'raw'  => $rawName,
+            ]);
+            _fireHaWebhook('shopping_add', ['item' => $genericName, 'specification' => $spec]);
+        } else {
+            $out['skipped'] = true;
+            $out['reason'] = 'already_on_list';
+        }
     }
 
     internalShoppingDedupeGenerics($db);
@@ -17113,7 +19749,11 @@ function smartShoppingCached(PDO $db): void {
 
     $planDays = smartResolvePlanDays($_GET['plan_days'] ?? null, $db);
     $force    = !empty($_GET['force']);
-    $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
+    // Demo mode answers from a per-language database, so its cache is per language too:
+    // one `smart_shopping_cache.json` would let a German visitor read the English list.
+    $cacheFile = evershelfDemoRequested()
+        ? __DIR__ . '/../data/smart_shopping_cache-' . evershelfDemoLang() . '.json'
+        : __DIR__ . '/../data/smart_shopping_cache.json';
     $maxAge    = 3 * 60;
 
     if (!$force && file_exists($cacheFile)) {
@@ -17124,10 +19764,21 @@ function smartShoppingCached(PDO $db): void {
                 $data = json_decode($raw, true);
                 // `empty_stock_only` marks the cache schema: an older cache written while
                 // low-stock items were still listed is rebuilt instead of being served.
-                if ($data && isset($data['success']) && !empty($data['empty_stock_only']) && (int)($data['plan_days'] ?? -1) === $planDays) {
+                // `medical_sections` does the same for the 💊 row flag (`is_medical`): a payload
+                // written before it exists would put a medicine back among the tomatoes for up
+                // to three minutes.
+                if ($data && isset($data['success']) && !empty($data['empty_stock_only'])
+                    && !empty($data['medical_sections'])
+                    && (int)($data['plan_days'] ?? -1) === $planDays) {
                     $data['cache_age_seconds'] = time() - ($data['cached_ts'] ?? $mtime);
                     $data['items'] = smartShoppingFilterPurchased($db, $data['items'] ?? []);
                     $data['plan_days_default'] = smartDefaultPlanDays($db);
+                    // Why that number travels with the cache too: a stale-but-served payload
+                    // must still be able to explain its own horizon.
+                    $meta = smartPlanCycleMeta($db);
+                    $data['plan_days_source'] = $meta['source'];
+                    $data['plan_days_samples'] = $meta['samples'];
+                    $data['fresh_horizon_days'] = saleUnitsFreshHorizonDays();
                     echo json_encode($data, JSON_UNESCAPED_UNICODE);
                     return;
                 }
@@ -17141,6 +19792,8 @@ function smartShoppingCached(PDO $db): void {
     $decoded = json_decode($json, true);
     if ($decoded && !empty($decoded['success'])) {
         $decoded['empty_stock_only'] = true;
+        // Schema marker for the 💊 section: see `smartShoppingCached()`.
+        $decoded['medical_sections'] = true;
         $decoded['cached_ts'] = time();
         $decoded['cached_at'] = date('c');
         @file_put_contents($cacheFile, json_encode($decoded, JSON_UNESCAPED_UNICODE), LOCK_EX);
@@ -17210,77 +19863,156 @@ function _productOnBring(string $productName, array $bringItems, string $shoppin
  * Returns null when there is not enough history.
  */
 function smartInferShoppingCycleDays(?PDO $db = null): ?int {
-    $gaps = [];
-
-    // 1) Optional spend tracking
+    // The household's rhythm is measured from its REAL shopping sessions first
+    // (`data/shopping_spend.json` holds one entry per spesa, asked for at the till).
+    // Only when there is nothing to average do we fall back to the inventory loads, and
+    // only when those look like trips; otherwise the caller uses the 30-day default.
     if (function_exists('_spendLoadHistory')) {
-        $entries = _spendLoadHistory();
-        if (count($entries) >= 3) {
-            $ts = [];
-            foreach ($entries as $e) {
-                $t = (int)($e['ts'] ?? 0);
-                if ($t > 1_000_000_000_000) {
-                    $t = (int)floor($t / 1000); // ms → s
-                }
-                if ($t > 1_000_000_000) {
-                    $ts[] = $t;
-                }
+        $ts = [];
+        foreach ((array)_spendLoadHistory() as $e) {
+            $t = (int)($e['ts'] ?? 0);
+            if ($t > 1_000_000_000_000) {
+                $t = (int)floor($t / 1000); // ms → s
             }
-            $ts = array_values(array_unique($ts));
-            sort($ts);
-            for ($i = 1; $i < count($ts); $i++) {
-                $g = (int)round(($ts[$i] - $ts[$i - 1]) / 86400);
-                if ($g >= 2 && $g <= 45) {
-                    $gaps[] = $g;
-                }
+            if ($t > 1_000_000_000) {
+                $ts[] = $t;
+            }
+        }
+        $ts = array_values(array_unique($ts));
+        sort($ts);
+        if (count($ts) >= 3) {
+            $gaps = smartShoppingGapsFromTimestamps($ts);
+            if (count($gaps) >= 2) {
+                return smartShoppingCycleFromGaps($gaps);
             }
         }
     }
 
-    // 2) Buy-day clusters from inventory "in" transactions (last 120 days)
-    if ($db instanceof PDO) {
-        try {
-            $txReal = function_exists('shoppingTxNotMoveNotesSql')
-                ? shoppingTxNotMoveNotesSql('notes')
-                : '1=1';
-            $rows = $db->query("
-                SELECT DISTINCT date(created_at) AS d
-                FROM transactions
-                WHERE type = 'in' AND undone = 0 AND {$txReal}
-                  AND created_at >= datetime('now', '-120 days')
-                ORDER BY d ASC
-            ")->fetchAll(PDO::FETCH_COLUMN);
-            $days = array_values(array_filter(array_map('strval', $rows ?: [])));
-            for ($i = 1; $i < count($days); $i++) {
-                $g = (int)round((strtotime($days[$i]) - strtotime($days[$i - 1])) / 86400);
-                if ($g >= 3 && $g <= 45) {
-                    $gaps[] = $g;
-                }
-            }
-        } catch (Throwable $e) {
-            // ignore — fall back to default
-        }
-    }
-
-    if (count($gaps) < 2) {
+    if (!$db instanceof PDO) {
         return null;
     }
-    sort($gaps);
-    $mid = (int)$gaps[(int)floor((count($gaps) - 1) / 2)];
-    return max(7, min(30, $mid));
+    try {
+        $txReal = function_exists('shoppingTxNotMoveNotesSql')
+            ? shoppingTxNotMoveNotesSql('notes')
+            : '1=1';
+        $rows = $db->query("
+            SELECT DISTINCT date(created_at) AS d
+            FROM transactions
+            WHERE type = 'in' AND undone = 0 AND {$txReal}
+              AND created_at >= datetime('now', '-120 days')
+            ORDER BY d ASC
+        ")->fetchAll(PDO::FETCH_COLUMN);
+        $days = array_values(array_filter(array_map('strval', $rows ?: [])));
+        // A SHOP is a cluster of days, not a day: food is put away over an evening, logged
+        // on the 3rd and again on the 4th. Counting every logged day as its own trip gave a
+        // 3-day "cycle" on a pantry that shops twice a month.
+        $trips = [];
+        $prevTs = null;
+        foreach ($days as $d) {
+            $ts = strtotime($d);
+            if ($ts === false) {
+                continue;
+            }
+            if ($prevTs === null || ($ts - $prevTs) / 86400 > 2) {
+                $trips[] = $ts;
+            }
+            $prevTs = $ts;
+        }
+        if (count($trips) < 4) {
+            return null;      // too few trips to call it a cycle: the caller uses 30 days
+        }
+        $gaps = smartShoppingGapsFromTimestamps($trips);
+        if (count($gaps) < 3) {
+            return null;
+        }
+        return smartShoppingCycleFromGaps($gaps);
+    } catch (Throwable $e) {
+        return null;
+    }
 }
 
 /**
- * Default shopping horizon: inferred trip cycle when known, otherwise 30 days.
- * (Previously: days left in the month — that overshot perishables near month start
- * and collapsed piece suggestions near month end.)
+ * Day gaps between shopping moments, including the interval still open (last → today).
+ * Gaps outside 2–45 days are noise: a 1-day gap is one shop split in two, a 60-day gap
+ * is a pantry that was not used.
+ *
+ * @param list<int> $timestamps
+ * @return list<int>
  */
+function smartShoppingGapsFromTimestamps(array $timestamps): array
+{
+    sort($timestamps);
+    $gaps = [];
+    for ($i = 1; $i < count($timestamps); $i++) {
+        $g = (int)round(($timestamps[$i] - $timestamps[$i - 1]) / 86400);
+        if ($g >= 2 && $g <= 45) {
+            $gaps[] = $g;
+        }
+    }
+    $last = end($timestamps);
+    if ($last) {
+        $open = (int)round((strtotime(date('Y-m-d')) - (int)$last) / 86400);
+        if ($open >= 2 && $open <= 45) {
+            $gaps[] = $open;
+        }
+    }
+    return $gaps;
+}
+
+/**
+ * Where the horizon came from, and on how much evidence — the UI says it in one tooltip.
+ *
+ * @return array{source:string,samples:int}
+ */
+function smartPlanCycleMeta(?PDO $db = null): array
+{
+    if (function_exists('_spendLoadHistory')) {
+        $n = 0;
+        foreach ((array)_spendLoadHistory() as $e) {
+            if ((int)($e['ts'] ?? 0) > 1_000_000) {
+                $n++;
+            }
+        }
+        if ($n >= 3) {
+            return ['source' => 'sessions', 'samples' => $n];
+        }
+    }
+    if ($db instanceof PDO) {
+        try {
+            $txReal = function_exists('shoppingTxNotMoveNotesSql') ? shoppingTxNotMoveNotesSql('notes') : '1=1';
+            $days = $db->query("SELECT COUNT(*) FROM (SELECT DISTINCT date(created_at) AS d FROM transactions
+                               WHERE type = 'in' AND undone = 0 AND {$txReal}
+                                 AND created_at >= datetime('now', '-120 days'))")->fetchColumn();
+            if ((int)$days >= 8) {
+                return ['source' => 'trips', 'samples' => (int)$days];
+            }
+        } catch (Throwable $e) {
+            // ignore
+        }
+    }
+    return ['source' => 'default', 'samples' => 0];
+}
+
+/** The cycle is the AVERAGE of those gaps — a horizon a pantry can act on (7–30 days). */
+function smartShoppingCycleFromGaps(array $gaps): ?int
+{
+    if (count($gaps) < 2) {
+        return null;
+    }
+    $mean = (int)round(array_sum($gaps) / count($gaps));
+    return max(7, min(30, $mean));
+}
+
 function smartDefaultPlanDays(?PDO $db = null): int {
     $inferred = smartInferShoppingCycleDays($db);
     if ($inferred !== null) {
         return $inferred;
     }
-    return 30;
+    // A weekly shop is the default: the fresh produce of a 30-day plan rots in five
+    // days ("3 bananas and 5 oranges for a month" is not a shopping list, it is a
+    // spreadsheet). Dry goods are unaffected — their quantity is one or two real
+    // packs, which is what the sale-unit snap guarantees.
+    return SHOPPING_DEFAULT_PLAN_DAYS;
 }
 
 /**
@@ -17643,6 +20375,103 @@ function smartSuggestedConfQty(float $needBase, float $defQty, string $pkgUnit, 
     return [(float) max(1, min($maxPkgs, $qty)), 'conf'];
 }
 
+/**
+ * Is this item one whose absence stops the kitchen?
+ *
+ * Deliberately a RULE, not a list of product names: a pantry that keeps buying
+ * something twice a week (uses_per_month ≥ 8) and has none left is the only thing
+ * that deserves red. Onions and oranges can wait a day; salt, oil, coffee and milk
+ * cannot. Naming them in code would be vocabulary in the logic file (banned, see
+ * AGENTS.md §4b) and would only work for one language anyway.
+ */
+function shoppingIsEssentialItem(array $item): bool
+{
+    $uses = (float)($item['uses_per_month'] ?? 0);
+    $qty = (float)($item['family_qty'] ?? ($item['current_qty'] ?? 0));
+    if ($uses < SHOPPING_ESSENTIAL_USES_PER_MONTH) {
+        return false;
+    }
+    return $qty <= productQtyThreshold((string)($item['unit'] ?? 'conf'));
+}
+
+/**
+ * Recalibrate the priority scale.
+ *
+ * The list marked 75 rows out of 75 as "⚡ Urgente", which is the same as marking
+ * none: a red badge on the onions destroys the meaning of the red badge on the salt.
+ * Red is kept for an essential item that is finished; a frequently used product that
+ * is out becomes "Presto"; anything else settles at "A breve". Nothing is ever
+ * promoted by this pass — it only ever calms a badge down, and the server stays the
+ * one authority on the scale.
+ */
+function shoppingRecalibrateUrgency(array $items): array
+{
+    foreach ($items as &$item) {
+        $urgency = (string)($item['urgency'] ?? 'none');
+        if ($urgency !== 'critical' && $urgency !== 'high') {
+            continue;
+        }
+        $uses = (float)($item['uses_per_month'] ?? 0);
+        $pct = (float)($item['pct_left'] ?? 100);
+        $essential = shoppingIsEssentialItem($item);
+        $new = $urgency;
+        if ($urgency === 'critical' && !$essential) {
+            $new = ($uses >= SHOPPING_HIGH_USES_PER_MONTH || $pct <= 25) ? 'high' : 'medium';
+        } elseif ($urgency === 'high' && !$essential) {
+            $new = ($uses >= SHOPPING_HIGH_USES_PER_MONTH || $pct <= 25) ? 'high' : 'medium';
+        }
+        if ($new !== $urgency) {
+            $item['urgency'] = $new;
+            $item['urgency_was'] = $urgency;
+        }
+    }
+    unset($item);
+    return $items;
+}
+
+/**
+ * Split the list into "what to buy" and "what you rarely buy".
+ *
+ * A product bought once, months ago, is not a shopping need: putting it in the same
+ * list as the milk buries the milk. It moves to `suggested` — still reachable, still
+ * addable in one tap, but out of the way.
+ */
+function shoppingSplitSuggested(array $items): array
+{
+    $active = [];
+    $suggested = [];
+    foreach ($items as $item) {
+        $buyCount = (int)($item['buy_count'] ?? 0);
+        $useCount = (int)($item['use_count'] ?? 0);
+        $uses = (float)($item['uses_per_month'] ?? 0);
+        $stock = (float)($item['family_qty'] ?? 0);
+        $keep = !empty($item['on_bring'])
+            || in_array((string)($item['urgency'] ?? 'none'), ['critical', 'high'], true)
+            || (string)($item['suggested_via'] ?? '') !== '';   // explicit household requests
+        // "Rarely bought" must mean RARELY USED *and* comfortably stocked: something that is
+        // finished, or about to finish, belongs to the list, not to a footnote
+        // ("molti suggeriti li uso, quindi dovrebbero stare in lista" / "manca anche il burro
+        // che sta per finire").
+        $rarely = $buyCount <= SHOPPING_RARE_BUY_COUNT
+            && $useCount <= 2
+            && $uses < SHOPPING_RARE_USES_PER_MONTH;
+        $pct = (float)($item['pct_left'] ?? 100);
+        $daysLeft = (float)($item['days_left'] ?? 0);
+        $horizon = (int)($item['edible_days'] ?? 0);
+        // A trace (≤ 25% of the usual purchase) or a run-out inside the planning window is a
+        // NEED, not a suggestion.
+        $aboutToFinish = ($stock > 0 && $pct <= SHOPPING_ABOUT_TO_FINISH_PCT)
+            || ($daysLeft > 0 && $horizon > 0 && $daysLeft <= $horizon);
+        if (!$keep && $rarely && $stock > 0 && !$aboutToFinish) {
+            $suggested[] = $item;
+            continue;
+        }
+        $active[] = $item;
+    }
+    return ['items' => $active, 'suggested' => $suggested];
+}
+
+
 function smartShopping(PDO $db, ?int $planDays = null): void {
     EverLog::info('smartShopping');
     set_time_limit(120);
@@ -17670,7 +20499,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
     // 1. Get all products with their inventory and transaction history
     $products = $db->query("
         SELECT p.id, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
-               p.shopping_name
+               p.shopping_name, COALESCE(p.is_medical, 0) AS is_medical
         FROM products p
         ORDER BY p.name
     ")->fetchAll();
@@ -17793,6 +20622,18 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                         $usableStockByShoppingName[$sName][$rowBase['family']] =
                             ($usableStockByShoppingName[$sName][$rowBase['family']] ?? 0.0) + $rowBase['qty'];
                     }
+                    // The COUNTED reading (same bucket the coverage rule reads):
+                    // packs and pieces, as the household counts them. A `pz` row whose
+                    // `default_quantity` is a WEIGHT (4.5 avocados × 160 g) expands into
+                    // grams and then covered nothing for the family sold by the piece, so
+                    // «Avocado Hass» read 0 and went back on the list. Rows already
+                    // measured in `pz` were added above and are not counted twice.
+                    if ($rowBase['qty'] > 0 && $rowBase['family'] !== 'pz'
+                        && shoppingUnitIsPack($stUnit)) {
+                        $usableStockByShoppingName[$sName]['pz'] =
+                            ($usableStockByShoppingName[$sName]['pz'] ?? 0.0)
+                            + $fQty * evershelfUnitFactor($stUnit);
+                    }
                 }
             }
             $txFam = $txData[$pStock['id']] ?? null;
@@ -17814,6 +20655,15 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
     $items = [];
     $skippedOutOfSeason = [];
     $wasteLearning = _loadWasteLearning($db);
+    // How EARLY the list may speak (the plan window only decides how MUCH to buy).
+    // `plan_days` is the quantity horizon — «calcolato per 30 giorni» — and using it as the
+    // urgency window too answered with everything that would be finished within a month:
+    // five apples, six tomatoes, a jar of honey, a bag of rice. That is why the list read
+    // «🟠 Presto» on a pantry that had it. The signal is the household's own trip cycle
+    // (`smartDefaultPlanDays()` infers it from the real spesa sessions), floored at a week
+    // of margin and capped by the plan; with no evidence yet, two weeks.
+    $cycleDays  = ($planDefault > 0 && $planDefault < $planDays) ? $planDefault : 14;
+    $signalDays = max(7, min($planDays, $cycleDays));
     foreach ($products as $p) {
         $pid = $p['id'];
         $inv = $inventory[$pid] ?? null;
@@ -17920,6 +20770,15 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             );
         }
         $refQty = smartPurchaseRefQty($totalBought, $buyCount, $defQty, $qty, $familyAvgBuy);
+        // A pack row's "typical purchase" is counted in PACKS, and a purchase log written in grams
+        // lands in `conf` anyway (200 g of panna booked as 200 conf, an average of 86 packs per
+        // purchase). Such a reference makes a stocked shelf read «near_empty:6» and put the article
+        // back on the list at every cron run: «Panna da cucina» had SIX packs at home. The cap only
+        // ever makes a row LESS urgent, and a real basket of more than ten packs of the same
+        // product is a one-off, not a reference.
+        if (shoppingUnitIsPack($unit) && $refQty > SMART_PACK_REF_QTY_MAX) {
+            $refQty = SMART_PACK_REF_QTY_MAX;
+        }
         $pctLeft = $refQty > 0 ? min(200, ($qty / $refQty) * 100) : ($qty > 0 ? 100 : 0);
         // pctLeft based on FRESH (non-expired) stock only — used for expiry-aware suppression
         $freshPctLeft = $refQty > 0 ? min(200, ($freshQty / $refQty) * 100) : ($freshQty > 0 ? 100 : 0);
@@ -17974,15 +20833,34 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         // packages with `evershelfBaseQty()`, so "3 packs × 1 l" covers a litre of milk
         // while "360 g" of jam does not cover a 620 g jar; expired rows and traces
         // (≤ 0.5 g, 2 g…) never count.
+        //
+        // Two readings, the generous one wins (same rule as `evershelfFamilyUsableStockQty()`):
+        //  - MEASURED: packages expanded with their size. `default_quantity` on a `pz` row is
+        //    often what one piece weighs (2 g of "Pomodoro", 160 g of an avocado), so the
+        //    expanded grams are right for a weight question and blind for "how many are left".
+        //  - COUNTED: packs and pieces as such. 2 mozzarellas cover a 1 kg pack, and two
+        //    tomatoes in one row plus four in another are six.
         $pkgUnit = trim((string)($p['package_unit'] ?? ''));
         $refBase = evershelfBaseQty(1.0, $unit, $defQty, $pkgUnit);
         $perUnitBase = $refBase['qty'] > 0 ? $refBase['qty'] : 1.0;
-        $ownBaseQty = evershelfStockRowCoversUnit($freshQty, $unit, null, $unit)
-            ? evershelfBaseQty($freshQty, $unit, $defQty, $pkgUnit)['qty']
+        $refIsCount  = shoppingUnitIsPack($unit);
+        $measuredFamily = (float)($usableStockByShoppingName[$sNameForRef][$refBase['family']] ?? 0.0) / $perUnitBase;
+        $measuredOwn = evershelfStockRowCoversUnit($freshQty, $unit, null, $unit)
+            ? evershelfBaseQty($freshQty, $unit, $defQty, $pkgUnit)['qty'] / $perUnitBase
             : 0.0;
-        $familyBaseQty = (float)($usableStockByShoppingName[$sNameForRef][$refBase['family']] ?? 0.0);
-        $familyUsableQty = $familyBaseQty / $perUnitBase;                        // incl. this product
-        $otherFamilyUsableQty = max(0.0, ($familyBaseQty - $ownBaseQty) / $perUnitBase);
+        $countedFamily = $refIsCount ? (float)($usableStockByShoppingName[$sNameForRef]['pz'] ?? 0.0) : 0.0;
+        $countedOwn    = $refIsCount ? $freshQty * evershelfUnitFactor($unit) : 0.0;
+        $familyUsableQty      = max($measuredFamily, $countedFamily);   // incl. this product
+        $otherFamilyUsableQty = max(0.0, $familyUsableQty - max($measuredOwn, $countedOwn));
+        // The row answers for the ARTICLE, never for one pack: 6 tomatoes split between two
+        // rows are 6 tomatoes, and a «ends_in:5» computed from the 2-piece row (next to a
+        // 4-piece one) is what put a stocked shelf back on the list. When the family holds
+        // more than this row, the family is what "how many days are left" means — but what
+        // EXPIRES is this batch, so the expiry rules keep the row's own number.
+        $daysLeftOwn = $daysLeft;
+        if ($dailyRate > 0 && $familyUsableQty > $qty) {
+            $daysLeft = min($familyUsableQty / $dailyRate, 365);
+        }
         // "Covered" means the family still holds a usable purchase's worth:
         //   * anything sold by the pack/piece → at least ONE full pack/piece left,
         //   * weights/volumes → half the usual bought quantity (the convention the
@@ -17991,7 +20869,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         // the jam/dairy case that kept finished articles off the list. The average
         // purchase is deliberately NOT used for packs: a legacy gram log on a conf
         // product (690 "conf" for a 690 g jar) would make coverage impossible.
-        $refIsPack = in_array(mb_strtolower($unit), ['conf', 'pz', 'busta', 'buste', 'pacco', 'pacchi', 'barattolo', 'barattoli', 'confezione', 'confezioni', 'pezzo', 'pezzi'], true);
+        $refIsPack = shoppingUnitIsPack($unit);
         $coverageNeeded = $refIsPack ? 1.0 : max(1.0, 0.5 * $refQty);
 
         // --- Determine urgency ---
@@ -18048,7 +20926,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             ? min(200.0, ($familyStockQty / $refQty) * 100.0)
             : $pctLeft;
 
-        // High-use restock (explicit): ≤25% of typical purchase OR empty within plan days.
+        // High-use restock (explicit): ≤25% of typical purchase OR empty before the next
+        // trip. The window is `$signalDays` (the trip cycle), NOT the quantity plan: see
+        // the note where it is computed.
         $isHighUse = $isFrequent || $isUrgentStaple;
         $highUseRestock = smartHighUseNeedsList(
             $isHighUse && !$familyCovered,
@@ -18056,7 +20936,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             $qty,
             (float)$daysLeft,
             (float)$dailyRate,
-            (int)$planDays
+            (int)$signalDays
         );
         if (!empty($highUseRestock['needed'])) {
             $daysLeftDisplay = (int)round($daysLeft);
@@ -18133,7 +21013,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             // (b) regular consumer + will expire before finishing it
             //     (daysLeft based on consumption rate > days to expiry)
             // (c) non-regular + within 3 days + low stock → minimal safety net
-            $willExpireBeforeUsed = $dailyRate > 0 && $daysToExpiry < $daysLeft;
+            $willExpireBeforeUsed = $dailyRate > 0 && $daysToExpiry < $daysLeftOwn;
             if ($isUrgentStaple && ($pctLeft < 50 || $willExpireBeforeUsed)) {
                 if ($urgency === 'none' || $urgency === 'low') {
                     $urgency = 'medium';
@@ -18156,8 +21036,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         }
 
         // Frequently used but stock getting low (predictive) — never "Urgente" alone;
-        // Presto only for top staples about to run out.
-        if ($urgency === 'none' && $dailyRate > 0 && $daysLeft <= 14 && $isUrgentStaple && $isRecent) {
+        // Presto only for top staples about to run out. The window is the trip cycle, so
+        // a pantry that shelters its apples for two weeks is not nagged about them.
+        if ($urgency === 'none' && $dailyRate > 0 && $daysLeft <= $signalDays && $isUrgentStaple && $isRecent) {
             $daysLeftDisplay = (int)round($daysLeft);
             $reasons[] = 'ends_in:' . $daysLeftDisplay;
             if ($daysLeftDisplay <= 3 && $isTopStaple) {
@@ -18171,9 +21052,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                 $score += 25;
             }
         }
-        // Frequent staples that won't cover the shopping plan window
+        // Frequent staples that won't cover the next shopping trip
         if ($dailyRate > 0 && $isUrgentStaple && $isRecent && $qty > 0
-            && $daysLeft <= $planDays && !in_array($urgency, ['critical', 'high'], true)) {
+            && $daysLeft <= $signalDays && !in_array($urgency, ['critical', 'high'], true)) {
             $daysLeftDisplay = (int)round($daysLeft);
             if ($urgency === 'none' || $urgency === 'low') {
                 $urgency = ($daysLeftDisplay <= 3 && $isTopStaple) ? 'high' : 'medium';
@@ -18182,9 +21063,10 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             }
         }
         // Buy-cycle prediction for products not tracked per-use (e.g. salt, spices):
-        // if daily rate was derived from buy cycles and we have < 21 days left → flag.
+        // the rate is synthetic, so the window stays the trip cycle like everywhere else —
+        // a 21-day radar put salt and spices on the list three weeks early, every week.
         if ($urgency === 'none' && $buyCycleDays !== null && $dailyRate > 0
-            && $daysLeft <= 21 && $isRegular && !$justRestocked) {
+            && $daysLeft <= $signalDays && $isRegular && !$justRestocked) {
             $daysLeftDisplay = (int)round($daysLeft);
             $cycleDisplay = (int)round($buyCycleDays);
             $reasons[] = 'ends_in_cycle:' . $daysLeftDisplay . ':' . $cycleDisplay;
@@ -18242,22 +21124,17 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             }
         }
 
-        // Extended predictive horizon for staple items (high-frequency products).
-        // The default predictive block triggers at daysLeft <= 14 for isFrequent (≥1.5/month).
-        // Very frequent items (daily-ish: ≥4/month) or weekly items (≥2/month) should appear
-        // in the shopping list earlier, so the user always has them on their radar when shopping.
-        //   ≥ 4/month → 28-day horizon (daily staples: latte, pane, uova…)
-        //   ≥ 2/month → 21-day horizon (weekly staples: yogurt, frutta, carne…)
-        if ($urgency === 'none' && $dailyRate > 0 && $isRecent && !$justRestocked) {
-            if ($usesPerMonth >= 4 && $daysLeft <= 28) {
-                $urgency = 'low';
-                $reasons[] = 'ends_in:' . (int)round($daysLeft);
-                $score += 20;
-            } elseif ($usesPerMonth >= 2 && $daysLeft <= 21) {
-                $urgency = 'low';
-                $reasons[] = 'ends_in:' . (int)round($daysLeft);
-                $score += 15;
-            }
+        // Frequent staples get the same window as everybody else: the trip cycle.
+        // This block used to reach 28 days for a daily staple and 21 for a weekly one, so
+        // a fridge holding two weeks of fruit was answered with «🟡 A breve» on every one
+        // of them. Anticipating the trip is the point; anticipating the month is a copy of
+        // the pantry. A daily staple running out before the NEXT trip is already flagged
+        // by the high-use rule above, at the same `$signalDays`.
+        if ($urgency === 'none' && $dailyRate > 0 && $isRecent && !$justRestocked
+            && $usesPerMonth >= 2 && $daysLeft <= $signalDays) {
+            $urgency = 'low';
+            $reasons[] = 'ends_in:' . (int)round($daysLeft);
+            $score += 20;
         }
 
         if ($urgency === 'none') continue;
@@ -18290,6 +21167,18 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         // Is already on Bring? check both product name and generic shopping name
         $onBring = _productOnBring($p['name'], $bringItems, $shoppingName);
 
+        // "Non serve" is a decision, and the smart list is what feeds the suggestions
+        // under the list: without this guard a dismissed product came back with the next
+        // cache rebuild, which is what the household reported as "ricompare".
+        // BUT a tap cannot mute a staple for two weeks: a product this pantry uses at least
+        // once a week ignores the dismissal (yogurt, milk, bread). The date still applies to
+        // everything else, and buying it clears the entry anyway.
+        if ($usesPerMonth < SHOPPING_HIGH_USES_PER_MONTH
+            && shoppingIsDismissed($db, (string)$shoppingName, (string)$p['name'])) {
+            $skippedOutOfSeason[] = (string)$shoppingName;   // logged with the same debug channel
+            continue;
+        }
+
         // Blocklisted after spesa — hide only when stock still covers the habit.
         // High-use staples that are empty / about to run out must reappear.
         if (bringIsPurchasedBlocked($db, $p['name'], $shoppingName)) {
@@ -18312,6 +21201,11 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         );
         $qtyHorizon = (int)$horizonMeta['days'];
         $shelfCapped = !empty($horizonMeta['capped']);
+        // The horizon of a product is its own shelf life, never the category's: a banana
+        // keeps 5 days and an onion keeps a month, and a blanket "fresh = one week" rule
+        // asked for 3 onions to cover 30 days (the household was buying 10).
+        // smartPurchaseHorizonDays() already caps every perishable to its estimate; the
+        // category-wide cap was a second, coarser rule that only made the list smaller.
 
         $monthlyMeta     = smartMonthlyConsumptionNeed($tx, $dailyRate);
         $monthlyNeed     = smartSanitizePieceMonthly($monthlyMeta['amount'], $useCount, $usesPerMonth, $unit);
@@ -18469,14 +21363,86 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             $suggestedQty = $capped['quantity'];
             $suggestedUnit = $capped['unit'];
         }
+        // A need is not a purchase. Snap it up to the smallest real shelf unit and
+        // hand the client the same step, so "+1" in the stepper means one pack — not
+        // 1 g. This is what turns 1022 g of Trentingrana into 1 kg and 9 boxes of
+        // crackers into a multipack.
+        $saleStep = 0.0;
+        $saleRuleUnit = $suggestedUnit ?? $unit;
+        $saleSnapped = saleUnitSnap(
+            (float)($suggestedQty ?? 0),
+            (string)$saleRuleUnit,
+            (string)($p['category'] ?? ''),
+            (string)$p['name']
+        );
+        $saleStep = (float)$saleSnapped['step'];
+        if ($suggestedQty !== null) {
+            $suggestedQty = $saleSnapped['quantity'];
+            $suggestedUnit = $saleSnapped['unit'];
+        } else {
+            // Nothing computed, but the row is on the list: at least propose one
+            // shelf unit instead of an empty quantity.
+            $suggestedQty = $saleSnapped['quantity'] > 0 ? $saleSnapped['quantity'] : 1;
+            $suggestedUnit = $saleSnapped['unit'];
+            $suggestedApprox = true;
+        }
         $wHint = $wasteLearning[(string)$pid] ?? [];
         if (!empty($wHint['preferred_location'])) {
             $locLabel = $wHint['preferred_location'];
             $reasons[] = 'past_waste:' . $locLabel;
         }
+        if (!empty($wHint['buy_less']) || !empty($wHint['buy_smaller'])) {
+            $reasons[] = 'buy_less_hint';
+        }
         if ($shelfCapped) {
             $reasons[] = 'anti_waste_shelf:' . (int)$horizonMeta['shelf_days'];
             $suggestedApprox = true;
+        }
+
+        // ── Will the suggested pack outlive its own shelf? ──────────────────
+        // What the household NEEDS over the horizon and how long the food LIVES are two
+        // different numbers, and the list only ever showed the first one. When the last
+        // pack would expire before anyone eats it, the difference is not stock: it is the
+        // pack that goes in the bin. The row carries the amount that fits the shelf
+        // (`waste.keep_qty`) so the list can print it beside the suggestion and say why —
+        // the household still buys what it decides to buy.
+        $waste = null;
+        $sqFinal = (float)($suggestedQty ?? 0);
+        $shelfDays = (int)($horizonMeta['shelf_days'] ?? 0);
+        $unitMatches = strtolower((string)($suggestedUnit ?? '')) === strtolower((string)$unit);
+        // Advice only where food really spoils. A dry staple or a bottle keeps for months
+        // (and the NAME heuristics misfire: "Muesli … con fragole e lamponi" measures like
+        // strawberries, 7 days), so the marker would cry waste on a box of cereal — the kind
+        // of noise that teaches the household to ignore it. Same rule as the anomaly
+        // banner: a durable staple raises no predictive notice.
+        $catLower = mb_strtolower((string)($p['category'] ?? ''));
+        $perishable = false;
+        foreach (['latticini', 'carne', 'pesce', 'frutta', 'verdura', 'pane'] as $perishableCat) {
+            if (strpos($catLower, $perishableCat) !== false) { $perishable = true; break; }
+        }
+        if ($perishable && $shelfDays > 0 && $shelfDays <= 45
+            && $sqFinal > 0 && $periodNeed > 0 && $qtyHorizon > 0 && $unitMatches
+            && !evershelfIsDurableStaple(
+                (string)$p['name'],
+                (string)($p['category'] ?? ''),
+                (string)($horizonMeta['location'] ?? '')
+            )) {
+            $dailyRate = $periodNeed / $qtyHorizon;      // the item's own unit per day
+            if ($dailyRate > 0) {
+                $coverDays = $sqFinal / $dailyRate;      // how long THIS purchase lasts
+                if ($coverDays > $shelfDays + 1) {       // +1 day: rounding is not waste
+                    $keep = shoppingWasteSafeQty($dailyRate * $shelfDays, (string)$suggestedUnit, (float)$saleStep);
+                    if ($keep > 0 && $keep < $sqFinal) {
+                        $waste = [
+                            'keep_qty'   => $keep,
+                            'keep_unit'  => (string)$suggestedUnit,
+                            'shelf_days' => $shelfDays,
+                            'cover_days' => (int)round($coverDays),
+                            'leftover'   => round($sqFinal - $keep, 2),
+                        ];
+                    }
+                }
+            }
         }
 
         $items[] = [
@@ -18485,6 +21451,10 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             'shopping_name' => $shoppingName,
             'brand' => $p['brand'] ?: '',
             'category' => $p['category'] ?: '',
+            // A medicine is not a tomato: the client puts this row in its own 💊 section and
+            // gives it the medical tint. The flag is the ARTICLE's, so it survives the name
+            // variants the shopping row is given.
+            'is_medical' => (int)($p['is_medical'] ?? 0),
             'unit' => $unit,
             'current_qty' => round($qty, 1),
             // Stock of the whole buyable FAMILY in this item's unit. The row is one
@@ -18514,6 +21484,8 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             'suggested_qty'   => $suggestedQty,
             'suggested_unit'  => $suggestedUnit,
             'suggested_approx' => $suggestedApprox,
+            // The shelf unit of the category: the stepper moves by this.
+            'sale_step'       => $saleStep,
             'monthly_usage'   => round($monthlyNeed, 2),
             'monthly_usage_source' => $monthlySource,
             'period_usage'    => round($periodNeed, 2),
@@ -18521,6 +21493,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             'edible_days'     => $qtyHorizon,
             'shelf_days'      => (int)$horizonMeta['shelf_days'],
             'qty_shelf_capped'=> $shelfCapped,
+            // The smaller quantity that fits the shelf, or NULL when the suggestion is
+            // already eatable. See `shoppingWasteSafeQty()` and the row in app.js.
+            'waste'           => $waste,
         ];
     }
 
@@ -18571,6 +21546,13 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
     // Sort by score descending (most urgent first)
     usort($items, fn($a, $b) => $b['score'] - $a['score']);
 
+    // The scale is recalibrated server-side, after grouping (so the representative
+    // of a family decides its own badge), and rare products leave the active list.
+    $items = shoppingRecalibrateUrgency($items);
+    $splitItems = shoppingSplitSuggested($items);
+    $items = $splitItems['items'];
+    $suggestedItems = $splitItems['suggested'];
+
     if ($skippedOutOfSeason !== []) {
         EverLog::debug('Smart shopping skipped out-of-season produce', [
             'event' => 'smart_shopping_out_of_season',
@@ -18579,11 +21561,18 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         ]);
     }
 
+    $planMeta = smartPlanCycleMeta($db);
     echo json_encode([
         'success' => true,
         'items' => $items,
+        // Rarely bought products: still one tap away, but they no longer bury the milk.
+        'suggested' => $suggestedItems,
         'plan_days' => $planDays,
         'plan_days_default' => $planDefault,
+        // Why that number: the UI says "media delle tue N spese" instead of a bare figure.
+        'plan_days_source' => $planMeta['source'],
+        'plan_days_samples' => $planMeta['samples'],
+        'fresh_horizon_days' => saleUnitsFreshHorizonDays(),
         'skipped_out_of_season' => count($skippedOutOfSeason),
     ], JSON_UNESCAPED_UNICODE);
 }
@@ -18853,6 +21842,12 @@ function bringSuggestItems(PDO $db): void {
 /** True only when the user opted into Bring! AND credentials are present.
  *  Default / recommended mode is EverShelf internal list (SHOPPING_MODE=internal). */
 function isShoppingBringMode(): bool {
+    // A demo always uses the INTERNAL list: it answers from its own demo database, while
+    // Bring! would hand over the household's real list — and needs a login the demo
+    // does not have.
+    if (evershelfDemoRequested()) {
+        return false;
+    }
     return env('SHOPPING_MODE', 'internal') === 'bring'
         && !empty(env('BRING_EMAIL'))
         && !empty(env('BRING_PASSWORD'));
@@ -18883,13 +21878,21 @@ function internalShoppingListGenericKey(PDO $db, string $name, string $rawName =
 function internalFindShoppingListRowByGeneric(PDO $db, string $name, string $rawName = ''): ?array {
     $target = internalShoppingListGenericKey($db, $name, $rawName);
     $stmt = $db->query("SELECT id, name, raw_name, specification FROM shopping_list");
+    $hit = null;
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $rowKey = internalShoppingListGenericKey($db, (string)$row['name'], (string)($row['raw_name'] ?? ''));
         if ($rowKey === $target) {
-            return $row;
+            $hit = $row;
+            break;
         }
     }
-    return null;
+    // The cursor MUST be closed before returning: this runs inside the shoppers' write paths
+    // (`shoppingSyncProductFromCache` updates the row it just found), and SQLite answers
+    // «database is locked» — after the 20 s busy timeout — to a write issued on the same
+    // connection while a read cursor is still open. The quick sync died there every time the
+    // specification really needed updating, i.e. every time the suggested quantity changed.
+    $stmt->closeCursor();
+    return $hit;
 }
 
 /**
@@ -18901,8 +21904,13 @@ function internalShoppingNormalizeNames(PDO $db): array {
     if (isShoppingBringMode()) {
         return ['skipped' => 'bring_mode'];
     }
-    $rows = $db->query('SELECT id, name, raw_name FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $db->query('SELECT id, name, raw_name, specification FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
     $updated = 0;
+    $merged = 0;
+    $findDup = $db->prepare('SELECT id, specification, raw_name FROM shopping_list WHERE lower(name) = lower(?) AND id != ? LIMIT 1');
+    $setName = $db->prepare('UPDATE shopping_list SET name = ?, raw_name = ? WHERE id = ?');
+    $setSpec = $db->prepare('UPDATE shopping_list SET specification = ?, raw_name = ? WHERE id = ?');
+    $delRow  = $db->prepare('DELETE FROM shopping_list WHERE id = ?');
     foreach ($rows as $row) {
         $name = trim((string)($row['name'] ?? ''));
         $raw  = trim((string)($row['raw_name'] ?? ''));
@@ -18910,74 +21918,129 @@ function internalShoppingNormalizeNames(PDO $db): array {
             continue;
         }
         $genKey = internalShoppingListGenericKey($db, $name, $raw);
-        $canonical = computeShoppingName($genKey);
+        // No AI, no brand: computeShoppingNameCanonical() only answers when the vocabulary
+        // really knows the product, so a load can never rename a row to a brand again.
+        $canonical = computeShoppingNameCanonical($genKey);
         if ($canonical === '' || mb_strtolower($canonical) === mb_strtolower($name)) {
             continue;
         }
         if ($raw === '' || strcasecmp($raw, $canonical) === 0) {
             $raw = $name;
         }
-        $db->prepare('UPDATE shopping_list SET name = ?, raw_name = ? WHERE id = ?')
-            ->execute([$canonical, $raw, (int)$row['id']]);
-        $updated++;
+        // The list is keyed by lower(name): renaming into a name that is already there is
+        // a UNIQUE violation, and this pass runs at every load — so the household saw
+        // "SQLSTATE[23000] ... idx_shopping_list_name" on a page that was only reading.
+        // Same generic = same row: merge the notes into the survivor and drop this one.
+        $findDup->execute([$canonical, (int)$row['id']]);
+        $dup = $findDup->fetch(PDO::FETCH_ASSOC) ?: null;
+        try {
+            if ($dup === null) {
+                $setName->execute([$canonical, $raw, (int)$row['id']]);
+                $updated++;
+                continue;
+            }
+            $own = trim((string)($row['specification'] ?? ''));
+            $their = trim((string)($dup['specification'] ?? ''));
+            $spec = $their;
+            if ($own !== '' && mb_stripos($their, $own) === false) {
+                $spec = dedupeBringSpec($their !== '' ? $their . ' · ' . $own : $own);
+            }
+            $setSpec->execute([$spec, trim((string)($dup['raw_name'] ?? '')) ?: $raw, (int)$dup['id']]);
+            $delRow->execute([(int)$row['id']]);
+            $merged++;
+        } catch (\PDOException $e) {
+            // A concurrent writer took the name in between: leave the row as it is.
+            continue;
+        }
     }
-    return ['updated' => $updated];
+    return ['updated' => $updated, 'merged' => $merged];
 }
 
 /**
- * Drop internal rows whose family stock already covers the smart-shopping plan window.
+ * Drop internal rows the smart cache no longer asks for — the read-path twin of
+ * `internalShoppingCleanupObsolete()`.
  *
- * The smart cache stays the single source of truth for "is this row still needed": a row
- * the cache still predicts is NOT pruned, or the cron would add it, delete it and add it
- * again every 5 minutes (the automations fought each other: `internalShoppingAutoAddCritical`
- * vs this function). Rows the user marked as finished (🛒 Esaurito) are never touched.
+ * This runs on EVERY `shopping_list` GET (`shoppingGetList`), so it must be both blind-proof and
+ * the SAME rule as the cron, or the automations fight each other while the household watches:
+ * «continua a mettere e togliere prodotti urgenti, come se qualcosa si accorgesse che mancano e
+ * qualcos'altro che ce ne sono abbastanza». Two ways it used to do exactly that:
+ *
+ *  1. **No cache = no knowledge.** `shoppingRemoveInternal()` unlinks `smart_shopping_cache.json`
+ *     on purpose, which opened a window where the index was empty: every app-managed row fell
+ *     through to the family-coverage check and rows whose family was stocked were DELETED, five
+ *     minutes later the cron rebuilt the cache and re-added them. With no cache there is nothing
+ *     to compare against, so the prune does nothing at all.
+ *  2. **One predicate.** The family-coverage fallthrough was a second rule next to
+ *     `evershelfShoppingRowStillNeeded()` (the one the cron cleanup and the Bring! transport use),
+ *     and the two disagreed about rows like «Panna da cucina»: 6 packs in the pantry, cache
+ *     «urgent». A read now asks the same question the cron asks.
+ *
+ * Rows the user marked as finished (🛒 Esaurito) are kept until the shelf proves
+ * otherwise (`evershelfFamilyBackInStock()`): a decision is not a prediction, but a
+ * fridge full of bananas makes «Banane · 🛒 Esaurito» a lie.
  */
 function internalShoppingPruneCovered(PDO $db): array {
     if (isShoppingBringMode()) {
         return ['skipped' => 'bring_mode'];
     }
+    $smartItems = evershelfLoadSmartItemsForSync($db);
+    $index = evershelfSmartItemsIndex($smartItems);
+    if ($smartItems === []) {
+        // Nothing to compare against: a read must not delete on "no knowledge".
+        // (`evershelfSmartItemsIndex()` always returns ['exact'=>[], 'token'=>[]], so the empty
+        // case has to be asked of the ITEMS, not of the index — a guard on `$index === []` never
+        // fires and the whole bug walks straight through it.)
+        return ['skipped' => 'no_cache', 'candidates' => 0, 'removed' => 0];
+    }
+    $familyUsableQty = static fn(string $generic, string $unit, float $pkgSize, string $pkgUnit): float
+        => evershelfFamilyUsableStockQtyMemo($db, $generic, $unit, $pkgSize, $pkgUnit);
     $rows = $db->query('SELECT id, name, raw_name, specification FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
-    $prods = $db->query('SELECT id, name, shopping_name FROM products')->fetchAll(PDO::FETCH_ASSOC);
-    $index = evershelfSmartItemsIndex(evershelfLoadSmartItemsForSync($db));
     $removed = 0;
+    $candidates = 0;
+    $cleared = 0;
+    $del = $db->prepare('DELETE FROM shopping_list WHERE id = ?');
     foreach ($rows as $row) {
+        // Only EverShelf-owned rows reach this point.
+        if (!evershelfSpecIsAppManaged((string)($row['specification'] ?? ''))) {
+            continue;
+        }
         $listName = (string)$row['name'];
         $listRaw  = (string)($row['raw_name'] ?? '');
-        // Never the row the user said "I finished this" about.
         if (evershelfSpecIsDeliberate((string)($row['specification'] ?? ''))) {
-            continue;
-        }
-        // Still predicted by the cache → the auto-add would put it straight back.
-        $si = $index !== [] ? evershelfSmartItemFor($index, $listName, $listRaw) : null;
-        if ($si !== null && evershelfSmartItemIsStillNeeded($db, $si)) {
-            continue;
-        }
-        if (seasonalShoppingItemOutOfSeason($listName)
-            || ($listRaw !== '' && seasonalShoppingItemOutOfSeason($listRaw))) {
-            $db->prepare('DELETE FROM shopping_list WHERE id = ?')->execute([(int)$row['id']]);
-            $removed++;
-            continue;
-        }
-        $bestPid  = null;
-        foreach ($prods as $p) {
-            if (!shoppingListRowMatchesProduct($db, $listName, $listRaw, (string)$p['name'], (string)($p['shopping_name'] ?? ''))) {
+            // «🛒 Esaurito» survives every prediction — until the shelf answers.
+            if (!evershelfFamilyBackInStock($db, $listName)) {
                 continue;
             }
-            $bestPid = (int)$p['id'];
-            break;
-        }
-        if ($bestPid === null) {
+            $cleared++;
+            $del->execute([(int)$row['id']]);
             continue;
         }
-        $eval = shoppingEvaluateFamilyRestock($db, $bestPid);
-        if (!empty($eval['covered'])) {
-            $db->prepare('DELETE FROM shopping_list WHERE id = ?')->execute([(int)$row['id']]);
+        if (evershelfShoppingRowStillNeeded($db, $index, $listName, $listRaw, $familyUsableQty)) {
+            continue;
+        }
+        $candidates++;
+        $del->execute([(int)$row['id']]);
+        if ($del->rowCount() > 0) {
             $removed++;
         }
     }
+    if ($cleared > 0) {
+        EverLog::info('shopping_finished_row_cleared', [
+            'event' => 'shopping_finished_row_cleared',
+            'cleared' => $cleared,
+        ]);
+    }
+    if ($removed > 0) {
+        // A read-path deletion is worth a line: it is the only trace of "the list changed itself".
+        EverLog::info('shopping_prune_covered', [
+            'event' => 'shopping_prune_covered',
+            'candidates' => $candidates,
+            'removed' => $removed,
+        ]);
+    }
     // Do not invalidate smart_shopping_cache here: prune only touches shopping_list
     // rows. Unlinking mid-cron made internalShoppingAutoAddCritical see no_cache.
-    return ['removed' => $removed];
+    return ['candidates' => $candidates, 'removed' => $removed, 'cleared' => $cleared];
 }
 
 function internalShoppingDedupeGenerics(PDO $db): array {
@@ -19061,9 +22124,14 @@ function shoppingGetList(PDO $db): void {
         bringGetList();
         return;
     }
-    internalShoppingNormalizeNames($db);
-    internalShoppingPruneCovered($db);
-    internalShoppingDedupeGenerics($db);
+    // Demo mode serves the seeded list as it is: the normalise/prune/dedupe trio WRITES,
+    // and a showcase whose rows disappear because a prediction covered them is a broken
+    // demo. (The demo database is re-seeded every day anyway.)
+    if (!evershelfDemoRequested()) {
+        internalShoppingNormalizeNames($db);
+        internalShoppingPruneCovered($db);
+        internalShoppingDedupeGenerics($db);
+    }
     $items   = $db->query(
         "SELECT name, raw_name, specification FROM shopping_list ORDER BY sort_order ASC, added_at ASC"
     )->fetchAll();
@@ -19152,10 +22220,17 @@ function shoppingAddItemsCore(PDO $db, array $items): array {
             if (strcasecmp($listRaw, $listName) === 0) {
                 $listRaw = $name !== $listName ? $name : $rawName;
             }
-            $db->prepare("INSERT INTO shopping_list (name, raw_name, specification) VALUES (?, ?, ?)")
-               ->execute([$listName, $listRaw, dedupeBringSpec($spec)]);
-            $added++;
-            _fireHaWebhook('shopping_add', ['item' => $listName, 'specification' => $spec]);
+            // INSERT OR IGNORE, then report what really happened: the unique index is on
+            // lower(name) and two resolves racing on the same generic used to raise
+            // "UNIQUE constraint failed: index 'idx_shopping_list_name'" in the UI.
+            $ins = $db->prepare("INSERT OR IGNORE INTO shopping_list (name, raw_name, specification) VALUES (?, ?, ?)");
+            $ins->execute([$listName, $listRaw, dedupeBringSpec($spec)]);
+            if ($ins->rowCount() > 0) {
+                $added++;
+                _fireHaWebhook('shopping_add', ['item' => $listName, 'specification' => $spec]);
+            } else {
+                $skipped++;
+            }
         }
     }
     return ['added' => $added, 'updated' => $updated, 'skipped' => $skipped, 'errors' => []];
@@ -19255,7 +22330,7 @@ function templatesApply(PDO $db): void {
     }
     if ($target === 'inventory') {
         $added = 0; $skipped = 0; $errors = [];
-        $validLocs = validInventoryLocations();
+        $validLocs = validInventoryLocations($db);
         foreach ($items as $it) {
             $productId = (int)($it['product_id'] ?? 0);
             $name = trim((string)($it['name'] ?? ''));
@@ -19373,8 +22448,16 @@ function seasonalShoppingReviewAction(PDO $db): void {
 function staleInventoryItemsAction(PDO $db): void {
     $limit = (int)($_GET['limit'] ?? 3);
     $minDays = (int)($_GET['min_days'] ?? 21);
+    $mode = strtolower(trim((string)($_GET['mode'] ?? 'idle')));
+    // "expiry": the forgotten stock closest to its expiry date (what the dashboard shows
+    // now: a yoghurt expiring tomorrow matters more than a sealed box of salt).
+    if ($mode === 'expiry') {
+        $items = forgottenExpiringItems($db, $limit, $minDays);
+        echo json_encode(['success' => true, 'mode' => 'expiry', 'items' => $items, 'min_days' => max(7, min(365, $minDays))], JSON_UNESCAPED_UNICODE);
+        return;
+    }
     $items = staleInventoryItems($db, $limit, $minDays);
-    echo json_encode(['success' => true, 'items' => $items, 'min_days' => max(7, min(365, $minDays))], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['success' => true, 'mode' => 'idle', 'items' => $items, 'min_days' => max(7, min(365, $minDays))], JSON_UNESCAPED_UNICODE);
 }
 
 /**
@@ -19569,20 +22652,234 @@ function familySiblingSuggest(PDO $db): void {
 // ===== SHARED APP DATA FUNCTIONS =====
 
 function appSettingsGet(PDO $db): void {
+    // Only the client-owned keys: the table also holds `env_overrides` (which can
+    // carry real API keys when .env is read-only), the migration flags and the
+    // pairing state. See evershelfClientSettingsKeys().
+    $allowed = array_flip(evershelfClientSettingsKeys());
     $rows = $db->query("SELECT key, value FROM app_settings")->fetchAll();
     $settings = [];
+    $hidden = 0;
     foreach ($rows as $row) {
-        EverLog::debug('appSettingsGet');
+        if (!isset($allowed[$row['key']])) {
+            $hidden++;
+            continue;
+        }
         $settings[$row['key']] = json_decode($row['value'], true) ?? $row['value'];
     }
+    EverLog::debug('app_settings_get served', [
+        'event'  => 'app_settings_get',
+        'rows'   => count($settings),
+        'hidden' => $hidden,
+    ]);
     echo json_encode(['success' => true, 'settings' => $settings]);
 }
 
+/**
+ * The household's stocktake state: `GET audit_state`, `POST audit_state_save|audit_state_clear`.
+ *
+ * A stocktake is a procedure of the HOUSE, not of a browser. A run started in front of the fridge
+ * and left half-done has to be resumable from the phone in the kitchen, and the tally of the
+ * answers ("3 there, 1 finished") is the same fact on every device. It used to live in
+ * `localStorage` (`evershelf_audit_resume`), which is exactly why a second device started from
+ * scratch — the client kept the truth and the server knew nothing.
+ *
+ * Now the blob lives in `app_settings` under `audit_state` (the shelf the project already uses for
+ * instance-level state: `setup_done`, `deleted_locations`, …) and the SERVER owns its expiry: a run
+ * nobody touched for an hour is dropped on read, so no device can offer a stale resume.
+ */
+function auditStateKey(): string {
+    return 'audit_state';
+}
+
+/** One hour, the same window the household sees ("riprendi da dove eri rimasto"). */
+function auditStateTtlSeconds(): int {
+    return 3600;
+}
+
+/** Drop the stored run (expired, finished, or ended by the household). */
+function auditStateClear(PDO $db): void {
+    $db->prepare('DELETE FROM app_settings WHERE key = ?')->execute([auditStateKey()]);
+}
+
+/** The stored run, or null when there is none / it expired. */
+function auditStateRead(PDO $db): ?array {
+    $stmt = $db->prepare('SELECT value, updated_at FROM app_settings WHERE key = ?');
+    $stmt->execute([auditStateKey()]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+    $state = json_decode((string)$row['value'], true);
+    if (!is_array($state)) {
+        auditStateClear($db);
+        return null;
+    }
+    $stamp = (int)($state['updatedAt'] ?? 0);
+    if ($stamp <= 0) {
+        $rowTs = strtotime((string)$row['updated_at']);
+        $stamp = $rowTs ? $rowTs * 1000 : 0;
+    }
+    $ageMs = (int)round(microtime(true) * 1000) - $stamp;
+    if ($stamp <= 0 || $ageMs > auditStateTtlSeconds() * 1000) {
+        auditStateClear($db);
+        EverLog::info('Stocktake state expired', [
+            'event' => 'api_audit_state_expired',
+            'age_s' => (int)round($ageMs / 1000),
+            'ttl_s' => auditStateTtlSeconds(),
+        ]);
+        return null;
+    }
+    $state['age_s'] = (int)round($ageMs / 1000);
+    return $state;
+}
+
+/**
+ * Only the shape the sheets need, and only ids/strings/ints.
+ *
+ * The blob is written by a browser and read by every device, so it must not become a place to
+ * stash arbitrary JSON: `order`/`answered` are inventory-row ids (capped), `counts` four counters,
+ * `history` the undo chain (capped), `scope` a place slug.
+ */
+function auditStateSanitize(array $state): array {
+    $order = [];
+    foreach ((array)($state['order'] ?? []) as $id) {
+        $n = (int)$id;
+        if ($n > 0) {
+            $order[] = $n;
+        }
+        if (count($order) >= 5000) {
+            break;
+        }
+    }
+    $answered = [];
+    foreach ((array)($state['answered'] ?? []) as $key => $value) {
+        $n = (int)$key;
+        if ($n > 0) {
+            // The value is the KIND of answer ('there' | 'finished' | 'spoiled' | 'skip'), and it
+            // must survive the trip: casting it to int turned every answer into 0, i.e. "not
+            // answered", so after a reload the counts went back to full and the same rows were
+            // asked again.
+            $kind = is_string($value) ? trim($value) : '';
+            $answered[(string)$n] = in_array($kind, ['there', 'finished', 'spoiled', 'skip'], true) ? $kind : 1;
+        }
+        if (count($answered) >= 5000) {
+            break;
+        }
+    }
+    $counts = [];
+    foreach (['there', 'finished', 'spoiled', 'skipped'] as $k) {
+        $counts[$k] = max(0, (int)($state['counts'][$k] ?? 0));
+    }
+    $history = [];
+    foreach ((array)($state['history'] ?? []) as $entry) {
+        if (is_array($entry)) {
+            $history[] = $entry;
+        }
+        if (count($history) >= 100) {
+            break;
+        }
+    }
+    $startedAt = (int)($state['startedAt'] ?? 0);
+    return [
+        'v'         => 1,
+        'scope'     => mb_substr(trim((string)($state['scope'] ?? '')), 0, 64),
+        'order'     => $order,
+        'index'     => max(0, (int)($state['index'] ?? 0)),
+        'answered'  => $answered,
+        'history'   => $history,
+        'counts'    => $counts,
+        'startedAt' => $startedAt > 0 ? $startedAt : (int)round(microtime(true) * 1000),
+        'updatedAt' => (int)round(microtime(true) * 1000),
+    ];
+}
+
+function auditStateGet(PDO $db): void {
+    echo json_encode(['success' => true, 'state' => auditStateRead($db)], JSON_UNESCAPED_UNICODE);
+}
+
+function auditStateSave(PDO $db): void {
+    $raw = (string)file_get_contents('php://input');
+    // A stocktake of a whole pantry: 5 000 ids, a hundred undo entries, four counters.
+    if (strlen($raw) > 262144) {
+        EverLog::warn('audit_state_save payload too large', [
+            'event' => 'api_audit_state_too_large',
+            'bytes' => strlen($raw),
+        ]);
+        http_response_code(413);
+        echo json_encode(['success' => false, 'error' => 'Payload too large']);
+        return;
+    }
+    $input = json_decode($raw, true);
+    $state = is_array($input['state'] ?? null) ? $input['state'] : null;
+    if (!$state) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Missing state object']);
+        return;
+    }
+    $clean = auditStateSanitize($state);
+    $db->prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)')
+        ->execute([auditStateKey(), json_encode($clean, JSON_UNESCAPED_UNICODE)]);
+    EverLog::debug('Stocktake state saved', [
+        'event'    => 'api_audit_state_save',
+        'rows'     => count($clean['order']),
+        'answered' => count($clean['answered']),
+        'index'    => $clean['index'],
+        'scope'    => (string)$clean['scope'],
+    ]);
+    echo json_encode(['success' => true, 'updatedAt' => $clean['updatedAt']]);
+}
+
+function auditStateClearAction(PDO $db): void {
+    auditStateClear($db);
+    EverLog::info('Stocktake state cleared', ['event' => 'api_audit_state_clear']);
+    echo json_encode(['success' => true]);
+}
+
 function appSettingsSave(PDO $db): void {
-    $input = json_decode(file_get_contents('php://input'), true);
+    $raw = (string)file_get_contents('php://input');
+    // A client-owned blob is small (the biggest one, waste_learning, lives server
+    // side). Refuse anything larger instead of storing it.
+    if (strlen($raw) > 1048576) {
+        EverLog::warn('app_settings_save payload too large', ['event' => 'app_settings_save_too_large', 'bytes' => strlen($raw)]);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Payload too large',
+            'error_key' => 'error.settings_too_large',
+        ]);
+        return;
+    }
+    $input = json_decode($raw, true);
     if (!$input || !is_array($input['settings'] ?? null)) {
-        EverLog::debug('appSettingsSave');
-        echo json_encode(['error' => 'Missing settings object']);
+        // Same contract as every other handler: `api()` must be able to tell a
+        // failure from a save, and the client resolves the key through t().
+        EverLog::warn('app_settings_save without a settings object', ['event' => 'app_settings_save_invalid']);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Missing settings object',
+            'error_key' => 'error.settings_missing',
+        ]);
+        return;
+    }
+    // All-or-nothing: one refused key cancels the whole request, so a client can
+    // never end up with half of a save applied. Keys are logged, values never.
+    $allowed = array_flip(evershelfClientSettingsKeys());
+    $rejected = [];
+    foreach ($input['settings'] as $key => $value) {
+        if (!is_string($key) || !isset($allowed[$key])) {
+            $rejected[] = (string)$key;
+        }
+    }
+    if ($rejected) {
+        EverLog::warn('app_settings_save refused keys', [
+            'event' => 'app_settings_key_rejected',
+            'keys'  => array_slice($rejected, 0, 20),
+        ]);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Settings key not allowed',
+            'error_key' => 'error.settings_key_not_allowed',
+            'keys'      => array_slice($rejected, 0, 20),
+        ]);
         return;
     }
     $stmt = $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
@@ -19590,12 +22887,12 @@ function appSettingsSave(PDO $db): void {
     foreach ($input['settings'] as $key => $value) {
         $stmt->execute([$key, json_encode($value)]);
     }
-    echo json_encode(['success' => true]);
+    echo json_encode(['success' => true, 'stored' => count($input['settings'])]);
 }
 
 function recipesList(PDO $db): void {
     $limit = min(intval($_GET['limit'] ?? 60), 200);
-    $rows = $db->query("SELECT id, date, meal, recipe_json, created_at, is_favorite FROM recipes ORDER BY is_favorite DESC, date DESC, created_at DESC LIMIT {$limit}")->fetchAll();
+    $rows = $db->query("SELECT id, date, meal, recipe_json, created_at, is_favorite, rating FROM recipes ORDER BY is_favorite DESC, date DESC, created_at DESC LIMIT {$limit}")->fetchAll();
     EverLog::debug('recipesList');
     $recipes = [];
     foreach ($rows as $row) {
@@ -19606,6 +22903,8 @@ function recipesList(PDO $db): void {
             'recipe'      => json_decode($row['recipe_json'], true),
             'savedAt'     => strtotime($row['created_at']) * 1000,
             'is_favorite' => (bool)$row['is_favorite'],
+            // 0 = not rated. A number, not a boolean: the book is filtered by it.
+            'rating'      => (int)($row['rating'] ?? 0),
         ];
     }
     echo json_encode(['success' => true, 'recipes' => $recipes]);
@@ -19619,6 +22918,36 @@ function recipeToggleFavorite(PDO $db): void {
     $db->prepare("UPDATE recipes SET is_favorite = 1 - is_favorite WHERE id = ?")->execute([$id]);
     $fav = (int)$db->query("SELECT is_favorite FROM recipes WHERE id = {$id}")->fetchColumn();
     echo json_encode(['success' => true, 'is_favorite' => (bool)$fav]);
+}
+
+/**
+ * POST /api/?action=recipes_rate — the household's own vote on a saved recipe (0–5).
+ *
+ * 0 is a real value: it means "not rated" and it is how a vote is taken back. The number is
+ * clamped here because the client is not the authority on what a rating is, and the change is
+ * logged: a vote is user data and this endpoint has no history to undo it from.
+ */
+function recipeRate(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $id = intval($input['id'] ?? 0);
+    if ($id <= 0) {
+        echo json_encode(['success' => false, 'error' => 'Invalid id']);
+        return;
+    }
+    $rating = max(0, min(5, intval($input['rating'] ?? 0)));
+    $upd = $db->prepare('UPDATE recipes SET rating = ? WHERE id = ?');
+    $upd->execute([$rating, $id]);
+    if ($upd->rowCount() === 0) {
+        // rowCount() is 0 also when the value did not change: only a missing row is an error.
+        $exists = $db->prepare('SELECT id FROM recipes WHERE id = ? LIMIT 1');
+        $exists->execute([$id]);
+        if (!$exists->fetchColumn()) {
+            echo json_encode(['success' => false, 'error' => 'not_found']);
+            return;
+        }
+    }
+    EverLog::info('Recipe rated', ['event' => 'recipe_rate', 'id' => $id, 'rating' => $rating]);
+    echo json_encode(['success' => true, 'id' => $id, 'rating' => $rating]);
 }
 
 function recipesSave(PDO $db): void {
@@ -19675,6 +23004,10 @@ function recipesArchiveUpsert(PDO $db, $recipe, string $meal = '', string $date 
             if ($hashId > 0) {
                 $db->prepare("UPDATE recipes SET date = ?, meal = ?, recipe_json = ?, content_hash = ?, created_at = datetime('now') WHERE id = ?")
                     ->execute([$date, $meal, $json, $hash, $hashId]);
+                // The row that survives keeps the better vote: merging two copies of the same
+                // dish must never erase what the household already said about it.
+                $db->prepare('UPDATE recipes SET rating = MAX(rating, COALESCE((SELECT rating FROM recipes WHERE id = ?), 0)) WHERE id = ?')
+                    ->execute([$id, $hashId]);
                 $db->prepare('DELETE FROM recipes WHERE id = ?')->execute([$id]);
                 return $hashId;
             }
@@ -19860,6 +23193,9 @@ function reportError(): void {
     // A client can send anything here (public action): keep it an array so the
     // redaction/cap helpers below always receive what they expect.
     $context   = is_array($input['context'] ?? null) ? $input['context'] : [];
+    // Severity travels WITH the report (a renderer that was killed is a warning, a JS exception is
+    // an error): the kiosk sends it, and an older APK simply sends none.
+    $level     = _clientLogLevel((string)($input['level'] ?? ''), $type . ' ' . $message);
 
     if (empty($message)) {
         echo json_encode(['ok' => false, 'error' => 'message required']);
@@ -19868,6 +23204,17 @@ function reportError(): void {
 
     // ── Write to local log regardless of GitHub availability ──────────────
     _appendErrorLog($source, $type, $message, $stack, $pageUrl, $ua, $context);
+    // …and the same line into the leveled per-source river (`data/logs/kiosk-YYYYMMDD.log`): a
+    // wall's own reports and its WebView's `[CAM]`/`[SHELFY]` lines belong in ONE place, filed by
+    // level, so nobody has to cross two files to rebuild a timeline again.
+    if (_clientLogWanted($level)) {
+        _clientLogWrite(
+            $source === 'kiosk' ? 'kiosk' : 'app',
+            $level,
+            ["$type: $message" . ($pageUrl ? " | url=$pageUrl" : '')],
+            $source
+        );
+    }
 
     // ── Publishing to GitHub is an explicit opt-in (REPORT_ENABLED) ───────
     // The local log above always ran, so nothing is lost by stopping here.
@@ -21456,8 +24803,23 @@ function _calcEstimatedTotal(float $pricePerUnit, string $priceUnitLabel, float 
     // We must convert grams→packages so we don't multiply 100×€2.75=€275.
     if (in_array(strtolower($unit), ['g', 'ml'])) {
         $pkgWeight = 0.0;
-        // 1) Use defQty if package unit matches (e.g. defQty=250, pkgUnit='g', unit='g')
-        if ($defQty > 0 && !empty($pkgUnit) && strtolower($pkgUnit) === strtolower($unit)) {
+        // 0) A multi-pack label ("confezione 4x55g") weighs 4 × 55 g, not 55 g:
+        //    taking the first number made a €2.20 pack of 4 cost €22.
+        if (preg_match('/\b(\d{1,2})\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(g|ml|kg|l|lt)\b/i', $priceUnitLabel, $mm)) {
+            $count = (int)$mm[1];
+            $each  = (float)str_replace(',', '.', $mm[2]);
+            $mUnit = strtolower($mm[3]);
+            $eachBase = in_array($mUnit, ['kg', 'l', 'lt'], true) ? $each * 1000.0 : $each;
+            if (in_array($mUnit, ['g', 'kg'], true) && strtolower($unit) === 'g') {
+                $pkgWeight = $count * $eachBase;
+            } elseif (in_array($mUnit, ['ml', 'l', 'lt'], true) && strtolower($unit) === 'ml') {
+                $pkgWeight = $count * $eachBase;
+            }
+        }
+        // 1) Use defQty if package unit matches (e.g. defQty=250, pkgUnit='g', unit='g').
+        //    A defQty below 20 is a PIECE count, not a weight: "Rotolo, 2 rotoli" read as
+        //    a 2 g pack turned 500 g into 250 packs (€15 for a roll).
+        if ($pkgWeight <= 0 && $defQty >= 20 && !empty($pkgUnit) && strtolower($pkgUnit) === strtolower($unit)) {
             $pkgWeight = $defQty;
         }
         // 2) Extract weight/volume from label: "confezione 250g", "vasetto 125ml", "pacco 500g",
@@ -21473,10 +24835,14 @@ function _calcEstimatedTotal(float $pricePerUnit, string $priceUnitLabel, float 
                 } elseif (in_array($rawUnit, ['l', 'lt']) && strtolower($unit) === 'ml') {
                     $pkgWeight = $rawVal * 1000.0;
                 }
+                // "bustina 10g" is a pack; "2 g" is a misread piece count.
+                if ($pkgWeight > 0 && $pkgWeight < 20.0) {
+                    $pkgWeight = 0.0;
+                }
             }
         }
         // 3) Also try defQty alone (no pkgUnit set but defQty likely in same unit)
-        if ($pkgWeight <= 0 && $defQty > 0) {
+        if ($pkgWeight <= 0 && $defQty >= 20) {
             $pkgWeight = $defQty;
         }
         if ($pkgWeight > 0) {
@@ -21801,3 +25167,72 @@ function parseReceipt(): void
     ]);
     echo json_encode(['success' => true, 'items' => $items, 'count' => count($items)]);
 }
+
+// ── The household's PAO (period after opening) ────────────────────────────────
+// `data/opened_shelf_life.json` is the app's opinion on how long an opened product keeps;
+// the edit sheet lets the household say what their kitchen really does, and the app keeps
+// the AVERAGE of those corrections per family + place instead of the last tap. The clock the
+// notice strip prints reads `openedShelfLifeThresholds()`, so all three answers below only
+// describe and feed the same table (`api/lib/pao_overrides.php`).
+
+/**
+ * GET `pao_get` — the two numbers of one row, with where they come from.
+ *
+ * Answers the effective thresholds, the data table's own numbers (`table_warn`/`table_critical`)
+ * and `sample` = how many products the household's average is made of, so the form can say
+ * «media delle tue 3 modifiche» instead of pretending the value is a factory setting.
+ */
+function paoGetAction(PDO $db): void
+{
+    $ctx = paoRowContext($db, (int)($_GET['id'] ?? 0));
+    if ($ctx === null) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Inventory row not found']);
+        return;
+    }
+    echo json_encode(['success' => true] + $ctx, JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST `pao_save` — the household corrects the opening window of one product.
+ *
+ * The value becomes ONE observation of its family in that place (replacing this product's own
+ * previous one), and the answer carries the NEW AVERAGE — not the number just typed: the pantry
+ * uses the average, so correcting a single yoghurt nudges the family instead of rewriting it.
+ */
+function paoSaveAction(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $id = (int)($input['id'] ?? 0);
+    $warn = (int)($input['warn'] ?? 0);
+    $critical = (int)($input['critical'] ?? 0);
+    if ($id <= 0 || $warn <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'id and warn are required']);
+        return;
+    }
+    $ctx = paoSaveObservation($db, $id, $warn, $critical);
+    if ($ctx === null) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Inventory row not found']);
+        return;
+    }
+    echo json_encode(['success' => true] + $ctx, JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST `pao_reset` — «riporta ai valori consigliati»: forget the household's numbers for the
+ * family of this row (all its products, this place) and let the data table answer again.
+ */
+function paoResetAction(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $ctx = paoResetFamily($db, (int)($input['id'] ?? 0));
+    if ($ctx === null) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Inventory row not found']);
+        return;
+    }
+    echo json_encode(['success' => true] + $ctx, JSON_UNESCAPED_UNICODE);
+}
+

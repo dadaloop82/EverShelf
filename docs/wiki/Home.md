@@ -18,6 +18,7 @@ Welcome to the **EverShelf** project wiki — your complete reference for instal
 | [Installation](Installation) | Docker, manual setup, HTTPS, web server config |
 | [Configuration](Configuration) | `.env` reference — all options explained |
 | [Features](Features) | Complete feature documentation |
+| [SHELFY](SHELFY) | The voice assistant: what it understands, the 10 s confirmation, adding words |
 | [API Reference](API-Reference) | All REST endpoints, parameters, and responses |
 | [Health Bridge & Fuel Mode](Health) | Phone activity sync and bio-driven recipes |
 | [Home Assistant](Home-Assistant) | HACS integration, sensors, services |
@@ -25,6 +26,8 @@ Welcome to the **EverShelf** project wiki — your complete reference for instal
 | [MCP](MCP) | Model Context Protocol server for AI agents |
 | [Android Kiosk](Android-Kiosk) | Tablet kiosk app setup and usage |
 | [Scale Gateway](Scale-Gateway) | BLE smart scale integration |
+| [EverShelf Med](Medicines) | Opt-in medicine cabinet: separate domains, offline symptom map, no dosage |
+| [Medicine code schemas](Medicines-Country-Schemas) | How a country is added: the printed code, the catalogue, the OCR sample |
 | [Support and ads](Support-and-ads) | Optional donations — and why the ad slots stay parked (never a paywall) |
 | [Translations](Translations) | Adding and editing language files |
 | [Contributing](Contributing) | Development workflow, PR process, and how to pick a task |
@@ -55,25 +58,21 @@ All data stays on your server. No cloud, no subscriptions.
 
 ## 🆕 What's New
 
-### v1.9.1 (2026-10-05)
-- **Settings collapse into sub-sections** — one card open at a time, the second-level
-  strip wraps instead of scrolling, and the checklist lists only what still needs a
-  decision (unconfigured options + *Novità*)
-- **Dashboard** — new *overview*, *freshness* and *trend* insight panels, and the spend
-  panel now explains a zero instead of hiding
-- **Push notifications without Home Assistant** — [ntfy](https://ntfy.sh) or any JSON
-  webhook, with a test button that reports the HTTP status
-- **Cron watchdog** — a stopped cron job is reported instead of staying silent
-- Setup checklist + guided assistant for every configurable option
+**v2.0.0 — the big release.** The settings page is a control panel (six sections, the essentials
+above them, **no Save button**) and the idle screen is a dashboard read from your own data: a
+recipe you already cooked («fatta 11 giorni fa — ti era piaciuta?»), what to eat first, the pantry
+charts and an idea of the day. One row grammar across pantry, Home
+and shopping, the medicine cabinet and the stocktake as first-class screens, an API that only
+answers a paired device, and an update that repairs and verifies the database on the first boot.
 
-### v1.9.0 (2026-10-05)
-- **Calendar feed (ICS / WebCal)** — subscribe to the pantry expiries in Google/Apple Calendar
-- **Recipe → shopping list** — recomputed against the pantry, so you buy only the gap
-- **Seasonal produce** — the smart list hides what the current month cannot supply
-- **Third CSS layer** (`assets/css/elegant.css`) — a restyle that deletes no selector
-- **Client-log hardening** — the public log sink is redacted and bounded
+**v1.31.35 — a medicine's active ingredient wraps** instead of being cut at the edge of the
+cabinet row, and the sheet's facts wrap instead of scrolling sideways.
 
-→ See the full [CHANGELOG](https://github.com/dadaloop82/EverShelf/blob/main/CHANGELOG.md)
+**v1.31.34 — the shopping list wears the same row as the Home**: photo strip, one meta line,
+one state pill, the same two actions.
+
+→ The full history is in the [CHANGELOG](https://github.com/dadaloop82/EverShelf/blob/main/CHANGELOG.md);
+what changed and why is described in the [README](https://github.com/dadaloop82/EverShelf#-20-is-a-large-refactor).
 
 ---
 

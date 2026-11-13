@@ -4,29 +4,33 @@
  * locales. Regenerate after editing index.html. */
 window.EVERSHELF_SETTINGS_SCHEMA = {
     "tabs": {
-        "tab-general": "app",
-        "tab-api": "app",
+        "tab-general": "general",
+        "tab-locations": "general",
         "tab-bring": "cooking",
         "tab-recipe": "cooking",
-        "tab-health": "cooking",
         "tab-mealplan": "cooking",
         "tab-appliances": "cooking",
-        "tab-camera": "app",
-        "tab-security": "system",
-        "tab-tts": "app",
-        "tab-ha": "alerts",
+        "tab-health": "cooking",
+        "tab-api": "ai",
+        "tab-tts": "ai",
+        "tab-camera": "ai",
+        "tab-medical": "medical",
         "tab-notify": "alerts",
-        "tab-scale": "alerts",
-        "tab-backup": "system",
+        "tab-ha": "alerts",
         "tab-calendar": "alerts",
-        "tab-info": "system"
+        "tab-scale": "alerts",
+        "tab-security": "system",
+        "tab-backup": "system",
+        "tab-data": "system",
+        "tab-info": "system",
+        "tab-credits": "system"
     },
     "entries": [
         {
             "id": "setting-language",
             "env": "",
             "tab": "tab-general",
-            "group": "app",
+            "group": "general",
             "label": "settings.language.restart_notice",
             "hint": "settings.info.currency_hint",
             "card": "settings.language.title",
@@ -38,9 +42,9 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-price-currency",
             "env": "PRICE_CURRENCY",
             "tab": "tab-general",
-            "group": "app",
+            "group": "general",
             "label": "settings.currency.eur",
-            "hint": "",
+            "hint": "settings.theme.hint",
             "card": "settings.info.currency_title",
             "card_hint": "settings.info.currency_hint",
             "keywords": "",
@@ -48,21 +52,21 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-dark-mode",
-            "env": "",
+            "env": "DARK_MODE",
             "tab": "tab-general",
-            "group": "app",
+            "group": "general",
             "label": "settings.theme.off",
             "hint": "settings.screensaver.card_hint",
             "card": "settings.theme.title",
             "card_hint": "settings.theme.hint",
-            "keywords": "",
+            "keywords": "settings.search_kw.theme",
             "type": "select"
         },
         {
             "id": "setting-screensaver-enabled",
             "env": "SCREENSAVER_ENABLED",
             "tab": "tab-general",
-            "group": "app",
+            "group": "general",
             "label": "settings.screensaver.label",
             "hint": "",
             "card": "settings.screensaver.card_title",
@@ -74,31 +78,79 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-screensaver-timeout",
             "env": "SCREENSAVER_TIMEOUT",
             "tab": "tab-general",
-            "group": "app",
+            "group": "general",
             "label": "settings.screensaver.start_after",
-            "hint": "settings.zerowaste.card_hint",
+            "hint": "",
             "card": "settings.screensaver.card_title",
             "card_hint": "settings.screensaver.card_hint",
             "keywords": "",
             "type": "select"
         },
         {
-            "id": "setting-zerowaste-tips",
-            "env": "",
+            "id": "setting-screensaver-view-meal",
+            "env": "SCREENSAVER_VIEWS",
             "tab": "tab-general",
-            "group": "app",
-            "label": "settings.zerowaste.label",
-            "hint": "",
-            "card": "settings.zerowaste.card_title",
-            "card_hint": "settings.zerowaste.card_hint",
+            "group": "general",
+            "label": "settings.screensaver.views_label",
+            "hint": "settings.screensaver.views_hint",
+            "card": "settings.screensaver.card_title",
+            "card_hint": "settings.screensaver.card_hint",
             "keywords": "",
             "type": "bool"
         },
         {
+            "id": "setting-screensaver-interval",
+            "env": "SCREENSAVER_INTERVAL",
+            "tab": "tab-general",
+            "group": "general",
+            "label": "settings.screensaver.interval_label",
+            "hint": "",
+            "card": "settings.screensaver.card_title",
+            "card_hint": "settings.screensaver.card_hint",
+            "keywords": "",
+            "type": "select"
+        },
+        {
+            "id": "setting-recipe-retention-days",
+            "env": "RECIPE_RETENTION_DAYS",
+            "tab": "tab-data",
+            "group": "system",
+            "label": "settings.retention.recipe_label",
+            "hint": "settings.retention.recipe_hint",
+            "card": "settings.retention.card_title",
+            "card_hint": "settings.retention.card_hint",
+            "keywords": "",
+            "type": "int"
+        },
+        {
+            "id": "setting-transaction-retention-days",
+            "env": "TRANSACTION_RETENTION_DAYS",
+            "tab": "tab-data",
+            "group": "system",
+            "label": "settings.retention.history_label",
+            "hint": "settings.retention.history_hint",
+            "card": "settings.retention.card_title",
+            "card_hint": "settings.retention.card_hint",
+            "keywords": "",
+            "type": "int"
+        },
+        {
+            "id": "setting-vacuum-expiry-extension-days",
+            "env": "VACUUM_EXPIRY_EXTENSION_DAYS",
+            "tab": "tab-data",
+            "group": "system",
+            "label": "settings.retention.vacuum_label",
+            "hint": "settings.retention.vacuum_hint",
+            "card": "settings.retention.card_title",
+            "card_hint": "settings.retention.card_hint",
+            "keywords": "",
+            "type": "int"
+        },
+        {
             "id": "setting-product-kind-prefix",
             "env": "PRODUCT_KIND_PREFIX",
-            "tab": "tab-general",
-            "group": "app",
+            "tab": "tab-data",
+            "group": "system",
             "label": "settings.product_rules.kind_prefix_label",
             "hint": "",
             "card": "settings.product_rules.card_title",
@@ -109,8 +161,8 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         {
             "id": "setting-tags-enabled",
             "env": "TAGS_ENABLED",
-            "tab": "tab-general",
-            "group": "app",
+            "tab": "tab-data",
+            "group": "system",
             "label": "settings.product_rules.tags_label",
             "hint": "settings.product_rules.tags_hint",
             "card": "settings.product_rules.card_title",
@@ -121,8 +173,8 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         {
             "id": "setting-product-variants-enabled",
             "env": "PRODUCT_VARIANTS_ENABLED",
-            "tab": "tab-general",
-            "group": "app",
+            "tab": "tab-data",
+            "group": "system",
             "label": "settings.product_rules.family_label",
             "hint": "settings.product_rules.family_hint",
             "card": "settings.product_rules.card_title",
@@ -133,8 +185,8 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         {
             "id": "setting-receipt-ocr-enabled",
             "env": "RECEIPT_OCR_ENABLED",
-            "tab": "tab-general",
-            "group": "app",
+            "tab": "tab-data",
+            "group": "system",
             "label": "settings.product_rules.receipt_label",
             "hint": "settings.product_rules.receipt_hint",
             "card": "settings.product_rules.card_title",
@@ -143,22 +195,22 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "type": "bool"
         },
         {
-            "id": "setting-audit-mode-enabled",
-            "env": "AUDIT_MODE_ENABLED",
-            "tab": "tab-general",
-            "group": "app",
+            "id": "setting-audit-batch-size",
+            "env": "AUDIT_MODE_BATCH_SIZE",
+            "tab": "tab-data",
+            "group": "system",
             "label": "settings.product_rules.audit_label",
             "hint": "settings.product_rules.audit_hint",
             "card": "settings.product_rules.card_title",
             "card_hint": "settings.product_rules.card_hint",
             "keywords": "settings.search_kw.audit",
-            "type": "bool"
+            "type": "int"
         },
         {
             "id": "setting-auto-favorite-min-uses",
             "env": "AUTO_FAVORITE_MIN_USES",
-            "tab": "tab-general",
-            "group": "app",
+            "tab": "tab-data",
+            "group": "system",
             "label": "settings.product_rules.auto_favorite_label",
             "hint": "settings.product_rules.auto_favorite_suffix",
             "card": "settings.product_rules.card_title",
@@ -170,7 +222,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-ai-enabled",
             "env": "AI_ENABLED",
             "tab": "tab-api",
-            "group": "app",
+            "group": "ai",
             "label": "settings.ai.enabled_label",
             "hint": "",
             "card": "settings.ai.title",
@@ -182,7 +234,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-gemini-key",
             "env": "GEMINI_API_KEY",
             "tab": "tab-api",
-            "group": "app",
+            "group": "ai",
             "label": "settings.gemini.key_label",
             "hint": "settings.openai.hint",
             "card": "settings.gemini.title",
@@ -194,7 +246,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-openai-base-url",
             "env": "OPENAI_BASE_URL",
             "tab": "tab-api",
-            "group": "app",
+            "group": "ai",
             "label": "settings.openai.base_url_label",
             "hint": "",
             "card": "settings.openai.title",
@@ -206,7 +258,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-openai-model",
             "env": "OPENAI_MODEL",
             "tab": "tab-api",
-            "group": "app",
+            "group": "ai",
             "label": "settings.openai.model_label",
             "hint": "",
             "card": "settings.openai.title",
@@ -218,7 +270,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-openai-api-key",
             "env": "OPENAI_API_KEY",
             "tab": "tab-api",
-            "group": "app",
+            "group": "ai",
             "label": "settings.openai.key_label",
             "hint": "settings.llama.hint",
             "card": "settings.openai.title",
@@ -230,7 +282,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-llama-base-url",
             "env": "LLAMA_BASE_URL",
             "tab": "tab-api",
-            "group": "app",
+            "group": "ai",
             "label": "settings.llama.base_url_label",
             "hint": "",
             "card": "settings.llama.title",
@@ -242,7 +294,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-llama-model",
             "env": "LLAMA_MODEL",
             "tab": "tab-api",
-            "group": "app",
+            "group": "ai",
             "label": "settings.llama.model_label",
             "hint": "",
             "card": "settings.llama.title",
@@ -254,7 +306,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-llama-api-key",
             "env": "LLAMA_API_KEY",
             "tab": "tab-api",
-            "group": "app",
+            "group": "ai",
             "label": "settings.llama.key_label",
             "hint": "settings.ai.test_hint",
             "card": "settings.llama.title",
@@ -264,7 +316,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-shopping-enabled",
-            "env": "",
+            "env": "SHOPPING_ENABLED",
             "tab": "tab-bring",
             "group": "cooking",
             "label": "settings.shopping.enable_label",
@@ -300,7 +352,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-shopping-smart-suggestions",
-            "env": "",
+            "env": "SHOPPING_SMART_SUGGESTIONS",
             "tab": "tab-bring",
             "group": "cooking",
             "label": "settings.shopping.smart_suggestions_label",
@@ -312,7 +364,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-shopping-forecast",
-            "env": "",
+            "env": "SHOPPING_FORECAST",
             "tab": "tab-bring",
             "group": "cooking",
             "label": "settings.shopping.forecast_label",
@@ -324,7 +376,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-shopping-auto-add",
-            "env": "",
+            "env": "SHOPPING_AUTO_ADD_THRESHOLD",
             "tab": "tab-bring",
             "group": "cooking",
             "label": "settings.shopping.auto_add_label",
@@ -336,14 +388,14 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-shopping-remove-plan",
-            "env": "",
+            "env": "SHOPPING_REMOVE_ON_BUY",
             "tab": "tab-bring",
             "group": "cooking",
             "label": "settings.shopping.remove_on_buy_plan",
             "hint": "settings.shopping.trip_complete_hint",
             "card": "settings.shopping.remove_on_buy_title",
             "card_hint": "settings.shopping.remove_on_buy_hint",
-            "keywords": "",
+            "keywords": "settings.search_kw.shopping",
             "type": "text"
         },
         {
@@ -420,7 +472,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-mealie-url",
-            "env": "",
+            "env": "MEALIE_URL",
             "tab": "tab-recipe",
             "group": "cooking",
             "label": "settings.mealie.url_label",
@@ -432,7 +484,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-mealie-token",
-            "env": "",
+            "env": "MEALIE_API_TOKEN",
             "tab": "tab-recipe",
             "group": "cooking",
             "label": "settings.mealie.token_label",
@@ -456,7 +508,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-recipe-shopping-mode",
-            "env": "",
+            "env": "RECIPE_SHOPPING_MODE",
             "tab": "tab-recipe",
             "group": "cooking",
             "label": "settings.recipe.shopping_mode_label",
@@ -504,7 +556,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-weather-enabled",
-            "env": "",
+            "env": "WEATHER_ENABLED",
             "tab": "tab-recipe",
             "group": "cooking",
             "label": "settings.weather.enabled",
@@ -525,6 +577,54 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "card_hint": "settings.weather.hint",
             "keywords": "",
             "type": "text"
+        },
+        {
+            "id": "setting-zerowaste-tips",
+            "env": "ZEROWASTE_TIPS_ENABLED",
+            "tab": "tab-recipe",
+            "group": "cooking",
+            "label": "settings.zerowaste.label",
+            "hint": "",
+            "card": "settings.zerowaste.card_title",
+            "card_hint": "settings.zerowaste.card_hint",
+            "keywords": "",
+            "type": "bool"
+        },
+        {
+            "id": "setting-med-enabled",
+            "env": "MED_ENABLED",
+            "tab": "tab-medical",
+            "group": "medical",
+            "label": "medical.enable",
+            "hint": "",
+            "card": "medical.title",
+            "card_hint": "medical.hint",
+            "keywords": "",
+            "type": "bool"
+        },
+        {
+            "id": "med-country-select",
+            "env": "",
+            "tab": "tab-medical",
+            "group": "medical",
+            "label": "medical.country_label",
+            "hint": "medical.location_required",
+            "card": "medical.title",
+            "card_hint": "medical.hint",
+            "keywords": "",
+            "type": "select"
+        },
+        {
+            "id": "med-dataset-file",
+            "env": "",
+            "tab": "tab-medical",
+            "group": "medical",
+            "label": "medical.sync_btn",
+            "hint": "medical.import_hint",
+            "card": "medical.title",
+            "card_hint": "medical.hint",
+            "keywords": "",
+            "type": "file"
         },
         {
             "id": "setting-health-enabled",
@@ -590,7 +690,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-camera-facing",
             "env": "CAMERA_FACING",
             "tab": "tab-camera",
-            "group": "app",
+            "group": "ai",
             "label": "settings.camera.device_label",
             "hint": "",
             "card": "settings.camera.title",
@@ -614,7 +714,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-enabled",
             "env": "TTS_ENABLED",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.enabled",
             "hint": "",
             "card": "settings.tts.title",
@@ -626,7 +726,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-engine",
             "env": "TTS_ENGINE",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.engine_label",
             "hint": "",
             "card": "settings.tts.title",
@@ -638,7 +738,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-voice",
             "env": "",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.voice_label",
             "hint": "settings.tts.voices_hint",
             "card": "settings.tts.title",
@@ -650,7 +750,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-rate",
             "env": "TTS_RATE",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.rate_label",
             "hint": "",
             "card": "settings.tts.title",
@@ -662,7 +762,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-pitch",
             "env": "TTS_PITCH",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.pitch_label",
             "hint": "",
             "card": "settings.tts.title",
@@ -674,7 +774,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-url",
             "env": "TTS_URL",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.url_label",
             "hint": "",
             "card": "settings.tts.title",
@@ -686,7 +786,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-method",
             "env": "TTS_METHOD",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.method_label",
             "hint": "",
             "card": "settings.tts.title",
@@ -698,7 +798,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-auth-type",
             "env": "TTS_AUTH_TYPE",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.auth_label",
             "hint": "",
             "card": "settings.tts.title",
@@ -710,7 +810,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-token",
             "env": "TTS_TOKEN",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.token_label",
             "hint": "",
             "card": "settings.tts.title",
@@ -722,7 +822,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-auth-header-name",
             "env": "TTS_AUTH_HEADER_NAME",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.custom_header_name",
             "hint": "",
             "card": "settings.tts.title",
@@ -734,7 +834,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-auth-header-value",
             "env": "TTS_AUTH_HEADER_VALUE",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.custom_header_value",
             "hint": "",
             "card": "settings.tts.title",
@@ -746,7 +846,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-content-type",
             "env": "TTS_CONTENT_TYPE",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.content_type_label",
             "hint": "",
             "card": "settings.tts.title",
@@ -758,7 +858,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-payload-key",
             "env": "TTS_PAYLOAD_KEY",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.payload_key_label",
             "hint": "settings.tts.payload_key_hint",
             "card": "settings.tts.title",
@@ -770,7 +870,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "id": "setting-tts-extra-fields",
             "env": "TTS_EXTRA_FIELDS",
             "tab": "tab-tts",
-            "group": "app",
+            "group": "ai",
             "label": "settings.tts.extra_fields_label",
             "hint": "settings.tts.extra_fields_hint",
             "card": "settings.tts.title",
@@ -1068,19 +1168,19 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-telegram-token",
-            "env": "",
+            "env": "TELEGRAM_BOT_TOKEN",
             "tab": "tab-notify",
             "group": "alerts",
             "label": "settings.telegram.token_label",
             "hint": "settings.telegram.token_hint",
             "card": "settings.telegram.title",
             "card_hint": "settings.telegram.hint",
-            "keywords": "",
+            "keywords": "settings.search_kw.notify",
             "type": "secret"
         },
         {
             "id": "setting-telegram-chats",
-            "env": "",
+            "env": "TELEGRAM_ALLOWED_CHAT_IDS",
             "tab": "tab-notify",
             "group": "alerts",
             "label": "settings.telegram.chats_label",
@@ -1104,7 +1204,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-webpush-enabled",
-            "env": "",
+            "env": "WEB_PUSH_ENABLED",
             "tab": "tab-notify",
             "group": "alerts",
             "label": "settings.webpush.enabled",
@@ -1224,7 +1324,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-gdrive-client-id",
-            "env": "",
+            "env": "GDRIVE_CLIENT_ID",
             "tab": "tab-backup",
             "group": "system",
             "label": "settings.backup.gdrive_client_id",
@@ -1236,7 +1336,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-gdrive-client-secret",
-            "env": "",
+            "env": "GDRIVE_CLIENT_SECRET",
             "tab": "tab-backup",
             "group": "system",
             "label": "settings.backup.gdrive_client_secret",
@@ -1271,27 +1371,51 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "type": "int"
         },
         {
-            "id": "setting-audit-batch-size",
-            "env": "AUDIT_MODE_BATCH_SIZE",
+            "id": "setting-screensaver-view-alerts",
+            "env": "SCREENSAVER_VIEWS",
             "tab": "tab-general",
-            "group": "app",
-            "label": "settings.product_rules.audit_batch_label",
+            "group": "general",
+            "label": "screensaver.view_alerts",
             "hint": "",
-            "card": "settings.product_rules.card_title",
-            "card_hint": "settings.product_rules.card_hint",
+            "card": "settings.screensaver.card_title",
+            "card_hint": "settings.screensaver.card_hint",
+            "keywords": "",
+            "type": "action"
+        },
+        {
+            "id": "setting-screensaver-view-nutrition",
+            "env": "SCREENSAVER_VIEWS",
+            "tab": "tab-general",
+            "group": "general",
+            "label": "screensaver.view_nutrition",
+            "hint": "",
+            "card": "settings.screensaver.card_title",
+            "card_hint": "settings.screensaver.card_hint",
+            "keywords": "",
+            "type": "action"
+        },
+        {
+            "id": "setting-screensaver-view-fact",
+            "env": "SCREENSAVER_VIEWS",
+            "tab": "tab-general",
+            "group": "general",
+            "label": "screensaver.view_fact",
+            "hint": "",
+            "card": "settings.screensaver.card_title",
+            "card_hint": "settings.screensaver.card_hint",
             "keywords": "",
             "type": "action"
         },
         {
             "id": "setting-shopping-remove-trip",
-            "env": "",
+            "env": "SHOPPING_REMOVE_ON_BUY",
             "tab": "tab-bring",
             "group": "cooking",
             "label": "settings.shopping.remove_on_buy_plan",
             "hint": "",
             "card": "settings.shopping.remove_on_buy_title",
             "card_hint": "settings.shopping.remove_on_buy_hint",
-            "keywords": "",
+            "keywords": "settings.search_kw.shopping",
             "type": "action"
         },
         {
@@ -1356,7 +1480,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-weather-lat",
-            "env": "",
+            "env": "WEATHER_LAT",
             "tab": "tab-recipe",
             "group": "cooking",
             "label": "settings.weather.search",
@@ -1368,7 +1492,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-weather-lon",
-            "env": "",
+            "env": "WEATHER_LON",
             "tab": "tab-recipe",
             "group": "cooking",
             "label": "settings.weather.search",
@@ -1380,7 +1504,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "id": "setting-weather-city",
-            "env": "",
+            "env": "WEATHER_CITY",
             "tab": "tab-recipe",
             "group": "cooking",
             "label": "settings.weather.search",
@@ -1389,27 +1513,31 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "card_hint": "settings.weather.hint",
             "keywords": "",
             "type": "action"
-        },
-        {
-            "id": "setting-audit-batch-size",
-            "env": "AUDIT_MODE_BATCH_SIZE",
-            "tab": "tab-general",
-            "group": "app",
-            "label": "settings.product_rules.audit_batch_label",
-            "hint": "",
-            "card": "settings.product_rules.card_title",
-            "card_hint": "settings.product_rules.card_hint",
-            "keywords": "settings.search_kw.audit",
-            "type": "int"
         }
     ],
     "env_only": [
+        {
+            "env": "EVERSHELF_ENV_FILE",
+            "reason": "storage"
+        },
         {
             "env": "AI_PROVIDER",
             "reason": "advanced"
         },
         {
             "env": "SHOPPING_MODE",
+            "reason": "advanced"
+        },
+        {
+            "env": "SHOPPING_REMOVED_BLOCK_MODE",
+            "reason": "advanced"
+        },
+        {
+            "env": "SHOPPING_REMOVED_BLOCK_DAYS",
+            "reason": "advanced"
+        },
+        {
+            "env": "SHOPPING_DISMISS_DAYS",
             "reason": "advanced"
         },
         {
@@ -1421,6 +1549,10 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "reason": "advanced"
         },
         {
+            "env": "APP_LANG",
+            "reason": "advanced"
+        },
+        {
             "env": "APPLIANCES",
             "reason": "advanced"
         },
@@ -1429,11 +1561,31 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "reason": "advanced"
         },
         {
+            "env": "UPC_LOOKUP_ENABLED",
+            "reason": "advanced"
+        },
+        {
+            "env": "MED_LOOKUP_PROVIDER",
+            "reason": "advanced"
+        },
+        {
+            "env": "MED_LOOKUP_URL",
+            "reason": "advanced"
+        },
+        {
+            "env": "MED_LOOKUP_KEY",
+            "reason": "advanced"
+        },
+        {
             "env": "SUPPORT_MODE",
             "reason": "support"
         },
         {
             "env": "SUPPORT_DECIDED",
+            "reason": "support"
+        },
+        {
+            "env": "SUPPORT_ANSWERED_AT",
             "reason": "support"
         },
         {
@@ -1469,12 +1621,40 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "reason": "support"
         },
         {
-            "env": "RECIPE_RETENTION_DAYS",
-            "reason": "advanced"
+            "env": "SUPPORT_BANNERS_AVAILABLE",
+            "reason": "support"
         },
         {
-            "env": "TRANSACTION_RETENTION_DAYS",
-            "reason": "advanced"
+            "env": "ADS_PROVIDER",
+            "reason": "support"
+        },
+        {
+            "env": "ADSENSE_CLIENT",
+            "reason": "support"
+        },
+        {
+            "env": "ADSENSE_SLOT_APP",
+            "reason": "support"
+        },
+        {
+            "env": "ADSENSE_SLOT_SCREENSAVER",
+            "reason": "support"
+        },
+        {
+            "env": "ADS_CUSTOM_APP_HTML",
+            "reason": "support"
+        },
+        {
+            "env": "ADS_CUSTOM_SCREENSAVER_HTML",
+            "reason": "support"
+        },
+        {
+            "env": "VAPID_PUBLIC_KEY",
+            "reason": "security"
+        },
+        {
+            "env": "VAPID_PRIVATE_PEM",
+            "reason": "security"
         },
         {
             "env": "GDRIVE_SERVICE_ACCOUNT_JSON",
@@ -1486,6 +1666,14 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "env": "API_TOKEN",
+            "reason": "security"
+        },
+        {
+            "env": "ALLOW_OPEN_LAN",
+            "reason": "security"
+        },
+        {
+            "env": "ALLOWED_HOSTS",
             "reason": "security"
         },
         {
@@ -1533,6 +1721,10 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "reason": "advanced"
         },
         {
+            "env": "TELEGRAM_WEBHOOK_SECRET",
+            "reason": "security"
+        },
+        {
             "env": "ICS_TOKEN",
             "reason": "security"
         },
@@ -1557,11 +1749,23 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "reason": "logging"
         },
         {
+            "env": "DEMO_BASE_PATH",
+            "reason": "logging"
+        },
+        {
+            "env": "DEMO_FRAME_ANCESTORS",
+            "reason": "logging"
+        },
+        {
             "env": "DISPLAY_ERRORS",
             "reason": "logging"
         },
         {
             "env": "LOG_LEVEL",
+            "reason": "logging"
+        },
+        {
+            "env": "EVERSHELF_LOG_KEEP_DAYS",
             "reason": "logging"
         },
         {
@@ -1571,6 +1775,30 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         {
             "env": "LOG_MAX_FILES",
             "reason": "logging"
+        },
+        {
+            "env": "GEMINI_COST_25F_IN",
+            "reason": "advanced"
+        },
+        {
+            "env": "GEMINI_COST_25F_OUT",
+            "reason": "advanced"
+        },
+        {
+            "env": "GEMINI_COST_20F_IN",
+            "reason": "advanced"
+        },
+        {
+            "env": "GEMINI_COST_20F_OUT",
+            "reason": "advanced"
+        },
+        {
+            "env": "GEMINI_COST_35F_IN",
+            "reason": "advanced"
+        },
+        {
+            "env": "GEMINI_COST_35F_OUT",
+            "reason": "advanced"
         },
         {
             "env": "GEMINI_CLASSIFY_DAILY_MAX",
@@ -1591,6 +1819,14 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         {
             "env": "CRON_LOG_MAX_BYTES",
             "reason": "logging"
+        },
+        {
+            "env": "MCP_HTTP_PORT",
+            "reason": "security"
+        },
+        {
+            "env": "MCP_HTTP_TOKEN",
+            "reason": "security"
         }
     ]
 };

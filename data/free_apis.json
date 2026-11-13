@@ -1,0 +1,113 @@
+{
+    "version": 2,
+    "note": "The free services and OPEN DATA SOURCES this app actually talks to or imports. Shown on the splash and in Settings -> Credits, with the licence each one asks to be credited with. `when` makes a source CONDITIONAL: the AIFA catalogue only exists for an instance whose medicine module is on AND whose country is Italy (the country module decides that), so its logo appears on the splash and in the credits only there. `logo` is the official icon, vendored under assets/img/apis/ (no external request at runtime); `mark` is the neutral monogram used as the fallback if an image is missing. `wide: true` marks a HORIZONTAL wordmark: it needs a wide box to be readable, not a 28 px square. `splash: false` keeps a logo off the boot splash - a 7:1 wordmark squashed into 22 px is an invisible sliver; the full list, with names, licences and the why/where, lives in Settings -> API gratuite.",
+    "logo_note": "Logos belong to their projects and are used only to identify the service (nominative use). Sources: the projects' own published brand assets.",
+    "apis": [
+        {
+            "id": "open_food_facts",
+            "name": "Open Food Facts",
+            "mark": "OFF",
+            "logo": "assets/img/apis/open-food-facts.svg",
+            "url": "https://world.openfoodfacts.org",
+            "licence": "ODbL · CC-BY-SA"
+        },
+        {
+            "id": "open_prices",
+            "name": "Open Prices",
+            "mark": "OP",
+            "logo": "assets/img/apis/open-prices.png",
+            "url": "https://prices.openfoodfacts.org",
+            "licence": "ODbL"
+        },
+        {
+            "id": "open_meteo",
+            "name": "Open-Meteo",
+            "mark": "OM",
+            "logo": "assets/img/apis/open-meteo.png",
+            "url": "https://open-meteo.com",
+            "licence": "CC BY 4.0"
+        },
+        {
+            "id": "open_products_facts",
+            "name": "Open Products Facts",
+            "mark": "OPF",
+            "logo": "assets/img/apis/open-products-facts.svg",
+            "url": "https://world.openproductsfacts.org",
+            "licence": "ODbL · CC-BY-SA",
+            "wide": true,
+            "splash": false,
+            "note": "Parafarmaci, dispositivi, integratori: risolve i codici che il cibo non conosce."
+        },
+        {
+            "id": "open_beauty_facts",
+            "name": "Open Beauty Facts",
+            "mark": "OBF",
+            "logo": "assets/img/apis/open-beauty-facts.svg",
+            "url": "https://world.openbeautyfacts.org",
+            "licence": "ODbL · CC-BY-SA",
+            "wide": true,
+            "splash": false,
+            "note": "Cosmetici e igiene: creme, detergenti, prodotti da banco."
+        },
+        {
+            "id": "open_pet_food_facts",
+            "name": "Open Pet Food Facts",
+            "mark": "OPFF",
+            "logo": "assets/img/apis/open-pet-food-facts.svg",
+            "url": "https://world.openpetfoodfacts.org",
+            "licence": "ODbL · CC-BY-SA",
+            "wide": true,
+            "splash": false,
+            "note": "Mangimi per animali: chiude la catena dei codici non alimentari (umani)."
+        },
+        {
+            "id": "aifa",
+            "name": "AIFA — Banca dati dei farmaci",
+            "mark": "AIFA",
+            "url": "https://www.aifa.gov.it/",
+            "licence": "CC-BY · open data",
+            "splash": true,
+            "note": "Il catalogo dei farmaci italiani (AIC → nome, principio attivo, confezione). Importato una volta con scripts/import-medicines.php: nessuna richiesta esce dal server.",
+            "when": {
+                "medical": true,
+                "country": [
+                    "IT"
+                ]
+            }
+        }
+    ],
+    "sources": [
+        {
+            "id": "wiki_gs1",
+            "name": "Wikipedia — List of GS1 country codes",
+            "mark": "GS1",
+            "url": "https://en.wikipedia.org/wiki/List_of_GS1_country_codes",
+            "licence": "CC BY-SA 4.0",
+            "use_key": "credits.source_gs1_what"
+        },
+        {
+            "id": "wiki_pharmacode",
+            "name": "Wikipedia — Pharmacode (Laetus)",
+            "mark": "Laetus",
+            "url": "https://en.wikipedia.org/wiki/Pharmacode",
+            "licence": "CC BY-SA 4.0",
+            "use_key": "credits.source_pharmacode_what"
+        },
+        {
+            "id": "wiki_pzn",
+            "name": "Wikipedia (DE) — Pharmazentralnummer",
+            "mark": "PZN",
+            "url": "https://de.wikipedia.org/wiki/Pharmazentralnummer",
+            "licence": "CC BY-SA 4.0",
+            "use_key": "credits.source_pzn_what"
+        },
+        {
+            "id": "eu_fmd",
+            "name": "European Commission — Delegated Regulation (EU) 2016/161",
+            "mark": "EU",
+            "url": "https://en.wikipedia.org/wiki/Falsified_Medicines_Directive",
+            "licence": "Public act",
+            "use_key": "credits.source_fmd_what"
+        }
+    ]
+}

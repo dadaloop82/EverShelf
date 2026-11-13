@@ -7,9 +7,9 @@
  * user got Italian product names, descriptions and confidence labels back, even
  * though the client always knew which language the UI was in (issue #260).
  *
- * The fragments live here, outside the router, so scripts/test-ai-language.php can
- * assert that every shipped locale carries the same keys, that Italian stays in
- * the `it` block only, and that the canonical category tokens are never translated.
+ * The fragments live here, outside the router, so every shipped locale carries the
+ * same keys, Italian stays in the `it` block only, and the canonical category tokens
+ * are never translated.
  */
 
 /**

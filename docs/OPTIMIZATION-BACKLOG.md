@@ -15,8 +15,8 @@
 |----|------|---------|-----------|
 | UI-REFRESH | Frontend | After many mutations only a toast appeared (partially fixed 1.11.3–1.11.4 via `refreshAppDataAfterMutation`). | Keep auditing remaining toast-only paths; favourites / discard / vacuum refreshed in 1.11.4. |
 | BANNER-EXT | Dashboard / banner | Extending expiry from dashboard or inventory did not clear the expiry banner or alert cards (fixed partially in 1.11.2 — verify all entry points). | Same as UI-REFRESH; ensure `_bannerQueue` rebuild respects `setReviewConfirmed('exp_*')` and new `days_to_expiry`. |
-| SHOP-GAPS | Smart shopping | Depleted / near-empty items still missed in edge cases (multi-location, family `shopping_name` mismatch, recently un-favourited). **Shipped 1.16.6–1.16.7** — family coverage counts only fresh stock above `EVERSHELF_TRACE_QTY`, expanded with `evershelfBaseQty()`; "usa tutto" always adds; the prune no longer deletes what the auto-add just added. **Shipped 1.16.8** — the stored plan window is honoured and perishables use the shelf life of their real location. Remaining: `shopping_name` values polluted by old AI runs (e.g. fresh fruit grouped with "polpa di pomodoro") still need a data repair. | Keep `scripts/test-shopping-guards.php` / `test-shopping-restock.php` / `test-expiry-and-plan-days.php` extended with real DB fixtures; log trace crumbs in `smartShopping()` behind `EverLog::debug`. |
-| SHOP-MATCH | Shopping list | Loose token matching and “covered with 0 stock” left bought items on the list (fixed 2026-10-06: generic key matcher, prune on load). | Regression tests shipped; **remove-on-buy** setting shipped in 1.11.3. |
+| SHOP-GAPS | Smart shopping | Depleted / near-empty items still missed in edge cases (multi-location, family `shopping_name` mismatch, recently un-favourited). **Shipped 1.16.6–1.16.7** — family coverage counts only fresh stock above `EVERSHELF_TRACE_QTY`, expanded with `evershelfBaseQty`; "usa tutto" always adds; the prune no longer deletes what the auto-add just added. **Shipped 1.16.8** — the stored plan window is honoured and perishables use the shelf life of their real location. Remaining: `shopping_name` values polluted by old AI runs (e.g. fresh fruit grouped with "polpa di pomodoro") still need a data repair. | Covered by `php scripts/check-upgrade-migration.php` (real DB rows) plus the headless probes in `todo/`; log trace crumbs in `smartShopping` behind `EverLog::debug`. |
+| SHOP-MATCH | Shopping list | Loose token matching and “covered with 0 stock” left bought items on the list (fixed 2026-10-06: generic key matcher, prune on load). | Regression probes shipped at the time the guard suite existed; **remove-on-buy** setting shipped in 1.11.3. |
 
 ## P1 — quality & performance
 
@@ -26,7 +26,7 @@
 | PRODUCT-KIND | Titles | Dictionary + AI genre prefix still wrong on niche brands / multilingual packs. | Expand phrase maps from production misses; keep one dictionary for `kind` and `shopping_name`. |
 | OFF-LIMIT | API | Open Food Facts rate limits under heavy scan bursts. | Respect `Retry-After`, stagger mirrors, surface “lookup busy” in UI. |
 | SQLITE-LOCK | Backend | Long `products_apply_auto_rules` or maintenance pass vs concurrent writes. | WAL is on; consider busy timeout and queue maintenance to cron only. |
-| I18N-DRIFT | Locales | Keys only in PHP or wrapped helpers skip `scripts/i18n-audit.py`. | More PHP tests like `test-seasonal-match.php`; bare `t('key')` in JS wrappers where feasible. |
+| I18N-DRIFT | Locales | Keys only in PHP or wrapped helpers skip `scripts/i18n-audit.py`. | Bare `t('key')` in JS wrappers where feasible; the audit now reads `audit.js` and `screensaver.js` too. |
 
 ## P2 — Android / CI
 
@@ -50,16 +50,16 @@ These overlap **IDEAS-2026-10-05** — implement in that doc’s order where not
 | RECIPE-SCRAP | Reuse tips for peels/cores | **Shipped 1.11.3** (opt-in zerowaste tips). |
 | SEASONAL-UX | Seasonal review: dismiss + coherent suggestions | **Shipped 1.11.12** — removal persisted until the next peak (`seasonal_dismiss`), suggestions scored on purchases/consumption with a stated reason. Remaining: stale dashboard chip (same refresh pattern as UI-REFRESH). |
 | SPEND-MODE | Spesa session list vs server reconciliation after crash | Persist session id; resume partial trip. |
-| FORK-PR | Reconcile community PRs (#234 reconciliation, #235 i18n) | Branches `fork-recon`, `fork-i18n` exist locally — rebase on develop, run test suite, merge or close with comment. |
+| FORK-PR | Reconcile community PRs (#234 reconciliation, #235 i18n) | Branches `fork-recon`, `fork-i18n` exist locally — rebase on develop, run the CI gates (`gen-code-index`, i18n audit, upgrade check), then merge or close with a comment. |
 
 ## P4 — housekeeping
 
 - README version badge is now rewritten by `scripts/bump-version.sh` (it had drifted to 1.11.6); its “What’s new” prose line stays manual, so update it with every release. A CI check that fails on version drift is still open.
-- **Release notes carry the previous version.** In `create-release` (`.github/workflows/ci.yml`) the `awk` range ends *at* the next `## [` heading and the following `grep -v` only strips that line, so every release body also shows the older sections (v1.11.12 shipped the 1.11.11 notes; the v1.11.12 notes were fixed by hand with `gh release edit`). One-line fix: `awk '/^## \[VER\]/{f=1;print;next} f && /^## /{exit} f'`. Workflow files need a `workflow`-scoped PAT to push (same constraint as `todo/0001-ci-*.patch`).
+- ~~Release notes carry the previous version~~ — **fixed**: `create-release` matches the exact `## [VER]` heading and stops at the next `## `, so a release body carries its own section only.
 - Root `TODO.md` is Italian scratch — point to this file for backlog; keep TODO for session checkboxes only.
 - **Security:** rotate any PAT pasted in chat; never commit `.env`.
-- Regenerate `docs/INDEX-*.md` after large `app.js` / `index.php` edits — run `bash scripts/gen-code-index.sh` (CI INDEX job needs a workflow-scoped PAT; see `todo/CI-INDEX-NOTE.md`).
-- After shopping/list changes: `php scripts/test-shopping-guards.php` and `php scripts/test-notify.php`.
+- Regenerate `docs/INDEX-*.md` after large `app.js` / `index.php` edits — `bash scripts/gen-code-index.sh`. CI regenerates them and **fails on drift**, so a stale index cannot reach `main`.
+- After shopping or list changes run `php scripts/check-upgrade-migration.php` and `php scripts/check-settings-coverage.php`; both are cheap and both catch the mistakes that used to reach `main`.
 
 ## Done recently (context)
 

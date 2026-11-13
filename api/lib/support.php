@@ -48,7 +48,7 @@ function evershelfSupportModes(): array
  *   4. restore the .ad-slot divs in index.html, the CSS block, and the banner
  *      renderer in assets/js/core/support.js;
  *   5. restore the two extra answers in the Android kiosk wizard;
- *   6. add the banner answers back to scripts/test-support-monetization.php.
+ *   6. put the banner answers back in the support decision payload.
  *
  * /** Banner providers: our own house ad, Google AdSense, raw .env markup, or none. *\/
  * function evershelfSupportAdProviders(): array
@@ -297,6 +297,9 @@ function evershelfSupportPayload(): array
     return [
         'mode'            => evershelfSupportMode(),
         'answered'        => evershelfSupportAnswered(),
+        // When the household last answered (unix seconds, 0 = an answer stored before the
+        // clock existed): the client uses it to decide whether a month has passed.
+        'answered_at'     => (int)env('SUPPORT_ANSWERED_AT', '0'),
         'ads_enabled'     => evershelfSupportAdsEnabled(),
         'default_mode'    => evershelfSupportDefaultMode(),
         'paypal_url'      => evershelfSupportPaypalUrl(),

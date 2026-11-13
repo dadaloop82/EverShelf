@@ -4,6 +4,26 @@
  */
 declare(strict_types=1);
 
+/**
+ * Who may call the Telegram webhook: `null` when the update is allowed, else the error code.
+ *
+ * Telegram cannot present the API token, so this endpoint is public by design (it is in
+ * `evershelfPublicActions()`). Its one real authenticator is the value Telegram echoes back:
+ * `setWebhook(..., secret_token: …)` makes every update carry
+ * `X-Telegram-Bot-Api-Secret-Token`, and only Telegram knows it. Without a secret the only
+ * gate is the chat allowlist — and with an EMPTY allowlist every chat id in the body used to
+ * be accepted, i.e. anyone who could reach this URL could have the bot send the shopping or
+ * the expiry list to a chat of their choice. Hence: no secret and no allowlist = refuse.
+ */
+function telegramWebhookAuthVerdict(string $secret, string $got, array $allowed): ?string
+{
+    $secret = trim($secret);
+    if ($secret !== '') {
+        return ($got !== '' && hash_equals($secret, $got)) ? null : 'forbidden';
+    }
+    return $allowed !== [] ? null : 'webhook_not_configured';
+}
+
 function telegramWebhookHandle(PDO $db): void
 {
     $token = trim((string)env('TELEGRAM_BOT_TOKEN', ''));
@@ -13,6 +33,38 @@ function telegramWebhookHandle(PDO $db): void
         return;
     }
     $allowed = array_filter(array_map('trim', explode(',', (string)env('TELEGRAM_ALLOWED_CHAT_IDS', ''))));
+
+    // ── Who is allowed to talk to the bot ────────────────────────────────────────
+    // Telegram cannot present the API token, so this endpoint is public by design (it is in
+    // `evershelfPublicActions()`). Its only authenticator is what Telegram itself is told to
+    // send: `setWebhook(..., secret_token: …)` makes every update carry
+    // `X-Telegram-Bot-Api-Secret-Token`, and only Telegram knows that value.
+    //
+    // Without it the sole gate was the chat allowlist — and with an EMPTY allowlist every
+    // chat id in the body was accepted, i.e. anyone who could reach this URL could have the
+    // bot send the shopping or the expiry list to a chat of their choice.
+    $secret = trim((string)env('TELEGRAM_WEBHOOK_SECRET', ''));
+    $got    = (string)($_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] ?? '');
+    $verdict = telegramWebhookAuthVerdict($secret, $got, $allowed);
+    if ($verdict === 'forbidden') {
+        EverLog::warn('Telegram webhook rejected: missing or wrong secret token', [
+            'event' => 'telegram_webhook_bad_secret',
+        ]);
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'forbidden']);
+        return;
+    }
+    if ($verdict === 'webhook_not_configured') {
+        // No secret AND no allowlist: there is nothing left to authenticate the caller, so the
+        // webhook refuses to run at all instead of answering whoever knocks.
+        EverLog::warn('Telegram webhook refused: set TELEGRAM_WEBHOOK_SECRET (and the setWebhook secret_token) or TELEGRAM_ALLOWED_CHAT_IDS', [
+            'event' => 'telegram_webhook_unconfigured',
+        ]);
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'webhook_not_configured']);
+        return;
+    }
+
     $raw = file_get_contents('php://input') ?: '';
     $update = json_decode($raw, true);
     if (!is_array($update)) {

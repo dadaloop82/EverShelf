@@ -1,0 +1,609 @@
+{
+  "version": 3,
+  "note": "How a medicine pack is coded, per country — DATA ONLY, so a contributor can add a country without touching code. Each block answers three questions: (1) which number IDENTIFIES the drug ('codes'), (2) which codes are PACKAGING and must be thrown away ('ignored'), (3) how the printed number can be READ when the barcode is a trap ('ocr': patterns + the sample the guide frame shows). 'scan' and 'catalogue' summarise, for the UI: a country with status 'none' is BLOCKED with a dialog that says so, links this file's documentation and offers the manual entry. ITALY is the worked example: the drug number is the AIC, printed as `A` + 9 digits and ALSO carried by a Code 39 of the bollino on many packs — so a barcode can identify the drug, and the catalogue decides (a read the rows do not contain is a serial). The rest of that sticker is packaging: the lot, the pack's progressive number, the DataMatrix that joins them. The catalogue itself is never bundled: the drugs come from a national open-data import ('dataset', scripts/import-medicines.php --country=XX).",
+  "updated": "2026-10-28",
+  "sources": [
+    "https://www.aifa.gov.it/ (Italy: AIC 9 digits, printed as `A` + 9 digits in Code 39, e.g. A040313076; the medicines dataset is open data, not a free REST API)",
+    "https://alfacod.it/codice-barre-farmaci-bollino-farmaceutico-datamatrix (the bollino of a pack carries the AIC and the 'numero progressivo della confezione' as two barcodes — Decreto 2 agosto 2001; the DataMatrix added by the Decreto of 30 May 2014 carries both, and the sticker is printed by the Istituto Poligrafico e Zecca dello Stato)",
+    "https://de.wikipedia.org/wiki/Pharmazentralnummer (Germany: PZN 8 digits = 7 + check, printed in clear text with the prefix PZN AND as Code 39, which does not contain the letters; Austria: 7 digits inside the EAN as 908888zzzzzzP)",
+    "https://en.wikipedia.org/wiki/Falsified_Medicines_Directive (EU 2019: 2D DataMatrix with product code, serial, expiry, batch and the national reimbursement number if required)",
+    "https://www.gs1.org/standards/barcodes/application-identifiers (AI 01 GTIN, 17 expiry, 10 batch, 21 serial, 710 national health reimbursement number)",
+    "https://open.fda.gov/apis/drug/ndc/ (United States: NDC Directory, public domain, JSON, updated daily — the only free national catalogue wired here)",
+    "https://en.wikipedia.org/wiki/Pharmacode (integer 3..131070, read as binary bars, aka Laetus: a PACKAGING code, not a drug identifier)",
+    "https://en.wikipedia.org/wiki/List_of_GS1_country_codes (800-839 Italy, 840-849 Spain, 300-379 France, 400-440 Germany, 500-509 UK, 000-139 US)"
+  ],
+  "countries": {
+    "IT": {
+      "name_key": "medical.country_it",
+      "status": "full",
+      "module": "italy",
+      "gs1": [
+        [
+          "800",
+          "839"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "aic",
+          "digits": 9,
+          "pattern": "^A\\d{9}$",
+          "label_key": "medical.code_aic",
+          "printed": true
+        }
+      ],
+      "ignored": [
+        {
+          "type": "pharmacode",
+          "pattern": "^\\d{3,6}$",
+          "label_key": "medical.code_line",
+          "action": "ocr"
+        },
+        {
+          "type": "laetus",
+          "pattern": "^[0-9A-Z]{4,8}$",
+          "label_key": "medical.code_line",
+          "action": "ocr"
+        },
+        {
+          "type": "progressivo",
+          "pattern": "^\\d{9,10}$",
+          "label_key": "medical.code_progressive",
+          "action": "ocr"
+        }
+      ],
+      "ocr": {
+        "label_key": "medical.ocr_btn",
+        "hint_key": "medical.scan_hint",
+        "sample": "A000000000",
+        "patterns": [
+          "A[ .:-]?\\d{9}"
+        ],
+        "frame": {
+          "width_pct": 78,
+          "height_pct": 26
+        },
+        "name_search": true
+      },
+      "fmd": true,
+      "fmd_national_ai": "710",
+      "dataset": {
+        "id": "aifa",
+        "label_key": "medical.dataset_aifa",
+        "url": "https://www.aifa.gov.it/",
+        "importer": "scripts/import-medicines.php --country=IT",
+        "licence": "CC-BY",
+        "open": true
+      },
+      "source_key": "medical.src_it",
+      "scan": {
+        "national_code": "both",
+        "barcodes": true,
+        "ocr": true,
+        "fmd": true,
+        "supported": true
+      },
+      "note": "The AIC is printed as A + 9 digits AND, on many packs, carried by a Code 39 of the bollino: both are the drug, and the catalogue proves which (a serial that starts with an A is in no row). Three other things sit on the same sticker and are PACKAGING: the lot (`16G87N`), the pack's progressive number with its check digit (`0140581421`), and the DataMatrix that joins them — none of them names a medicine. A bare 9-digit read is therefore never a drug on its own: the reader may offer the digit runs of a label to the catalogue, which answers no."
+    },
+    "DE": {
+      "name_key": "medical.country_de",
+      "status": "full",
+      "gs1": [
+        [
+          "400",
+          "440"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        },
+        {
+          "type": "pzn",
+          "digits": 8,
+          "pattern": "^\\d{8}$",
+          "label_key": "medical.code_pzn",
+          "printed": true,
+          "symbology": "code39"
+        }
+      ],
+      "fmd": true,
+      "source_key": "medical.src_de",
+      "ignored": [],
+      "ocr": {
+        "label_key": "medical.ocr_btn",
+        "hint_key": "medical.scan_hint_pzn",
+        "sample": "PZN 00000000",
+        "patterns": [
+          "PZN[ .:-]?\\d{8}"
+        ],
+        "frame": {
+          "width_pct": 70,
+          "height_pct": 16
+        },
+        "name_search": true
+      },
+      "fmd_national_ai": "710",
+      "scan": {
+        "national_code": "both",
+        "barcodes": true,
+        "ocr": true,
+        "fmd": true,
+        "supported": true
+      },
+      "dataset": {
+        "id": "pzn",
+        "label_key": "medical.dataset_pzn",
+        "url": "https://www.ifaffm.de/",
+        "open": false,
+        "note_key": "medical.dataset_closed"
+      },
+      "module": "germany"
+    },
+    "AT": {
+      "name_key": "medical.country_at",
+      "status": "partial",
+      "gs1": [
+        [
+          "900",
+          "919"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        },
+        {
+          "type": "pzn_in_ean",
+          "prefix": "908888",
+          "digits": 13,
+          "label_key": "medical.code_pzn_ean"
+        }
+      ],
+      "fmd": true,
+      "source_key": "medical.src_at",
+      "scan": {
+        "national_code": "barcode",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": true,
+        "supported": true
+      }
+    },
+    "FR": {
+      "name_key": "medical.country_fr",
+      "status": "partial",
+      "gs1": [
+        [
+          "300",
+          "379"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_cip13"
+        }
+      ],
+      "fmd": true,
+      "source_key": "medical.src_fr",
+      "scan": {
+        "national_code": "barcode",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": true,
+        "supported": true
+      }
+    },
+    "ES": {
+      "name_key": "medical.country_es",
+      "status": "partial",
+      "gs1": [
+        [
+          "840",
+          "849"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        },
+        {
+          "type": "cn",
+          "digits": [
+            6,
+            7
+          ],
+          "pattern": "^\\d{6,7}$",
+          "label_key": "medical.code_cn"
+        }
+      ],
+      "fmd": true,
+      "source_key": "medical.src_es",
+      "scan": {
+        "national_code": "both",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": true,
+        "supported": true
+      }
+    },
+    "CH": {
+      "name_key": "medical.country_ch",
+      "status": "partial",
+      "gs1": [
+        [
+          "760",
+          "769"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        }
+      ],
+      "fmd": false,
+      "source_key": "medical.src_gs1",
+      "scan": {
+        "national_code": "barcode",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": false,
+        "supported": true
+      }
+    },
+    "BE": {
+      "name_key": "medical.country_be",
+      "status": "partial",
+      "gs1": [
+        [
+          "540",
+          "549"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        }
+      ],
+      "fmd": true,
+      "source_key": "medical.src_gs1",
+      "scan": {
+        "national_code": "barcode",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": true,
+        "supported": true
+      }
+    },
+    "NL": {
+      "name_key": "medical.country_nl",
+      "status": "partial",
+      "gs1": [
+        [
+          "870",
+          "879"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        }
+      ],
+      "fmd": true,
+      "source_key": "medical.src_gs1",
+      "scan": {
+        "national_code": "barcode",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": true,
+        "supported": true
+      }
+    },
+    "PT": {
+      "name_key": "medical.country_pt",
+      "status": "partial",
+      "gs1": [
+        [
+          "560",
+          "560"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        }
+      ],
+      "fmd": true,
+      "source_key": "medical.src_gs1",
+      "scan": {
+        "national_code": "barcode",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": true,
+        "supported": true
+      }
+    },
+    "PL": {
+      "name_key": "medical.country_pl",
+      "status": "partial",
+      "gs1": [
+        [
+          "590",
+          "590"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        }
+      ],
+      "fmd": true,
+      "source_key": "medical.src_gs1",
+      "scan": {
+        "national_code": "barcode",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": true,
+        "supported": true
+      }
+    },
+    "GR": {
+      "name_key": "medical.country_gr",
+      "status": "partial",
+      "gs1": [
+        [
+          "520",
+          "521"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        }
+      ],
+      "fmd": true,
+      "source_key": "medical.src_gs1",
+      "scan": {
+        "national_code": "barcode",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": true,
+        "supported": true
+      }
+    },
+    "SE": {
+      "name_key": "medical.country_se",
+      "status": "partial",
+      "gs1": [
+        [
+          "730",
+          "739"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        }
+      ],
+      "fmd": true,
+      "source_key": "medical.src_gs1",
+      "scan": {
+        "national_code": "barcode",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": true,
+        "supported": true
+      }
+    },
+    "DK": {
+      "name_key": "medical.country_dk",
+      "status": "partial",
+      "gs1": [
+        [
+          "570",
+          "579"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        }
+      ],
+      "fmd": true,
+      "source_key": "medical.src_gs1",
+      "scan": {
+        "national_code": "barcode",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": true,
+        "supported": true
+      }
+    },
+    "FI": {
+      "name_key": "medical.country_fi",
+      "status": "partial",
+      "gs1": [
+        [
+          "640",
+          "649"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        }
+      ],
+      "fmd": true,
+      "source_key": "medical.src_gs1",
+      "scan": {
+        "national_code": "barcode",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": true,
+        "supported": true
+      }
+    },
+    "IE": {
+      "name_key": "medical.country_ie",
+      "status": "partial",
+      "gs1": [
+        [
+          "539",
+          "539"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        }
+      ],
+      "fmd": true,
+      "source_key": "medical.src_gs1",
+      "scan": {
+        "national_code": "barcode",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": true,
+        "supported": true
+      }
+    },
+    "GB": {
+      "name_key": "medical.country_gb",
+      "status": "partial",
+      "gs1": [
+        [
+          "500",
+          "509"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_ean13"
+        }
+      ],
+      "fmd": false,
+      "source_key": "medical.src_gs1",
+      "scan": {
+        "national_code": "barcode",
+        "barcodes": true,
+        "ocr": false,
+        "fmd": false,
+        "supported": true
+      }
+    },
+    "US": {
+      "name_key": "medical.country_us",
+      "status": "full",
+      "gs1": [
+        [
+          "000",
+          "139"
+        ]
+      ],
+      "codes": [
+        {
+          "type": "ean13",
+          "digits": 13,
+          "pattern": "^\\d{13}$",
+          "label_key": "medical.code_upc"
+        },
+        {
+          "type": "ndc",
+          "digits": [
+            10,
+            11
+          ],
+          "pattern": "^\\d{10,11}$",
+          "label_key": "medical.code_ndc",
+          "printed": true
+        }
+      ],
+      "fmd": false,
+      "source_key": "medical.src_gs1",
+      "ignored": [],
+      "ocr": {
+        "label_key": "medical.ocr_btn",
+        "hint_key": "medical.scan_hint_ndc",
+        "sample": "00000-0000-00",
+        "patterns": [
+          "NDC[ .:-]?\\d{4,5}-\\d{3,4}-\\d{1,2}"
+        ],
+        "frame": {
+          "width_pct": 72,
+          "height_pct": 16
+        },
+        "name_search": true
+      },
+      "scan": {
+        "national_code": "both",
+        "barcodes": true,
+        "ocr": true,
+        "fmd": false,
+        "supported": true
+      },
+      "dataset": {
+        "id": "openfda_ndc",
+        "label_key": "medical.dataset_openfda",
+        "url": "https://open.fda.gov/apis/drug/ndc/",
+        "open": true,
+        "licence": "public domain",
+        "importer": "scripts/import-medicines.php ndc.json --country=US"
+      },
+      "module": "usa"
+    }
+  },
+  "unsupported_note_key": "medical.scan_unsupported_body",
+  "contributing": {
+    "doc": "docs/wiki/Medicines-Country-Schemas.md",
+    "json": "data/medical_code_schemas.json",
+    "module_convention": "api/lib/med/<slug>.php + assets/js/med/<slug>.js (only when a regex is not enough)",
+    "add_a_country": "Add one block: name_key, status, gs1, codes, ignored, ocr (only if the number is PRINTED), fmd + fmd_national_ai, and a dataset block when a free/open catalogue exists. Run the guard test; the app picks it up with no code change.",
+    "occlusion_warning": "Do not copy the Italian rule to another country: only Italy prints the AIC while forbidding the barcode. Germany prints the PZN as text AND as Code 39; France puts the CIP-13 in the EAN-13 itself; the US prints the NDC as text and uses UPC/EAN."
+  },
+  "contrib_doc": "docs/wiki/Medicines-Country-Schemas.md"
+}

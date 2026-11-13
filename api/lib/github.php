@@ -85,8 +85,8 @@ function _ghToken(): string {
  * redaction in api/lib/security.php has not anticipated. `data/error_reports.log`
  * is written either way, so diagnostics are never lost, only not published.
  *
- * Accepts the flag as an argument so the behaviour is testable without touching
- * .env (see scripts/test-report-redaction.php).
+ * Accepts the flag as an argument so the behaviour can be exercised without
+ * touching .env (the report redaction reads it).
  */
 function _ghReportsEnabled(?string $flag = null): bool {
     $v = strtolower(trim($flag ?? (string)env('REPORT_ENABLED', 'false')));

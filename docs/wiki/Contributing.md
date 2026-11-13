@@ -70,25 +70,9 @@ for f in mcp-server/src/*.js; do node --check "$f"; done
 python3 -c "import json; json.load(open('translations/it.json'))"
 ```
 
-Then the regression suite and the audits — **these run locally today**, CI does not
-have them yet (see the CI/CD section):
+Then the audits:
 
 ```bash
-php scripts/test-shopping-guards.php
-php scripts/test-internal-shopping-cleanup.php
-php scripts/test-notify.php
-php scripts/test-healthcheck.php
-php scripts/test-calendar-ics.php
-php scripts/test-recipe-shopping.php
-php scripts/test-settings-nav.php     # settings sections ↔ tabs ↔ panels ↔ locales
-php scripts/test-setup-assistant.php  # SETTINGS_CHECKLIST ↔ tabs ↔ wizard steps
-php scripts/test-i18n-icons.php        # no label prints its icon twice (all locales)
-php scripts/test-html-in-text.php      # no HTML reaches a text-only surface
-php scripts/test-dashboard-panels.php  # dashboard rotation: phases ↔ sections ↔ bar fills
-php scripts/test-product-kind-prefix.php # genre leading every article title (no double prefix)
-php scripts/test-product-number.php    # singular title in the catalog, plural only in the pantry
-php scripts/test-auto-favorite.php     # used-often products become favourites; an unstar wins
-php scripts/test-preloader-stages.php  # splash boot rail: stages ↔ health checks ↔ locales
 python3 scripts/i18n-audit.py          # keys used in code exist in every locale
 python3 scripts/i18n-value-audit.py   # keys whose value is still English (report)
 shellcheck -S warning backup.sh scripts/*.sh
@@ -155,9 +139,8 @@ token) and **write the `## [X.Y.Z]` CHANGELOG section** before pushing to `devel
 CI does the merge and the tag. Android APKs (kiosk, health bridge) and the Docker image
 have their own workflows and build on their own triggers.
 
-> The regression suite, the i18n audits and `shellcheck` from the step above are **not
-> in CI yet** — run them yourself. Wiring them in needs a `workflow`-scoped PAT (the
-> ready-made patch lives in the git-ignored `todo/` folder).
+> The i18n audits and `shellcheck` run in CI (job `unittests` is gone: the PHP guard suite
+> was removed on purpose — see the CHANGELOG for 1.28.6).
 
 ---
 

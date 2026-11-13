@@ -146,7 +146,14 @@ const SEASONAL_PRESERVED_PATTERN = '/surgelat|congelat|abbattut|scatola|barattol
  * describes a fresh variety — so a bare "polpa" only counts when it is the
  * head noun, never as a qualifier further down the name.
  */
-const SEASONAL_PRESERVED_HEADS = ['polpa', 'purea'];
+const SEASONAL_PRESERVED_HEADS = ['polpa', 'purea',
+    // Dried herbs and spices are on the shelf all year: "Spezie Origano foglie" is not a
+    // vegetable, and hiding it in October is the bug the household reported. A FRESH bunch
+    // still carries its own name ("Basilico fresco") and is matched by the catalogue below.
+    'origano', 'basilico', 'prezzemolo', 'salvia', 'rosmarino', 'alloro', 'timo',
+    'maggiorana', 'aneto', 'erba', 'spezie', 'spezia', 'curcuma', 'paprika', 'zenzero',
+    'cannella', 'zafferano', 'curry', 'senape', 'peperoncino', 'noce', 'chiodi',
+];
 
 function seasonalIsPreserved(string $name): bool {
     $n = seasonalNormalize($name);
@@ -626,10 +633,11 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
         $kindStock = $kind !== '' ? (int)($stockKinds[$kind] ?? 0) : 0;
 
         // Score the evidence, not the calendar: a card must be justified by
-        // something the household demonstrably does. Specific evidence first
-        // (this produce, or its buyable family), the coarse kind-level habit as
-        // a lower-ranked fallback — and nothing at all for a produce they never
-        // touch, which is what made the old card look random.
+        // something the household demonstrably does. SPECIFIC evidence only — this
+        // produce, or its buyable family, bought or eaten by this household in the
+        // last year. The coarse kind-level fallbacks ("someone buys some vegetable
+        // twice") used to fill the card with corbezzolo and cardo gobbo: a suggestion
+        // is about them, not about the calendar.
         $score = 0;
         $reasonKey = '';
         if ($boughtCount > 0) {
@@ -638,12 +646,6 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
         } elseif ($consumedCount > 0) {
             $score = 90 + min(30, $consumedCount * 6);
             $reasonKey = 'shopping.seasonal_reason_often_eats';
-        } elseif ($kindEat >= 3) {
-            $score = 60 + min(20, $kindEat);
-            $reasonKey = 'shopping.seasonal_reason_often_eats';
-        } elseif ($kindBuy >= 2) {
-            $score = 40 + min(15, $kindBuy);
-            $reasonKey = 'shopping.seasonal_reason_same_kind';
         } else {
             continue;
         }
@@ -751,22 +753,7 @@ function staleInventoryItems(PDO $db, int $limit = 3, int $minDays = 21): array 
             continue;
         }
         $openedAt = trim((string)($r['opened_at'] ?? ''));
-        $isOpened = $openedAt !== '';
-        if (!$isOpened) {
-            // Legacy: fractional qty counts as opened
-            $qty = (float)$r['quantity'];
-            $def = (float)($r['default_quantity'] ?? 0);
-            $unit = (string)($r['unit'] ?? 'pz');
-            if ($unit === 'conf') {
-                $isOpened = abs($qty - round($qty)) > 0.01;
-            } elseif ($def > 0) {
-                $rem = abs($qty - round($qty / $def) * $def);
-                $isOpened = $rem > ($def * 0.02) && $qty < ($def * 0.98);
-            } elseif (in_array($unit, ['g', 'ml'], true) && $qty > 0 && $qty < 50) {
-                // tiny leftover without package size — treat as opened remnant
-                $isOpened = true;
-            }
-        }
+        $isOpened = staleRowLooksOpened($r);
         // Skip sealed pantry staples that sit forever (salt, sugar, water…)
         if (!$isOpened) {
             $n = mb_strtolower((string)$r['name'], 'UTF-8');
@@ -830,4 +817,121 @@ function staleInventoryItems(PDO $db, int $limit = 3, int $minDays = 21): array 
         }
     }
     return $out;
+}
+
+/**
+ * Legacy/fractional way to tell an opened pack without `opened_at`.
+ * Shared by the idle list and the forgotten-expiry list so the two agree.
+ */
+function staleRowLooksOpened(array $row): bool {
+    if (trim((string)($row['opened_at'] ?? '')) !== '') {
+        return true;
+    }
+    $qty = (float)($row['quantity'] ?? 0);
+    $def = (float)($row['default_quantity'] ?? 0);
+    $unit = (string)($row['unit'] ?? 'pz');
+    if ($unit === 'conf') {
+        return abs($qty - round($qty)) > 0.01;
+    }
+    if ($def > 0) {
+        $rem = abs($qty - round($qty / $def) * $def);
+        return $rem > ($def * 0.02) && $qty < ($def * 0.98);
+    }
+    // tiny leftover without a package size — an opened remnant
+    return in_array($unit, ['g', 'ml'], true) && $qty > 0 && $qty < 50;
+}
+
+/**
+ * Forgotten stock that is about to expire: the N nearest expiry dates among the rows
+ * nobody uses (never used, or idle for `$minDays`), with the date itself in the payload.
+ *
+ * The old "Dimenticati" list was a rotation of the longest-idle packs, which could show
+ * a sealed box of salt while a yoghurt expiring tomorrow was missing: expiry first, then
+ * the idle rule decides whether the row belongs here at all.
+ *
+ * @return list<array>
+ */
+function forgottenExpiringItems(PDO $db, int $limit = 5, int $minDays = 21): array {
+    $limit = max(1, min(10, $limit));
+    $minDays = max(7, min(365, $minDays));
+
+    $sql = "
+        SELECT
+            i.id AS inventory_id,
+            p.id AS product_id,
+            p.name,
+            p.brand,
+            p.category,
+            p.unit,
+            p.default_quantity,
+            p.package_unit,
+            p.image_url,
+            i.quantity,
+            i.location,
+            i.added_at,
+            i.expiry_date,
+            i.opened_at,
+            (
+              SELECT MAX(t.created_at) FROM transactions t
+              WHERE t.product_id = p.id AND t.undone = 0
+                AND t.type IN ('out', 'waste')
+                AND IFNULL(t.notes, '') NOT LIKE '[Spostamento]%'
+                AND (
+                  i.opened_at IS NULL OR i.opened_at = ''
+                  OR t.created_at >= i.opened_at
+                )
+            ) AS last_out
+        FROM inventory i
+        JOIN products p ON p.id = i.product_id
+        WHERE i.quantity > 0.001
+          AND IFNULL(i.expiry_date, '') <> ''
+          AND LOWER(IFNULL(p.category, '')) NOT IN ('igiene', 'pulizia', 'hygiene', 'cleaning')
+        ORDER BY date(i.expiry_date) ASC
+    ";
+    $rows = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+
+    $today = strtotime(date('Y-m-d'));
+    $out = [];
+    foreach ($rows as $r) {
+        if (function_exists('isInventoryDepleted') && isInventoryDepleted($r)) {
+            continue;
+        }
+        $ref = $r['last_out'] ?: ($r['opened_at'] ?: ($r['added_at'] ?? null));
+        $neverUsed = empty($r['last_out']);
+        $days = $ref ? (int)round((time() - strtotime((string)$ref)) / 86400) : 0;
+        // Used recently: not forgotten, whatever the expiry says.
+        if (!$neverUsed && $days < $minDays) {
+            continue;
+        }
+        $expiryTs = strtotime((string)$r['expiry_date']);
+        if ($expiryTs === false) {
+            continue;
+        }
+        $out[] = [
+            'product_id' => (int)$r['product_id'],
+            'inventory_id' => (int)$r['inventory_id'],
+            'name' => (string)$r['name'],
+            'brand' => (string)($r['brand'] ?? ''),
+            'category' => (string)($r['category'] ?? ''),
+            'unit' => (string)($r['unit'] ?? 'pz'),
+            'quantity' => (float)$r['quantity'],
+            'location' => (string)($r['location'] ?? 'dispensa'),
+            'image_url' => $r['image_url'] ?? null,
+            'last_out' => $r['last_out'],
+            'last_added' => $r['added_at'],
+            'opened_at' => trim((string)($r['opened_at'] ?? '')) !== '' ? $r['opened_at'] : null,
+            'is_opened' => staleRowLooksOpened($r),
+            'days_unused' => $days,
+            'never_used' => $neverUsed,
+            'expiry_date' => (string)$r['expiry_date'],
+            'days_to_expiry' => (int)round(($expiryTs - $today) / 86400),
+        ];
+    }
+
+    usort($out, static function (array $a, array $b): int {
+        $byExpiry = $a['days_to_expiry'] <=> $b['days_to_expiry'];
+        return $byExpiry !== 0 ? $byExpiry : ($b['days_unused'] <=> $a['days_unused']);
+    });
+
+    return array_slice($out, 0, $limit);
 }

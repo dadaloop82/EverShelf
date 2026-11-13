@@ -1,0 +1,5459 @@
+/* ============================================================================
+ * surfaces.css — the "calm surface" layer (loaded AFTER the themes, BEFORE
+ * mobile.css, which stays last so its geometry rules still win on a phone).
+ *
+ * Why this file exists (UI audit, 2026-10-25): the dashboard stacked five
+ * differently coloured borders in one scroll — amber section, red section,
+ * orange gradient CTA, blue value, purple card — so nothing looked more urgent
+ * than anything else ("semaforo" effect). The rule from here on:
+ *
+ *   - the SURFACE is always neutral (one card colour, one hairline border);
+ *   - a semantic tone appears once per block, as a 3px left rail + a small
+ *     coloured title dot, and inside the badges that carry the meaning;
+ *   - primaries are bigger than secondaries (touch targets), never a row of six
+ *     equally-sized micro buttons.
+ *
+ * Colours come from the theme tokens, so dark mode and Corporate/Elegant keep
+ * working: this layer moves the *structure*, not the palette.
+ * ========================================================================== */
+
+:root {
+    /* Canvas e superfici ("Fresh & Crisp Slate") */
+    --bg-app: #F8FAFC;
+    --surface-bg: #FFFFFF;
+    --surface-border: #E2E8F0;
+    --surface-radius: var(--radius);
+    --surface-pad: 14px;
+    --surface-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+
+    /* Testi: due livelli, non cinque */
+    --text-main: #0F172A;
+    --text-muted: #64748B;
+
+    /* Brand: one green only, the freshness one */
+    --brand-primary: #059669;
+    --brand-primary-hover: #047857;
+    --brand-surface: #ECFDF5;
+
+    /* Stati semantici: sfondo molto chiaro + testo scuro + linea d’accento */
+    --tone-danger: #EF4444;
+    --tone-danger-text: #991B1B;
+    --tone-danger-soft: #FEE2E2;
+    --tone-soon: #F59E0B;
+    --tone-soon-text: #92400E;
+    --tone-soon-soft: #FEF3C7;
+    --tone-info: #0284C7;
+    --tone-info-text: #075985;
+    --tone-info-soft: #E0F2FE;
+    --tone-calm: #059669;
+    --tone-calm-soft: #ECFDF5;
+
+    --touch-min: 40px;
+}
+
+[data-theme="dark"] {
+    --bg-app: #0B1220;
+    --surface-bg: #111C2E;
+    --surface-border: #1E293B;
+    --surface-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    --text-main: #E2E8F0;
+    --text-muted: #94A3B8;
+    --brand-primary: #34D399;
+    --brand-primary-hover: #6EE7B7;
+    --brand-surface: rgba(52, 211, 153, 0.12);
+    --tone-danger: #F87171;
+    --tone-danger-text: #FCA5A5;
+    --tone-danger-soft: rgba(248, 113, 113, 0.16);
+    --tone-soon: #FBBF24;
+    --tone-soon-text: #FCD34D;
+    --tone-soon-soft: rgba(251, 191, 36, 0.16);
+    --tone-info: #38BDF8;
+    --tone-info-text: #7DD3FC;
+    --tone-info-soft: rgba(56, 189, 248, 0.16);
+    --tone-calm: #34D399;
+    --tone-calm-soft: rgba(52, 211, 153, 0.16);
+}
+
+/* The canvas: a neutral slate instead of the greenish tint that made the white
+   cards look dirty. */
+body {
+    background: var(--bg-app);
+    color: var(--text-main);
+}
+
+/* ── One neutral surface for every dashboard block ─────────────────────────── */
+.alert-section,
+#waste-chart-section,
+.alert-banner,
+.quick-recipe-bar .btn-quick-recipe,
+.stat-card {
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--surface-radius);
+    box-shadow: none;
+}
+
+.alert-section {
+    padding: var(--surface-pad);
+    position: relative;
+    overflow: hidden;
+}
+
+/* The tone is a rail, not a frame. Round 3 moved the accent to a real
+   `border-left` (further down) — the inset shadow that used to draw it is gone, so the
+   left edge is one 4px line and not two. `--rail` still colours the title dot. */
+.alert-danger { --rail: var(--tone-danger); }
+#alert-expiring { --rail: var(--tone-soon); }
+.alert-opened { --rail: var(--tone-info); }
+.alert-stale { --rail: var(--tone-calm); }
+
+/* Section headings: small caps + a tone dot, instead of a coloured sentence. */
+.alert-section h3,
+.alert-danger h3,
+.alert-opened h3,
+.alert-stale h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-light);
+    margin: 0 0 10px;
+}
+.alert-section h3::after,
+.alert-danger h3::after,
+.alert-opened h3::after,
+.alert-stale h3::after {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--rail, var(--tone-soon));
+    opacity: 0.85;
+    flex: 0 0 auto;
+}
+
+/* ── Rows: neutral, one metric, one action ─────────────────────────────────── */
+.alert-item {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 10px 6px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.alert-item + .alert-item { border-top: 1px solid var(--surface-border); border-radius: 0; }
+.alert-item:active { background: var(--tone-info-soft); }
+.alert-item-clickable { cursor: pointer; }
+
+/* ── The product photo leads every row (photo pass) ──────────────────────────
+   A packaging is recognised in milliseconds, a title is read word by word, so the
+   dashboard, the banner and the pantry all open with the same 44×44 frame. The frame is
+   part of the component: barcode pictures arrive as white or transparent PNGs of wildly
+   different shapes, and `object-fit: contain` on a light surface makes them one family. */
+.product-thumb {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+    overflow: hidden;
+}
+.product-thumb-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 2px;
+}
+/* Fallback: the category emoji sits UNDER the picture and is revealed only when there is
+   no picture or it failed to load — never a broken icon, never an empty square. */
+.product-thumb-emoji {
+    display: none;
+    font-size: 1.35rem;
+    line-height: 1;
+}
+.product-thumb.is-icon .product-thumb-emoji { display: block; }
+.product-thumb.is-icon .product-thumb-img { display: none; }
+
+/* ── The package photo leads the row — as a LAYER, not a box ──────────────────
+   A 44×44 frame costs a whole column and hides most of the packaging, so the photo now
+   takes the LEFT QUARTER of the card, full height, dissolving into the text: a row reads
+   as one object (the package and its facts) instead of a picture plus a paragraph.
+   - the strip is `absolute` and the card clips it, so the card's corners are the photo's;
+   - it is scaled to 150% and pulled 50% left, putting the picture's CENTRE inside the
+     opaque zone (`object-fit: cover` never crops horizontally in a strip this wide, so
+     without that the visible part would be the package's left edge) and its right edge
+     exactly where the dissolve has already reached zero — no hard edge;
+   - no photo → the category emoji takes the SAME strip, same size, same dissolve, so a
+     list never changes shape depending on whether Open Food Facts had a picture;
+   - every text line keeps a 26% gutter, so nothing is ever printed on the photo;
+   - `pointer-events: none`: the row's tap/hold/swipe grammar is untouched. */
+.inventory-item .inv-row-content .inv-image,
+.alert-item .product-thumb,
+.shop-row .product-thumb,
+.item-detail-header-row .item-detail-image {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    /* ONE number drives the picture and the text gutter (see the gutter rule below): a
+       narrower gutter with the same strip printed the words on the photo. */
+    width: var(--row-photo-w, 18%);
+    height: auto;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+.alert-item { position: relative; overflow: hidden; }
+.item-detail-header-row { position: relative; }
+/* The sheet keeps its photo one level deeper: the inner frame joins the layer instead of
+   staying a 44 px square inside it. */
+.item-detail-header-row .item-detail-image .product-thumb,
+.inventory-item .inv-image .product-thumb {
+    position: static;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+/* The gutter: the width of the strip plus a hair, on every line of the card. It reads the SAME
+   variable as the picture (`--row-photo-w`), because the two cannot drift: shrinking only the
+   padding prints the text on the photo — which is exactly what happened when the phone
+   breakpoint forced `padding-left: 5%` while the strip stayed at 25% (measured: the first
+   letter landed 62 px INSIDE the picture at a 365 px viewport).
+   The strip is a LADDER now: it loses width as the card narrows, and 5% is its floor. A row
+   never prints a word on the picture, whatever step it is on. */
+.inventory-item,
+.alert-item { --row-photo-w: 18%; }
+@media (max-width: 1023px) { .inventory-item, .alert-item { --row-photo-w: 14%; } }
+@media (max-width: 767px) { .inventory-item, .alert-item { --row-photo-w: 10%; } }
+@media (max-width: 480px) { .inventory-item, .alert-item { --row-photo-w: 5%; } }
+/* The product sheet is NOT a list row: its head keeps the 64 px tile (the lightbox target), so
+   the gutter is the tile plus the gap at every width — the ladder above would put the title
+   under the picture on a phone (it did: "Pomodoro" printed as "modoro"). */
+.item-detail-header-row { --row-photo-w: 74px; }
+.inventory-item .inv-row-content .inv-card-top,
+.inventory-item .inv-row-content .inv-card-bottom,
+.alert-item .alert-item-info,
+.alert-item .alert-item-badges { padding-left: calc(var(--row-photo-w, 18%) + 1%); }
+.item-detail-header-row .item-detail-header-text { padding-left: calc(var(--row-photo-w, 18%) + 1%); }
+/* The touch-tablet/kiosk band puts the quantity/expiry/`✓ Usa` strip on the RIGHT of the
+   row, nowhere near the photo: padding it there squeezed it into three broken lines. */
+html.is-kiosk .inventory-item .inv-row-content .inv-card-bottom,
+html.is-touch-tablet .inventory-item .inv-row-content .inv-card-bottom { padding-left: 0; }
+
+/* ── Too narrow? Then the card sheds what it can spare ────────────────────────
+   A row never wraps onto a second action line: the household reads a list by scanning
+   heights, and one tall row breaks the rhythm of the whole panel. The shed order is fixed and
+   the product NAME is last — it is what the row is for:
+     1. the long labels are already compact in the code ("🕓 4gg", "📦 2 pz"), so a phone never
+        pays for a sentence it cannot fit;
+     2. the photo strip walks down its ladder (18 → 14 → 10 → 5%, the floor) and the text
+        gutter follows it, in the SAME variable — the words never land on the picture;
+     3. the BRAND goes below 480 px (it is a variant of the article, not the article).
+   The name itself is only ever clamped to two lines, never dropped.
+   A container query would be the textbook answer (`container-type: inline-size` on the card),
+   but the pantry rows sit in a band whose columns are sized by their content: size containment
+   collapses them to their own content (296 px instead of 600 in the touch-tablet band, measured
+   in headless Chromium). The viewport is a safe proxy here — the list is one column. */
+/* Below 480 px the BRAND goes — never the product name. It is a variant of the article, and
+   the row exists to say which article it is. */
+@media (max-width: 480px) {
+    .alert-item .alert-item-brand,
+    .inventory-item .inv-brand-inline { display: none; }
+}
+/* A phone's action line may wrap, but its pieces never break in half (the date used to
+   split into "12/03/20 / 27"). */
+.inventory-item .inv-row-content .inv-card-bottom { flex-wrap: wrap; row-gap: 6px; }
+.inventory-item .inv-row-content .inv-card-bottom > * { white-space: nowrap; }
+
+/* ── Every card is the same height ────────────────────────────────────────────
+   The name stops at two lines and the meta line at one, and the top block carries a floor
+   of two lines + its meta, so a row called "Fagioli" is exactly as tall as one called
+   "Latte Intero (Milbona, Pilos)". The floor is skipped on the horizontal band, whose
+   height comes from the action strip. */
+html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-card-top { min-height: 62px; }
+.inventory-item .inv-row-content .inv-name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+.inventory-item .inv-row-content .inv-meta-line {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* A MEDICINE's meta line is a fact, not a caption: the active ingredient («CLORTETRACICLINA
+   CLORIDRATO», «ACIDO IALURONICO/SULFADIAZINA ARGENTICA») is what the box is FOR, and cutting it
+   with an ellipsis at the edge of the screen is the same as not writing it.
+   Asked for: «capita che il principio attivo va fuori dallo schermo in larghezza non va bene,
+   mettilo accapo!» — so a medical row wraps its meta onto the next line (and `anywhere` so a
+   single long Latin word cannot push the card sideways). Food rows keep their one line: the
+   place and the category already say everything, and the stock is in the pill below. */
+.inventory-item.is-medical-row .inv-meta-line {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    word-break: normal;
+}
+
+/* ── The Home lists and the pantry lists are ONE list ─────────────────────────
+   In the pantry a row IS a card on the canvas; on the Home the same rows sat inside a
+   tinted frame (`.urgency-hub` white, `.alert-section` amber) with hairlines between
+   them, so the two lists read as two different products. The container becomes a plain
+   section — its title, then the cards — and a notice row gets the pantry card's chrome. */
+.alert-item {
+    background: var(--bg-card);
+    /* The pantry card carries a 1 px hairline, and that border is 2 px of its height: same
+       edge, same measure, or two "identical" lists differ by a hair nobody can name. */
+    border: 1px solid var(--surface-border, var(--border));
+    /* The corner and the shadow come from the SAME tokens as the pantry row: `elegant.css`
+       re-skins `.inventory-item` with `--es-radius-card` (18 px) and `--es-shadow-card`, so
+       `var(--radius)` here drew 24 px corners next to 18 px ones — the "slightly different
+       shape" a household notices before it can name it. The fallback keeps a theme that
+       defines only the base token working. */
+    border-radius: var(--es-radius-card, var(--radius));
+    box-shadow: var(--es-shadow-card, var(--shadow));
+    /* The pantry stacks its rows 10 px apart (`gap` on the list): a Home row with `8px` was
+       a rhythm of its own. */
+    margin-bottom: 10px;
+}
+/* The card's inside must measure the pantry's: `12px` padding and a `10px` gap between the
+   text block and the action line are what make a Home row 132 px tall exactly like a list
+   row. The doubled class is deliberate — `mobile.css` sets its own density (10 px) later in
+   the cascade, and two lists that are "the same" but 4 px apart are not the same. */
+.alert-item.alert-item { padding: 12px; row-gap: 10px; }
+/* Two separate cards cannot share a rule — and they must not lose a border either: this rule
+   used to zero the top hairline of every row after the first, which made each of them exactly
+   1 px shorter than the first (132 px, then 131, 131…). With a 10 px gap between cards the
+   hairline is part of the card, so it stays. */
+.alert-item + .alert-item { border-radius: var(--es-radius-card, var(--radius)); }
+.alert-item:last-child { margin-bottom: 0; }
+/* The meta line ("📦 Dispensa · ne hai ancora 7 pz") was a white chip because it sat on a
+   TINTED row: on a card the same chip is invisible on white and a grey pill in the dark
+   theme. It is a secondary line, so it says it with the colour. */
+.alert-item .alert-item-qty {
+    background: transparent;
+    padding: 0;
+}
+
+/* ── The two facts of a row are readable at a glance ─────────────────────────
+   Quantity and expiry are what the household looks for on a shelf row; they were drawn at
+   0.8 / 0.78 rem with a 650 weight, i.e. at the same size as the category line under the name.
+   They are now bold and a notch larger — the stock at the size of the product name, the date
+   just under it — and still inside the 34 px action line, so no card grows by a pixel
+   (measured in headless Chromium at 320 → 1200 px: every row 132 px before and after).
+   The Home badges carry the same two facts, so they keep the same weight and size: the badge
+   rule further down (`.alert-item-badge`, one class, 12 px) wins by ORDER, so the two-class
+   selector below is what makes the Home's date as legible as the pantry's — not a second
+   number to keep in sync. */
+.inv-qty-pill {
+    font-size: 0.95rem;
+    font-weight: 800;
+    min-height: 30px;
+    padding: 4px 11px;
+}
+.inv-time {
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+/* The strip is 2 px tighter than the rest of the card: those 6 px of gap are what let the two
+   facts stay at these sizes on a 360 px phone WITHOUT the action line wrapping to a second
+   line (the strip's content box there is 292 px: 77 + 110 + 37 + 34 + 18 = 276). */
+.inventory-item .inv-row-content .inv-card-bottom { gap: 6px; }
+.alert-item .alert-item-badge {
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+/* The Home's stock line ("🧊 Frigo · 📦 1500 ml"): the same fact as the pantry's pill, one
+   step quieter because it is a line and not a chip — but no longer the 12 px of a footnote. */
+.alert-item .alert-item-qty {
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+/* ── One row grammar, down to the order of the elements ──────────────────────
+   A Home row and a pantry row now carry the same things in the same places: the photo
+   strip, the name with its brand BESIDE it, the secondary line, then the action line
+   `[expiry] [✓ Usa] [⋮]`. Two consequences:
+   - the badge strip always takes its own line. It used to sit to the right of the text,
+     and at ~890 px that left a wide hole between the name and the brand while both wrapped
+     for no reason — the text now has the full width, minus the photo's gutter;
+   - `.alert-item-info` gets the same 62 px floor as `.inv-card-top`, so every card in the
+     list is the same height whatever its title says. */
+.alert-item { flex-wrap: wrap; align-items: flex-start; row-gap: 6px; }
+.alert-item .alert-item-info { flex: 1 1 100%; min-height: 62px; }
+.alert-item .alert-item-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    flex: 1 1 100%;
+    margin-left: 0;
+    max-width: none;
+    /* The pantry's action line is 34 px because it ends with a button; a Home row whose
+       badges are only small text (the "opened" list) was 23 px and the row 11 px shorter. */
+    min-height: 34px;
+}
+/* The brand sits beside the name, never pushed to the far right. */
+.alert-item-head { justify-content: flex-start; }
+.alert-item-head .alert-item-name { flex: 0 1 auto; min-width: 0; }
+.alert-item-head .alert-item-brand {
+    flex: 0 1 auto;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+/* The same clamp a pantry row has: two lines of name, one of meta — a card cannot grow. */
+.alert-item .alert-item-name,
+.alert-item-head .alert-item-name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+/* ── The same two lines, at the same size ────────────────────────────────────
+   The title is 0.95rem/700 and the secondary line 0.8rem in BOTH lists, with the same 4 px
+   between them: identical text must occupy an identical height, or two rows that are
+   "the same" end up 9 px apart for no reason the household can see. The Home title was
+   `1rem` against the pantry's `0.95rem` — the same product name drawn at two sizes, which is
+   the "slightly different shape" you notice before you can name it. */
+.alert-item .alert-item-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+.alert-item .alert-item-main { gap: 4px; }
+/* The secondary line carries the stock ("📦 2 pz"): bold enough to read at arm's length, at
+   the same size as the badge it sits beside. */
+.alert-item .alert-item-qty {
+    font-size: 0.84rem;
+    font-weight: 650;
+    line-height: 1.35;
+}
+/* The fav star is an icon, not a line of text: without this it sets the height of the name
+   row in the pantry and nowhere else. */
+.inventory-item .inv-row-content .btn-inv-fav { line-height: 1; }
+.alert-item .alert-item-qty {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+/* ── The shopping list wears the SAME row grammar as «In scadenza» ─────────────
+   Asked for: «puoi fare il layout di "liste" uguale a quello di "in scadenza" adattandolo alla
+   situazione? Tutte le liste devono avere lo stesso layout e stile!». A shopping row was its own
+   design — a 52 px pastel square, a title line carrying the badges, a subtitle and a reason
+   sentence. It is now the card of the pantry and the Home, down to the pixel:
+   `[photo strip] [name + brand / 📦 stock · 🛒 qty · 🍃 waste · 💶 price] [state] [✓] [✕]`,
+   62 px text block and a 34 px action line, so both lists measure 132 px.
+   The padding lives on `.shop-row-main`, not on the card: the strip is absolutely positioned
+   against `.shop-row-content`, which must be the full card interior — with the padding on the
+   card the photo would float 12 px inside its own corner. */
+.shop-row {
+    position: relative;
+    overflow: hidden;
+    --row-photo-w: 18%;
+    background: var(--bg-card);
+    border: 1px solid var(--surface-border, var(--border));
+    border-radius: var(--es-radius-card, var(--radius));
+    box-shadow: var(--es-shadow-card, var(--shadow));
+    margin-bottom: 10px;
+    padding: 0;
+}
+@media (max-width: 1023px) { .shop-row { --row-photo-w: 14%; } }
+@media (max-width: 767px)  { .shop-row { --row-photo-w: 10%; } }
+@media (max-width: 480px)  { .shop-row { --row-photo-w: 5%; } }
+/* The moving layer of the swipe: transparent, because the card itself is the paper now. */
+.shop-row > .shop-row-content {
+    position: relative;
+    z-index: 1;
+    padding: 0;
+    min-height: 0;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    will-change: transform;
+}
+[data-theme="dark"] .shop-row > .shop-row-content,
+.dark .shop-row > .shop-row-content { background: transparent; }
+.shop-row .shop-row-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    row-gap: 10px;
+    padding: 12px;
+}
+.shop-row .alert-item-info {
+    flex: 1 1 100%;
+    min-height: 62px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+.shop-row .alert-item-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 100%;
+    min-height: 34px;
+    margin-left: 0;
+    max-width: none;
+}
+.shop-row .alert-item-info,
+.shop-row .alert-item-badges { padding-left: calc(var(--row-photo-w, 18%) + 1%); }
+/* The text: the same two lines, at the same sizes, as a Home row. */
+.shop-row .alert-item-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 auto; }
+.shop-row .alert-item-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; min-width: 0; }
+.shop-row .alert-item-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    min-width: 0;
+}
+.shop-row .alert-item-brand { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); }
+.shop-row .alert-item-qty {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 2px;
+    font-size: 0.84rem;
+    font-weight: 650;
+    line-height: 1.35;
+    color: var(--text-muted);
+    min-width: 0;
+}
+.shop-row .alert-item-qty > * { white-space: nowrap; }
+/* The quantity is a tap target (it opens the micro-popover): a mint pill, like the pantry's. */
+.shop-row .shop-row-qty-tap {
+    min-height: 22px;
+    padding: 0 8px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 35%, var(--surface-border));
+    border-radius: 999px;
+    background: var(--brand-surface);
+    color: var(--brand-primary);
+    font-size: 0.82rem;
+    font-weight: 800;
+    font-family: inherit;
+    cursor: pointer;
+}
+.shop-row .shop-row-qty-tap:active { filter: brightness(0.96); }
+.shop-row .shop-row-dot { color: var(--text-muted); opacity: 0.7; }
+/* The state pill: `.alert-item-badge` metrics, the urgency's own colour. */
+.shop-row-badge { flex-shrink: 0; }
+.shop-row-badge--critical { background: var(--tone-danger); color: #fff; }
+.shop-row-badge--high     { background: #F97316; color: #fff; }
+.shop-row-badge--medium   { background: #EAB308; color: #422006; }
+.shop-row-badge--low      { background: color-mix(in srgb, var(--brand-primary) 16%, transparent); color: var(--brand-primary); }
+/* The price rides the meta line now: same size as the text around it, tappable. */
+.shop-row .shop-row-price { min-width: 0; text-align: inherit; align-self: auto; font-weight: 800; color: var(--text-main); cursor: pointer; }
+.shop-row .shop-row-price .price-col-main { font-size: 0.88rem; font-weight: 800; color: inherit; }
+.shop-row .shop-row-price .price-col-unit { display: none; }
+/* The two actions are the Home's: ✓ writes the outcome, ✕ is the neutral second answer. */
+.shop-row .alert-item-badges .row-use-btn,
+.shop-row .alert-item-menu {
+    min-height: 34px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+.shop-row .alert-item-menu {
+    min-width: 34px;
+    padding: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 1rem;
+}
+.shop-row .alert-item-badges .row-use-btn { background: var(--brand-primary); color: #fff; }
+.shop-row .alert-item-badges .row-use-btn .row-use-label { display: none; }
+@media (min-width: 520px) {
+    .shop-row .alert-item-badges .row-use-btn .row-use-label { display: inline; }
+}
+
+/* The pantry's `✓ Usa` becomes a bare check below 520 px, exactly like the Home's
+   (`.row-use-btn .row-use-label`): the same width, the same behaviour, one gesture. */
+.inv-card-bottom .inv-quick-use-label { display: none; }
+@media (min-width: 520px) {
+    .inv-card-bottom .inv-quick-use-label { display: inline; }
+}
+@media (max-width: 519px) {
+    .inv-card-bottom .inv-quick-use { padding: 0 10px; }
+}
+/* ── One ⋮ for both lists ────────────────────────────────────────────────────
+   The Home drew it as a bordered 40 px chip and the pantry as a quiet 32 px glyph, and that
+   chip alone made the action line 6 px taller than the pantry's. Same control, same size,
+   same weight: the pantry's version, at 34 px so it matches the `✓ Usa` beside it. */
+.alert-item-badges .alert-item-menu {
+    min-width: 34px;
+    min-height: 34px;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 1.15rem;
+}
+.inv-card-bottom .inv-card-menu { min-width: 34px; min-height: 34px; }
+/* The `✓ Usa` of both lists: one size, one radius, one label weight (the Home's was 40 px
+   tall against the pantry's 34 — that was the remaining 6 px of difference). */
+.alert-item-badges .row-use-btn,
+.inv-card-bottom .inv-quick-use {
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.alert-section {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+}
+
+/* The photo (and the emoji) dissolve: a long ramp, gone before the first letter. */
+.inventory-item .inv-image img,
+.alert-item .product-thumb-img,
+.shop-row .product-thumb-img,
+.item-detail-header-row .item-detail-image img {
+    width: 150%;
+    max-width: none;
+    margin-left: -50%;
+    height: 100%;
+    object-fit: cover;
+    padding: 0;
+    border-radius: 0;
+    -webkit-mask-image: linear-gradient(to right,
+        #000 0 14%, rgba(0, 0, 0, 0.82) 34%, rgba(0, 0, 0, 0.5) 56%,
+        rgba(0, 0, 0, 0.18) 78%, transparent 100%);
+            mask-image: linear-gradient(to right,
+        #000 0 14%, rgba(0, 0, 0, 0.82) 34%, rgba(0, 0, 0, 0.5) 56%,
+        rgba(0, 0, 0, 0.18) 78%, transparent 100%);
+}
+/* The emoji takes the same strip as a photo — but a 5 % strip is 19 px wide, so the glyph is
+   sized from the strip, not from the viewport: a 40 px face inside a 19 px window was two
+   halves of an emoji with a hard cut through the middle. */
+.inventory-item .inv-image:not(:has(img)),
+.alert-item .product-thumb.is-icon,
+.shop-row .product-thumb.is-icon {
+    font-size: clamp(14px, 3.4vw, 30px);
+}
+.inventory-item .inv-image:not(:has(img)),
+.item-detail-header-row .item-detail-image:not(:has(img)),
+.alert-item .product-thumb.is-icon,
+.shop-row .product-thumb.is-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    -webkit-mask-image: linear-gradient(to right,
+        #000 0 22%, rgba(0, 0, 0, 0.7) 46%, rgba(0, 0, 0, 0.3) 72%, transparent 100%);
+            mask-image: linear-gradient(to right,
+        #000 0 22%, rgba(0, 0, 0, 0.7) 46%, rgba(0, 0, 0, 0.3) 72%, transparent 100%);
+}
+/* The sheet's head is not a list row: its strip is wider and its emoji can be a real mark. */
+.item-detail-header-row .item-detail-image:not(:has(img)) {
+    font-size: clamp(24px, 6.4vw, 40px);
+}
+.inventory-item .inv-image .product-thumb-emoji,
+.alert-item .product-thumb-emoji,
+.shop-row .product-thumb-emoji,
+.item-detail-header-row .item-detail-image .product-thumb-emoji { font-size: inherit; }
+
+/* ── The medicine mark ───────────────────────────────────────────────────────
+   EverShelf Med owns a drawn icon (`assets/img/icons/medicine.svg`): a medicine is not a
+   category of food, so it never wears the category emoji (📦 on "altro", a 🥛 on a mis-saved
+   one). One asset, three sizes, the medical tint the cabinet pill and the tab already use. */
+.med-icon {
+    width: 18px;
+    height: 18px;
+    display: inline-block;
+    vertical-align: -0.2em;
+    flex: 0 0 auto;
+}
+/* Inside a 44 px row thumbnail (photo missing or broken). */
+.med-icon.med-icon-lg { width: 26px; height: 26px; vertical-align: middle; }
+/* The big slots: the detail sheet, the action page hero, the use page, the add preview. */
+.item-detail-emoji .med-icon,
+.use-hero-icon .med-icon { width: 34px; height: 34px; }
+.cat-group-icon .med-icon { width: 16px; height: 16px; vertical-align: -0.15em; }
+/* The place pill's icon slot is a flex child: a block mark cannot add line height to it. */
+.location-pill .loc-icon .med-icon { display: block; }
+/* The row frame of a medicine: the medical tint, so a box of tablets is not drawn as an
+   unidentified food even when it has no picture. */
+.product-thumb.is-medical {
+    border-color: rgba(99, 102, 241, 0.45);
+    background: rgba(99, 102, 241, 0.08);
+}
+/* The pantry re-uses that frame inside its own .inv-image: one border, not two. */
+.inv-image .product-thumb {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    border-radius: 0;
+}
+.cat-group-header .cat-group-icon { display: inline-flex; align-items: center; }
+.cat-group-header.is-medical { color: #6366f1; }
+/* The pantry badge of a medicine, in place of the food category ("Altro"): the medical tint,
+   the mark at badge size, and the word the module already translates (`medical.row_tag`). */
+.inv-badge.badge-medical {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(99, 102, 241, 0.14);
+    color: var(--text-main);
+}
+.inv-badge .med-icon,
+.alert-medical-tag .med-icon { width: 14px; height: 14px; vertical-align: -0.15em; }
+
+/* The row keeps its text column as the flexible child; the thumb is fixed. */
+.alert-item-info {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+}
+.alert-item-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+/* The banner's leading slot is the same frame, sized to the strip. */
+.alert-banner-icon.has-thumb {
+    display: flex;
+    align-items: center;
+    line-height: 0;
+}
+.alert-banner-icon.has-thumb .product-thumb {
+    width: 44px;
+    height: 44px;
+}
+
+/* The pantry shows the same frame: 44 px, `contain` (a bottle is not cropped to its
+   label) and the category emoji as the fallback the row already renders. */
+.inv-image {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 8px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+    font-size: 1.3rem;
+}
+.inv-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 2px;
+    border-radius: 7px;
+}
+
+/* Badges: same shape everywhere, the colour is the only difference. */
+.alert-item-badge,
+.alert-item-qty,
+.safety-pill {
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 9px;
+    line-height: 1.5;
+}
+
+/* Actions: secondaries meet the touch minimum and never outgrow a primary. */
+.alert-item-badges .btn-banner,
+.alert-item-badges .btn-alert-extend,
+.btn-alert-extend {
+    min-height: var(--touch-min);
+    min-width: var(--touch-min);
+    border-radius: 10px;
+    padding: 0 10px;
+}
+
+/* The single recipe CTA of the urgency hub: accent, not a full-width gradient. */
+.quick-recipe-bar .btn-quick-recipe {
+    background: var(--tone-calm-soft);
+    color: var(--tone-calm);
+    border-color: color-mix(in srgb, var(--tone-calm) 35%, transparent);
+    box-shadow: none;
+    min-height: var(--touch-min);
+    font-weight: 700;
+}
+.quick-recipe-bar .btn-quick-recipe:active { transform: scale(0.99); }
+
+/* ── Locations bar: macro Food | Pharmacy + kitchen place popover ──────────
+   Two context tabs keep food and medicines apart; the kitchen side opens a
+   compact menu (counts + alert dots) instead of a bare <select>. */
+.location-bar {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 2px 2px 10px;
+    margin-bottom: 6px;
+}
+.location-bar .location-select {
+    flex: 1 1 190px;
+    min-width: 0;
+    max-width: none;
+}
+.location-bar .location-pill { flex: 0 0 auto; }
+
+.loc-macro {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+    flex-wrap: wrap;
+}
+/* Level 1: the two worlds (Food | Pharmacy) — fixed tabs, no caret. */
+.loc-macro-level1 {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+/* Level 2: the only room filter — hidden while Pharmacy is the active world. */
+.loc-macro-level2 {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    flex: 0 1 auto;
+    margin-left: auto;
+    min-width: 0;
+}
+.loc-macro-level2.is-hidden,
+.loc-macro-level2[hidden] {
+    display: none !important;
+}
+.loc-macro-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.loc-macro-tab.loc-macro-food-tab.is-active {
+    background: color-mix(in srgb, var(--brand-primary, #10b981) 18%, var(--surface-bg));
+    border-color: color-mix(in srgb, var(--brand-primary, #10b981) 55%, var(--surface-border));
+    color: color-mix(in srgb, var(--brand-primary, #059669) 70%, var(--text));
+}
+.loc-macro-tab.loc-macro-med {
+    border-color: #6366f1;
+    background: rgba(99, 102, 241, 0.08);
+}
+.loc-macro-tab.loc-macro-med.is-active {
+    background: rgba(99, 102, 241, 0.20);
+}
+.loc-macro-tab.is-disabled,
+.loc-macro-tab:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.loc-macro-icon { display: inline-flex; line-height: 1; }
+.loc-macro-label { max-width: 9.5rem; overflow: hidden; text-overflow: ellipsis; }
+.loc-macro-count {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-light);
+    background: color-mix(in srgb, var(--border) 55%, transparent);
+    border-radius: 999px;
+    padding: 1px 7px;
+}
+.loc-macro-dot,
+.loc-food-trigger-dot,
+.loc-food-item-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--tone-danger, #ef4444);
+    flex: 0 0 auto;
+}
+.loc-macro-dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    box-shadow: 0 0 0 2px var(--surface-bg);
+}
+
+.loc-food-trigger {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    min-width: 0;
+    max-width: 100%;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app, var(--bg-card));
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.loc-food-trigger-label {
+    max-width: 7.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.loc-food-trigger-count {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    color: var(--text-light);
+}
+.loc-food-trigger-caret {
+    color: var(--text-light);
+    font-size: 0.7rem;
+}
+
+.loc-food-menu {
+    /* The strip that hosts this button scrolls horizontally (`.location-tabs` is
+       `overflow-x: auto`), and an `overflow` that is not `visible` clips an absolutely
+       positioned child: tapping the pill opened the menu *out of sight*, which read as
+       "the dropdown does not work". It is a fixed layer now, anchored to the trigger by
+       `_locFoodMenuPlace()` (top/left/width), so no ancestor can clip it. */
+    position: fixed;
+    z-index: 60;
+    top: 0;
+    left: 0;
+    right: auto;
+    min-width: 220px;
+    max-width: min(92vw, 320px);
+    max-height: min(60vh, 360px);
+    overflow: auto;
+    padding: 6px;
+    border-radius: 14px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+.loc-food-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.88rem;
+    text-align: left;
+    cursor: pointer;
+}
+.loc-food-item:hover,
+.loc-food-item:focus-visible {
+    background: color-mix(in srgb, var(--brand-primary, #10b981) 10%, transparent);
+    outline: none;
+}
+.loc-food-item.is-active {
+    background: color-mix(in srgb, var(--brand-primary, #10b981) 16%, transparent);
+    font-weight: 700;
+}
+.loc-food-item-label { flex: 1 1 auto; min-width: 0; }
+.loc-food-item-count {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--text-light);
+}
+.loc-food-item-create {
+    margin-top: 4px;
+    border-top: 1px solid var(--surface-border);
+    border-radius: 0 0 10px 10px;
+    color: var(--text-light);
+    font-weight: 600;
+}
+
+.location-tabs .loc-macro { width: 100%; }
+.location-tabs .loc-macro-level1 { flex: 1 1 180px; }
+
+.inv-med-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 2px 10px;
+}
+.inv-med-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid #CBD5E1;
+    background: #F1F5F9;
+    color: #334155;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+    transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+}
+.inv-med-chip:hover,
+.inv-med-chip:focus-visible {
+    background: #E2E8F0;
+    border-color: #94A3B8;
+    outline: none;
+}
+.inv-med-chip:active {
+    transform: scale(0.98);
+    background: #E2E8F0;
+}
+.inv-med-chip.is-on {
+    background: #EEF2FF;
+    border-color: #6366F1;
+    color: #4338CA;
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25);
+}
+[data-theme="dark"] .inv-med-chip {
+    background: rgba(99, 102, 241, 0.12);
+    border-color: rgba(165, 180, 252, 0.35);
+    color: #E0E7FF;
+}
+[data-theme="dark"] .inv-med-chip.is-on {
+    background: rgba(99, 102, 241, 0.28);
+    border-color: #818CF8;
+    color: #C7D2FE;
+}
+
+.empty-state-med,
+.empty-state-filter {
+    padding: 28px 18px 36px;
+    text-align: center;
+}
+.empty-state-filter .empty-state-title {
+    margin: 0 0 14px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.empty-state-med .empty-state-icon {
+    font-size: 2.4rem;
+    line-height: 1;
+    margin-bottom: 10px;
+}
+.empty-state-med .empty-state-title {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.empty-state-med .empty-state-sub {
+    margin: 0 auto 18px;
+    max-width: 28rem;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: var(--text-light);
+}
+.empty-state-med .empty-state-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 22rem;
+    margin: 0 auto;
+}
+.empty-state-med .empty-state-actions .btn {
+    width: 100%;
+    min-height: 46px;
+    justify-content: center;
+}
+
+.location-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    position: relative;
+}
+.location-pill:active { transform: scale(0.98); }
+.location-pill .loc-icon { font-size: 1.05rem; line-height: 1; }
+.location-pill .loc-label { white-space: nowrap; }
+.location-pill .loc-count {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-light);
+    background: color-mix(in srgb, var(--border) 55%, transparent);
+    border-radius: 999px;
+    padding: 1px 7px;
+}
+.location-pill .loc-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--tone-danger);
+    box-shadow: 0 0 0 2px var(--surface-bg);
+    position: absolute;
+    top: 6px;
+    right: 8px;
+}
+.location-pill.is-empty { opacity: 0.55; }
+/* The cabinet owns the medical tint, exactly like its pantry pill. */
+.location-pill.location-pill-medical {
+    border-color: #6366f1;
+    background: rgba(99, 102, 241, 0.10);
+}
+.location-pill.location-pill-add {
+    border-style: dashed;
+    color: var(--text-light);
+    background: transparent;
+    padding: 8px 12px;
+}
+
+/* Compact month strip: the analytic digest that stays on the dashboard. */
+.month-strip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: var(--touch-min);
+    padding: 8px 14px;
+    margin-bottom: 12px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text);
+    font-size: 0.82rem;
+    cursor: pointer;
+    text-align: left;
+}
+.month-strip .month-strip-value { font-weight: 700; }
+.month-strip .month-strip-arrow { margin-left: auto; color: var(--text-light); }
+
+/* ── Stock hub: one block, three tabs ─────────────────────────────────────── */
+.stock-hub { margin-bottom: 12px; }
+
+.stock-hub-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 3px;
+    margin-bottom: 10px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: color-mix(in srgb, var(--border) 30%, transparent);
+}
+.stock-hub-tabs::-webkit-scrollbar { display: none; }
+
+.stock-tab {
+    flex: 1 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-light);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.stock-tab .stock-tab-count {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.74rem;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 0 6px;
+    background: color-mix(in srgb, var(--border) 60%, transparent);
+}
+.stock-tab.is-active {
+    background: var(--surface-bg);
+    color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.stock-tab[hidden] { display: none; }
+
+.stock-hub-panel[hidden] { display: none; }
+
+/* The row menu: one button instead of a strip of micro actions. */
+.alert-item-menu {
+    flex: 0 0 auto;
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: var(--surface-bg);
+    color: var(--text-light);
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.alert-item-menu:active { background: var(--tone-info-soft); }
+
+/* Count badge on a bottom-nav tab (the shopping list size). */
+.nav-btn { position: relative; }
+.nav-badge {
+    position: absolute;
+    top: 2px;
+    right: 50%;
+    transform: translateX(18px);
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--tone-danger);
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 800;
+    line-height: 17px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 0 0 2px var(--bg);
+    pointer-events: none;
+}
+
+/* ── Urgency hub: one block for the anomaly banner, the expired rows and the CTA ── */
+.urgency-hub {
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-border);
+    border-left: 3px solid var(--tone-danger);
+    border-radius: var(--surface-radius);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+.urgency-hub[hidden] { display: none; }
+
+.urgency-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+.urgency-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.urgency-icon { font-size: 1.25rem; line-height: 1; }
+.urgency-title-text { min-width: 0; }
+.urgency-title h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text);
+}
+.urgency-sub {
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+    color: var(--text-light);
+}
+
+#urgency-recipe-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: auto;
+    padding: 0 12px;
+    min-height: var(--touch-min);
+    border-radius: 999px;
+}
+#urgency-recipe-btn[hidden] { display: none; }
+
+/* Inside the hub the children are rows of one card, not cards of their own. */
+.urgency-hub #alert-banner,
+.urgency-hub .alert-section {
+    margin: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 6px 0 0;
+    overflow: visible;
+}
+.urgency-hub .alert-section h3 { display: none; }
+
+/* Inside the stock hub the tab names the list: the panel keeps only its rows. */
+.stock-hub .alert-section { box-shadow: none; border: 0; padding: 4px 0 0; }
+.stock-hub .alert-section h3 { display: none; }
+.stock-hub .alert-section-hint { margin: 0 0 6px; }
+
+/* Analytics block in Storico: collapsed by default, one neutral card. */
+.insight-block {
+    margin: 0 0 14px;
+    padding: 2px 12px 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--surface-radius);
+    background: var(--surface-bg);
+}
+.insight-block > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--text-light);
+}
+.insight-block > summary::-webkit-details-marker { display: none; }
+.insight-block > summary::after { content: "▾"; margin-left: auto; opacity: 0.7; }
+.insight-block[open] > summary::after { content: "▴"; }
+
+/* ── Capture button (centre of the nav) ───────────────────────────────────
+   Same geometry as the button it replaces, one colour from the calm palette: the
+   centre of the nav is an action, not a product name. */
+/* ── Capture button: the primary control, so it is bigger than the others, has no
+   text label (the microphone is the label) and **always** breathes — a still button
+   in the middle of the bar reads as decoration. Nothing here references a brand. */
+.nav-capture-btn {
+    margin-top: -18px;
+    min-width: 0;
+    background: transparent;
+}
+.nav-capture-icon-wrap {
+    width: clamp(48px, 13vw, 64px);
+    height: clamp(48px, 13vw, 64px);
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 65%, #10B981) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--brand-primary) 45%, transparent);
+    border: 3px solid var(--surface-bg);
+    transition: transform 0.15s, box-shadow 0.15s;
+    animation: capture-breathe 4.2s ease-in-out infinite;
+    position: relative;
+}
+/* SHELFY's face fills the circle: the centre of the nav is the assistant itself. */
+.nav-capture-avatar {
+    width: clamp(40px, 10.6vw, 54px);
+    height: clamp(40px, 10.6vw, 54px);
+    object-fit: contain;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+/* A slow halo, one step behind the breathing, so the button looks alive without
+   turning into a blinking light on a kiosk. */
+.nav-capture-icon-wrap::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
+    animation: capture-halo 4.2s ease-out infinite;
+    pointer-events: none;
+}
+@keyframes capture-breathe {
+    0%, 100% { transform: scale(1); box-shadow: 0 6px 18px color-mix(in srgb, var(--brand-primary) 40%, transparent); }
+    50%      { transform: scale(1.05); box-shadow: 0 8px 26px color-mix(in srgb, var(--brand-primary) 60%, transparent); }
+}
+@keyframes capture-halo {
+    0%   { transform: scale(0.94); opacity: 0.55; }
+    70%  { transform: scale(1.22); opacity: 0; }
+    100% { transform: scale(1.22); opacity: 0; }
+}
+.nav-capture-btn:active .nav-capture-icon-wrap { transform: scale(0.94); animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+    .nav-capture-icon-wrap,
+    .nav-capture-icon-wrap::after { animation: none; }
+}
+
+/* ── Capture sheet ───────────────────────────────────────────────────────── */
+.capture-sheet {
+    max-width: 520px;
+    padding: 16px 18px 18px;
+    border-radius: 18px 18px 0 0;
+}
+.capture-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.capture-head h3 { margin: 0; font-size: 1.02rem; font-weight: 800; flex: 1 1 auto; }
+
+.capture-mic {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 84px;
+    height: 84px;
+    margin: 6px auto 10px;
+    border: none;
+    border-radius: 50%;
+    background: var(--tone-calm-soft);
+    color: var(--tone-calm);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.capture-mic:active { transform: scale(0.96); }
+/* Recording: the button says "armed" with a STATIC halo. The travelling sonar ring lives on
+   the WRAPPER below, where it is a transform on a pseudo-element. This block used to
+   declare the listening state twice — once with `capture-pulse` and once with a
+   `capture-ping` that animated a 26 px `box-shadow` at 60 fps — i.e. a blurred shadow
+   repainted on every frame, on top of the wrapper ring, for the whole conversation. That is
+   the heaviest paint in this sheet and enough to kill the renderer of a low-end kiosk (a
+   WebView restart looks exactly like "the app restarted"), so both animations are gone. */
+.capture-mic.is-listening {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--tone-calm) 18%, transparent);
+}
+.capture-mic[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) {
+    .capture-mic.is-listening { box-shadow: 0 0 0 8px color-mix(in srgb, var(--tone-calm) 18%, transparent); }
+}
+
+.capture-status {
+    margin: 0 0 12px;
+    min-height: 1.2em;
+    text-align: center;
+    font-size: 0.84rem;
+    color: var(--text-light);
+}
+/* ── The technical reason of a peripheral problem ──────────────────────────────
+   «se ci sono problemi con periferiche o altro (microfono, fotocamera, altoparlante, ecc..) mi
+   scrivi sempre sotto la motivazione tecnica in piccolo e in rosso». Small and red, UNDER the
+   sentence it explains: the household's line says what is broken, this one says why, in the same
+   words the server log carries. */
+.tech-reason {
+    margin: 6px 0 0;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: #b91c1c;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+.scan-nocamera-text .tech-reason { text-align: left; }
+[data-theme="dark"] .tech-reason,
+.dark .tech-reason { color: #f87171; }
+.capture-input-row { display: flex; gap: 8px; align-items: center; }
+.capture-input-row .form-input { flex: 1 1 auto; min-height: var(--touch-min); }
+.capture-input-row .btn { min-height: var(--touch-min); }
+.capture-input-row .btn-accent {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #fff;
+    font-weight: 700;
+    padding: 0 16px;
+}
+.capture-input-row .btn-accent:active { background: var(--brand-primary-hover); }
+
+.capture-hints {
+    /* Pills wrap on two centred rows instead of scrolling: the last one used to be cut in
+       half by the edge of the sheet, which read as a broken control. */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin: 10px 0 6px;
+    padding-bottom: 2px;
+}
+.capture-hint {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    border: 1px solid var(--surface-border);
+    background: #F1F5F9;
+    color: #334155;
+    font-size: 13px;
+    cursor: pointer;
+}
+.capture-hint:active { background: color-mix(in srgb, var(--surface-border) 70%, transparent); }
+[data-theme="dark"] .capture-hint { background: #1E293B; color: #CBD5E1; }
+.capture-chat-link {
+    display: block;
+    margin: 8px auto 0;
+    padding: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-light);
+    font-size: 0.78rem;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* Secondary banner actions: the same 40px \u22ee the stock rows use, with a small
+   neutral panel under it. No rainbow of pastel buttons. */
+.alert-banner-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.alert-banner-actions .btn-banner { min-height: var(--touch-min); }
+/* ── Typography: three levels per card, not six ─────────────────────────────
+   Product title 15/600, metadata 13/400 muted, badge 12/600. Everything else in
+   the rows inherits one of the three, so the eye finds the title first. */
+.alert-item-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.alert-item-brand {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+.alert-item-qty,
+.alert-item-meta,
+.alert-item-verdict,
+.alert-section-hint,
+.urgency-sub,
+.banner-fact {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+.alert-item-badge,
+.alert-item-qty,
+.safety-pill,
+.capture-hint,
+.stock-tab .stock-tab-count {
+    font-size: 12px;
+    font-weight: 600;
+}
+.alert-item-badge {
+    padding: 3px 10px;
+    letter-spacing: 0.01em;
+}
+.alert-section h3,
+.alert-danger h3,
+.alert-opened h3,
+.alert-stale h3 {
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+/* ── Cards: white, soft shadow, one accent line on the left ─────────────────
+   A full coloured frame around every block was the "semaforo" effect; a 4px
+   left border says the same thing with a fraction of the ink. */
+.alert-section,
+#waste-chart-section,
+.alert-banner,
+.urgency-hub,
+.stock-hub-tabs,
+.insight-block,
+.month-strip,
+.location-pill {
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-border);
+    box-shadow: var(--surface-shadow);
+}
+.alert-section,
+.alert-danger,
+.alert-opened,
+.alert-stale,
+#alert-expiring,
+.urgency-hub {
+    box-shadow: var(--surface-shadow);
+}
+.alert-danger,
+.urgency-hub { border-left: 4px solid var(--tone-danger); }
+#alert-expiring { border-left: 4px solid var(--tone-soon); }
+.alert-opened { border-left: 4px solid var(--tone-info); }
+.alert-stale { border-left: 4px solid var(--brand-primary); }
+
+/* Section title dots keep the tone, in the muted colour of the text. */
+.alert-section h3::after,
+.alert-danger h3::after,
+.alert-opened h3::after,
+.alert-stale h3::after {
+    background: var(--rail, var(--tone-soon));
+}
+
+/* ── Header: white, dark icons, one hairline. The deep forest green was the
+   heaviest surface on the screen and did not match anything else. */
+.app-header {
+    background: var(--surface-bg);
+    color: var(--text-main);
+    border-bottom: 1px solid var(--surface-border);
+    box-shadow: none;
+}
+.app-header .header-title,
+.app-header .header-title span,
+.app-header .header-version,
+.app-header .header-branch {
+    color: var(--text-main);
+}
+.app-header .header-btn {
+    color: #334155;
+    background: color-mix(in srgb, var(--surface-border) 55%, transparent);
+    border-color: var(--surface-border);
+}
+.app-header .header-btn:active { background: var(--brand-surface); }
+
+/* ── Bottom nav: neutral surface, emerald active state ─────────────────────── */
+.bottom-nav {
+    background: var(--surface-bg);
+    border-top: 1px solid var(--surface-border);
+}
+.nav-btn { color: #94A3B8; }
+.nav-btn {
+    border-radius: 999px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.nav-btn.active {
+    color: var(--brand-primary);
+    background: var(--brand-surface);
+}
+.nav-btn.active .nav-icon { filter: none; }
+.nav-capture-icon-wrap {
+    background: linear-gradient(135deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 70%, #10B981) 100%);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--brand-primary) 40%, transparent);
+}
+
+/* The recipe CTA: orange is the one "action" colour left, as specified. */
+.quick-recipe-bar .btn-quick-recipe,
+#urgency-recipe-btn {
+    background: #EA580C;
+    color: #FFFFFF;
+    border-color: #EA580C;
+}
+
+/* Header actions on the white header: the old translucent green was designed for the
+   green bar. Neutral chip, emerald when the mode is active. */
+.app-header .header-btn.spesa-on,
+.app-header .header-btn[aria-pressed="true"],
+.app-header .header-btn.is-active {
+    background: var(--brand-surface);
+    color: var(--brand-primary);
+    border-color: color-mix(in srgb, var(--brand-primary) 35%, transparent);
+}
+.app-header img,
+.app-header .nav-logo-icon { filter: none; }
+
+/* ── Capture: the mic shows the incoming level, the sheet shows what it heard ──
+   Feedback was the missing half: a silent button looked broken. `--level` is set by
+   the AnalyserNode (0..1) and fills the button from the bottom. */
+.capture-mic {
+    position: relative;
+    overflow: hidden;
+    --level: 0;
+}
+.capture-mic-level {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--level) * 100%);
+    background: color-mix(in srgb, var(--brand-primary) 30%, transparent);
+    transition: height 80ms linear;
+    pointer-events: none;
+}
+/* SHELFY's face instead of a generic microphone: the assistant you talk to is the
+   assistant you see. It sits above the level fill and never eats the tap. */
+.capture-mic-avatar {
+    position: relative;
+    z-index: 1;
+    width: 64%;
+    height: 64%;
+    object-fit: contain;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.capture-bars {
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+    height: 26px;
+    margin: -2px auto 8px;
+}
+.capture-bars.is-listening { display: flex; }
+.capture-bars span {
+    width: 5px;
+    height: calc(var(--bar, 0.15) * 26px);
+    min-height: 3px;
+    border-radius: 999px;
+    background: var(--brand-primary);
+    opacity: 0.75;
+    transition: height 90ms ease-out;
+}
+
+/* What SHELFY heard: it is the sentence the user is checking before they confirm it, so it
+   is the largest text in the sheet — a highlighted block, not a footnote in 15 px. */
+.capture-transcript {
+    margin: 0 0 10px;
+    padding: 10px 14px;
+    min-height: 1.4em;
+    border-radius: 12px;
+    background: var(--brand-surface);
+    text-align: center;
+    font-size: 1.06rem;
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    color: var(--text-muted);
+    font-style: italic;
+    overflow-wrap: anywhere;
+}
+.capture-transcript.is-final {
+    color: var(--text-main);
+    font-style: normal;
+    font-weight: 700;
+}
+
+/* ── The transcript is a speech bubble, not a naked line ────────────────────
+   It used to float between the avatar and the form as grey text with no frame, so
+   nothing told the eye it was what the assistant had heard. Now it is SHELFY's own
+   line: the avatar, a high-contrast bubble with a tail on the avatar's side. */
+.capture-bubble {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin: 0 0 10px;
+}
+.capture-bubble[hidden] { display: none; }
+.capture-bubble-avatar {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    margin-bottom: 2px;
+    border-radius: 50%;
+    object-fit: contain;
+    background: var(--brand-surface);
+}
+.capture-bubble .capture-transcript {
+    position: relative;
+    flex: 1 1 auto;
+    margin: 0;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 28%, transparent);
+    text-align: left;
+}
+/* The tail: a small square rotated 45°, in the bubble's own colour and border. */
+.capture-bubble .capture-transcript::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    bottom: 10px;
+    width: 8px;
+    height: 8px;
+    background: var(--brand-surface);
+    border-left: 1px solid color-mix(in srgb, var(--brand-primary) 28%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--brand-primary) 28%, transparent);
+    transform: rotate(45deg);
+    border-radius: 1px;
+}
+
+/* Typing is a deliberate choice: a small neutral link, never an emerald action that
+   competes with the microphone. */
+.capture-type-btn {
+    display: block;
+    margin: 2px auto 12px;
+    padding: 6px 14px;
+    min-height: 32px;
+    border: 1px solid var(--surface-border);
+    border-radius: 9999px;
+    background: transparent;
+    color: var(--text-light);
+    font-size: 12px;
+    cursor: pointer;
+}
+.capture-type-btn[hidden] { display: none; }
+.capture-type-btn:active { background: color-mix(in srgb, var(--surface-border) 60%, transparent); }
+.capture-input-row[hidden] { display: none; }
+
+.capture-understood,
+.capture-choices {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 10px;
+}
+.capture-understood[hidden],
+.capture-choices[hidden] { display: none; }
+/* A turn that could not be finished. A soft amber panel (attention, not alarm: the sentence
+   is safe and the action is one tap away) with ONE emerald answer — the chat, which is where
+   the outcome is written — and a neutral second attempt by voice. */
+.capture-fallback {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--tone-soon, #f59e0b) 45%, var(--surface-border));
+    background: color-mix(in srgb, var(--tone-soon, #f59e0b) 12%, var(--surface-bg));
+}
+.capture-fallback[hidden] { display: none; }
+.capture-fallback-lead {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--text-main);
+    overflow-wrap: anywhere;
+}
+.capture-fallback-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.capture-fallback-actions button {
+    flex: 1 1 140px;
+    min-height: 44px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.capture-fallback-chat {
+    border: 1px solid var(--brand-primary, #10b981);
+    background: var(--brand-primary, #10b981);
+    color: #fff;
+}
+.capture-fallback-chat:active { background: var(--brand-primary-hover, #059669); }
+.capture-fallback-retry {
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-muted);
+}
+.capture-fallback-retry:active { background: var(--bg-app); }
+.cu-label {
+    width: 100%;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.cu-chip {
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--surface-border) 55%, transparent);
+    color: var(--text-main);
+}
+.cu-chip.cu-intent { background: var(--brand-surface); color: var(--brand-primary); }
+.cu-chip.cu-qty { font-variant-numeric: tabular-nums; }
+
+/* "Where" line under a banner entry: same 13px muted level as the row metadata. */
+.banner-loc {
+    margin-top: 2px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+/* ── Round 3: no "cabins", a slim verdict, a tappable extend ────────────────
+   A coloured frame on four sides boxes a block in like an old dialog. One hairline
+   plus a 4px left rail says the same thing and lets the page breathe. */
+.alert-danger,
+.alert-opened,
+.alert-stale,
+#alert-expiring,
+.urgency-hub,
+.system-alert {
+    border: 1px solid var(--surface-border);
+    box-shadow: var(--surface-shadow);
+}
+.alert-danger, .urgency-hub { border-left: 4px solid var(--tone-danger); }
+#alert-expiring            { border-left: 4px solid var(--tone-soon); }
+.alert-opened              { border-left: 4px solid var(--tone-info); }
+.alert-stale               { border-left: 4px solid var(--brand-primary); }
+/* System/inventory alerts (anomalies, predictions) are information, not danger. */
+.system-alert {
+    border-left: 4px solid var(--tone-info);
+    margin-bottom: 12px;
+}
+
+/* The safety verdict rides on the metadata line instead of stretching a full bar
+   under the name, which doubled the height of those rows. */
+.alert-item-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.alert-item-meta-row .alert-item-qty { margin: 0; }
+.alert-item-meta-row .safety-pill {
+    padding: 1px 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+/* "Controlla" is a request for a look, not a verdict: a neutral tag, so it no longer
+   competes with the amber expiry badge it refers to. Danger ("Non mangiare", "Buttalo")
+   and "Va bene" keep their colour — those answer a question the user actually asked. */
+.safety-pill-warning {
+    background: var(--surface-bg);
+    color: var(--text-muted);
+    border-color: var(--surface-border);
+}
+[data-theme="dark"] .safety-pill-warning {
+    background: var(--surface-bg);
+    color: var(--text-muted);
+    border-color: var(--surface-border);
+}
+
+/* Row actions: keep the gap honest now that the row carries "Usa" + ⋮ (the extend
+   pill moved into the detail modal and the banner menu). */
+.alert-item-badges { gap: 8px; }
+
+/* ── ONE SOFT TINT PER REASON ────────────────────────────────────────────────
+   Asked for: «per ogni motivazione per cui crei un alert banner in alto puoi usare uno sfondo
+   tenue diverso?». The strip used to be neutral for every kind («the system strip keeps its
+   neutral surface whatever kind it is»), so an open yoghurt, a loss check and a consumption
+   prediction were the same card with different words. Now each reason owns a HUE (`--banner-hue`)
+   and the surface is a soft wash of it: the tint says WHAT this notice is about before a single
+   word is read, while the rail keeps the urgency and the text colours stay the theme's.
+   The wash is mixed over `var(--surface-bg)` on purpose — the theme still decides the paper
+   (light, dark, Corporate, Elegant) and this layer only adds 12 % of a colour on top of it. */
+.alert-banner,
+.alert-banner.banner-opened,
+.alert-banner.banner-expired,
+.alert-banner.banner-review,
+.alert-banner.banner-prediction,
+.alert-banner.banner-finished,
+.alert-banner.banner-anomaly,
+.alert-banner.banner-dup-loss,
+.alert-banner.banner-no-expiry {
+    background-color: var(--surface-bg);
+    background-image: linear-gradient(135deg,
+        color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 12%, transparent),
+        color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 4%, transparent));
+    border-top-color: color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 30%, var(--surface-border));
+    border-right-color: color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 30%, var(--surface-border));
+    border-bottom-color: color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 30%, var(--surface-border));
+    border-left: 4px solid var(--banner-hue, var(--tone-soon));
+}
+[data-theme="dark"] .alert-banner,
+[data-theme="dark"] .alert-banner.banner-opened,
+[data-theme="dark"] .alert-banner.banner-expired,
+[data-theme="dark"] .alert-banner.banner-review,
+[data-theme="dark"] .alert-banner.banner-prediction,
+[data-theme="dark"] .alert-banner.banner-finished,
+[data-theme="dark"] .alert-banner.banner-anomaly,
+[data-theme="dark"] .alert-banner.banner-dup-loss,
+[data-theme="dark"] .alert-banner.banner-no-expiry {
+    background-image: linear-gradient(135deg,
+        color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 24%, transparent),
+        color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 8%, transparent));
+    border-top-color: color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 26%, var(--surface-border));
+    border-right-color: color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 26%, var(--surface-border));
+    border-bottom-color: color-mix(in srgb, var(--banner-hue, var(--tone-soon)) 26%, var(--surface-border));
+}
+
+/* …and the reason → hue map. The families are ordered from the most generic to the most
+   specific, so a severity class always wins over the family it belongs to. */
+.alert-banner                        { --banner-hue: #F59E0B; }  /* unknown / generic notice */
+.alert-banner.banner-opened          { --banner-hue: #F59E0B; }  /* open too long (warn) */
+.alert-banner.banner-opened.is-critical { --banner-hue: #EF4444; }
+.alert-banner.banner-opened.is-cook  { --banner-hue: #10B981; }  /* a drink past its window is an ingredient */
+.alert-banner.banner-expired         { --banner-hue: #F97316; }
+.alert-banner.banner-expired-warning { --banner-hue: #F97316; }
+.alert-banner.banner-expired-danger  { --banner-hue: #EF4444; }
+.alert-banner.banner-expired-ok      { --banner-hue: #22C55E; }
+.alert-banner.banner-review          { --banner-hue: #0284C7; }  /* an odd quantity: a look, not a loss */
+.alert-banner.banner-prediction      { --banner-hue: #8B5CF6; }  /* what the consumption says */
+.alert-banner.banner-anomaly         { --banner-hue: #0891B2; }  /* ledger vs shelf */
+.alert-banner.banner-finished        { --banner-hue: #64748B; }  /* probably finished */
+.alert-banner.banner-dup-loss        { --banner-hue: #E11D48; }  /* a double count is a loss */
+.alert-banner.banner-no-expiry       { --banner-hue: #14B8A6; }  /* missing data, not a danger */
+/* A medicine is never a food surface: its hue is the cabinet's indigo, whatever the clock says. */
+.alert-banner.is-medical,
+.alert-banner.banner-opened.is-medical,
+.alert-banner.banner-expired.is-medical { --banner-hue: #6366F1; }
+/* The two reasons with no coloured title of their own read in the theme's own ink: the tint is
+   the signal, the words do not need a second colour. */
+.alert-banner.banner-review .alert-banner-title,
+.alert-banner.banner-finished .alert-banner-title { color: var(--text-main); }
+.system-alert .alert-banner-title { color: var(--text-main); }
+.system-alert .alert-banner-detail { color: var(--text-muted); }
+.system-alert .banner-loc { font-size: 13px; }
+
+/* ── Product modal: one primary, one secondary, neutral support (round 4) ────
+   Four saturated colours (orange / green / purple / red) competed in one row; the
+   frequent action had no quantity; barcode and timestamps sat in the middle of the
+   card. Hierarchy now: emerald primary → emerald outline secondary → grey support. */
+.item-detail-section-label {
+    margin: 0 0 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.item-detail-consume {
+    padding: 4px 0 0;
+    border-top: none;
+}
+.item-detail-consume-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 0 2px;
+}
+.item-detail-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 2px 0 6px;
+}
+.item-detail-step {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+}
+.item-detail-step:active { background: var(--brand-surface); color: var(--brand-primary); }
+.item-detail-step-value {
+    min-width: 100px;
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.item-detail-stepper--input {
+    gap: 8px;
+}
+.item-detail-qty-field {
+    display: inline-flex;
+    align-items: center;
+    /* The unit is a badge beside the number, not part of it: 2 px read as «10g» on a phone
+       (asked for: «l'unità di misura è troppo vicina all'input della quantità»). */
+    gap: 6px;
+    min-width: 0;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: var(--surface-bg);
+    padding-right: 10px;
+}
+.item-detail-qty-field:focus-within {
+    outline: 2px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
+    border-color: var(--brand-primary);
+}
+.item-detail-qty-input {
+    width: 4.25rem;
+    min-width: 3.5rem;
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 2px 8px 8px;
+    background: transparent;
+    color: var(--text-main);
+}
+.item-detail-qty-input:focus {
+    outline: none;
+}
+.item-detail-qty-unit {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+.item-detail-avail {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+.item-detail-stock {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    width: 100%;
+    margin: 0 0 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid #E2E8F0;
+    background: #F0FDF4;
+    color: var(--text-main);
+    box-sizing: border-box;
+}
+[data-theme="dark"] .item-detail-stock {
+    background: color-mix(in srgb, var(--brand-primary) 12%, #1E293B);
+    border-color: color-mix(in srgb, var(--surface-border) 80%, var(--brand-primary));
+}
+.item-detail-stock-icon { flex: 0 0 auto; font-size: 1rem; line-height: 1; }
+.item-detail-stock-label {
+    flex: 0 1 auto;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+.item-detail-stock-qty {
+    flex: 1 1 auto;
+    font-size: 0.98rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-main);
+    text-align: right;
+}
+.item-detail-stock-qty .conf-size-info {
+    font-weight: 600;
+    color: var(--text-muted);
+}
+.item-detail-header-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+.item-detail-header-row .item-detail-image {
+    /* 64 px, not 44: the tile has to tell "grano duro" from "integrale" at a glance, and it
+       is the target of the lightbox tap (`openProductImageLightbox`). */
+    width: 64px;
+    height: 64px;
+    flex: 0 0 auto;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.item-detail-header-row .item-detail-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+/* The picture is a control: a package is read by looking at it. */
+.item-detail-photo-btn {
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: zoom-in;
+}
+.item-detail-photo-btn:focus-visible {
+    outline: 2px solid var(--brand-primary, #10b981);
+    outline-offset: -2px;
+}
+.item-detail-header-text { flex: 1 1 auto; min-width: 0; }
+.item-detail-header-text .item-detail-title {
+    margin: 0;
+    /* The product owns the first line: 18 px, strong, slate-900. */
+    font-size: 1.14rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--text-main);
+}
+.item-detail-header-text .item-detail-brand {
+    /* The brand owns its own line, never a parenthesis inside the title. */
+    margin: 2px 0 2px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+.item-detail-header-text .item-detail-cat {
+    margin: 0 0 4px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-light);
+}
+/* The package photo, full screen: the sheet's 64 px tile opens here to be READ. A dark
+   backdrop (never a translucent panel over the sheet: the picture is the subject), one
+   hairline frame and the ✕ where a thumb expects it. */
+.image-lightbox {
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(2, 6, 23, 0.88);
+    z-index: 900;
+}
+.image-lightbox-frame {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    max-width: min(100%, 760px);
+    max-height: 100%;
+}
+.image-lightbox-frame img {
+    max-width: 100%;
+    max-height: 86vh;
+    object-fit: contain;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 18px 48px rgba(2, 6, 23, 0.45);
+}
+.image-lightbox-close {
+    position: absolute;
+    top: -14px;
+    right: -8px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(2, 6, 23, 0.28);
+}
+.item-detail-header-text .item-detail-loc-line {
+    margin: 3px 0 0;
+    font-size: 0.82rem;
+    font-weight: 550;
+    color: var(--text-muted);
+    line-height: 1.45;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+}
+.item-detail-header-text .item-detail-loc-line .item-detail-chip {
+    margin: 0;
+    vertical-align: middle;
+}
+/* ── The opened flag ─────────────────────────────────────────────────────────
+   `opened_at` is a fact the household knows better than the app does (a pack opened by hand, or
+   one that was never opened): it is a switch, on its own line under the place, in the same
+   one-line grammar as the edit sheet's vacuum switch. It stays narrow so the title keeps the
+   room, and it never adds a second row of controls: label left, switch right. */
+.item-detail-header-text .item-detail-opened-flag {
+    margin: 6px 0 0;
+    gap: 10px;
+    justify-content: flex-start;
+    max-width: 220px;
+    font-size: 0.82rem;
+    font-weight: 650;
+    color: var(--text-main);
+}
+.item-detail-header-text .item-detail-opened-flag .toggle-switch {
+    flex: 0 0 auto;
+    transform: scale(0.86);
+    transform-origin: left center;
+}
+
+/* ── The other shelves the same product stands on ────────────────────────────
+   One line per place: mark, name, the stock, and the pencil that edits THAT row. A product in
+   two places is two rows, and a correction belongs to one of them — the sheet's own pencil can
+   only reach the row it opened. */
+.item-detail-places {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: 14px;
+    background: var(--bg-app);
+}
+.item-detail-places-title {
+    margin: 0 0 6px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.item-detail-places-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.item-detail-place {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    font-size: 0.86rem;
+    color: var(--text-main);
+}
+.item-detail-place-ico { font-size: 1rem; line-height: 1; }
+.item-detail-place-name { font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-detail-place-qty {
+    margin-left: auto;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    color: #047857;
+}
+.item-detail-place-edit {
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.item-detail-place-edit:active { background: color-mix(in srgb, var(--surface-border) 45%, transparent); }
+/* The line itself OPENS that pack (the pencil corrects it): «consume the other one» must be one
+   tap, not an edit. The date says WHICH pack it is when two of them sit in the same place. */
+.item-detail-place-open {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: -4px -6px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.item-detail-place-open:active { background: color-mix(in srgb, var(--surface-border) 45%, transparent); }
+.item-detail-place-date {
+    font-size: 0.76rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+/* The total across the packs, under the place line: the sheet leads with the pack on screen, and
+   the household must not have to add the rows up in its head. */
+.item-detail-total {
+    margin: 4px 0 0;
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+}
+/* Live scale strip (g/ml only): hidden until streaming, then soft bounce-in. */
+.item-detail-scale-slot {
+    width: 100%;
+    margin: 0 0 8px;
+    transform-origin: center;
+}
+.item-detail-scale-slot[hidden] { display: none !important; }
+.item-detail-scale-slot.is-pop {
+    animation: itemDetailScalePop 0.48s cubic-bezier(0.34, 1.45, 0.64, 1) both;
+}
+@keyframes itemDetailScalePop {
+    0%   { opacity: 0; transform: scale(0.96) translateY(4px); }
+    55%  { opacity: 1; transform: scale(1.02) translateY(0); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .item-detail-scale-slot.is-pop,
+    .item-detail-scale-pill.is-settling .item-detail-scale-pill-ico,
+    .item-detail-scale-pill.is-stable { animation: none !important; }
+}
+.item-detail-scale-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary, #059669) 35%, #E2E8F0);
+    background: #F0FDF4;
+    color: var(--text-main);
+}
+[data-theme="dark"] .item-detail-scale-pill {
+    background: color-mix(in srgb, var(--brand-primary) 14%, #1E293B);
+    border-color: color-mix(in srgb, var(--brand-primary) 40%, var(--surface-border));
+}
+.item-detail-scale-pill-ico {
+    flex: 0 0 auto;
+    font-size: 1.25rem;
+    line-height: 1;
+}
+.item-detail-scale-pill.is-settling .item-detail-scale-pill-ico {
+    animation: itemDetailScalePulse 1.1s ease-in-out infinite;
+}
+.item-detail-scale-pill.is-stable {
+    border-color: var(--brand-primary, #059669);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 18%, transparent);
+}
+.item-detail-scale-pill-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 6px;
+    font-size: 0.86rem;
+}
+.item-detail-scale-pill-label { font-weight: 650; color: var(--text-muted); }
+#idetail-scale-val {
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--brand-primary-hover, #047857);
+}
+.item-detail-scale-pill-hint { color: var(--text-muted); font-size: 0.8rem; }
+.item-detail-scale-copy {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
+    background: var(--brand-primary, #059669);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.item-detail-scale-copy:active { filter: brightness(0.94); }
+@keyframes itemDetailScalePulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.12); opacity: 0.75; }
+}
+/* Legacy round chip / tall box (unused). */
+.item-detail-scale-btn,
+.item-detail-scale-box,
+.item-detail-scale-read,
+.item-detail-scale-icon-btn,
+.item-detail-scale-slot--block { display: none !important; }
+.item-detail-med-summary {
+    margin: 10px 0 4px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, #6366f1 28%, var(--surface-border));
+    background: color-mix(in srgb, #6366f1 7%, var(--surface-bg));
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.item-detail-med-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    font-size: 0.88rem;
+}
+.item-detail-med-k {
+    font-weight: 700;
+    color: var(--text-muted);
+    min-width: 7rem;
+}
+.item-detail-modal.is-medical .item-detail-chips .item-detail-chip--loc {
+    border-color: color-mix(in srgb, #6366f1 40%, transparent);
+}
+.item-detail-primary,
+.item-detail-secondary,
+.item-detail-use-all {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    border-radius: 12px;
+    font-size: 0.98rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.item-detail-primary {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 12px 16px;
+    border: none;
+    background: var(--brand-primary);
+    color: #fff;
+}
+.item-detail-primary:active { background: var(--brand-primary-hover); }
+.item-detail-primary:disabled,
+.item-detail-primary.is-busy {
+    opacity: 0.72;
+    cursor: wait;
+    pointer-events: none;
+}
+.item-detail-primary .item-detail-action-icon {
+    flex-shrink: 0;
+}
+/* Legacy emerald outline (kept for any leftover markup). */
+.item-detail-secondary {
+    min-height: 44px;
+    margin-top: 6px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
+    background: var(--brand-surface);
+    color: var(--brand-primary-hover);
+}
+.item-detail-secondary:active { background: color-mix(in srgb, var(--brand-primary) 18%, transparent); }
+/* Legacy twin outline (unused — finish-all is a ghost pill under the primary). */
+.item-detail-use-all { display: none !important; }
+/* Ghost/pill finish-all — clickable, finger-sized, never competes with the green CTA. */
+.item-detail-finish-wrap {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    margin-top: 8px;
+}
+.item-detail-finish-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 36px;
+    max-width: 100%;
+    padding: 6px 18px;
+    border: 1px solid #E2E8F0;
+    border-radius: 9999px;
+    background: #F8FAFC;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.25;
+    cursor: pointer;
+    text-align: center;
+}
+.item-detail-finish-link:hover,
+.item-detail-finish-link:focus-visible {
+    background: #F1F5F9;
+}
+.item-detail-finish-link:active {
+    background: #E2E8F0;
+}
+.item-detail-finish-link[hidden] { display: none !important; }
+.item-detail-finish-ico {
+    flex-shrink: 0;
+    display: block;
+}
+[data-theme="dark"] .item-detail-finish-link {
+    background: color-mix(in srgb, var(--surface-bg) 80%, #64748b);
+    border-color: color-mix(in srgb, var(--surface-border) 80%, #64748b);
+    color: #cbd5e1;
+}
+[data-theme="dark"] .item-detail-finish-link:hover,
+[data-theme="dark"] .item-detail-finish-link:focus-visible,
+[data-theme="dark"] .item-detail-finish-link:active {
+    background: color-mix(in srgb, var(--surface-bg) 60%, #64748b);
+}
+.item-detail-primary #item-detail-primary-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: center;
+    line-height: 1.25;
+}
+.item-detail-support-btn--throw {
+    color: #DC2626;
+    border-color: color-mix(in srgb, #DC2626 28%, var(--surface-border));
+}
+.item-detail-support-btn--throw .item-detail-action-icon {
+    color: #DC2626;
+}
+[data-theme="dark"] .item-detail-support-btn--throw {
+    color: #F87171;
+    border-color: color-mix(in srgb, #DC2626 40%, var(--surface-border));
+}
+
+.item-detail-support {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 0;
+    border-top: none;
+}
+.item-detail-support .item-detail-section-label { display: none; }
+.item-detail-support-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 4px;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: #F1F5F9;
+    color: #334155;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.item-detail-support-btn:active { background: color-mix(in srgb, var(--surface-border) 70%, transparent); }
+.item-detail-support-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+[data-theme="dark"] .item-detail-support-btn { background: #1E293B; color: #CBD5E1; }
+/* One row: Butta | In freezer | Scadenza (legacy 3) or + Sottovuoto (4). */
+.item-detail-support--row3,
+.item-detail-support--row4 {
+    flex-wrap: nowrap;
+    align-items: stretch;
+}
+.item-detail-support--row3 .item-detail-support-btn,
+.item-detail-support--row3 .item-detail-support-spacer,
+.item-detail-support--row4 .item-detail-support-btn,
+.item-detail-support--row4 .item-detail-support-spacer {
+    flex: 1 1 0;
+    min-width: 0;
+}
+.item-detail-support--row4 .item-detail-support-btn {
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 2px;
+    font-size: 0.72rem;
+}
+.item-detail-support--row3 .item-detail-support-btn span:not(.item-detail-action-icon),
+.item-detail-support--row4 .item-detail-support-btn span:not(.item-detail-action-icon) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+/* Legacy "DETTAGLI" accordion — product sheet no longer emits it. */
+.item-detail-more { display: none !important; }
+
+/* Row's frequent action: consumption. Same pill shape as the old extend, emerald. */
+.row-use-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: var(--touch-min);
+    min-width: var(--touch-min);
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 40%, transparent);
+    background: var(--brand-surface);
+    color: var(--brand-primary-hover);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.row-use-btn:active { background: color-mix(in srgb, var(--brand-primary) 22%, transparent); }
+.row-use-btn .row-use-label { display: none; }
+@media (min-width: 520px) {
+    .row-use-btn .row-use-label { display: inline; }
+}
+/* The one primary of the strip: solid emerald, no gradient. */
+.alert-banner-actions .btn-banner-use:not(.btn-banner-use-danger) {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #fff;
+    font-weight: 700;
+    padding: 0 16px;
+}
+.alert-banner-actions .btn-banner-use:not(.btn-banner-use-danger):active { background: var(--brand-primary-hover); }
+
+/* ── Round 5 ──────────────────────────────────────────────────────────────── */
+
+/* Banner actions live inline next to the primary and keep their own colour:
+   finishing is emerald, discarding is a soft red, correcting stock is sky, ignoring
+   is neutral. Collapsing them behind a ⋮ hid the very actions the strip exists for. */
+.alert-banner-actions {
+    /* Every action is visible: they wrap on a phone instead of hiding behind a ⋮.
+       Compact and right-aligned (the audit: a full-width row of equal pastel blocks read
+       as a control panel, not as the answers to one question). */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+.alert-banner-actions .btn-banner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    min-width: 0;
+    min-height: var(--touch-min);
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: #F1F5F9;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 600;
+}
+.alert-banner-actions .btn-banner-finish,
+.alert-banner-actions .btn-banner-throw,
+.alert-banner-actions .btn-banner-edit,
+.alert-banner-actions .btn-banner-ai,
+.alert-banner-actions .btn-banner-weigh,
+.alert-banner-actions .btn-banner-edit-qty {
+    background: var(--surface-bg);
+    border-color: var(--surface-border);
+    color: var(--text-muted);
+}
+.alert-banner-actions .btn-banner-finish:active,
+.alert-banner-actions .btn-banner-throw:active,
+.alert-banner-actions .btn-banner-edit:active,
+.alert-banner-actions .btn-banner-ai:active,
+.alert-banner-actions .btn-banner-weigh:active,
+.alert-banner-actions .btn-banner-edit-qty:active { background: var(--bg-app); }
+/* ── "Opened too long": the post-opening clock (PAO), not the printed date ─────
+   A white card with one hairline and a single accent rail: amber when the food is past
+   the point where quality starts to go ("check it"), red when it is past the point where
+   it is almost certainly spoiled. The strip answers the two decisions that must be fast —
+   throw it, or use it up — while the ⋮ opens the rest in place (nothing hidden, one tap). */
+.alert-banner.banner-opened { border-left-color: var(--tone-soon); }
+.alert-banner.banner-opened.is-critical { border-left-color: var(--tone-danger); }
+/* "Aperto da 26 giorni" on a wine is not a spoilage alarm: the data calls it an ingredient
+   (`cook_only`), so the rail wears the colour of the answer that writes the outcome and the
+   hint line says what it is still good for. */
+.alert-banner.banner-opened.is-cook { border-left-color: var(--brand-primary); }
+.alert-banner.banner-opened .banner-cook-hint {
+    margin-top: 4px;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: var(--text-muted);
+}
+.alert-banner.banner-opened .banner-verdict { margin-top: 6px; }
+/* The favourite star of the medicine edit sheet's header (`.item-detail-fav`): at phone widths
+   the row's own ☆ is hidden — a symbol the cabinet cannot afford — so the control lives where
+   the product is edited, and the feature is never lost on a small screen. */
+.item-detail-fav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-muted, #94a3b8);
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.item-detail-fav.active { color: #f59e0b; }
+.item-detail-fav:active { background: color-mix(in srgb, var(--surface-border) 60%, transparent); }
+
+/* ── A medicine in the same strip ──────────────────────────────────────────────
+   An open cream or a vial past its day is a real notice and it belongs here, but its card is
+   never a food surface: the medical hue is the cabinet's indigo (see the reason → hue map next
+   to the strip rules), while the rail and the title keep saying HOW URGENT it is
+   (`.banner-opened.is-critical`, `.banner-expired-danger`). One tint system, not two. */
+/* ── The same tint on the shopping list ────────────────────────────────────────
+   A medicine in the list is not a tomato: it gets its own section (💊 Medicinali) AND the tint
+   the alert cards already wear, so a row is recognisable without reading it. The urgency rail
+   stays the authority on HOW urgent it is (`.shop-row-urgency-*`, left border): the tint only
+   says WHAT the row is — the same division the notice strip follows.
+   Only the IMAGE is painted, never the base colour: `.shop-row` is `--bg-card` and
+   `.smart-item` is `--es-surface-tint` (two different papers, and a third in the dark theme), so
+   the gradient has to sit ON TOP of whatever the theme already decided. */
+.shop-row.is-medical,
+.smart-item.is-medical {
+    background-image: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(99, 102, 241, 0.04));
+}
+[data-theme="dark"] .shop-row.is-medical,
+.dark .shop-row.is-medical,
+[data-theme="dark"] .smart-item.is-medical,
+.dark .smart-item.is-medical {
+    background-image: linear-gradient(135deg, rgba(99, 102, 241, 0.32), rgba(99, 102, 241, 0.10));
+}
+.alert-banner-actions .btn-banner-more {
+    min-width: var(--touch-min);
+    padding: 0 10px;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+.alert-banner-menu {
+    flex: 1 0 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 2px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--surface-border);
+}
+.alert-banner-menu[hidden] { display: none; }
+.alert-banner-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+.alert-banner-menu-item:hover,
+.alert-banner-menu-item:focus-visible {
+    background: color-mix(in srgb, var(--brand-primary, #10b981) 10%, transparent);
+    outline: none;
+}
+.alert-banner-menu-icon {
+    flex: 0 0 1.4rem;
+    width: 1.4rem;
+    text-align: center;
+    line-height: 1;
+}
+.alert-banner-menu-label { flex: 1 1 auto; min-width: 0; }
+/* "e altri 2 prodotti aperti da verificare": a discrete line next to the carousel dots. */
+.banner-opened-more {
+    margin-left: 8px;
+    padding: 2px 4px;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+}
+.banner-opened-more:hover { color: var(--text-main); }
+
+/* The logo of a service: the official icon, with the monogram as the guaranteed fallback
+   (a missing file must never leave a broken image in a thank-you). */
+.free-api-logo {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+}
+.free-api-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+}
+.free-api-logo .free-api-mark { display: none; }
+.free-api-logo.is-fallback img { display: none; }
+.free-api-logo.is-fallback .free-api-mark { display: inline-flex; }
+/* A horizontal wordmark (Open Products / Beauty / Pet Food Facts are 7:1) is unreadable in
+   a 28 px square: those logos get a wide box, and `object-fit: contain` keeps the whole mark
+   visible instead of showing a sliver. See `wide` in data/free_apis.json. */
+.free-api-logo.is-wide { width: 112px; }
+.credit-block-logo.is-wide { width: 140px; height: 40px; }
+
+/* ── The dedicated thanks page (Settings → Crediti) ───────────────────────── */
+.credits-page-title {
+    margin: 0 0 6px;
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+.credits-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 12px 0 10px;
+}
+.credit-block {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+}
+.credit-block-logo {
+    width: 44px;
+    height: 44px;
+}
+.credit-block-logo img { border-radius: 10px; }
+.credit-block-body { flex: 1 1 auto; min-width: 0; }
+.credit-block-name {
+    margin: 0 0 2px;
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text-main);
+}
+.credit-block-usage {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.credit-block-where {
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+/* The two labels of the "which API, why, where" dialog: small and quiet, because the
+   sentence that follows is the answer, not the question. */
+.api-info-label {
+    display: inline-block;
+    margin-right: 4px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.api-info-card .credits-list { margin-top: 10px; }
+.credit-block-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 0;
+}
+.credit-licence {
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+.credit-link {
+    font-size: 11.5px;
+    color: var(--brand-primary);
+    text-decoration: none;
+    word-break: break-all;
+}
+.credit-link:hover { text-decoration: underline; }
+.credits-note {
+    margin: 6px 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+.app-footer-dashboard {
+    margin-top: 20px;
+    padding-bottom: 4px;
+}
+
+/* ── End of the shopping session: the total, typed on a keypad ───────────────
+   Asked AFTER the bags are in the pantry (asking before put a form on top of the live
+   camera), and typed rather than photographed: a crumpled thermal receipt is exactly what
+   OCR gets wrong, and nobody opens a file manager on a wall tablet. */
+.spesa-finish { padding: 16px; }
+.spesa-finish-count {
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+.spesa-finish-ask { margin: 0 0 12px; font-size: 13px; color: var(--text-muted); }
+.spesa-finish-display {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+    font-variant-numeric: tabular-nums;
+}
+.spesa-finish-sym { font-size: 1.1rem; font-weight: 700; color: var(--text-muted); }
+.spesa-finish-value { font-size: 2rem; font-weight: 800; color: var(--text-main); }
+.spesa-keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin: 12px 0;
+}
+.spesa-key {
+    min-height: 52px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font-size: 1.15rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.spesa-key:active { background: var(--bg-app); }
+.spesa-finish-actions { display: flex; gap: 10px; }
+.spesa-finish-actions .btn { flex: 1 1 auto; min-height: var(--touch-min); }
+
+/* ── Scale: a hardware indicator, not a ghost icon ───────────────────────────
+   The old icon was a white glyph on a white header with a 6 px dot: invisible. It is now a
+   pill that only exists when a gateway is configured, turns mint with the LIVE weight when
+   the scale is connected, and opens a popover instead of a toast that covered the buttons
+   at the bottom. */
+.scale-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.scale-pill[hidden] { display: none; }
+.scale-pill-icon { font-size: 15px; line-height: 1; }
+.scale-pill-weight { font-variant-numeric: tabular-nums; color: var(--text-main); }
+.scale-pill-weight[hidden] { display: none; }
+.scale-pill-battery { font-size: 11px; opacity: 0.85; }
+.scale-pill-battery[hidden] { display: none; }
+.scale-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.55;
+}
+.scale-pill.scale-status-connected {
+    background: var(--brand-surface);
+    border-color: color-mix(in srgb, var(--brand-primary) 35%, transparent);
+    color: var(--brand-primary-hover);
+}
+.scale-pill.scale-status-connected .scale-pill-weight { color: #065F46; }
+.scale-pill.scale-status-connected .scale-status-dot { background: var(--brand-primary); opacity: 1; }
+.scale-pill.is-live { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 12%, transparent); }
+.scale-pill.scale-status-searching .scale-status-dot { background: var(--tone-soon); animation: scaleStatusPulse 1.4s infinite; }
+.scale-pill.scale-status-disconnected { color: var(--text-muted); }
+.scale-pill.scale-status-disconnected .scale-pill-icon { filter: grayscale(1); opacity: 0.7; }
+.scale-pill.scale-status-error { border-color: var(--tone-danger); color: var(--tone-danger-text); }
+/* Gateway reached, no fresh reading: the bridge replays its cache to every new client, so
+   "connected" alone must never paint a mint pill (it would show a 448 g weight nobody put
+   there). Neutral pill, amber pulse, "waiting for the scale". */
+.scale-pill.scale-status-waiting {
+    background: var(--surface-bg);
+    border-color: var(--surface-border);
+    color: var(--text-muted);
+}
+.scale-pill.scale-status-waiting .scale-status-dot {
+    background: var(--tone-soon);
+    animation: scaleStatusPulse 1.4s infinite;
+}
+
+/* AI month-cost pill (header): appears after an AI call, hides after 5 minutes. */
+.ai-cost-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, #6366f1 35%, var(--surface-border));
+    background: color-mix(in srgb, #6366f1 10%, var(--surface-bg));
+    color: #4338ca;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.35s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.ai-cost-pill[hidden] { display: none !important; }
+.ai-cost-pill.is-fading { opacity: 0; }
+.ai-cost-pill-icon { font-size: 13px; line-height: 1; opacity: 0.9; }
+.ai-cost-pill-cost { font-variant-numeric: tabular-nums; }
+/* The month rides along with the figure: "~€0,36 nov" reads as a standing total, while a
+   bare number that appears for five minutes reads as the cost of the last thing you did. */
+.ai-cost-pill-month {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-left: 2px;
+}
+@keyframes aiCostPulse {
+    from { transform: scale(1); }
+    40%  { transform: scale(1.08); }
+    to   { transform: scale(1); }
+}
+.ai-cost-pill.is-pulse { animation: aiCostPulse 0.9s ease-out; }
+.ai-cost-pill-tokens {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    opacity: 0.75;
+    font-size: 11px;
+}
+.ai-cost-pill-tokens[hidden] { display: none; }
+.ai-cost-pill:hover,
+.ai-cost-pill:focus-visible {
+    background: color-mix(in srgb, #6366f1 18%, var(--surface-bg));
+    outline: none;
+}
+[data-theme="dark"] .ai-cost-pill {
+    color: #c7d2fe;
+    border-color: color-mix(in srgb, #818cf8 40%, var(--surface-border));
+    background: color-mix(in srgb, #6366f1 22%, var(--surface-bg));
+}
+
+/* Anchored under the header, never at the bottom over the buttons. */
+.scale-popover {
+    position: fixed;
+    top: calc(var(--header-height) - 2px);
+    right: 10px;
+    z-index: 150000;
+    width: min(280px, calc(100vw - 20px));
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+}
+.scale-popover[hidden] { display: none; }
+.scale-popover-title {
+    margin: 0 0 4px;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text-main);
+}
+.scale-popover-meta { margin: 0; font-size: 12px; color: var(--text-muted); }
+.scale-popover-weight {
+    margin: 8px 0 4px;
+    font-size: 1.6rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-main);
+}
+.scale-popover-weight.is-live { color: var(--brand-primary); }
+.scale-popover-tare { margin: 0; font-size: 11px; color: var(--text-muted); }
+.scale-popover-tare[hidden] { display: none; }
+.scale-popover-actions { display: flex; gap: 8px; margin-top: 10px; }
+.scale-popover-actions .btn { flex: 1 1 auto; min-height: var(--touch-min); }
+
+/* ── Credits: the free services behind the app ────────────────────────────────
+   The names in a row (a footer, not a wall of text), each with what it gives us and the
+   licence it asks to be credited with. The monogram is neutral on purpose: the official
+   logos are trademarks and are not shipped in the repository. */
+.settings-free-apis {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+.app-footer {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--surface-border);
+}
+.app-footer-title {
+    margin: 0 0 8px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+.app-footer-apis {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+.app-footer-hint {
+    margin: 8px 0 0;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-light);
+}
+.free-api {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: inherit;
+    text-decoration: none;
+}
+.settings-free-apis .free-api { width: 100%; }
+a.free-api:hover { border-color: var(--brand-primary); }
+.free-api-mark {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--bg-app);
+    border: 1px solid var(--surface-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+    overflow: hidden;
+}
+/* A four-letter monogram ("AIFA") does not fit the 22 px square the two/three-letter marks
+   use on the splash: let it grow instead of clipping the name. */
+.preloader-api .preloader-api-logo.free-api-mark {
+    width: auto;
+    min-width: 24px;
+    padding: 0 5px;
+}
+.free-api-body { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.free-api-name { font-size: 12px; font-weight: 700; color: var(--text-main); }
+.free-api-usage,
+.free-api-licence { font-size: 11px; color: var(--text-muted); }
+.free-api-licence { font-weight: 600; }
+
+/* The banner's primary actions: "Conferma", "Sì, è finito" and "Usa" are the same emerald
+   as "Esegui" — they are the answers that write the outcome. Everything else (finishing,
+   discarding, correcting stock, weighing) is a neutral secondary: the four pastel tones
+   (sky, pink, azure) made the banner read as a different app from the rows underneath and
+   gave every action the same volume. They stay INLINE: hiding them behind a ⋮ is the
+   regression this strip was rebuilt for. A destructive primary stays red — that is a
+   meaning, not a palette. */
+.alert-banner-actions .btn-banner-ok,
+.alert-banner-actions .btn-banner-confirm,
+.alert-banner-actions .btn-banner-throw-primary {
+    font-weight: 700;
+}
+.alert-banner-actions .btn-banner-ok,
+.alert-banner-actions .btn-banner-confirm,
+.alert-banner-actions .btn-banner-cook {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #fff;
+}
+.alert-banner-actions .btn-banner-ok:active,
+.alert-banner-actions .btn-banner-confirm:active,
+.alert-banner-actions .btn-banner-cook:active { background: var(--brand-primary-hover); }
+.alert-banner-actions .btn-banner-throw-primary {
+    background: var(--tone-danger);
+    border-color: var(--tone-danger);
+    color: #fff;
+}
+[data-theme="dark"] .alert-banner-actions .btn-banner:not(.btn-banner-ok):not(.btn-banner-confirm):not(.btn-banner-cook):not(.btn-banner-use):not(.btn-banner-throw-primary) {
+    background: #1E293B;
+    color: #CBD5E1;
+    border-color: var(--surface-border);
+}
+
+/* "Dimenticati" was still painted purple by the theme while "In scadenza" was a white
+   card: same component, two looks. Same surface now, and the tone stays on the rail. */
+.alert-stale,
+[data-theme="dark"] .alert-stale {
+    background: var(--surface-bg);
+    border-color: var(--surface-border);
+}
+.alert-stale h3,
+[data-theme="dark"] .alert-stale h3 { color: var(--text-light); }
+
+/* Inside the hub the three lists are panels of one card: flat, no frame, but each keeps
+   its own 4px rail — and enough left padding that the text never touches it (the hint
+   was clipped because the panel had padding-left 0). */
+.stock-hub .alert-section {
+    border: 0;
+    border-left: 4px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 4px 0 0 10px;
+}
+.stock-hub #alert-expiring { border-left-color: var(--tone-soon); }
+.stock-hub #alert-opened   { border-left-color: var(--tone-info); }
+.stock-hub .alert-stale    { border-left-color: var(--tone-calm); }
+[data-theme="dark"] .stock-hub .alert-section { background: transparent; }
+
+/* The capture mic looks clickable even at rest (the animated border lives on the
+   wrapper, see below): its own surface keeps a soft shadow and a hover response. */
+.capture-mic {
+    cursor: pointer;
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--tone-calm) 22%, transparent);
+}
+.capture-mic:hover { background: color-mix(in srgb, var(--tone-calm) 22%, transparent); }
+.capture-mic:focus-visible { outline: 2px solid var(--tone-calm); outline-offset: 4px; }
+
+/* Capture sheet: head buttons + the "what can I say" manual. */
+.capture-head-btn {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--surface-border);
+    background: #F1F5F9;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.capture-head-btn[aria-pressed="false"] { opacity: 0.6; }
+[data-theme="dark"] .capture-head-btn { background: #1E293B; }
+
+.capture-examples-btn {
+    display: block;
+    margin: 10px auto 0;
+    min-height: var(--touch-min);
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 40%, transparent);
+    background: var(--brand-surface);
+    color: var(--brand-primary-hover);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.capture-examples {
+    margin-top: 8px;
+    max-height: 42vh;
+    overflow-y: auto;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+}
+.capture-examples[hidden] { display: none; }
+.capture-examples-intro,
+.capture-examples-note {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+.capture-examples-note { margin: 8px 0 0; font-style: italic; }
+.capture-examples-group {
+    margin: 10px 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+.capture-examples-list { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* The state badge of a Home row is ONE control (`_alertStateBadge` in app.js): every list —
+   «In scadenza», «Scaduti», «Aperti», «Dimenticati» — wears the same pill, so the forgotten list
+   no longer needs a `📅 12/03/2027` variant of its own. */
+
+/* Anomaly strip: the primary never breaks in two lines ("Conferma 3500 / ml" pushed the
+   whole row out of line) and the second button is the neutral "correct it" door. */
+.alert-banner-actions .btn-banner { white-space: nowrap; }
+.alert-banner-actions .btn-banner-edit-qty {
+    background: #F1F5F9;
+    border: 1px solid #CBD5E1;
+    color: #334155;
+    font-weight: 500;
+}
+.alert-banner-actions .btn-banner-edit-qty:active { background: #E2E8F0; }
+[data-theme="dark"] .alert-banner-actions .btn-banner-edit-qty {
+    background: #1E293B;
+    border-color: #334155;
+    color: #CBD5E1;
+}
+/* Title in the dark amber of the rail, text in slate: one accent per strip. */
+.system-alert.banner-anomaly .alert-banner-title { color: var(--tone-soon-text); }
+[data-theme="dark"] .system-alert.banner-anomaly .alert-banner-title { color: #FCD34D; }
+
+/* ── The capture mic has an animated border ─────────────────────────────────
+   A border declares "this is a control", but a static one disappears next to the
+   status line; a turning gradient ring says it without a label. The button keeps
+   `overflow: hidden` for the level fill, which is why the ring lives on the wrapper:
+   a pseudo-element inside the button would be clipped at its own edge. */
+.capture-mic-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 96px;
+    height: 96px;
+    margin: 6px auto 10px;
+}
+.capture-mic-wrap[hidden] { display: none; }
+/* The ring: a 3px slice of a conic gradient, turning slowly. */
+.capture-mic-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(
+        from 0deg,
+        transparent 0deg 40deg,
+        color-mix(in srgb, var(--tone-calm) 90%, transparent) 110deg,
+        transparent 180deg 220deg,
+        color-mix(in srgb, var(--tone-calm) 90%, transparent) 290deg,
+        transparent 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    animation: capture-ring-turn 3.6s linear infinite;
+    pointer-events: none;
+}
+/* The aura: a soft halo behind the button, breathing out of phase with the ring. */
+.capture-mic-wrap::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    box-shadow: 0 0 16px 3px color-mix(in srgb, var(--tone-calm) 26%, transparent);
+    animation: capture-mic-halo 2.8s ease-in-out infinite;
+    pointer-events: none;
+}
+@keyframes capture-ring-turn { to { transform: rotate(1turn); } }
+@keyframes capture-mic-halo {
+    0%, 100% { opacity: 0.45; transform: scale(0.97); }
+    50%      { opacity: 0.9;  transform: scale(1.05); }
+}
+.capture-mic-wrap .capture-mic {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    border: 2px solid color-mix(in srgb, var(--tone-calm) 45%, transparent);
+}
+/* Recording: the ring turns faster, the halo tightens. */
+.capture-mic-wrap.is-listening::before { animation-duration: 1.1s; }
+.capture-mic-wrap.is-listening::after  { animation-duration: 1.1s; }
+/* Thinking: the ring stops being two calm arcs and becomes a spinner — a faint track
+   with one bright emerald head turning fast — the level fill and the bars disappear.
+   Two states that look alike are two states the household cannot tell apart. */
+.capture-mic-wrap.is-thinking::before {
+    background: conic-gradient(
+        from 0deg,
+        color-mix(in srgb, var(--brand-primary) 16%, transparent) 0deg 300deg,
+        var(--brand-primary) 352deg,
+        transparent 360deg);
+    animation-duration: 0.85s;
+}
+.capture-mic-wrap.is-thinking::after { animation-duration: 0.85s; }
+.capture-mic-wrap.is-thinking .capture-mic {
+    border-color: color-mix(in srgb, var(--brand-primary) 55%, transparent);
+    cursor: progress;
+}
+.capture-mic.is-thinking .capture-mic-level { display: none; }
+@media (prefers-reduced-motion: reduce) {
+    /* No spin: the ring breathes instead, which still says "working" without motion. */
+    .capture-mic-wrap.is-thinking::before {
+        animation: capture-ring-breathe 1.6s ease-in-out infinite;
+    }
+}
+@keyframes capture-ring-breathe {
+    0%, 100% { opacity: 0.45; }
+    50%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .capture-mic-wrap::before { animation: none; }
+    .capture-mic-wrap::after  { animation: none; opacity: 0.6; }
+}
+
+/* A row that has just been acted on leaves with a fade: the dashboard must never look
+   stale after an edit, and a hard re-render jumps the whole page. */
+.alert-item.is-leaving {
+    opacity: 0;
+    transform: translateX(10px);
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    overflow: hidden;
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s ease, max-height 0.22s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+    .alert-item.is-leaving { transition: none; }
+}
+
+/* ── SHELFY: presentation, candidate cards, armed confirm ──────────────────
+   The assistant is one emerald voice with a 10 s confirm: the button drains like a
+   scrollbar running backwards, so "how long have I got" is a picture, not a sentence. */
+.shelfy-intro {
+    max-width: 520px;
+    padding: 18px 20px 20px;
+    border-radius: 18px 18px 0 0;
+}
+.shelfy-lead {
+    margin: 0 0 10px;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--text-main);
+}
+.shelfy-how {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+}
+.shelfy-how-title {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+.shelfy-how-list {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+.shelfy-how-list li { margin-bottom: 4px; }
+
+/* The assistant's primary action is the app's primary action: the purple "Iniziamo" was
+   the last leftover of the old accent, and it sat one tap away from the emerald "Esegui"
+   of the same assistant. One action colour, everywhere. */
+#shelfy-intro .btn-accent,
+.capture-sheet .btn-accent {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #fff;
+    font-weight: 700;
+}
+#shelfy-intro .btn-accent:active,
+.capture-sheet .btn-accent:active { background: var(--brand-primary-hover); }
+
+/* Four candidates: picture or icon, name, brand, place, quantity. */
+.shelfy-pick {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 56px;
+    margin-top: 6px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: #F8FAFC;
+    text-align: left;
+    cursor: pointer;
+}
+[data-theme="dark"] .shelfy-pick { background: #1E293B; }
+.shelfy-pick.is-best { border-color: color-mix(in srgb, var(--brand-primary) 55%, transparent); }
+.shelfy-pick-media {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: var(--brand-surface);
+    overflow: hidden;
+}
+.shelfy-pick-media img { width: 100%; height: 100%; object-fit: cover; }
+.shelfy-pick-emoji { font-size: 1.3rem; }
+.shelfy-pick-body { display: flex; flex-direction: column; min-width: 0; }
+.shelfy-pick-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.shelfy-pick-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.shelfy-pick-note {
+    margin: 8px 0 0;
+    font-size: 12px;
+    font-style: italic;
+    color: var(--text-light);
+    text-align: center;
+}
+
+/* The armed control drains from full to empty: the confirmation is the timer.
+   A sentence that promises "10 seconds" with nothing moving reads as a frozen app,
+   so the fill IS the clock (a mint bar running out from right to left) and the
+   remaining seconds are printed on the control by _shelfyArmButton(). */
+.shelfy-armed {
+    position: relative;
+    overflow: hidden;
+}
+.shelfy-armed::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    transform-origin: left center;
+    background: rgba(5, 150, 105, 0.25);
+    animation: shelfy-drain var(--shelfy-ms, 10s) linear forwards;
+    pointer-events: none;
+}
+.shelfy-armed > * { position: relative; z-index: 1; }
+/* The seconds, on the control itself (never a second timer elsewhere on screen). */
+.shelfy-arm-count {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    min-width: 26px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #047857;
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 16px;
+    text-align: center;
+    pointer-events: none;
+}
+@keyframes shelfy-drain {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .shelfy-armed::after { animation: none; opacity: 0.35; }
+}
+
+/* ── SHELFY's floating confirmation (the voice path) ───────────────────────
+   "Ho mangiato una mela" must not change page: the assistant closes its sheet and
+   shows what it is about to register, with the same draining bar as its other
+   countdowns. Nothing is written until the bar is empty (or the user confirms), and
+   a tap on Modifica / Annulla stops it for good. */
+.shelfy-confirm {
+    position: fixed;
+    left: 50%;
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    z-index: 1200;
+    width: min(94vw, 460px);
+    padding: 10px 12px 12px;
+    border-radius: 16px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.28);
+    animation: shelfy-confirm-in 0.18s ease-out;
+}
+@keyframes shelfy-confirm-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.shelfy-confirm-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.shelfy-confirm-thumb {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--brand-surface);
+}
+.shelfy-confirm-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.shelfy-confirm-body { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.shelfy-confirm-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+    /* Two lines, not one truncated one: "Registro 1 pz di Mela rossa" must be readable
+       on a phone, where the two buttons already take half of the row. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.25;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+.shelfy-confirm-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+.shelfy-confirm-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.shelfy-confirm-actions .btn {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+/* The bar: mint, right to left, exactly the length of the countdown. */
+.shelfy-confirm-bar {
+    display: block;
+    height: 4px;
+    margin-top: 10px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--surface-border) 70%, transparent);
+}
+.shelfy-confirm-bar > span {
+    display: block;
+    height: 100%;
+    width: 100%;
+    border-radius: inherit;
+    background: var(--brand-primary);
+    transform-origin: left center;
+    animation: shelfy-drain var(--shelfy-ms, 10s) linear forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+    .shelfy-confirm { animation: none; }
+    .shelfy-confirm-bar > span { animation-duration: var(--shelfy-ms, 10s); }
+}
+@media (max-width: 380px) {
+    .shelfy-confirm-title { font-size: 13px; }
+    .shelfy-confirm-actions .btn { padding: 6px 8px; }
+}
+
+/* ── SHELFY's presentation has a face ──────────────────────────────────────
+   It was a wall of text, then a jar emoji. The assistant now wears its own
+   avatar (assets/img/shelfy/, transparent PNG so it sits on any theme), which
+   floats while the ring breathes behind it — soft, 3 s, and still with
+   prefers-reduced-motion. */
+.shelfy-hero {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 120px;
+    margin: 2px 0 6px;
+}
+.shelfy-hero-ring {
+    position: absolute;
+    width: 108px;
+    height: 108px;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, var(--brand-primary) 30%, transparent);
+    animation: shelfy-ring 3.2s ease-out infinite;
+}
+.shelfy-hero-avatar {
+    width: 104px;
+    height: 104px;
+    object-fit: contain;
+    animation: shelfy-float 3.6s ease-in-out infinite;
+    filter: drop-shadow(0 6px 10px color-mix(in srgb, var(--brand-primary) 25%, transparent));
+}
+@keyframes shelfy-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+}
+@keyframes shelfy-ring {
+    0%   { transform: scale(0.82); opacity: 0.55; }
+    70%  { transform: scale(1.18); opacity: 0; }
+    100% { transform: scale(1.18); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .shelfy-hero-ring,
+    .shelfy-hero-avatar { animation: none; }
+}
+/* The sheet's head carries the same face, small: the dialogue has a speaker. */
+.capture-head-avatar {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+    margin-right: 6px;
+    flex: 0 0 auto;
+}
+
+/* ── EverShelf Med (opt-in) ──────────────────────────────────────────────────
+   Only reachable when the owner turned the module on and accepted the notice.
+   The disclaimer is a block, not a hint: it must be impossible to miss. */
+.med-locations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 6px 0 10px;
+}
+.med-location-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: var(--surface-bg);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.med-location-row input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--brand-primary);
+}
+.med-location-pill {
+    margin-left: auto;
+    opacity: 0.55;
+}
+#med-search-btn {
+    margin-top: 10px;
+}
+.med-disclaimer {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border-left: 3px solid #d97706;
+    background: rgba(217, 119, 6, 0.10);
+    color: var(--text-main);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+.med-disclaimer-accept {
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+}
+.med-search-card {
+    max-width: 520px;
+}
+.med-search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 48vh;
+    overflow-y: auto;
+}
+.med-search-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    background: var(--surface-bg);
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+}
+.med-search-item:hover,
+.med-search-item:focus-visible {
+    border-color: var(--brand-primary);
+}
+.med-search-icon {
+    font-size: 1.2rem;
+}
+.med-search-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.med-search-name {
+    font-weight: 600;
+    font-size: 0.92rem;
+}
+.med-search-meta {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+.med-search-groups {
+    margin: 0 0 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+.med-search-empty {
+    margin: 6px 0;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+.med-classify-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+.med-classify-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 10px;
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    background: var(--surface-bg);
+}
+.med-classify-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+.med-classify-select,
+.med-classify-ingredient {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--surface-border);
+    border-radius: 8px;
+    background: var(--bg-app);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+@media (min-width: 640px) {
+    .med-classify-row { grid-template-columns: 1fr 220px 200px; align-items: center; }
+}
+
+/* ── EverShelf Med, Phase 1 ──────────────────────────────────────────────────
+   Food and medicines never share a surface: a medical row is tinted, never recoloured,
+   so the palette (and the themes) stay in charge. */
+.alert-item.is-medical {
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.10), transparent 60%);
+    border-left: 3px solid #6366f1;
+}
+.alert-medical-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: rgba(99, 102, 241, 0.14);
+    color: var(--text-main);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+.med-location-picker {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 8px 0;
+}
+.med-location-picker select { flex: 1; min-width: 180px; }
+.med-new-location { margin: 0 0 10px; }
+.med-location-pill-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid #6366f1;
+    background: rgba(99, 102, 241, 0.12);
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin: 0 6px 6px 0;
+}
+.med-location-unmark {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+.med-cat-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.med-cat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 9px;
+    border: 1px solid var(--surface-border);
+    border-radius: 999px;
+    background: var(--surface-bg);
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+.med-cat-chip.is-on {
+    border-color: #6366f1;
+    background: rgba(99, 102, 241, 0.14);
+    font-weight: 600;
+}
+.med-cat-chip input { display: none; }
+.med-classify-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.med-classify-fields .med-classify-ingredient { flex: 1 1 180px; }
+.med-pao-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.med-pao-field input { width: 64px; }
+/* A field the app owns (the medicine name, which comes from the catalogue): visible,
+   selectable, and unmistakably not editable by hand. */
+.form-input.is-readonly {
+    background: var(--bg-app);
+    color: var(--text-muted);
+    cursor: default;
+}
+/* ── A medicine box is counted in pieces, and it has a STATE ─────────────────
+   The add form asks food "quanto?"; a box also asks "sigillata o già aperta?" (an opened pack
+   starts its own clock) and "quante ne restano?" as fractions of the pack the catalogue
+   describes ("10 buste" → tutta / ¾ / ½ / ¼). Neutral chips with the medicine accent for the
+   selected one — they only move a number the form already owns, and the submit keeps the
+   emerald of the action that writes the outcome. */
+.med-state-chips,
+.med-piece-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+.med-state-chip,
+.med-piece-chip {
+    padding: 6px 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: 999px;
+    background: var(--surface-bg);
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.med-state-chip.is-on,
+.med-piece-chip.is-on {
+    border-color: #6366f1;
+    background: rgba(99, 102, 241, 0.14);
+    font-weight: 600;
+}
+.med-pieces-block { margin-top: 10px; }
+/* Opened medicine: ¼ · ½ · ¾ of the full pack → fills "Quanto ne hai". */
+.med-frac-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.med-frac-chips[hidden] { display: none; }
+.med-frac-chips .med-piece-chip {
+    flex: 1 1 auto;
+    min-width: 3.2rem;
+    text-align: center;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+/* The stock questions on the MEDICINE FORM: quantity in the unit the box is measured in, the
+   date printed on it, and whether it is still sealed. They sit inside the medical block, so the
+   pantry step opens with the answers already given. */
+.med-stock-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--surface-border);
+}
+.med-stock-fields > div > label,
+.med-qty-row > label {
+    display: block;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 6px;
+}
+.med-qty-inputs { display: flex; gap: 8px; align-items: center; }
+.med-qty-inputs input { flex: 1 1 auto; min-width: 0; max-width: 140px; }
+.med-qty-inputs select { flex: 0 0 auto; width: 86px; }
+/* The pack field borrows the unit of the quantity (a tube of gel is 50 g, not 50 pz), and it
+   only exists when the box is already opened: on a sealed one the quantity IS the pack. */
+.med-qty-unit-echo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 46px;
+    height: 38px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+/* "Scadenza MM/AAAA": a box prints a month and a year, never a day, so the two pickers ask
+   exactly that. The month takes the room, the year what four digits need. */
+/* "Scadenza MM/AAAA": a box prints a month and a year, never a day. The month is a picker with
+   its translated NAME (the options are in the markup), the year is a TYPED field (a phone opens
+   the numeric keypad, a desktop types it), so it only needs room for four digits — the native
+   spinner still steps it. The month keeps a floor width: an empty list must never collapse the
+   control to nothing (that is what "I cannot choose the month" looked like). */
+.med-expiry-pickers { display: flex; gap: 8px; align-items: center; }
+.med-expiry-pickers .med-expiry-month { flex: 1 1 auto; min-width: 130px; }
+.med-expiry-pickers .med-expiry-year { flex: 0 0 104px; text-align: center; }
+.med-stock-fields .form-hint { margin: 4px 0 0; }
+/* A confirmed read: the correction is a footnote, not a choice to make. */
+.med-alt-link {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    text-decoration: underline;
+    cursor: pointer;
+}
+.med-alt-link:hover { color: var(--text-main); }
+
+/* ── Adding a medicine is not adding food ────────────────────────────────────
+   A recognised code switches #page-product-form into `is-medicine-form`: the food-only
+   fields (AI photo fill, food category, unit/package, tags, family) disappear and the
+   medical block shows WITHOUT its "is it a medicine?" switch. No banner prints the code we
+   read: the catalogue puts the NAME in the field. */
+#page-product-form.is-medicine-form .pf-food-only { display: none !important; }
+#page-product-form.is-medicine-form #pf-med-toggle-row,
+#page-product-form.is-medicine-form #pf-med-toggle-hint { display: none !important; }
+/* ── The AIFA catalogue card (medicine form) + the dataset block (Settings) ─────
+   Identification, not advice: one row per match, the name in bold, the AIC and the pack
+   under it, and ONE neutral button that fills the field. Nothing is auto-filled. */
+.med-match-card {
+    margin: 0 0 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+}
+.med-match-card[hidden] { display: none; }
+/* A confirmed read is ONE line: "Non è questo?" is a link, not a card. The name it would
+   repeat is already in the field above, and on a phone that card stole the first screen. */
+.med-match-card.is-link-only {
+    margin: 0 0 4px;
+    padding: 0;
+    border: 0;
+    background: none;
+    text-align: right;
+}
+.med-match-card.is-link-only .med-alt-link { padding: 6px 2px; font-size: 0.78rem; }
+.med-match-title {
+    margin: 0 0 8px;
+    font-size: 0.86rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+.med-match-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+    border-top: 1px solid var(--surface-border);
+}
+.med-match-row:first-of-type { border-top: 0; }
+.med-match-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.med-match-body strong { font-size: 0.9rem; font-weight: 700; color: var(--text-main); }
+.med-match-aic { font-size: 0.74rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.02em; }
+.med-match-meta {
+    margin: 2px 0 0;
+    padding-left: 16px;
+    font-size: 0.76rem;
+    line-height: 1.35;
+    color: var(--text-muted);
+}
+.med-dataset-cmd {
+    display: block;
+    margin: 6px 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+    font-size: 0.76rem;
+    color: var(--text-main);
+    overflow-x: auto;
+    white-space: nowrap;
+}
+.med-dataset-link { font-size: 0.78rem; color: var(--brand-primary); text-decoration: underline; }
+/* A country the scanner cannot read: the dialog says it, once, with the contribution guide. */
+.med-blocked-card { max-width: 540px; }
+.med-blocked-card code.med-dataset-cmd { white-space: normal; }
+/* `display: flex` would defeat the [hidden] attribute on the scan action bar (the medical
+   button only exists when the module is on and the country prints a code to OCR). */
+.scan-action-btn[hidden] { display: none; }
+/* ── Two scan panels, never mixed ─────────────────────────────────────────────
+   `#page-scan.is-medical-scan` is the medicine panel: it keeps the camera, the AIC reader and
+   a hand entry, and hides every food-only control (AI vision, food search, shopping session,
+   favourites/recents of the pantry). The reverse is true too: the medicine buttons exist only
+   in this mode (JS keeps them `hidden`). */
+#page-scan.is-medical-scan .scan-spesa-chip,
+#page-scan.is-medical-scan .scan-spesa-quick-btn,
+#page-scan.is-medical-scan .spesa-mode-banner,
+#page-scan.is-medical-scan .scan-quick-rail,
+#page-scan.is-medical-scan #scan-ai-manual-btn,
+#page-scan.is-medical-scan #scan-search-btn,
+#page-scan.is-medical-scan #scan-manual-btn { display: none !important; }
+/* The hand entry of the medicine panel lives behind its own button: in the food panel it does
+   not exist, and the strip stays the camera's. */
+#page-scan:not(.is-medical-scan) #scan-med-code-open { display: none !important; }
+/* …and the strip KEEPS ITS PLACE in the medicine panel: `#scan-med-code-open` (the typed AIC)
+   lives in it. Hiding the whole bar took the hand entry away with the three food buttons, and on
+   a phone with no camera the twenty-second rescue card never fires (`_medAskCodeSoon()` needs a
+   stream) — so there was no way at all to name a box by its code. One button, full width. */
+#page-scan.is-medical-scan .scan-action-bar { display: flex; }
+/* The medicine panel reads a LABEL, not a barcode: the particle cloud, the corner frame and the
+   sweeping red line belong to the barcode hunt and only add noise here. What replaces them is
+   one rectangle that says where to aim and what the app expects to see inside it. */
+#page-scan.is-medical-scan .scan-lock-box { display: none !important; }
+.scan-med-frame {
+    position: absolute;
+    left: 50%;
+    top: 48%;
+    transform: translate(-50%, -50%);
+    width: 88%;
+    /* Invisible crop for OCR (_medGuideRect) — no dashed barcode-style box. */
+    height: 28%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    pointer-events: none;
+}
+.scan-med-frame[hidden] { display: none; }
+/* Ghost AIC in OCR-B rhythm — big enough to read as “point here at the printed digits”. */
+.scan-med-frame-sample {
+    font-family: ui-monospace, "OCR B", "OCR-B", "Courier New", monospace;
+    font-size: clamp(1.35rem, 7.2vw, 2.05rem);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: #fff;
+    opacity: 0.7;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75);
+}
+.scan-med-frame-hint {
+    max-width: 22ch;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: 0.01em;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.92);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.45);
+}
+/* The digits recognised so far, in the guide frame: the shape becomes the reading. */
+.scan-med-frame-sample.is-partial {
+    color: #fde68a;
+    opacity: 0.85;
+}
+.scan-med-frame-sample.is-read {
+    color: #6ee7b7;
+    opacity: 0.85;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+/* Medicine status: wrap on a phone — never a truncated ellipsis of the same sentence. */
+#page-scan.is-medical-scan .scan-status-bar {
+    max-width: calc(100% - 16px);
+    top: 8px;
+}
+#page-scan.is-medical-scan .scan-status-method {
+    display: none; /* the chip text is enough; method ate width on phones */
+}
+#page-scan.is-medical-scan .scan-status-msg {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    line-height: 1.3;
+    max-width: min(100%, 34ch);
+    border-radius: 12px;
+    padding: 6px 11px;
+    font-size: 0.74rem;
+}
+/* Medicines: the code can be typed where the scanner is — no extra buttons to explain. */
+.scan-med-code-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 0 0 8px;
+}
+.scan-med-code-row[hidden] { display: none; }
+/* Ten seconds without a read: the row asks for the code by itself (the box always carries it).
+   A brand outline that pulses three times, and nothing at all with reduced motion. */
+.scan-med-code-row.is-wanted {
+    /* The stream is off and this row IS the answer: input full width, the two answers under it. */
+    flex-wrap: wrap;
+    outline: none;
+    animation: none;
+    gap: 8px;
+}
+.scan-med-code-row.is-wanted .scan-med-aic-field {
+    flex: 1 1 100%;
+    min-height: 46px;
+    border-color: var(--brand-primary);
+}
+.scan-med-code-row.is-wanted .scan-med-code-input {
+    min-height: 46px;
+    font-size: 1.05rem;
+    letter-spacing: 0.06em;
+}
+.scan-med-code-row.is-wanted #scan-med-code-btn,
+.scan-med-code-row.is-wanted #scan-med-resume { flex: 1 1 0; }
+/* Locked printed `A` + 9 digits. The prefix is not in the input, so it cannot be deleted. */
+.scan-med-aic-field {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: stretch;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    overflow: hidden;
+}
+.scan-med-aic-prefix {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    font-family: ui-monospace, "OCR B", "Courier New", monospace;
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--surface-bg) 85%, var(--text-muted) 15%);
+    border-right: 1px solid var(--surface-border);
+    user-select: none;
+    pointer-events: none;
+}
+.scan-med-aic-field .scan-med-code-input {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    flex: 1 1 auto;
+    text-transform: none;
+}
+/* Twenty seconds without a read: the frozen frame is replaced by a sentence that fits. */
+.scan-med-ask {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 18px 16px 22px;
+    text-align: center;
+    background: var(--bg-app, #0b1220);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.scan-med-ask[hidden] { display: none; }
+.scan-med-ask-icon { font-size: 1.9rem; line-height: 1; margin-top: 8px; }
+.scan-med-ask-title { font-size: 1.02rem; font-weight: 800; color: var(--text-main); }
+.scan-med-ask-body {
+    margin: 0;
+    max-width: 34ch;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+    /* the whole sentence: never an ellipsis, never a cut-off line */
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+/* The code row is moved INTO this card while asking (“scrivilo qui sotto”). */
+.scan-med-ask .scan-med-code-row {
+    width: min(100%, 22rem);
+    margin-top: 6px;
+    padding: 10px;
+    border-radius: 12px;
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-border);
+}
+/* Name fallback when the typed/OCR code is not in the catalogue. */
+.scan-med-name-ask {
+    width: min(100%, 22rem);
+    margin-top: 4px;
+    padding: 12px 10px;
+    border-radius: 12px;
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-border);
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.scan-med-name-ask[hidden] { display: none; }
+.scan-med-name-lead {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.scan-med-name-query {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.scan-med-name-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 9px 11px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app, #0b1220);
+    color: var(--text-main);
+    font-size: 0.95rem;
+}
+.scan-med-name-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 36vh;
+    overflow-y: auto;
+}
+.scan-med-name-list .settings-hint {
+    margin: 4px 2px;
+    font-size: 0.82rem;
+}
+button.scan-med-name-hit {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    padding: 10px 11px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app, #0b1220);
+    color: var(--text-main);
+    text-align: left;
+    cursor: pointer;
+}
+button.scan-med-name-hit:hover,
+button.scan-med-name-hit:focus-visible {
+    border-color: var(--brand-primary);
+}
+.scan-med-name-aic,
+.scan-med-family-aic {
+    font-family: ui-monospace, "OCR B", "Courier New", monospace;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+/* Typology + pack size under the commercial name (Crema · 25 g / 10 compresse). */
+.scan-med-choice-detail {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    width: 100%;
+    margin-top: 2px;
+    line-height: 1.35;
+}
+.scan-med-choice-form {
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+.scan-med-choice-qty {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--brand-primary, #10b981);
+}
+.scan-med-name-actions {
+    display: flex;
+    justify-content: center;
+}
+/* `.btn { display: … }` beats the bare [hidden] attribute — same trap as .scan-action-btn. */
+#scan-med-name-more[hidden] { display: none !important; }
+/* While the app is asking, the camera chrome has nothing to offer. */
+#scanner-viewport.is-asking .scan-med-frame,
+#scanner-viewport.is-asking .scan-tracking-layer { display: none !important; }
+/* …and the camera's own row (torch / shopping / flip + status) goes too: while the app asks,
+   the camera has nothing to offer. It lives under the picture now, not over it. */
+#page-scan.is-asking .scan-below-bar { display: none !important; }
+
+/* Uncertain AIC: pick a real pack over the camera (catalogue only). */
+.scan-med-family {
+    position: absolute;
+    inset: 0;
+    z-index: 7;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 14px 18px;
+    background: linear-gradient(180deg, transparent 0%, rgba(11, 18, 32, 0.55) 28%, var(--bg-app, #0b1220) 55%);
+}
+.scan-med-family[hidden] { display: none; }
+.scan-med-family-title {
+    font-size: 0.98rem;
+    font-weight: 800;
+    color: var(--text-main);
+    text-align: center;
+    margin: 0 4px 2px;
+}
+.scan-med-family-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 52vh;
+    overflow-y: auto;
+}
+.scan-med-family-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    text-align: left;
+    cursor: pointer;
+}
+.scan-med-family-row:hover,
+.scan-med-family-row:focus-visible {
+    border-color: var(--brand-primary);
+}
+.scan-med-family-aic {
+    font-family: ui-monospace, "OCR B", "Courier New", monospace;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+.scan-med-family-meta {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+/* While the pack picker is open the camera layer has nothing to say: the box included. */
+#scanner-viewport.is-family .scan-tracking-layer { display: none !important; }
+#page-scan.is-family .scan-below-bar { display: none !important; }
+
+.scan-med-code-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 9px 11px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font-family: ui-monospace, "OCR B", "Courier New", monospace;
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.scan-med-code-input::placeholder {
+    letter-spacing: 0.08em;
+    opacity: 0.55;
+}
+.scan-med-hint {
+    /* One short line, not a white card sitting above the viewfinder: on a phone the hint was a
+       block of three lines of prose over the page. */
+    margin: 0 0 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-size: 0.76rem;
+    line-height: 1.3;
+    color: var(--text-muted);
+}
+.scan-med-hint[hidden] { display: none; }
+/* "Non è questo?": the codes one digit away, inside the form where the name they change is.
+   A pill row on the card's own surface — never a panel over the camera. */
+/* Quick qty chips: same slot width as a full 4-chip row, centered as a group when
+   fewer than 4 so they sit over the primary button instead of hugging the left. */
+.item-detail-frac-row {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 6px;
+    margin: 0 0 8px;
+    overflow-x: hidden;
+}
+.item-detail-frac {
+    flex: 0 1 calc((100% - 18px) / 4);
+    width: calc((100% - 18px) / 4);
+    max-width: calc((100% - 18px) / 4);
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 6px 4px;
+    border-radius: 8px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.item-detail-frac:hover,
+.item-detail-frac:focus-visible {
+    border-color: var(--brand-primary);
+}
+.item-detail-frac.is-on {
+    border-color: var(--brand-primary);
+    box-shadow: inset 0 0 0 1px var(--brand-primary);
+    color: var(--brand-primary);
+}
+/* Recipe "Usa" sheet: the same quick chips, sitting right under its stepper. */
+.ruse-qty-block .item-detail-frac-row {
+    margin: 10px 0 0;
+}
+/* Pack ⇄ measure switch of the consume sheet ("Confezioni | ml"): a neutral selector, so
+   the only emerald in the strip stays the button that writes the outcome. */
+.item-detail-unit-switch {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    margin: 0 auto 8px;
+    max-width: 260px;
+    border: 1px solid var(--surface-border);
+    border-radius: 9px;
+    overflow: hidden;
+}
+.item-detail-unit-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 10px;
+    border: 0;
+    background: var(--surface-bg);
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.item-detail-unit-btn + .item-detail-unit-btn {
+    border-left: 1px solid var(--surface-border);
+}
+.item-detail-unit-btn:hover,
+.item-detail-unit-btn:focus-visible {
+    color: var(--text-main);
+}
+.item-detail-unit-btn.is-on {
+    background: var(--brand-surface);
+    color: var(--brand-primary);
+    box-shadow: inset 0 0 0 1px var(--brand-primary);
+}
+.med-match-filled {
+    color: var(--brand-primary);
+    font-weight: 600;
+}
+.med-neighbour-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 6px 0 2px;
+}
+.med-neighbour {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 5px 9px;
+    border-radius: 9px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+    color: var(--text-main);
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+}
+.med-neighbour:hover,
+.med-neighbour:focus-visible {
+    border-color: var(--brand-primary);
+}
+.med-neighbour-code {
+    font-family: ui-monospace, "OCR B", "Courier New", monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+.med-neighbour-name {
+    font-size: 0.7rem;
+    line-height: 1.15;
+    color: var(--text-muted);
+}
+
+/* The browser import of the national catalogue, next to the CLI command it replaces. */
+.med-dataset-import {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    cursor: pointer;
+}
+.med-dataset-import[hidden] { display: none; }
+.med-dataset-import input[type="file"] {
+    /* The native control cannot be styled; the label IS the button. */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+.med-dataset-import.is-busy {
+    opacity: 0.65;
+    pointer-events: none;
+}
+/* A drug code read inside the FOOD panel: one inline notice, both answers visible. */
+.scan-med-cross {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    font-size: 0.84rem;
+    line-height: 1.35;
+    color: var(--text-main);
+}
+.scan-med-cross[hidden] { display: none; }
+.scan-med-cross-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+
+.med-box-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+    padding-top: 6px;
+    border-top: 1px solid var(--surface-border);
+}
+.med-box-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.med-box-meta { font-size: 0.76rem; color: var(--text-muted); }
+.med-setup-card { max-width: 480px; }
+
+/* EverShelf Med dialogs are drawn at boot (first-run question) and from Settings: the
+   splash sits at 200000 and the network-error overlay at 300000, so the default 200 of
+   .modal-overlay would put the question *behind* the app. Above both, below the auth
+   overlays (400000), which own the pairing step. */
+#med-setup-overlay,
+#med-search-overlay {
+    z-index: 300500;
+}
+
+/* The three-step wizard: question -> notice -> place. */
+.med-setup-progress {
+    display: flex;
+    gap: 6px;
+    margin: 0 0 12px;
+}
+.med-setup-dot {
+    width: 28px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--surface-border);
+}
+.med-setup-dot.is-on {
+    background: var(--brand-primary);
+}
+.med-setup-step-title {
+    margin: 0 0 8px;
+    font-size: 1rem;
+}
+.med-disclaimer-long {
+    max-height: 42vh;
+    overflow-y: auto;
+}
+.med-disclaimer-long p {
+    margin: 0 0 8px;
+}
+.med-disclaimer-long p:last-child {
+    margin-bottom: 0;
+}
+.med-fallback-card {
+    max-width: 460px;
+}
+.credits-note {
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--surface-bg);
+    /* Solid, like every other surface: a dashed frame reads like a placeholder (palette guard). */
+    border: 1px solid var(--surface-border);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+/* ── Credits: the sources behind the data (not called at runtime) ─────────── */
+.credits-sources {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--surface-border);
+}
+.credits-sources-title {
+    margin: 0 0 4px;
+    font-size: 1rem;
+}
+.credits-sources-hint {
+    margin: 0 0 12px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.credit-block-source .credit-block-logo.is-fallback {
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-border);
+    font-size: 0.7rem;
+}
+.credit-block-med {
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.10), transparent 65%);
+}
+.credit-planned {
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+/* ── Edit inventory sheet (aligned with the consume sheet) ─────────────── */
+/* The sheet SCROLLS instead of being squeezed to fit: on a wall tablet (and on a desktop,
+   where the compressed layout is even more out of proportion) the old 92vh box with 8 px
+   between groups hid the air the form needs. 85vh + a real padding, one vertical rhythm. */
+.modal-content:has(.edit-inventory-modal) {
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 20px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+}
+.edit-inventory-modal {
+    padding-bottom: 4px;
+}
+.edit-inventory-modal .item-detail-header {
+    margin-bottom: 14px;
+}
+.edit-inventory-modal .edit-thumb {
+    /* Same 64 px frame as the consume sheet: two sibling sheets, one grammar. */
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+}
+.edit-inventory-modal .edit-title-tap {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+    max-width: 100%;
+}
+.edit-inventory-modal .edit-title-tap:hover,
+.edit-inventory-modal .edit-title-tap:focus-visible {
+    color: var(--brand-primary, #059669);
+}
+.edit-inventory-modal .edit-title-input {
+    margin: 4px 0 0;
+    width: 100%;
+}
+.edit-section-label {
+    /* A label has to breathe over its field: 6 px is the difference between "compressed
+       form" and a form you can read on a wall tablet. */
+    margin: 0 0 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.edit-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 0;
+}
+@media (max-width: 420px) {
+    .edit-meta-grid { grid-template-columns: 1fr; }
+}
+.edit-meta-grid .form-group { margin-bottom: 0; }
+.edit-category-select { min-height: 40px; }
+.loc-chip-delta {
+    margin-left: 2px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    opacity: 0.92;
+}
+.loc-chip.is-on .loc-chip-delta { opacity: 1; }
+.loc-chip:not(.is-on) .loc-chip-delta {
+    color: var(--brand-primary, #059669);
+}
+.edit-inventory-form {
+    /* One vertical rhythm for every group (brand/category, quantity, place, expiry): the form
+       looked suffocated because 8 px between groups and 4 px under a label is no air at all. */
+    gap: 14px;
+}
+.edit-inventory-form .form-group {
+    margin-bottom: 0;
+    /* Label → field: 6 px (the form's own 4 px gap made the pair read as one block). */
+    gap: 6px;
+}
+.edit-inventory-form > .edit-section-label {
+    margin: 4px 0 0;
+}
+.edit-qty-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+}
+.edit-inventory-modal .edit-qty-stepper {
+    flex: 1 1 auto;
+    min-width: 140px;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--surface-bg);
+}
+.edit-inventory-modal .edit-qty-stepper .qty-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--brand-primary, #059669);
+    font-size: 1.2rem;
+}
+.edit-inventory-modal .edit-qty-stepper .qty-btn:active {
+    background: color-mix(in srgb, var(--brand-primary, #059669) 14%, transparent);
+    color: var(--brand-primary-hover, #047857);
+}
+.edit-inventory-modal .edit-qty-stepper .qty-input {
+    width: auto;
+    flex: 1 1 auto;
+    height: 40px;
+    min-height: 40px;
+    border: none;
+    font-size: 1.1rem;
+}
+.edit-unit-select {
+    flex: 0 0 auto;
+    min-width: 4.5rem;
+    height: 40px;
+    padding: 0 8px;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: #F8FAFC;
+    color: var(--text-main, #0f172a);
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+[data-theme="dark"] .edit-unit-select {
+    background: #1E293B;
+    color: #E2E8F0;
+}
+.edit-scale-pill {
+    flex: 0 0 auto;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary, #059669) 35%, var(--surface-border));
+    background: color-mix(in srgb, var(--brand-primary, #059669) 10%, var(--surface-bg));
+    color: var(--brand-primary-hover, #047857);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.edit-scale-pill:active {
+    background: color-mix(in srgb, var(--brand-primary, #059669) 18%, var(--surface-bg));
+}
+.edit-scale-live {
+    margin-top: 8px;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary, #059669) 30%, var(--surface-border));
+    background: color-mix(in srgb, var(--brand-primary, #059669) 8%, var(--surface-bg));
+    text-align: center;
+}
+.edit-scale-live[hidden] { display: none !important; }
+.edit-scale-live-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--brand-primary, #059669);
+}
+.edit-scale-live-hint {
+    margin-top: 2px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+.location-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.loc-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: #F8FAFC;
+    color: #334155;
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+    line-height: 1;
+}
+.loc-chip-ico { font-size: 0.95rem; line-height: 1; }
+.loc-chip-label {
+    max-width: 11rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.loc-chip.is-on {
+    background: var(--brand-primary, #059669);
+    border-color: var(--brand-primary, #059669);
+    color: #fff;
+}
+.loc-chip:active:not(.is-on) {
+    background: color-mix(in srgb, var(--brand-primary, #059669) 10%, #F8FAFC);
+}
+[data-theme="dark"] .loc-chip {
+    background: #1E293B;
+    color: #CBD5E1;
+}
+[data-theme="dark"] .loc-chip.is-on {
+    background: var(--brand-primary, #34D399);
+    border-color: var(--brand-primary, #34D399);
+    color: #064E3B;
+}
+.edit-expiry-input {
+    min-height: 40px;
+}
+.edit-expiry-vacuum {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-end;
+}
+/* ── The opening window of the edit sheet («consigliato entro 3-6 gg») ──────────
+   Two numbers and the sentence that says where they come from: the app's own table, or the
+   average of the household's corrections for this family in this place. One line on a phone
+   (`[3] → [6] gg`), never a paragraph, and the reset is a quiet link, not a third button. */
+.pao-edit-group[hidden] { display: none !important; }
+.pao-days-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.pao-days-input {
+    width: 5.4rem;
+    min-height: 40px;
+    text-align: center;
+    font-weight: 700;
+    /* The two spinners of a number input eat the width of a 76 px field on Android. */
+    -moz-appearance: textfield;
+}
+.pao-days-input::-webkit-outer-spin-button,
+.pao-days-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.pao-days-dash {
+    color: var(--text-muted);
+    font-weight: 700;
+}
+.pao-days-unit {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.pao-edit-group .settings-hint {
+    margin: 6px 0 0;
+    line-height: 1.35;
+}
+.pao-reset-link {
+    margin-top: 4px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--brand-primary-hover, #047857);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+}
+.pao-reset-link[hidden] { display: none; }
+.edit-expiry-vacuum > .form-group:first-child {
+    flex: 1 1 11rem;
+    min-width: 0;
+    margin: 0;
+}
+.edit-expiry-vacuum > .edit-vacuum-group {
+    flex: 0 1 auto;
+    min-width: 8.5rem;
+    margin: 0;
+}
+.edit-expiry-vacuum > .edit-vacuum-group[hidden] {
+    display: none !important;
+}
+.edit-vacuum-row {
+    margin: 0;
+    padding: 6px 10px;
+    min-height: 40px;
+    box-sizing: border-box;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: var(--surface-bg);
+    gap: 8px;
+}
+.edit-inventory-modal .toggle-switch input:checked + .toggle-slider {
+    background: var(--brand-primary, #059669);
+}
+.edit-inventory-modal .edit-form-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    /* Air under the last group and above the bottom edge of the sheet. */
+    margin-top: 14px;
+}
+.edit-inventory-modal .edit-form-actions .btn {
+    margin: 0;
+    min-height: 44px;
+}
+.edit-inventory-modal .edit-save-btn,
+.edit-inventory-modal .btn-primary {
+    background: var(--brand-primary, #059669);
+    background-image: none;
+    border-color: var(--brand-primary, #059669);
+    color: #fff;
+}
+.edit-inventory-modal .edit-save-btn:active,
+.edit-inventory-modal .btn-primary:active {
+    background: var(--brand-primary-hover, #047857);
+}
+
+/* ── Expiry editor (date + optional +7 / +14 / +30 — household decides) ─── */
+.expiry-edit-modal { padding-bottom: 4px; }
+.expiry-edit-product {
+    margin: 0 0 6px;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+}
+.expiry-edit-hint {
+    margin: 0 0 14px;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    line-height: 1.35;
+}
+.expiry-edit-label {
+    display: block;
+    margin: 0 0 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.expiry-edit-date {
+    width: 100%;
+    margin: 0 0 12px;
+    min-height: 44px;
+}
+.expiry-edit-chips {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin: 0 0 16px;
+}
+.expiry-edit-chip {
+    min-height: 44px;
+    padding: 10px 8px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: #F1F5F9;
+    color: #334155;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+}
+.expiry-edit-chip:hover,
+.expiry-edit-chip:focus-visible {
+    border-color: var(--brand-primary);
+}
+.expiry-edit-chip:active {
+    background: color-mix(in srgb, var(--brand-primary) 12%, #F1F5F9);
+}
+[data-theme="dark"] .expiry-edit-chip {
+    background: #1E293B;
+    color: #CBD5E1;
+}
+[data-theme="dark"] .expiry-edit-chip:active {
+    background: color-mix(in srgb, var(--brand-primary) 18%, #1E293B);
+}
+.expiry-edit-save { margin-bottom: 8px; }
+.expiry-edit-cancel { margin-top: 0; }
+
+/* ── Unified waste sheet (qty + 4 reasons) ───────────────────────────────── */
+.waste-modal { padding-bottom: 4px; }
+.waste-modal-product {
+    margin: 0 0 12px;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+}
+.waste-modal-section-label {
+    margin: 0 0 8px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.waste-qty-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 0 0 14px;
+}
+.waste-qty-row:has(> :only-child) {
+    grid-template-columns: 1fr;
+}
+.waste-qty-btn {
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, #DC2626 28%, var(--surface-border));
+    background: var(--surface-bg);
+    color: #B91C1C;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    line-height: 1.25;
+}
+.waste-qty-btn.is-on {
+    background: color-mix(in srgb, #DC2626 10%, var(--surface-bg));
+    border-color: #DC2626;
+    box-shadow: inset 0 0 0 1px #DC2626;
+}
+.waste-qty-btn:active { background: color-mix(in srgb, #DC2626 16%, var(--surface-bg)); }
+[data-theme="dark"] .waste-qty-btn {
+    color: #F87171;
+    border-color: color-mix(in srgb, #DC2626 40%, var(--surface-border));
+}
+[data-theme="dark"] .waste-qty-btn.is-on {
+    background: color-mix(in srgb, #DC2626 22%, var(--surface-bg));
+}
+.waste-reason-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 0 0 8px;
+}
+.waste-reason-btn {
+    min-height: 52px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    line-height: 1.25;
+}
+.waste-reason-btn:hover,
+.waste-reason-btn:focus-visible {
+    border-color: var(--brand-primary);
+}
+.waste-reason-btn:active {
+    background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface-bg));
+}
+.waste-reason-skip {
+    display: block;
+    width: 100%;
+    margin: 4px 0 12px;
+    padding: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.waste-modal-cancel { margin-top: 4px; }
+/* “Da dove?” — only when the product sits in more than one place, and it asks nothing
+   else: the waste sheet (quantity + reason) always comes next. */
+.waste-place-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 0 12px;
+}
+.waste-place-btn {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+}
+.waste-place-btn:hover,
+.waste-place-btn:focus-visible {
+    border-color: var(--brand-primary);
+}
+.waste-place-ico { font-size: 1.05rem; }
+.waste-place-qty { color: var(--text-muted); font-size: 0.84rem; font-weight: 700; }
+
+/* Soft-duplicate confirm (parked — consume flow no longer opens it). */
+.dup-confirm-overlay { display: none !important; }
+.dup-confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.dup-confirm-actions .btn {
+    min-height: 44px;
+    height: auto;
+    border-radius: 12px !important;
+    white-space: normal;
+    font-weight: 700;
+    line-height: 1.25;
+    padding: 10px 12px;
+}
+
+/* ── The "Salva lo spreco" hub is a SECTION, not a card ───────────────────────
+   It framed its own rows — a white card with a danger border — while every row inside it
+   is now a card of its own (see the photo section at the top of this file), and a card
+   inside a card is not a hierarchy, it is a box in a box. Its title and its recipe button
+   stay exactly where they were, on the canvas. */
+.urgency-hub {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+}
+.urgency-head { margin-bottom: 10px; }
+
+/* ── A badge in the action strip can be clipped, never allowed to eat the row ──
+   The strip is `flex: 0 0 auto`: one long badge (the medical PAO sentence, «Aperto da 30 gg ·
+   consigliato max 9 gg», ~300 px) left the name column 0 px wide and every opened medicine lost
+   its title. Badges are compact by construction now; this is the belt — a badge ellipsises at
+   55% of the strip instead of starving the title. */
+.inventory-item .inv-row-content .inv-card-bottom > .inv-time {
+    min-width: 0;
+    max-width: 55%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Medicine facts, in the food sheet's grammar (and shorter) ────────────
+   The sheet used to carry a two-column table (label — value): labels wrapped, each fact took a
+   line of its own and a medicine sheet was twice as tall as a food one. A fact is a pill now:
+   icon + text, ONE line, wrapping as a whole unit; the label (and the whole sentence) is the
+   tooltip. Nothing half-words, nothing on two lines that fits on one. */
+.item-detail-med-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 6px 0 2px;
+}
+.med-fact {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 5px;
+    max-width: 100%;
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, #6366f1 26%, var(--surface-border));
+    background: color-mix(in srgb, #6366f1 6%, var(--surface-bg));
+    color: var(--text-main);
+    font-size: 0.79rem;
+    font-weight: 600;
+    line-height: 1.2;
+    /* A fact wraps instead of being cut: «ACIDO IALURONICO/SULFADIAZINA ARGENTICA» ellipsised is
+       the same as not writing it (and `anywhere` keeps one long Latin word inside the pill). */
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.med-fact.is-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.02em;
+}
+
+/* The medicine edit sheet wears the food sheet's shell (`edit-inventory-modal`): the old
+   `.is-medical-edit` compaction (6 px groups, tighter labels/inputs) and the `.med-edit-pair`
+   block went with the old markup — two panels that do the same job must measure the same. */

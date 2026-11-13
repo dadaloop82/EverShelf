@@ -10,6 +10,27 @@
 - Make sure PHP is running and `api/index.php` is reachable: visit `https://your-server/dispensa/api/index.php?action=get_settings` — it should return JSON
 - Check your web server error log: `tail -f /var/log/apache2/error.log`
 
+### `net::ERR_INCOMPLETE_CHUNKED_ENCODING 200 (OK)` on `assets/js/app.js`
+
+The response was **cut mid-body**. It is a transport error, not an app error, and there are
+two causes worth checking (the first one is handled by the shipped `.htaccess`):
+
+1. **A file rewritten while it is being served.** `app.js` is 2.1 MB and Apache gzips it
+   (`mod_deflate` → `Transfer-Encoding: chunked`, no `Content-Length`), so a body that stops
+   early can only be reported this way. Apache **memory-maps** the file; if it is truncated or
+   replaced under it — an editor saving it, `git checkout`, `scripts/bump-version.sh` — the
+   mapped page stops being backed and the child dies with `Bus error (7)`
+   (`AH00052` in `error.log`), taking down every response it was carrying. The repo's
+   `.htaccess` sets `EnableMMAP off` for exactly this; a Docker/NPM/Unraid vhost that never
+   reads the `.htaccess` should set it in the vhost too. Editing the served directory while a
+   wall tablet boots is the usual trigger: deploy to a second directory and switch an alias.
+2. **The network dropped mid-transfer** (Wi-Fi on a kiosk, a proxy timeout). Same message,
+   no server log. A retry is enough.
+
+Since 1.31.28 the shell is also revalidated instead of re-downloaded (`Cache-Control:
+no-cache` + `304 Not Modified`), so a boot no longer streams 2.1 MB every time — which used
+to multiply the chances of hitting either cause.
+
 ### Camera doesn't work / barcode scanner won't open
 
 Camera access requires **HTTPS**. On plain HTTP, browsers block `getUserMedia()`.

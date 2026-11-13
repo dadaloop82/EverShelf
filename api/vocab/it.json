@@ -115,19 +115,49 @@
       "Agli",
       "m"
     ],
+    "Albicocca": [
+      "Albicocca",
+      "Albicocche",
+      "f"
+    ],
+    "Ananas": [
+      "Ananas",
+      "Ananas",
+      "m"
+    ],
+    "Anguria": [
+      "Anguria",
+      "Angurie",
+      "f"
+    ],
     "Arance": [
       "Arancia",
       "Arance",
       "f"
+    ],
+    "Asparago": [
+      "Asparago",
+      "Asparagi",
+      "m"
     ],
     "Banane": [
       "Banana",
       "Banane",
       "f"
     ],
+    "Barbabietola": [
+      "Barbabietola",
+      "Barbabietole",
+      "f"
+    ],
     "Bevande": [
       "Bevanda",
       "Bevande",
+      "f"
+    ],
+    "Bietola": [
+      "Bietola",
+      "Bietole",
       "f"
     ],
     "Birra": [
@@ -140,9 +170,59 @@
       "Biscotti",
       "m"
     ],
+    "Bistecca": [
+      "Bistecca",
+      "Bistecche",
+      "f"
+    ],
+    "Broccolo": [
+      "Broccolo",
+      "Broccoli",
+      "m"
+    ],
+    "Cachi": [
+      "Caco",
+      "Cachi",
+      "m"
+    ],
+    "Camomilla": [
+      "Camomilla",
+      "Camomille",
+      "f"
+    ],
+    "Carciofo": [
+      "Carciofo",
+      "Carciofi",
+      "m"
+    ],
     "Carote": [
       "Carota",
       "Carote",
+      "f"
+    ],
+    "Cavolfiore": [
+      "Cavolfiore",
+      "Cavolfiori",
+      "m"
+    ],
+    "Cavolo": [
+      "Cavolo",
+      "Cavoli",
+      "m"
+    ],
+    "Cece": [
+      "Cece",
+      "Ceci",
+      "m"
+    ],
+    "Cetriolo": [
+      "Cetriolo",
+      "Cetrioli",
+      "m"
+    ],
+    "Ciliegia": [
+      "Ciliegia",
+      "Ciliegie",
       "f"
     ],
     "Cipolla": [
@@ -150,10 +230,35 @@
       "Cipolle",
       "f"
     ],
+    "Cipollotto": [
+      "Cipollotto",
+      "Cipollotti",
+      "m"
+    ],
+    "Cotoletta": [
+      "Cotoletta",
+      "Cotolette",
+      "f"
+    ],
+    "Fagiolino": [
+      "Fagiolino",
+      "Fagiolini",
+      "m"
+    ],
+    "Fagiolo": [
+      "Fagiolo",
+      "Fagioli",
+      "m"
+    ],
     "Fette biscottate": [
       "Fetta biscottata",
       "Fette biscottate",
       "f"
+    ],
+    "Filetto": [
+      "Filetto",
+      "Filetti",
+      "m"
     ],
     "Finocchio": [
       "Finocchio",
@@ -165,14 +270,39 @@
       "Formaggi",
       "m"
     ],
+    "Fragola": [
+      "Fragola",
+      "Fragole",
+      "f"
+    ],
+    "Frollino": [
+      "Frollino",
+      "Frollini",
+      "m"
+    ],
     "Gelato": [
       "Gelato",
       "Gelati",
       "m"
     ],
+    "Gnocco": [
+      "Gnocco",
+      "Gnocchi",
+      "m"
+    ],
     "Insalata": [
       "Insalata",
       "Insalate",
+      "f"
+    ],
+    "Kiwi": [
+      "Kiwi",
+      "Kiwi",
+      "m"
+    ],
+    "Lenticchia": [
+      "Lenticchia",
+      "Lenticchie",
       "f"
     ],
     "Limone": [
@@ -185,9 +315,24 @@
       "Liquori",
       "m"
     ],
+    "Mandorla": [
+      "Mandorla",
+      "Mandorle",
+      "f"
+    ],
     "Marmellata": [
       "Marmellata",
       "Marmellate",
+      "f"
+    ],
+    "Melagrana": [
+      "Melagrana",
+      "Melagrane",
+      "f"
+    ],
+    "Melanzana": [
+      "Melanzana",
+      "Melanzane",
       "f"
     ],
     "Mele": [
@@ -205,19 +350,89 @@
       "Mozzarelle",
       "f"
     ],
+    "Nespola": [
+      "Nespola",
+      "Nespole",
+      "f"
+    ],
+    "Nocciola": [
+      "Nocciola",
+      "Nocciole",
+      "f"
+    ],
+    "Noce": [
+      "Noce",
+      "Noci",
+      "f"
+    ],
+    "Oliva": [
+      "Oliva",
+      "Olive",
+      "f"
+    ],
+    "Panino": [
+      "Panino",
+      "Panini",
+      "m"
+    ],
     "Passata": [
       "Passata",
       "Passate",
       "f"
+    ],
+    "Patata": [
+      "Patata",
+      "Patate",
+      "f"
+    ],
+    "Patatina": [
+      "Patatina",
+      "Patatine",
+      "f"
+    ],
+    "Peperoncino": [
+      "Peperoncino",
+      "Peperoncini",
+      "m"
+    ],
+    "Peperone": [
+      "Peperone",
+      "Peperoni",
+      "m"
     ],
     "Pere": [
       "Pera",
       "Pere",
       "f"
     ],
+    "Pesca": [
+      "Pesca",
+      "Pesche",
+      "f"
+    ],
+    "Petalo": [
+      "Petalo",
+      "Petali",
+      "m"
+    ],
     "Piadina": [
       "Piadina",
       "Piadine",
+      "f"
+    ],
+    "Pisello": [
+      "Pisello",
+      "Piselli",
+      "m"
+    ],
+    "Pistacchio": [
+      "Pistacchio",
+      "Pistacchi",
+      "m"
+    ],
+    "Pizza": [
+      "Pizza",
+      "Pizze",
       "f"
     ],
     "Pomodori": [
@@ -230,6 +445,21 @@
       "Pomodorini",
       "m"
     ],
+    "Porro": [
+      "Porro",
+      "Porri",
+      "m"
+    ],
+    "Radicchio": [
+      "Radicchio",
+      "Radicchi",
+      "m"
+    ],
+    "Ravanello": [
+      "Ravanello",
+      "Ravanelli",
+      "m"
+    ],
     "Ricotta": [
       "Ricotta",
       "Ricotte",
@@ -239,6 +469,21 @@
       "Salsiccia",
       "Salsicce",
       "f"
+    ],
+    "Scatola": [
+      "Scatola",
+      "Scatole",
+      "f"
+    ],
+    "Sedano": [
+      "Sedano",
+      "Sedani",
+      "m"
+    ],
+    "Spinacio": [
+      "Spinacio",
+      "Spinaci",
+      "m"
     ],
     "Succo": [
       "Succo",
@@ -255,14 +500,44 @@
       "Surgelati",
       "m"
     ],
+    "Tarallo": [
+      "Tarallo",
+      "Taralli",
+      "m"
+    ],
+    "Tavoletta": [
+      "Tavoletta",
+      "Tavolette",
+      "f"
+    ],
+    "Tortellino": [
+      "Tortellino",
+      "Tortellini",
+      "m"
+    ],
     "Uova": [
       "Uovo",
       "Uova",
       "f"
     ],
+    "Uovo": [
+      "Uovo",
+      "Uova",
+      "m"
+    ],
     "Verdure": [
       "Verdura",
       "Verdure",
+      "f"
+    ],
+    "Zucca": [
+      "Zucca",
+      "Zucche",
+      "f"
+    ],
+    "Zucchina": [
+      "Zucchina",
+      "Zucchine",
       "f"
     ],
     "Zucchine": [
@@ -743,6 +1018,35 @@
     "aceto",
     "lievito"
   ],
+  "phrase_connectors": [
+    "di",
+    "del",
+    "dello",
+    "della",
+    "dei",
+    "degli",
+    "delle",
+    "d'"
+  ],
+  "shopping_container_heads": [
+    "frutta",
+    "frutta fresca",
+    "verdura",
+    "verdure",
+    "latticini",
+    "condimenti",
+    "bevande",
+    "surgelati",
+    "snack",
+    "conserve",
+    "carne",
+    "pesce",
+    "cereali",
+    "colazione",
+    "misto",
+    "ver",
+    "conserva"
+  ],
   "umbrella_labels": [
     "snacks & sweets",
     "snack & dolci",
@@ -766,7 +1070,35 @@
     "fruits based foods",
     "plant-based-foods",
     "plant-based-foods-and-beverages",
-    "sponge cake"
+    "sponge cake",
+    "farmaco",
+    "farmaci",
+    "medicine",
+    "medicines",
+    "medicinal",
+    "medicinale",
+    "medicinali",
+    "medikament",
+    "arzneimittel",
+    "médicament",
+    "médicaments",
+    "medicamento",
+    "medicamentos",
+    "药品",
+    "integratore alimentare",
+    "integratori alimentari",
+    "integratore",
+    "integratori",
+    "parafarmaco",
+    "parafarmaci",
+    "dispositivo medico",
+    "dispositivi medici",
+    "non alimentare",
+    "non-food",
+    "non food",
+    "nicht lebensmittel",
+    "non alimentaire",
+    "no alimentario"
   ],
   "english_tab_labels": [
     "vegetables",
@@ -1636,5 +1968,494 @@
       "findus",
       "star"
     ]
+  },
+  "company_stop_words": [
+    "aziende",
+    "chimiche",
+    "chimici",
+    "riunite",
+    "riuniti",
+    "laboratorio",
+    "laboratori",
+    "chimico",
+    "chimica",
+    "farmaceutico",
+    "farmaceutica",
+    "farmaceutici",
+    "farmaceutiche",
+    "industrie",
+    "industria",
+    "societa",
+    "società",
+    "spa",
+    "srl",
+    "sas",
+    "snc",
+    "del",
+    "della",
+    "delle",
+    "dei",
+    "degli",
+    "francesco",
+    "group",
+    "groupe",
+    "holding",
+    "pharma"
+  ],
+  "cooking_voice": {
+    "next": [
+      "avanti",
+      "successivo",
+      "prossimo",
+      "dopo",
+      "vai avanti"
+    ],
+    "prev": [
+      "indietro",
+      "precedente",
+      "torna"
+    ],
+    "replay": [
+      "rileggi",
+      "ripeti",
+      "leggi di nuovo",
+      "ancora"
+    ]
+  },
+  "capture": {
+    "intent": {
+      "recipe": [
+        "cosa cucino",
+        "cosa posso cucinare",
+        "cosa cucinare",
+        "cosa preparo",
+        "che cosa",
+        "cosa posso fare",
+        "ricetta",
+        "ricette",
+        "cucino",
+        "cucinare"
+      ],
+      "throw": [
+        "buttato",
+        "buttata",
+        "buttare",
+        "butto",
+        "butta",
+        "gettato",
+        "gettata",
+        "gettare",
+        "getta",
+        "buttare via",
+        "butta via",
+        "eliminare",
+        "scartare",
+        "scarto",
+        "buttato via",
+        "buttata via",
+        "gettato via",
+        "gettata via"
+      ],
+      "consume": [
+        "ho usato",
+        "usato",
+        "usata",
+        "usati",
+        "usate",
+        "uso",
+        "consumato",
+        "consumata",
+        "consumati",
+        "consumate",
+        "consumare",
+        "mangiato",
+        "mangiata",
+        "mangiati",
+        "mangiate",
+        "mangiare",
+        "bevuto",
+        "bevuta",
+        "bevuti",
+        "bevute",
+        "bere",
+        "assaggiato",
+        "assaggiata",
+        "assaggiare",
+        "finito",
+        "finita",
+        "finiti",
+        "finite",
+        "esaurito",
+        "esaurita",
+        "esauriti",
+        "mangio",
+        "mangia",
+        "bevo",
+        "beve",
+        "prendo",
+        "prende",
+        "preso",
+        "presa",
+        "presi",
+        "prese",
+        "ho preso",
+        "assumo",
+        "assume",
+        "assunto",
+        "assunta",
+        "finisco",
+        "finisce",
+        "consumo",
+        "ho mangiato",
+        "ho bevuto",
+        "ho finito",
+        "sto mangiando",
+        "sto bevendo"
+      ],
+      "shop": [
+        "lista della spesa",
+        "alla spesa",
+        "sulla spesa",
+        "in spesa",
+        "lista spesa",
+        "spesa",
+        "da comprare"
+      ],
+      "add": [
+        "aggiungi",
+        "aggiungere",
+        "aggiunto",
+        "aggiunta",
+        "metti in",
+        "metti",
+        "mettere",
+        "compra",
+        "comprare",
+        "comprato",
+        "comprata",
+        "acquista",
+        "acquistare",
+        "ho comprato"
+      ],
+      "symptom": [
+        "mal di testa",
+        "mal di gola",
+        "mal di stomaco",
+        "mal di pancia",
+        "mal di schiena",
+        "ho mal di",
+        "mi fa male",
+        "ho la febbre",
+        "ho febbre",
+        "febbre",
+        "tosse",
+        "raffreddore",
+        "influenza",
+        "allergia",
+        "nausea",
+        "diarrea",
+        "stitichezza",
+        "bruciore",
+        "cosa ho per",
+        "cosa c'è per",
+        "che cosa ho per",
+        "per la tosse",
+        "per la febbre",
+        "per il mal di",
+        "sintomo",
+        "sintomi",
+        "armadietto",
+        "farmacia",
+        "farmaco",
+        "medicina",
+        "medicinale",
+        "ho bisogno di qualcosa per",
+        "cosa tengo per"
+      ]
+    },
+    "numbers": {
+      "uno": 1,
+      "una": 1,
+      "un": 1,
+      "due": 2,
+      "tre": 3,
+      "quattro": 4,
+      "cinque": 5,
+      "sei": 6,
+      "sette": 7,
+      "otto": 8,
+      "nove": 9,
+      "dieci": 10,
+      "undici": 11,
+      "dodici": 12
+    },
+    "units": {
+      "g": [
+        "g",
+        1
+      ],
+      "gr": [
+        "g",
+        1
+      ],
+      "grammi": [
+        "g",
+        1
+      ],
+      "grammo": [
+        "g",
+        1
+      ],
+      "hg": [
+        "g",
+        100
+      ],
+      "etto": [
+        "g",
+        100
+      ],
+      "etti": [
+        "g",
+        100
+      ],
+      "kg": [
+        "kg",
+        1
+      ],
+      "chilo": [
+        "kg",
+        1
+      ],
+      "chili": [
+        "kg",
+        1
+      ],
+      "kilogrammi": [
+        "kg",
+        1
+      ],
+      "kilogrammo": [
+        "kg",
+        1
+      ],
+      "ml": [
+        "ml",
+        1
+      ],
+      "millilitri": [
+        "ml",
+        1
+      ],
+      "millilitro": [
+        "ml",
+        1
+      ],
+      "cl": [
+        "cl",
+        1
+      ],
+      "dl": [
+        "dl",
+        1
+      ],
+      "l": [
+        "l",
+        1
+      ],
+      "lt": [
+        "l",
+        1
+      ],
+      "litro": [
+        "l",
+        1
+      ],
+      "litri": [
+        "l",
+        1
+      ],
+      "pz": [
+        "pz",
+        1
+      ],
+      "pezzo": [
+        "pz",
+        1
+      ],
+      "pezzi": [
+        "pz",
+        1
+      ],
+      "fetta": [
+        "pz",
+        1
+      ],
+      "fette": [
+        "pz",
+        1
+      ],
+      "conf": [
+        "conf",
+        1
+      ],
+      "confezione": [
+        "conf",
+        1
+      ],
+      "confezioni": [
+        "conf",
+        1
+      ],
+      "busta": [
+        "conf",
+        1
+      ],
+      "buste": [
+        "conf",
+        1
+      ],
+      "barattolo": [
+        "conf",
+        1
+      ],
+      "barattoli": [
+        "conf",
+        1
+      ],
+      "bottiglia": [
+        "conf",
+        1
+      ],
+      "bottiglie": [
+        "conf",
+        1
+      ],
+      "vasetto": [
+        "conf",
+        1
+      ],
+      "vasetti": [
+        "conf",
+        1
+      ],
+      "scatola": [
+        "conf",
+        1
+      ],
+      "scatole": [
+        "conf",
+        1
+      ],
+      "sacchetto": [
+        "conf",
+        1
+      ],
+      "sacchetti": [
+        "conf",
+        1
+      ]
+    },
+    "fractions": [
+      [
+        "tre quarti",
+        0.75
+      ],
+      [
+        "un quarto",
+        0.25
+      ],
+      [
+        "un mezzo",
+        0.5
+      ],
+      [
+        "mezza",
+        0.5
+      ],
+      [
+        "mezzo",
+        0.5
+      ],
+      [
+        "metà",
+        0.5
+      ],
+      [
+        "meta",
+        0.5
+      ]
+    ],
+    "all_words": [
+      "tutti",
+      "tutte",
+      "tutto",
+      "tutta",
+      "tutte le",
+      "finito",
+      "finita",
+      "finiti",
+      "finite",
+      "esaurito",
+      "esaurita",
+      "esauriti",
+      "vuoto",
+      "vuota"
+    ],
+    "stop_words": [
+      "il",
+      "lo",
+      "la",
+      "i",
+      "gli",
+      "le",
+      "l",
+      "un",
+      "uno",
+      "una",
+      "dei",
+      "delle",
+      "del",
+      "della",
+      "dello",
+      "degli",
+      "di",
+      "da",
+      "in",
+      "con",
+      "per",
+      "su",
+      "tra",
+      "fra",
+      "a",
+      "al",
+      "allo",
+      "alla",
+      "ai",
+      "agli",
+      "alle",
+      "e",
+      "ed",
+      "o",
+      "ho",
+      "hai",
+      "ha",
+      "abbiamo",
+      "avete",
+      "hanno",
+      "mio",
+      "mia",
+      "miei",
+      "mie",
+      "mi",
+      "me",
+      "che",
+      "questo",
+      "questa"
+    ]
+  },
+  "locale": {
+    "name": "Italiano",
+    "collation": "it-IT",
+    "speech_tag": "it-IT"
   }
 }

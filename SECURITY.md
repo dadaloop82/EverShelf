@@ -43,7 +43,22 @@ Out-of-scope issues:
 - `get_settings` returns only boolean flags (`gemini_key_set`), never raw key values
 - Optional `API_TOKEN` (legacy alias `SETTINGS_TOKEN`) protects every data read and
   write (`hash_equals` to prevent timing attacks). `DEMO_MODE=true` blocks all write
-  operations at the router level
+  operations at the router level. **Leaving it empty is no longer authentication, it is
+  the absence of authentication** — so EverShelf *mints* a token for you the first time
+  it answers a request with none configured (`evershelfEnsureApiToken()`): it is written
+  to `.env` (or to the `app_settings.env_overrides` fallback when that file is read-only),
+  enforced from that same request on, and the one-time pairing code that lets a phone in
+  is printed in the log right after it. `ALLOW_OPEN_LAN=true` keeps the old open-LAN
+  behaviour on purpose (a fully trusted network, or a reverse proxy that authenticates
+  for you). The `data/api_token_autogen.json` marker makes sure this never mints a
+  *second* token: a rotating token would lock every device out, so once it exists the
+  operator's `.env` is the only source of truth.
+- **DNS rebinding is refused by name.** `ALLOWED_HOSTS` (comma list, `*.example.lan`
+  allowed) rejects any request whose `Host` is not one of the names this installation
+  answers to. Empty = off, because the set of names a household uses is not knowable from
+  the code (a bare IP, `.local`, a proxy's domain, a tunnel). A browser cannot protect you
+  here: a page on `evil.example` can point its own DNS at your LAN address, and CORS /
+  `Sec-Fetch-Site` are then satisfied because the request really *is* on `evil.example`.
 - **Token bootstrap requires pairing.** `app_bootstrap` never returns `API_TOKEN` to
   an anonymous request: the UI shows a dialog and the user types the one-time code.
   The code is shown on an already-paired device under **Settings → System → Security**
@@ -87,6 +102,29 @@ Out-of-scope issues:
   same-origin`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, and HSTS over TLS).
   A full Content-Security-Policy still needs the inline event handlers to be
   converted to delegated listeners.
+- **The two public endpoints that cannot present a token authenticate themselves.**
+  Telegram calls the webhook without our headers, so the webhook checks the value Telegram
+  echoes back: `setWebhook(..., secret_token: …)` → `X-Telegram-Bot-Api-Secret-Token`,
+  compared with `hash_equals` against `TELEGRAM_WEBHOOK_SECRET`. With no secret the only
+  gate is `TELEGRAM_ALLOWED_CHAT_IDS` — and with an **empty** allowlist the webhook refuses
+  to answer at all (it used to accept any chat id, i.e. anyone who could reach the URL
+  could have the bot send the shopping or the expiry list to them). The Google Drive
+  callback is public too and it overwrites `GDRIVE_REFRESH_TOKEN`, so it requires the
+  OAuth `state` this server issued: 32 random bytes, only their SHA-256 on disk
+  (`data/gdrive_oauth_state.json`, 0600), ten minutes, single use, one outstanding flow at
+  a time (`api/lib/gdrive_state.php`). A code that arrives without it is refused before
+  Google is ever contacted — otherwise a third party's authorization code would point the
+  nightly backup at *their* Drive.
+- **A token is never sent to a third party.** The Health Bridge pairing QR is drawn by this
+  server (`action health_bridge_qr` → `api/lib/qr.php`, authenticated) instead of by a
+  public QR service, and the TTS/Home-Assistant proxy attaches `HA_TOKEN` / `TTS_TOKEN`
+  only when the target is the **same origin** as `HA_URL` / `TTS_URL`
+  (`evershelfSameOrigin()`): a prefix comparison also accepted `http://ha.local.evil.example`,
+  which would have handed the household's bearer token to any host whose name merely starts
+  the same way.
+- `test_*.php` scripts are CLI-only (`PHP_SAPI !== 'cli'` → 404) and are excluded from the
+  Docker image (`.dockerignore`): they answer from the command line, and one of them printed
+  part of `GEMINI_API_KEY` to whoever fetched it.
 - Rate limiting honours `X-Forwarded-For` only from hosts listed in `TRUSTED_PROXIES`,
   so behind a reverse proxy each client keeps its own bucket and cannot spoof one.
   Public actions that create GitHub issues (`report_bug`) have a dedicated,

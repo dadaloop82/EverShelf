@@ -546,12 +546,13 @@ function mealieImportToEverShelf(PDO $db, string $slugOrId): array {
     $recipe = $got['recipe'];
     $today = date('Y-m-d');
     $payload = mealieRecipeToEverShelfFormat($recipe, (int)($recipe['servings'] ?? 4));
+    // 'import' was not a meal and not a slot either: it is `libero`, which is what an archived
+    // recipe with no meal is everywhere else in the app (and it accepts many per day).
     $stmt = $db->prepare(
-        "INSERT INTO recipes (date, meal, recipe_json, created_at, is_favorite)
-         VALUES (?, 'import', ?, datetime('now'), 0)
-         ON CONFLICT(date, meal) DO UPDATE SET recipe_json = excluded.recipe_json, created_at = excluded.created_at"
+        "INSERT INTO recipes (date, meal, recipe_json, content_hash, created_at, is_favorite)
+         VALUES (?, 'libero', ?, ?, datetime('now'), 0)"
     );
-    $stmt->execute([$today, json_encode($payload, JSON_UNESCAPED_UNICODE)]);
+    $stmt->execute([$today, json_encode($payload, JSON_UNESCAPED_UNICODE), recipeArchiveContentHash($payload)]);
     return [
         'success'       => true,
         'recipe'        => $payload,
@@ -573,4 +574,258 @@ function mealieStatus(): array {
         'cache_synced_at' => $cache['synced_at'] ?: null,
         'cache_needs_sync'=> mealieCacheNeedsSync(),
     ];
+}
+
+/* ===== EverShelf → Mealie: "le ricette già fatte vanno in automatico" =====
+ *
+ * The integration was one-way: Mealie could feed the generator, but the dishes this household
+ * actually cooked stayed here. A cooked recipe is the best content a ricettario can receive —
+ * it has been made, scaled and (maybe) rated — so it is pushed back with its ingredients and
+ * its steps.
+ *
+ * The map of what has already been sent lives in data/mealie_pushed.json, keyed by TITLE: the
+ * dish is the identity, not the row (cooking changes `used` flags and therefore the content
+ * hash, and a re-save must not create a second copy in Mealie).
+ */
+
+function mealiePushStatePath(): string {
+    return EVERSHELF_ROOT . '/data/mealie_pushed.json';
+}
+
+/** `title(lowercased) => { slug, name, at, archive_id, patched }` */
+function mealiePushState(): array {
+    $path = mealiePushStatePath();
+    if (!is_file($path)) {
+        return [];
+    }
+    $raw = json_decode((string)file_get_contents($path), true);
+    $map = is_array($raw) ? ($raw['recipes'] ?? null) : null;
+    return is_array($map) ? $map : [];
+}
+
+function mealiePushStateSave(array $map): void {
+    $path = mealiePushStatePath();
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    $json = json_encode(['recipes' => $map], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    $tmp = $path . '.part';
+    if (@file_put_contents($tmp, $json, LOCK_EX) !== false) {
+        @rename($tmp, $path);
+    }
+}
+
+/** The dish's identity for the push map. */
+function mealiePushKey(array $recipe): string {
+    return mb_strtolower(trim((string)($recipe['title'] ?? '')));
+}
+
+/** "10 min" / "1 h 30" / "20m" → ISO-8601 "PT10M" ('' when it says nothing). */
+function mealieIsoDuration($label): string {
+    $s = mb_strtolower(trim((string)$label));
+    if ($s === '') {
+        return '';
+    }
+    $total = 0;
+    if (preg_match('/(\d+(?:[.,]\d+)?)\s*(?:h|ore|ora|hours?|std|stunde)/', $s, $h)) {
+        $total += (int)round((float)str_replace(',', '.', $h[1]) * 60);
+        $s = trim(mb_substr($s, mb_strpos($s, $h[0]) + mb_strlen($h[0])));
+    }
+    if (preg_match('/(\d+)/', $s, $m)) {
+        $total += (int)$m[1];
+    }
+    return $total > 0 ? 'PT' . $total . 'M' : '';
+}
+
+/**
+ * EverShelf recipe → Mealie `PATCH /api/recipes/{slug}` payload.
+ *
+ * Only the fields Mealie accepts as plain strings: name, description, yield, times, the
+ * ingredient lines and the instruction steps. Tags/notes are OBJECTS with their own validation
+ * in Mealie, and a 422 there would lose the whole push — a correct recipe without tags is worth
+ * more than a stylish one that never arrives.
+ */
+function mealieRecipeToMealiePayload(array $recipe): array {
+    $ingredients = [];
+    foreach (($recipe['ingredients'] ?? []) as $ing) {
+        if (!is_array($ing)) {
+            continue;
+        }
+        $name = trim((string)($ing['name'] ?? ''));
+        if ($name === '') {
+            continue;
+        }
+        $qty = trim((string)($ing['qty'] ?? ''));
+        $ingredients[] = $qty !== '' ? ($qty . ' ' . $name) : $name;
+    }
+    $steps = [];
+    foreach (($recipe['steps'] ?? []) as $step) {
+        $text = is_array($step) ? (string)($step['text'] ?? $step['instruction'] ?? '') : (string)$step;
+        $text = trim($text);
+        if ($text !== '') {
+            $steps[] = ['text' => $text];
+        }
+    }
+    $payload = [
+        'name'              => trim((string)($recipe['title'] ?? '')),
+        'description'       => trim((string)($recipe['description'] ?? '')),
+        'recipeYield'       => (string)max(1, (int)($recipe['persons'] ?? 1)),
+        'recipeIngredient'  => $ingredients,
+        'recipeInstructions'=> $steps,
+    ];
+    $prep = mealieIsoDuration($recipe['prep_time'] ?? '');
+    $cook = mealieIsoDuration($recipe['cook_time'] ?? '');
+    if ($prep !== '') {
+        $payload['prepTime'] = $prep;
+    }
+    if ($cook !== '') {
+        $payload['cookTime'] = $cook;
+    }
+    if (!empty($recipe['nutrition_note'])) {
+        $payload['notes'] = [['text' => (string)$recipe['nutrition_note']]];
+    }
+    return $payload;
+}
+
+/** Has this dish been made? (at least one pantry row deducted — the same rule the sheet uses) */
+function mealieRecipeLooksCooked(array $recipe): bool {
+    foreach (($recipe['ingredients'] ?? []) as $ing) {
+        if (is_array($ing) && !empty($ing['used']) && !empty($ing['product_id'])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Push ONE recipe to Mealie: create it, then fill it. Idempotent by title.
+ */
+/**
+ * The Mealie slug of an existing recipe with EXACTLY this name, or ''.
+ *
+ * Mealie refuses a duplicate name (409), and that refusal is useful information: the dish may
+ * already be in the ricettario from a previous push or from a manual import. Updating that copy
+ * is the right answer — a second "Sformatine al Tonno" helps nobody.
+ */
+function mealieFindRecipeSlugByName(string $name): string {
+    $needle = mb_strtolower(trim($name));
+    if ($needle === '') {
+        return '';
+    }
+    $res = mealieRequest('GET', '/recipes?perPage=50&search=' . rawurlencode($name));
+    if (empty($res['success'])) {
+        return '';
+    }
+    $items = $res['data']['items'] ?? $res['data'] ?? [];
+    if (!is_array($items)) {
+        return '';
+    }
+    foreach ($items as $item) {
+        if (mb_strtolower(trim((string)($item['name'] ?? ''))) === $needle) {
+            return (string)($item['slug'] ?? '');
+        }
+    }
+    return '';
+}
+
+function mealiePushRecipe(array $recipe, ?string $archiveId = null, bool $force = false): array {
+    if (!mealieUsable()) {
+        return ['success' => false, 'error' => 'mealie_not_usable'];
+    }
+    $name = trim((string)($recipe['title'] ?? ''));
+    if ($name === '') {
+        return ['success' => false, 'error' => 'missing_title'];
+    }
+    $key = mealiePushKey($recipe);
+    $state = mealiePushState();
+    if (!$force && isset($state[$key])) {
+        return ['success' => true, 'skipped' => true, 'reason' => 'already_pushed', 'slug' => (string)($state[$key]['slug'] ?? '')];
+    }
+
+    // LOOK BEFORE CREATING. Mealie does NOT refuse a duplicate name: it accepts it and appends
+    // "-1", so a create-first flow quietly fills the ricettario with twins (measured: the same
+    // dish came back as "...-al-cookeo-1"). The name IS the identity here, so an existing one is
+    // updated in place and nothing is created.
+    $slug = mealieFindRecipeSlugByName($name);
+    $createdNow = false;
+    if ($slug === '') {
+        $created = mealieRequest('POST', '/recipes', ['name' => $name]);
+        // Mealie answers 201 with the new SLUG as a bare string (not an object): read both shapes.
+        $createdData = $created['data'] ?? null;
+        $slug = !empty($created['success'])
+            ? (is_string($createdData) ? trim($createdData) : (string)($createdData['slug'] ?? ''))
+            : '';
+        $createdNow = $slug !== '';
+        if ($slug === '') {
+            EverLog::warn('Mealie push failed (create)', [
+                'event' => 'mealie_push_create_failed',
+                'name'  => $name,
+                'error' => $created['error'] ?? 'unknown',
+            ]);
+            return empty($created['success']) ? $created : ['success' => false, 'error' => 'mealie_push_no_slug'];
+        }
+    }
+
+    $patched = mealieRequest('PATCH', '/recipes/' . rawurlencode($slug), mealieRecipeToMealiePayload($recipe));
+    $state[$key] = [
+        'slug'       => $slug,
+        'name'       => $name,
+        'at'         => time(),
+        'archive_id' => $archiveId,
+        'patched'    => !empty($patched['success']),
+        'created'    => $createdNow,
+    ];
+    mealiePushStateSave($state);
+    EverLog::info('Recipe pushed to Mealie', [
+        'event'      => 'mealie_push',
+        'name'       => $name,
+        'slug'       => $slug,
+        'patched'    => !empty($patched['success']),
+        'archive_id' => $archiveId,
+    ]);
+    return [
+        'success' => true,
+        'slug'    => $slug,
+        'created' => $createdNow,
+        'patched' => !empty($patched['success']),
+        'warning' => empty($patched['success']) ? ($patched['error'] ?? 'patch_failed') : null,
+    ];
+}
+
+/**
+ * The automatic sweep: every COOKED archive recipe not yet in Mealie, a few per run.
+ *
+ * Called by the cron (a bounded number of HTTP calls, never on a page load) and on demand by
+ * the user ("invia tutto"). Silence when Mealie is not configured: nothing to do, no log noise.
+ */
+function mealiePushPendingCooked(PDO $db, int $limit = 3): array {
+    if (!mealieUsable()) {
+        return ['success' => false, 'error' => 'mealie_not_usable', 'pushed' => [], 'count' => 0];
+    }
+    $limit = max(1, min(20, $limit));
+    $rows = $db->query("SELECT id, recipe_json FROM recipes WHERE recipe_json LIKE '%\"used\":true%' ORDER BY created_at DESC LIMIT 300")->fetchAll(PDO::FETCH_ASSOC);
+    $pushed = [];
+    foreach ($rows as $row) {
+        if (count($pushed) >= $limit) {
+            break;
+        }
+        $recipe = json_decode((string)$row['recipe_json'], true);
+        if (!is_array($recipe) || !mealieRecipeLooksCooked($recipe)) {
+            continue;
+        }
+        $key = mealiePushKey($recipe);
+        if ($key === '') {
+            continue;
+        }
+        $state = mealiePushState();
+        if (isset($state[$key])) {
+            continue;
+        }
+        $res = mealiePushRecipe($recipe, (string)$row['id']);
+        if (!empty($res['success']) && empty($res['skipped'])) {
+            $pushed[] = ['id' => (int)$row['id'], 'name' => (string)($recipe['title'] ?? ''), 'slug' => $res['slug'] ?? ''];
+        }
+    }
+    return ['success' => true, 'pushed' => $pushed, 'count' => count($pushed)];
 }

@@ -1,0 +1,396 @@
+/* ============================================================================
+ * EverShelf — tablet / kiosk type + list density
+ *
+ * NOT keyed on min-width alone: a desktop monitor is ≥768px and was getting
+ * bold truncated 2-column rows, while many Android kiosk WebViews report a CSS
+ * width under 768 and saw no change at all.
+ *
+ * Activated by classes set in app.js / the kiosk bridge:
+ *   html.is-kiosk         — Android kiosk WebView (_kioskBridge)
+ *   html.is-touch-tablet  — coarse pointer + hover:none + width ≥ 600
+ *
+ * Desktop (mouse) and phones stay on the base styles. mobile.css stays last.
+ * ========================================================================= */
+
+html.is-kiosk,
+html.is-touch-tablet {
+    /* Modest bump — no html{font-size} (that made every rem scream on desktop). */
+    --es-text-title: 1.18rem;
+    --es-text-body: 1rem;
+    --es-text-small: 0.88rem;
+    --es-text-micro: 0.78rem;
+}
+
+/* ── Inventory: one horizontal band (width to spare on a tablet) ─────────── */
+html.is-kiosk .inv-row-content.inv-card,
+html.is-touch-tablet .inv-row-content.inv-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    /* The band wraps before it squeezes the name: with `nowrap` a 393 px window (a touch
+       tablet whose window was narrowed, reported from the field) left the text column ~10 px
+       and printed «A/u/r/e.» one letter per line. Now the action strip simply drops to a
+       second line — the name is the row. */
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 8px 10px;
+}
+
+/* ── The Home's notice rows are the SAME band ─────────────────────────────────
+   On a tablet the pantry row is a horizontal band — photo, text, and the action
+   strip (`qty · time · ✓ Usa · ⋮`) on the RIGHT — while the same information on the
+   Home sat under the text, so the two lists read as two different layouts side by
+   side. Same geometry here: the strip goes beside the text, the info takes the room,
+   and the card keeps the band's 8/10 px padding instead of the stacked 12. */
+html.is-kiosk .alert-item,
+html.is-touch-tablet .alert-item {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    row-gap: 6px;
+    padding: 8px 10px;
+}
+html.is-kiosk .alert-item .alert-item-info,
+html.is-touch-tablet .alert-item .alert-item-info {
+    flex: 1 1 auto;
+    /* Same floor as the pantry's text block: the notice strip wraps under the text before the
+       article's name is squeezed (the two lists share one grammar). */
+    min-width: 11rem;
+    /* The band's height comes from the content, never from the stacked card's floor. */
+    min-height: 0;
+}
+html.is-kiosk .alert-item .alert-item-badges,
+html.is-touch-tablet .alert-item .alert-item-badges {
+    /* `0 0 auto`: the strip keeps its content width instead of being squeezed by the text
+       beside it — a squeezed strip wraps into two lines and makes the card taller than the
+       row next to it, which is exactly what the two lists were doing to each other.
+       No `margin-left: auto` for the same reason as the pantry strip: when the band wraps
+       the badges belong under the text, not on the empty right half of their own line. */
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    /* Nothing to dodge: this strip is nowhere near the photo. */
+    padding-left: 0;
+}
+/* The pantry strip obeys the same rule (it was `0 1 auto`, i.e. shrinkable). */
+html.is-kiosk .inv-row-content .inv-card-bottom,
+html.is-touch-tablet .inv-row-content .inv-card-bottom { flex: 0 0 auto; }
+
+/* Both text blocks get the same floor, so the two cards measure the same. The pantry's is
+   taller on its own only because of the star button beside the name — a control the Home
+   does not have, and which nobody measures with the eye, so the block sets the height of
+   both. 53 px is that block's natural height. */
+html.is-kiosk .inv-row-content .inv-card-top,
+html.is-touch-tablet .inv-row-content .inv-card-top,
+html.is-kiosk .alert-item .alert-item-info,
+html.is-touch-tablet .alert-item .alert-item-info { min-height: 53px; }
+
+html.is-kiosk .inv-card-top,
+html.is-touch-tablet .inv-card-top {
+    flex: 1 1 auto;
+    /* A floor, not `min-width: 0`: the text block must never be squeezed to nothing by the
+       strip beside it (the field bug: «A u r e.» one letter per line at 393 px). When a
+       tablet's row is really tight the strip wraps under it (`flex-wrap` above) instead. */
+    min-width: 15rem;
+    align-items: center;
+    gap: 10px;
+}
+
+html.is-kiosk .inv-card-bottom,
+html.is-touch-tablet .inv-card-bottom {
+    flex: 0 1 auto;
+    /* No `margin-left: auto`: when the band wraps (a 2-column tablet card is ~469 px, where the
+       strip no longer fits beside the text) the strip must start under the text, not hang off
+       the right edge of an otherwise empty line. On one line the info block's `flex: 1 1 auto`
+       is what keeps the strip on the right. */
+    gap: 8px;
+    /* Never clamp to half the card — that truncated qty + expiry on wide tablets. */
+    max-width: none;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+/* The band keeps a 40 px photo — but it is the SAME variable the gutter reads, so the words
+   start 48 px from the edge instead of 26 % of the card (on a 1000 px wall that was 260 px of
+   empty paper beside a 40 px icon). */
+html.is-kiosk .inventory-item,
+html.is-touch-tablet .inventory-item,
+html.is-kiosk .alert-item,
+html.is-touch-tablet .alert-item { --row-photo-w: 40px; }
+
+html.is-kiosk .inv-image,
+html.is-touch-tablet .inv-image {
+    font-size: 1.2rem;
+}
+
+html.is-kiosk .inv-name-row .inv-name,
+html.is-touch-tablet .inv-name-row .inv-name {
+    font-size: var(--es-text-body);
+    font-weight: 650;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    -webkit-line-clamp: 4; /* absurd titles only — never a hard 1–2 line cut */
+    line-height: 1.3;
+}
+
+html.is-kiosk .shop-row-title-name,
+html.is-touch-tablet .shop-row-title-name {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+html.is-kiosk .inv-meta-line,
+html.is-touch-tablet .inv-meta-line {
+    margin-top: 2px;
+    font-size: var(--es-text-micro);
+    line-height: 1.25;
+}
+
+html.is-kiosk .inv-med-sub,
+html.is-touch-tablet .inv-med-sub {
+    font-size: var(--es-text-micro);
+}
+
+/* The two facts stay at least as large as on a phone: a wall tablet is read from further
+   away, so the band only grows them — a `--es-text-small` (0.8 rem) here would UNDO the
+   pantry's sizes on the one screen that needs them most. */
+html.is-kiosk .inv-qty-pill,
+html.is-touch-tablet .inv-qty-pill {
+    min-height: 32px;
+    padding: 4px 12px;
+    font-size: 1rem;
+}
+
+html.is-kiosk .inv-time,
+html.is-touch-tablet .inv-time {
+    font-size: 0.95rem;
+}
+
+html.is-kiosk .inv-quick-use,
+html.is-touch-tablet .inv-quick-use {
+    min-height: 40px;
+    min-width: 44px;
+    padding: 0 14px;
+    font-size: var(--es-text-small);
+}
+
+html.is-kiosk .inv-card-menu,
+html.is-touch-tablet .inv-card-menu {
+    width: 36px;
+    height: 36px;
+    font-size: 1.2rem;
+}
+
+html.is-kiosk .inventory-list,
+html.is-touch-tablet .inventory-list {
+    gap: 8px;
+}
+
+/* ── Dashboard alert rows ───────────────────────────────────────────────── */
+html.is-kiosk .alert-item,
+html.is-touch-tablet .alert-item {
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    font-size: var(--es-text-body);
+    gap: 10px;
+}
+
+html.is-kiosk .alert-item-name,
+html.is-kiosk .alert-item-head .alert-item-name,
+html.is-touch-tablet .alert-item-name,
+html.is-touch-tablet .alert-item-head .alert-item-name {
+    font-size: var(--es-text-body);
+    font-weight: 600;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+}
+
+html.is-kiosk .alert-item-brand,
+html.is-kiosk .alert-item-head .alert-item-brand,
+html.is-kiosk .alert-item-qty,
+html.is-kiosk .alert-item-meta,
+html.is-kiosk .alert-item-verdict,
+html.is-touch-tablet .alert-item-brand,
+html.is-touch-tablet .alert-item-head .alert-item-brand,
+html.is-touch-tablet .alert-item-qty,
+html.is-touch-tablet .alert-item-meta,
+html.is-touch-tablet .alert-item-verdict {
+    font-size: var(--es-text-small);
+}
+
+html.is-kiosk .alert-item-badge,
+html.is-kiosk .safety-pill,
+html.is-touch-tablet .alert-item-badge,
+html.is-touch-tablet .safety-pill {
+    font-size: var(--es-text-micro);
+    padding: 3px 10px;
+}
+
+html.is-kiosk .alert-item-badges .btn-banner,
+html.is-kiosk .alert-item-badges .btn-alert-extend,
+html.is-touch-tablet .alert-item-badges .btn-banner,
+html.is-touch-tablet .alert-item-badges .btn-alert-extend {
+    font-size: var(--es-text-small);
+    min-height: 40px;
+    padding: 0 12px;
+}
+
+html.is-kiosk .alert-section h3,
+html.is-kiosk .alert-danger h3,
+html.is-kiosk .alert-opened h3,
+html.is-kiosk .alert-stale h3,
+html.is-touch-tablet .alert-section h3,
+html.is-touch-tablet .alert-danger h3,
+html.is-touch-tablet .alert-opened h3,
+html.is-touch-tablet .alert-stale h3 {
+    font-size: var(--es-text-small);
+}
+
+/* ── Shopping list ──────────────────────────────────────────────────────── */
+html.is-kiosk .shop-row-content,
+html.is-touch-tablet .shop-row-content {
+    padding: 10px 12px;
+    min-height: 0;
+}
+
+html.is-kiosk .shop-row-visual,
+html.is-touch-tablet .shop-row-visual {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+}
+
+html.is-kiosk .shop-row-title-name,
+html.is-touch-tablet .shop-row-title-name {
+    font-size: var(--es-text-body);
+    font-weight: 650;
+    line-height: 1.3;
+}
+
+html.is-kiosk .shop-row-qty,
+html.is-touch-tablet .shop-row-qty {
+    font-size: 1.15rem;
+}
+
+html.is-kiosk .shop-row-sub,
+html.is-kiosk .shop-row-reason,
+html.is-touch-tablet .shop-row-sub,
+html.is-touch-tablet .shop-row-reason {
+    font-size: var(--es-text-small);
+    margin-top: 2px;
+    line-height: 1.3;
+}
+
+html.is-kiosk .shop-section-body,
+html.is-touch-tablet .shop-section-body {
+    gap: 8px;
+}
+
+/* ── Products + history ─────────────────────────────────────────────────── */
+html.is-kiosk .product-item,
+html.is-touch-tablet .product-item {
+    padding: 10px 12px;
+    gap: 10px;
+}
+
+html.is-kiosk .product-item .inv-name,
+html.is-kiosk .product-item .product-name,
+html.is-touch-tablet .product-item .inv-name,
+html.is-touch-tablet .product-item .product-name {
+    font-size: var(--es-text-body);
+}
+
+html.is-kiosk .log-entry,
+html.is-touch-tablet .log-entry {
+    padding: 7px 10px;
+    gap: 10px;
+    font-size: var(--es-text-body);
+}
+
+html.is-kiosk .page-header h2,
+html.is-touch-tablet .page-header h2 {
+    font-size: var(--es-text-title);
+}
+
+html.is-kiosk .compact-item .inv-name,
+html.is-touch-tablet .compact-item .inv-name {
+    font-size: var(--es-text-body);
+}
+
+/*
+ * Modals: elegant.css centres them only at min-width 640px. Many kiosk
+ * WebViews report a narrower CSS width, so sheets stayed glued to the bottom
+ * while the same page on a PC floated in the middle. Match the desktop tablet
+ * dialog on kiosk / touch-tablet.
+ */
+html.is-kiosk .modal-overlay,
+html.is-kiosk #recipe-overlay,
+html.is-kiosk #chat-overlay,
+html.is-touch-tablet .modal-overlay,
+html.is-touch-tablet #recipe-overlay,
+html.is-touch-tablet #chat-overlay {
+    align-items: center;
+    padding: 16px;
+}
+
+html.is-kiosk .modal-content,
+html.is-kiosk .recipe-dialog,
+html.is-kiosk .chat-sheet,
+html.is-touch-tablet .modal-content,
+html.is-touch-tablet .recipe-dialog,
+html.is-touch-tablet .chat-sheet {
+    border-radius: var(--radius, 16px);
+    max-height: 86vh;
+}
+
+/* ── A kiosk never blurs the backdrop ────────────────────────────────────────
+ * `backdrop-filter` on a FULL-SCREEN overlay is re-composited on every frame, and on an
+ * Android WebView with a modest GPU opening SHELFY (a `.modal-overlay` covering the whole
+ * dashboard, itself a page of photos and shadows) froze the page long enough for the
+ * kiosk's 6 s page watchdog to reload the app — which the household sees as "the app
+ * restarted". A frosted scrim is not worth a restart: on a kiosk the scrim stays flat.
+ * ========================================================================= */
+html.is-kiosk .modal-overlay,
+html.is-kiosk .modal-content,
+html.is-kiosk .sheet-backdrop,
+html.is-kiosk .scan-search-sheet,
+html.is-kiosk .scan-status-msg,
+html.is-kiosk .shelfy-confirm,
+html.is-kiosk #capture-sheet,
+html.is-kiosk #shelfy-intro,
+html.is-kiosk #shelfy-confirm,
+html.is-kiosk #chat-overlay,
+html.is-kiosk #chat-sheet,
+html.is-kiosk #recipe-overlay,
+html.is-kiosk .recipe-dialog,
+html.is-kiosk .cooking-finish-card,
+html.is-kiosk .cooking-voice-hint {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+/* ── A long list is laid out for real, not estimated ─────────────────────────
+ * v1.31.11 tried `content-visibility: auto` + `contain-intrinsic-size: auto 88px` here, to stop
+ * the engine laying out 197 rows at once. Measured on these very stylesheets at a tablet
+ * viewport, it does the opposite of what it promises: an off-screen row is laid out 90 px while
+ * the SAME row is 102 px the instant it becomes relevant (and the plain rule is 114 px), so the
+ * list's height is computed from numbers that are not the rows, the scrollbar lies, a
+ * `scrollIntoView` lands somewhere else, and every row resizes as it enters the screen — on a
+ * 197-row pantry that is ~2 400 px of accumulated error under the household's finger, and it
+ * looks like a rendering fault. The wall does not need it either: the boot storm it was written
+ * for is answered by the read cache in `api()` (`_API_READ_CACHEABLE`), which is where the eight
+ * `inventory_list` calls of one boot were actually coming from.
+ * ========================================================================= */
+
+/* ── A kiosk does not offer a voice it cannot use ────────────────────────────
+ * The fallback card's "🔄 Riprova a voce" called `_captureStartVoice()` with no guard: on the wall
+ * the recogniser started, Android refused the microphone (a permission surface cannot come to the
+ * front over a locked-task Activity) and the sheet printed `capture.mic_denied` — *"Microfono non
+ * consentito: controlla i permessi del browser"* — sending the household to check permissions that
+ * are perfectly fine. The tablet HAS a microphone; it is SHELFY that cannot listen there. The card
+ * keeps the chat (its other way forward, which always works) and the example phrases, one per tap.
+ * `_captureRetryVoice()` and `_captureStartVoice()` refuse on a kiosk as well, so the button being
+ * hidden is a courtesy and not the only defence.
+ * ========================================================================= */
+html.is-kiosk #capture-fallback .capture-fallback-retry { display: none; }

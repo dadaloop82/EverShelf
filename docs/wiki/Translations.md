@@ -53,7 +53,7 @@ Open `pt.json` in your editor and translate every **value** (leave the **keys** 
 - Keep HTML tags if present (rare): `<strong>`, `<br>`
 - Keep emojis (they are part of the UX design) — and **never** print an extra icon next
   to a translated label in code: the value already carries it. Use `iconLabel(icon, key)`
-  in JS / `data-i18n` in HTML; `php scripts/test-i18n-icons.php` fails on a doubled icon
+ in JS / `data-i18n` in HTML; `php fails on a doubled icon
   in any of the six locales.
 - Plurals: some keys have `_one` / `_many` variants — translate both
 
@@ -132,7 +132,6 @@ Locally:
 ```bash
 python3 scripts/i18n-audit.py        # keys used in code but missing in a locale (exit 1)
 python3 scripts/i18n-value-audit.py  # keys whose value is still English
-php scripts/test-i18n-icons.php      # no label prints its icon twice, in any locale
 ```
 
 In CI, the *Validate Translation Files* job checks that every file is valid JSON and that

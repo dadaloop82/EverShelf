@@ -5,6 +5,704 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-11-13
+
+### Demo mode is a real flag, and it has a pantry
+
+The demo was documented (`DEMO_MODE=true`, `?demo=1`, "a mock pantry with sample
+data is loaded") and it did not work: the mock pantry did not exist — the flag only
+blocked the writes, so a visitor saw an empty app — an install with no `API_TOKEN`
+minted one and asked the visitor to pair, `X-Frame-Options: SAMEORIGIN` refused the
+iframe of the marketing site, and every write answered `403 demo_mode`, which the UI
+printed as an error toast. A demo can now be opened by the site and looks like a
+lived-in pantry.
+
+- **A flag, three ways in.** `DEMO_MODE=true` (a demo deployment), `?demo=1` (that URL:
+  the flag is never written into the browser, so the pantry is normal again as soon as
+  the URL is) and `DEMO_BASE_PATH` (default `/demo`, the address the marketing site
+  embeds).
+  `evershelfDemoRequested()` is the one place that answers, and it is decided before
+  the database is opened.
+- **The demo has its own database.** `data/demo/evershelf-demo-<lang>.db`, created
+  from `api/lib/demo_seed.json` (30 products across the pantry, the fridge and the
+  freezer, a month of `in`/`out`/`waste` history, five shopping rows) and rebuilt once
+  a day so the expiry dates stay relative to today. The household's
+  `data/evershelf.db` is never opened in demo mode, so flipping the flag on a real
+  install cannot expose the pantry. Every screen reads real queries: nothing is
+  mocked, so the demo cannot drift from the app.
+- **Language follows the visitor.** The seed carries every product name in the six
+  shipped languages; `?lang=de` opens the German demo database (interface *and*
+  products), and with no `?lang=` a demo starts in **English** — not in the browser's
+  language, because a showcase is not the visitor's pantry.
+- **Nothing asks a visitor anything.** The demo database ships every answer already:
+  `setup_done`, `setup_seen` at the current `askVersion` of every assistant question
+  (`notify`, `price`, `zerowaste`, `telegram`, `webpush`, `healthcheck`,
+  `shopping_remove_on_buy`) and `med_setup_done`, so neither the setup wizard nor
+  «💊 Farmaci in casa?» opens over the showcase (`_demoSuppressOnboarding()` is the
+  client-side belt, for a demo database seeded before those keys existed). Outside the
+  demo the assistant keeps asking the undecided options at startup, one card at a
+  time, with its explanation and a choice.
+- **The demo describes itself, not the host.** `get_settings` blanks what `.env` and
+  the household's files would reveal (rooms, coordinates, Bring! e-mail, TTS/AI
+  endpoints, Home Assistant, Mealie, personal prefs), the spend ledger is the demo's
+  own (`data/demo/shopping_spend-<lang>.json`) and shopping always uses the internal
+  list — `isShoppingBringMode()` refuses Bring! in demo, or the visitor would read the
+  family's real list. `backup_list`, `health_status`, `ha_*`, `weather_*` are refused,
+  and the read allow-list now carries the actions the screens really call (`med_status`
+  was answered with the write no-op, leaving the boot's medicine switch blank).
+- **It opens without pairing.** `evershelfEnsureApiToken()` does not mint a token on
+  a demo request, `evershelfActionNeedsAuth()` and `evershelfRequireAuthForSensitive()`
+  step aside, `app_bootstrap` answers `api_token_required:false` and `health_check`
+  stops hiding the diagnostics behind the public probe.
+- **Writes are an honest no-op.** A blocked write answers
+  `{"success":true,"demo_mode":true}` instead of `403`, so a demo does not fill up
+  with error toasts; AI generation keeps its `403 demo_mode` (it costs money and
+  would answer nothing).
+- **It can be embedded.** In demo mode the API sends
+  `Content-Security-Policy: frame-ancestors` (`DEMO_FRAME_ANCESTORS`, default `*`)
+  instead of `X-Frame-Options`; `.htaccess` does the same for the static
+  `index.html`, keyed on `/demo/…` or a vhost that sets `EVERSHELF_DEMO=1`.
+  `<iframe src="https://…/demo/?lang=en">` now works.
+- A browser that blocks storage (a third-party iframe) no longer takes the app down:
+  `localStorage`/`sessionStorage` are shimmed with an in-memory mirror when they throw.
+- The header badge is translated (`demo.badge` / `demo.hint`) and the shopping list is
+  the seeded one, in the visitor's language, instead of the Italian hardcoded mock.
+
+### Fixed
+
+- **An answered support question came back at every start** (reported: «perché esce sempre
+  nonostante abbia scelto "Later"?»). Two bugs, one symptom: `database.php` decided the
+  demo database by asking `env()` while `DB_PATH` was still being defined, and the
+  settings-override loader answered "no overrides" *and cached it* — so on an install with
+  a read-only `.env` (this one) every saved setting was ignored, `SUPPORT_DECIDED`
+  included. The loader now answers without caching until `DB_PATH` exists, and the
+  inventory of overrides loads again (85 entries on the field install). The answer also
+  carries a clock now (`SUPPORT_ANSWERED_AT`): a **donation is never asked again** (the QR
+  has been shown and used — only Settings can change it), while «Later» keeps the dialog
+  away for about six weeks and then lets it return on a random start (one boot in four,
+  i.e. roughly one reminder every other month, never on a schedule). An answer stored
+  before the clock existed starts it on the next boot.
+- **The demo stole the household's language.** A `?demo=1&lang=en` visit wrote
+  `evershelf_lang=en` into the SHARED key, so the pantry came back in English after the
+  showcase (the choice is now namespaced like the offline mirror: `evershelf_lang` for
+  the household, `evershelf_lang:demo` for the demo).
+- **The DEMO badge was invisible.** Its inline style was cream text on a translucent amber,
+  written for the old dark header: on the white header the chip read as EMPTY (the word was
+  there, at about 1:1 contrast). It is `.header-demo-badge` in `style.css` now — amber with
+  dark brown text in the light theme (6.4:1) and a soft amber with light text in the dark one.
+- **A demo must not follow the visitor home.** The first cut of the flag mirrored
+  `?demo=1` into a `path=/` cookie, so after a demo visit the WHOLE origin answered
+  demo — `https://<host>/dispensa/` included — until the browser session ended. No
+  cookie is written any more: the flag travels in the URL and the client repeats
+  `demo=1&lang=…` on every API call (including the raw `app_bootstrap`, `health_check`
+  and offline warm-up fetches), and every boot deletes the cookie left behind. The
+  **offline mirror is namespaced by mode** (`…:v2` / `…:v2:demo`), so a demo visit can
+  no longer seed the household's cached inventory — which is what kept printing demo
+  products on the normal app before it could authenticate.
+- **A fresh database could not boot.** `initializeDB()` created `products` without
+  `kind`, and the migrations read that column before the `ALTER` that adds it, so the
+  first request of a brand-new installation (and of every demo database, created from
+  scratch) died with `no such column: kind`. `initializeDB()` now writes the current
+  schema and the pass is guarded for databases that predate it.
+- `health_check` looked at a hardcoded `data/evershelf.db`: in demo mode it now checks
+  `DB_PATH`, i.e. the database the app is really answering from.
+
+## [2.0.0] - 2026-11-12
+
+### A major release — the refactor the household feels
+
+The number changes because this is not a patch on the last tagged version on `main`
+(**1.16.16**): the settings page, the idle screen, every list, the medicine cabinet, the
+stocktake, the API's security and the upgrade path were all reworked, and almost every screen is
+the same app wearing a new grammar. Nothing about the data changes — it is repaired and verified
+on the first boot — but this is a 2.0 by any honest reading.
+
+The sections below (1.32.0, 1.31.x, …) are the detailed log of that line of work: they were never
+released on their own, and they are kept because they say *how* each piece arrived and what was
+measured.
+
+### The idle screen is an ambient kitchen dashboard
+Asked for: «rifai completamente lo screensaver… visivamente risulta piatto… testi troppo generici…
+lo stile è slegato dal resto di EverShelf». The clock and a random sentence from an encyclopedia
+became a dashboard that reads the household's own database.
+
+- **A card at a time, four real views** (`assets/js/screensaver.js`, its own file like
+  `audit.js`): **meal** (the slot of the day + the plan, with a recipe from the archive the
+  pantry can cook NOW — nothing missing scores highest, an ingredient about to expire scores
+  more, plus ⏱️/🔥/🥩), **alerts** (up to three things to eat first: opened past its window,
+  expired, expiring — each row opens the product sheet; with nothing to do the card celebrates
+  the 30-day milestone), **nutrition** (the category pie + health/variety/freshness rings, high
+  contrast, plus one insight generated from the weakest score) and **fact** (five dynamic
+  templates: shopping list, savings vs waste, weather + the thing expiring first, the medicine
+  cabinet, the shape of the pantry). A view with nothing to say is skipped, never painted empty.
+- **EverShelf's own palette on pure black**: dark-glass cards (`#121514`, 1px `#222926`,
+  20px radius), emerald for what you act on, amber for expiring, coral for critical, sky for
+  context — including the **context pill** under the clock (weather from `weather_get` + the
+  plan of the moment) and a **footer** with the vital numbers (`🛒 22 in lista · €80,28 ·
+  ⚠️ 3 in scadenza · 📦 5 aperti`).
+- **Interaction that belongs to a wall**: a **tap flips the view** (it no longer closes the
+  screen — an accidental brush must not take the clock away), a swipe left/right does the same,
+  a **swipe up** unlocks, and a **«Sblocca»** pill (bottom centre) plus **Esc** are the explicit
+  way back. The idle listeners now leave the screen alone (`initInactivityWatcher` returns early
+  while it is up) instead of dismissing it on the first `pointerdown`.
+- **Burn-in**: the whole stage drifts a few pixels every 2.5 minutes (`transform` only) and the
+  card is the only thing that changes, so a wall showing the clock for hours stays even.
+- **Configurable under Aspetto**: four switches (meal / alerts / nutrition / fact) and the pace
+  (15 · 20 · 30 · 45 · 60 · 90 s, **default 30**) — `SCREENSAVER_VIEWS` + `SCREENSAVER_INTERVAL`,
+  stored with the rest and shown in the same card as the timeout, with a nearest-option fallback
+  so a value coming from `.env` never leaves the field blank.
+- **The change of card is a movement, not a cut** («vorrei una bellissima animazione di
+  dissolvenza dall'alto»): the outgoing card dissolves going **up** (opacity + `translateY(-30px)`
+  + a 5 px blur, 420 ms) and the new one comes back **down from the top**, its blocks settling one
+  after the other (`--ss-el-delay` 110 → 350 ms). Two phases in JavaScript (`is-out` → swap →
+  `is-pre` released on the next frame with a forced reflow): one class swap would interpolate
+  from a state the browser never painted, and the card would pop. `prefers-reduced-motion` falls
+  back to a 200 ms fade with no transform and no blur, and a 700 ms safety timer clears the
+  states anyway, because an invisible wall is the one bug nobody can work around. The pace also
+  went up to 30 s by default: 20 s was too quick to read a card.
+- **The forced run keeps working and gets easier**: `?screensaver[=N]` and «▶️ Anteprima 30 s»
+  still show it for N seconds without touching a setting; the pin bar's ⏭ now names the next
+  card (`_ssNextViewLabel`) and its ✕ still prints the time left.
+- **It starts ALWAYS, after the timeout you set** («lo screensaver deve partire SEMPRE dopo il
+  tempo stabilito tranne in modalità cucina»): on the pantry, the shopping list, the scanner,
+  with a SHELFY turn or a product sheet open. A wall screen is not something the household has
+  to be idle for, and the screen is an overlay — «Sblocca» / a swipe up puts back the page
+  underneath, untouched. The guards that used to keep it silently away (scan/spesa/add flows,
+  a live voice turn) are gone from `_screensaverBlockedPage()`; the **one** exception is
+  **cooking mode** (`body.cooking-mode-active`, the recipe is the session), which clears the
+  pending clock on entry and re-arms it in `closeCookingMode()`. Both cameras are stopped while
+  the screen is up (`stopScanner()`, `_auditScanStop()` — a stream behind an opaque overlay is a
+  LED and a heater for hours) and the scan page gets its reader back on unlock (`resumeScanner`).
+- **The meal card proposes a recipe you have ALREADY cooked.** Filed under «colazione» it offered
+  «Crostini di pan bauletto con pomodoro e stracchino» because the clock said nine — the slot of the
+  day was a guess, not a fact. The slot is not a filter any more: the card takes a recipe from the
+  household's own archive that the pantry can cook right now and says **«fatta 11 giorni fa»**, with
+  the question **«ti era piaciuta?»** and two thumbs. The vote posts `recipes_rate` (so the archive
+  learns and the next choice is better), the card thanks at once, `_ssLastRecipeId` keeps the same
+  dish from coming back twice in a row, a well-rated recipe weighs more, one cooked yesterday
+  weighs less, and with nothing cookable the card is skipped instead of painted empty.
+- **A phone is not a small tablet.** On a 393 px screen the card is no longer taller than the band
+  (the recipe's eyebrow was printed over the date, the action half cut) and nothing overflows
+  sideways: below 460 px the whole scale is one step smaller, the charts stack (pie above the
+  rings) instead of sharing a row that pushed the card past the right edge, long chips and titles
+  wrap instead of pushing, the stage reserves the pinned bar's 152 px only when the bar exists, and
+  the card starts at `flex-start` (a flex column centred on content taller than its box pushes the
+  first block above the top edge where no scroll can reach it). The portrait panel rules are
+  `(orientation: portrait) and (min-width: 461px)`, so they cannot win back through the cascade.
+  Measured at 360×640 and 393×740 with a worst-case card: horizontal overflow **0**, no content
+  above the viewport, internal scroll **0** on the recipe card at 393.
+- **Portrait is its own layout, not a squeezed landscape** («quando lo schermo del tablet è
+  portrait le scritte sono troppo piccole e c'è moltissimo spazio vuoto inutilizzato»): every
+  size of the screen was tuned on the WIDTH of a landscape monitor, so standing upright the same
+  `vw` gave a tiny clock and a card floating in a black field. `@media (orientation: portrait)`
+  now reads the narrow side instead — clock `clamp(4.4rem, 17vw, 9rem)` (measured **123 px** on
+  a 724 px tablet instead of 79), title `clamp(1.7rem, 5.2vw, 2.6rem)`, chips, rows, rings and
+  the vitals all a step up — and the card becomes a **PANEL**: full width, `min-height:
+  clamp(240px, 40vh, 520px)`, its blocks centred, the rows of «Da consumare» sharing that height
+  (`space-evenly`) instead of bunching at the top. Measured on the same tablet: the card is 632 px
+  wide and 39 % of the height (was ~24 %), no horizontal overflow. The context pill became an
+  `inline-block` (as a flex row its `·` separator fell onto its own column when the text wrapped)
+  and the place name is shortened to the city it starts with — «Bolzano, Trentino-Alto Adige,
+  Italia» is a mailing address, not a label. Landscape and the ≤640 px phone rules are untouched.
+- **Text: no hardcoded string, and the audit can see all of it.** Every label of the idle
+  screen is a literal `t('…')` call (four explicit keys per view instead of one built from a
+  variable) and `assets/js/screensaver.js` was added to `SRC_JS` in
+  `scripts/i18n-audit.py` — the new file was outside the guard, so its keys were unchecked.
+  The audit immediately earned it: two comments that contained `t('…')` were read as a real
+  key and reported missing in all six locales. The pin bar's fallback label («Grafici») was
+  the last hardcoded word on the overlay and is now painted by the engine.
+- Validated in headless Chromium with a 700 ms timeout and stubbed data: it started on the
+  shopping page, on the scan page and with a SHELFY turn open, did **not** start in cooking mode,
+  and started again once the recipe was closed (`errors: []`).
+- **Found on the way**: `requestAnimationFrame` alone left the fade step at opacity 0 on a
+  hidden wall (a blank screen) — `_ssNextFrame()` adds a 150 ms timeout fallback; a nutrition
+  view with nothing to chart now keeps the previous card instead of an empty one; the phone
+  layout put the pinned controls over the clock (moved to the bottom below 640 px, where the
+  round shortcuts are hidden: on a phone «Sblocca» and the nav are enough).
+- Validated in headless Chromium with stubbed data: first card `meal` (emerald) with a real
+  recipe, missing/expiring chips, context `🌧️ 11°C · Bolzano · 🌙 Pesce`, footer
+  `⚠️ 3 in scadenza · 📦 1 aperto`; **tap → `alerts` and the screen stayed open**; swipe up →
+  dismissed; settings loaded `alerts,fact` + 45 s (shown as 30) and saved `meal,alerts,fact` +
+  60 s; `errors: []`. Layout checked at 1280 and 500 px.
+- Also: the old screensaver styles and the 500-line fact generator are gone, the nav index and
+  the wiki describe the new engine, and the service worker caches the new file.
+
+### Merge preparation — the audit before `develop → main`
+
+- **One compatibility bug found and converted automatically.** `.env.example` documented
+  `SCREENSAVER_TIMEOUT` in **seconds** (`300` = five minutes) while the settings card, the
+  select (1…60) and `_screensaverTimeoutMs()` all speak **minutes**: an existing install waited
+  five hours and the field showed up empty (the next save then silently rewrote it as 5).
+  `screensaverTimeoutMinutes()` reads a value above 60 as seconds and converts it, clamps to
+  1…60 on write, `.env.example` states the unit, and `_selectNearestOption()` makes any select
+  fall back to the closest option instead of a blank field (`screensaver_timeout` and
+  `screensaver_interval` both use it).
+- **Translations verified, not assumed.** All six locales carry the same 3,327 keys (three
+  orphan `inventory.price_*` keys removed from `de`), `screensaver.js` is inside
+  `scripts/i18n-audit.py`, every static text node of the new markup carries `data-i18n`, and the
+  two `data-i18n-html` fallbacks (CA instructions, BLE protocols) are English now instead of
+  Italian.
+- **Comments and docs are English.** The remaining Italian prose comments in `api/index.php`,
+  `api/cron_smart_shopping.php`, `app.js` and `surfaces.css` were translated (quoted UI labels
+  and the household's own words stay quoted on purpose).
+- **README rewritten from scratch** — what the refactor changed and why, the last five releases
+  only, the repository in ten lines, install, privacy, contributing. `CODEBASE-MAP`,
+  `ARCHITECTURE`, `Configuration` (the four idle-screen keys), `Features` (the control panel),
+  `Home`, `ROADMAP`, `OPTIMIZATION-BACKLOG` and `Support-and-ads` (the idle screen has no banner
+  slot any more) all follow the code again.
+- **Dead code removed**: `SCREENSAVER_FACT_DURATION`, `_screensaverFactInterval`,
+  `_captureTurnLive()`, the `.screensaver-ad` rule (the markup it styled is gone).
+### Repository cleanup — only what the app needs
+
+- **Deleted from the tree** (all of it recoverable from git history):
+  - `_probe.html` — a probe page left at the root;
+  - `test_recipe_stream.php` — a CLI test at the root (its historical HTTP leak is documented in the
+    changelog; the image already excluded `test_*.php`);
+  - `scripts/sync-i18n.py` — a one-off key-sync script with a stale hardcoded dictionary,
+    superseded by `scripts/i18n-audit.py`;
+  - `assets/img/demo.gif` (**9.8 MB**, referenced nowhere since the README rewrite) and
+    `assets/img/screenshots/*` (9 JPGs of the **pre-refactor** UI plus a README describing PNGs
+    that never existed).
+- **Kept on purpose, now documented** in *Configuration → Database → Maintenance helpers* so they
+  are not orphans: `fix-expiry-anchors.php` (repairs the dates an older install anchored on the
+  wrong day), `consolidate-duplicate-products.php`, `import-medicines.php`,
+  `fix-permissions.sh`, `install-transformers-model.sh`.
+- The brand artwork (`logo*.png`, `social_preview.png`) and the vendored minified libraries stay:
+  they are hot-linked by the website, the manifest and the service worker.
+- **The branch is not part of the product.** The README no longer names a branch (it talks about
+  «2.0 is a large refactor»), `CODEBASE-MAP` measures the release, and the **three git labels**
+  (header, splash chip, Settings → About) start **empty**: `scripts/bump-version.sh` fills them
+  from git only on a feature branch and clears them on `main`/`develop`, and `:empty` hides an
+  empty chip (its `margin-left` was a gap). A released install shows the version and nothing else.
+  Verified on the real page: all three `display: none`, `.header-version` carrying the version, no JS error.
+  The **43 older headings** (1.23–1.28) that carried a `· branch …` suffix are plain
+  `## [x.y.z] - date` again: the release history does not name a branch either.
+- `.dockerignore` keeps the `test_*.php` rule as a safeguard (no such file ships today), the
+  stale `docs/openapi.yaml` and `scripts/fixtures/*` references are gone, and the tracked file
+  count went from **361 to 339**.
+
+All the gates were re-run on the final tree: 54 PHP files lint, every JS file (`node -c` /
+`--check`), `shellcheck`, `gen-settings-schema --check`, `gen-code-index` (no drift), `i18n-audit`
+(0 missing), `i18n-value-audit`, settings coverage (0 undocumented), the five generators (no
+diff), 0 duplicate ids, balanced HTML/CSS, and `check-upgrade-migration` **48/48** from
+`origin/main`.
+
+## [1.32.0] - 2026-11-12
+
+### The settings panel is a control panel now — and it saves itself
+Asked for: «bisogna trovare il modo per rifare e riorganizzare tutto il pannello di
+configurazione… Ogni salvataggio deve essere automatico! Il bottone Salva non deve esserci…
+Le informazioni ESSENZIALI (token, ecc) devono essere subito visibili».
+
+- **Six sections instead of eighteen tabs in two underline strips.** The rail is
+  `🏠 Generali · 🍳 Cucina · 🤖 AI e voce · 💊 Farmaci · 🔔 Avvisi e integrazioni · 🔒 Sistema`:
+  a sticky sidebar on a monitor (`grid-template-columns: 212px minmax(0, 1fr)`), a swipeable
+  strip of pills on a phone. The topics of the open section are quiet chips under it, so one
+  level is visible at a time and the page is no longer one endless scroll.
+- **The strip used to show every chip of every section.** `_syncSettingsGroupForTab()` skipped
+  the visibility pass when the tab already belonged to the active section, which on a fresh
+  boot (no `.active` yet) left all eighteen on screen — the wall this redesign removes.
+  `_syncSettingsTabsVisibility(group)` is now the one rule both paths call (measured: 2 chips
+  in Generali, 5 in Cucina, 5 in Sistema).
+- **Essentials above the sections, never behind a tab** (`_renderSettingsEssentials()`): the
+  access token (masked, 👁 reveal, 📋 copy), the pairing code with its countdown, the last
+  backup with **💾 Backup adesso**, and the version. Four tiles — 4 columns on a desktop,
+  307 px of compact rows on a phone (measured in headless Chromium at 500 px: the first draft
+  was 620 px, so below 560 px the long hints and the «Gestisci» links — which repeat the rail
+  one scroll below — are the first things to go).
+- **No Save button anywhere on the page.** `_initSettingsAutosave()` is a delegated listener on
+  `#page-settings`: a checkbox/select/radio is written at once, a field 700 ms after the last
+  keystroke, and each control's card or panel names its own saver with
+  `data-autosave="saveNotifySettings|saveHaSettings|saveCalendarSettings|saveTelegramSettings|`
+  `saveWebPushSettings|saveHealthProfileFromSettings"`; `data-autosave="none"` marks the module
+  that already writes itself (EverShelf Med), so a generic save does not re-post the whole page
+  for nothing. `saveSettings()` is now **one write at a time** (it rewrites `.env`, and two
+  overlapping posts are two writers on one file) and returns whether the server accepted it.
+- **The sticky bar is the receipt, not a button**: pending → saving → saved/error, and it can no
+  longer say «Salvato» after a refused write — which the headless probe caught on an unpaired
+  browser (`_saveSettingsInner` now returns the verdict and the flush honours it).
+- The five inline "Salva" wrappers and the page-level one are gone; the checklist's primary is
+  emerald (`btn-primary`), not a purple button in a green page.
+- **The CA instructions moved into a dialog** (`#ca-help-overlay`, Esc closes it): the security
+  card keeps the download button and one «❓ Come lo installo?», instead of half a phone screen
+  of numbered steps.
+- **Reorganised where it was only historical**: places get their own topic (`tab-locations`),
+  export/import + the automatic naming rules become `tab-data` under Sistema, the zero-waste
+  tips join Ricette (they are about cooking), and camera/voice sit with the AI engine.
+- **Every section carries a count badge** of the options still waiting for a decision — the same
+  number the checklist prints (`_renderSettingsSectionBadges()`), so «2 da decidere» is visible
+  without opening anything. Search stays at the top in its own slot, with the Ctrl/⌘+K hint, and
+  still jumps across sections.
+- **Two bugs in the schema generator, found by this work**: a panel that grows an attribute
+  (`data-autosave`) stopped matching the panel regex, so its controls were attributed to the
+  previous panel; and the scanned region ran to the end of the file, so the recipe dialog's
+  `recipe-persons` / `recipe-opt-mealplan` were offered by the settings search although they
+  are not on this page. Fixed both (`</main>` closes the region). The sweep also learned that a
+  `.settings-stepper-row` is a block of its own and prefers `<label for="…">` as the label, so
+  the one-line steppers (`Inventario veloce`, `Preferiti automatici`, the new retention rows)
+  are named by the label the household reads — and the manual entry that used to patch the
+  stocktake stepper is gone (it became a duplicate the moment the sweep learned about rows).
+- **The double icons are gone.** The six section pills drew their own icon *and* the translated
+  label still carried its emoji (`🏠 Generali` next to a 🏠 span), and the pairing tile did the
+  same with `settings.security.pairing_title`. The labels are now emoji-free (the rail draws the
+  icon) and the tile has its own `settings.essentials.pairing_label` — verified by a script that
+  compares every icon span with the translation it sits next to (0 pairs left).
+- **Three settings the server honoured and no screen could set are now in the UI.** A coverage
+  audit of `save_settings()` (keyMap + boolMap + intMap + floatMap, 124 writable keys) against
+  the generated registry found `RECIPE_RETENTION_DAYS`, `TRANSACTION_RETENTION_DAYS` and
+  `VACUUM_EXPIRY_EXTENSION_DAYS` with no control at all: they are now the **🗄️ Conservazione dei
+  dati** card in Sistema → Dati (`setting-recipe-retention-days` 1–365,
+  `setting-transaction-retention-days` 30–3650 — 30 is the floor the server enforces —,
+  `setting-vacuum-expiry-extension-days` 0–180), loaded from `get_server_settings` (the three
+  keys were missing from both `serverKeys` whitelists too) and saved by the same autosave.
+- **The `.env` side is complete too**: 13 keys the app writes were missing from `.env.example`
+  (`DARK_MODE`, the five shopping switches, `WEATHER_*`, `GDRIVE_CLIENT_ID/SECRET`,
+  `ZEROWASTE_TIPS_ENABLED`, `APP_LANG`, `VACUUM_EXPIRY_EXTENSION_DAYS`), the generator now also
+  reads the commented optional keys (`# TELEGRAM_BOT_TOKEN=`), six controls got their real env
+  name through `$idToEnv` (a control without it is invisible to whoever searches the key), and
+  the allowlist documents the 28 keys that stay shell-only on purpose (security, logging, the
+  parked banner slots, the MCP port, the token price table). Result: **0 writable keys
+  undocumented, 0 generator warnings.**
+- **A screensaver you can ask for** (`?screensaver` / `?screensaver=90`, and the «▶️ Anteprima
+  30 s» button in the card): it shows the idle screen now — 60 s by default, 6 h cap — and
+  closes by itself, without touching the setting. **A forced run is pinned** («quando forzo lo
+  screensaver non deve uscirmi»): a tap, a key or a scroll does **not** take it away — on a wall
+  that is the first accidental touch — so it ends with its window, or from the **✕ «Esci»** in
+  the corner, which also prints the time left; the ordinary screensaver still closes on any
+  touch. Next to it, **⏭ «Grafici» / «Curiosità»** (`_cycleScreensaverView`) scrolls the two
+  versions of the idle screen — the fact and the nutrition charts rotate every five minutes, and
+  a preview that cannot scroll them shows half the screen; the button names the view it will
+  show, a manual pick is not undone when the data lands (`_ssManual`) and a view with nothing to
+  chart keeps the fact instead of a blank wall. It waits for the splash (an overlay under
+  `#app-preloader` is a clock nobody sees) and a running session (scan, cooking, SHELFY) wins
+  over it. Found on the way: `dismissScreensaver()` re-armed the idle clock unconditionally, so
+  a dismissed screen came back on its own five minutes later on an instance where the switch is
+  OFF — it now re-arms only when `screensaver_enabled` is true. The fade-in of each view no
+  longer depends on `requestAnimationFrame` alone (`_ssNextFrame`: a hidden kiosk screen never
+  paints, and a view stuck at opacity 0 is a blank screen).
+- **Translations**: the 43 new keys exist in all six locales with real translations (the new
+  retention card included); `scripts/i18n-audit.py` reports every locale complete and
+  `i18n-value-audit.py` has nothing new to report.
+- **Nothing was lost, one thing was doubled**: the registry went 118 → 119 controls (two dialog
+  controls that were never on this page removed, the three new retention rows added, and
+  `setting-audit-batch-size` counted once instead of twice), every panel is still there (20),
+  every card still there (63, the new retention one), 0 duplicate ids in the page and 0 entries
+  without a label.
+- Validated: `node -c assets/js/app.js`, `php scripts/gen-settings-schema.php`,
+  `php scripts/check-settings-coverage.php` (122 writable → 102 with a control, 20 documented,
+  **0 undocumented**),
+  `python3 scripts/i18n-audit.py` (six locales complete), the DOM is balanced (0 unbalanced
+  closes in the page) and a headless probe reports `groups: 6, panels: 20, essentials: 4,
+  saveButtons: 0, autosave saved/error, retention 14/120/45 loaded and 60 saved (a typed 5 is
+  clamped to 30), search jump ai → tab-tts, errors: []`.
+
+## [1.31.35] - 2026-11-12
+
+### The active ingredient goes on the next line instead of off the screen
+Reported: «Liste farmaci: capita che il principio attivo va fuori dallo schermo in larghezza non va
+bene, mettilo accapo!».
+- In the cabinet list the medicine row's meta line was `white-space: nowrap` + ellipsis (one line,
+  by the same rule that keeps every card the same height), so «CLORTETRACICLINA CLORIDRATO» and
+  «ACIDO IALURONICO/SULFADIAZINA ARGENTICA» were **cut at the edge** — a fact the box is read for,
+  truncated. A medical row (`is-medical-row`) now wraps its meta (`white-space: normal;
+  overflow-wrap: anywhere`, so one long Latin word cannot push the card sideways); food rows keep
+  their single line, where the place and the category already say everything.
+- In the product/edit sheet the medicine facts were ONE horizontally scrollable line on a phone
+  (`flex-wrap: nowrap; overflow-x: auto` with the scrollbar hidden by `scrollbar-width: none`):
+  the ingredient ran past the right edge and nothing hinted there was more. The block wraps now
+  (`flex-wrap: wrap`) and the pills wrap inside themselves (`white-space: normal;
+  overflow-wrap: anywhere`, 12 px corners) — two short pills take the same height as the old
+  scroll line, and nothing is hidden.
+- Measured in headless Chromium at 360 / 393 / 800 px (and on the touch-tablet band at 1024):
+  page horizontal overflow 0, every meta line `scrollWidth === clientWidth`, every fact pill
+  inside its container.
+
+## [1.31.34] - 2026-11-12
+
+### The shopping list wears the same row as «In scadenza»
+Asked for: «puoi fare il layout di "liste" uguale a quello di "in scadenza" adattandolo alla
+situazione? Tutte le liste devono avere lo stesso layout e stile!». The shopping row was its own
+design — a 52 px pastel square, a title line carrying the badges, a subtitle line and a reason
+sentence under it, two round buttons on the right.
+- It is now the card of the pantry and the Home, down to the pixel:
+  `[photo strip] [name + brand / 📦 stock · 🛒 qty · 🍃 waste · 💶 price] [state] [✓] [✕]`.
+  The strip is `_productThumbHtml()` (the same `--row-photo-w` ladder and dissolve, the category
+  emoji when there is no photo, the drawn medicine mark for a drug), the text is the same
+  0.95 rem / 0.8 rem pair, the text block has the same 62 px floor and the action line the same
+  34 px — so a shopping row and a pantry row are **132 px** in both lists (measured 360 / 393 /
+  420 / 800 px, light and dark).
+- The facts of an aisle live in the meta line: the shelf (`🪫 Esaurito` / `🟩 3 pz`), the quantity
+  to buy (still a tap target: it opens the micro-popover), the anti-waste chip and the price
+  (still tappable). Brand, frequency and the reason code travel in the line's tooltip.
+- The state is ONE pill (`_shopRowStateBadge()` → `.alert-item-badge` metrics, the urgency's own
+  colour) for every row, and the two actions are the Home's (`✓` writes the outcome, `✕` is the
+  neutral "not this time"): the coloured left rail is gone, because two lists that are "the same"
+  may not carry two different urgency languages.
+- The swipe is untouched (left = bought, right = not buying it) and so is every hook
+  (`_initShopRowActions` now listens for `[data-act]`), and the "Suggeriti" strip keeps its own
+  compact row. Dead CSS/JS went with the old shape (`_shopRowVisualHtml`,
+  `_shoppingRowSubtitle`, `_shopRowFrequencyHtml`, `.shop-row-urgency-*`, `.shop-quick-btn`,
+  `.shop-row-freq`, `.shop-spark`).
+
+## [1.31.33] - 2026-11-12
+
+### The Home lists wait with the same SHELFY animation as the shopping list
+Asked for: «nella sezione liste quando viene generata una lista c'è una bellissima animazione con
+SHELFY eccetera, perché non l'hai fatta anche per in scadenza, aperti e dimenticati?». The skeleton
+was already being painted into `#expiring-list`/`#stale-list`, but the block starts `hidden` and
+`_syncStockHub()` computes its visibility from the rows it finds — zero while the request is in
+flight — so the animation lived inside a hidden panel: the household saw a blank area and then three
+rows at once.
+- `_stockHubLoading()` is the block's waiting state: the hub is shown, the same SHELFY avatar on the
+  breathing ring and the shimmer rows the shopping list paints go into **all three** lists
+  (`expiring`, `opened`, `stale` — the opened one had no skeleton at all), only the active tab's
+  panel is on screen, and the tab counts are blank instead of a wrong «0».
+- `_stockHubSettled('expiring'|'opened'|'stale')` hands the block back to `_syncStockHub()` when the
+  last list has answered: an empty block still hides itself, a failed load takes the skeleton away
+  instead of animating a promise that will never answer, and a tap on another tab during the wait
+  shows THAT panel's skeleton (`_stockHubSelect()` counts a `.list-loading` as content).
+- The boot's wait for the first paint is now **bounded** (`_SPLASH_DATA_WAIT_MS` = 2.5 s): the splash
+  used to hold the screen until `loadDashboard()` resolved, so on a slow answer the animation was
+  never seen at all. The skeleton holds the block's shape, so after that bound the Home is revealed
+  *with* its animation and the rows land under it (logged as `[BOOT] dashboard still loading …`).
+- Measured in headless Chromium with `stats` delayed 6 s: Home visible at ~2.5 s with the SHELFY
+  skeleton on the «In scadenza» panel, one panel on screen, blank counts; then 3 / 5 / 5 rows, no
+  skeleton left, counts correct. A tap on «Aperti» mid-wait shows that panel's skeleton.
+
+## [1.31.32] - 2026-11-12
+
+### One soft background per reason in the notice strip
+Asked for: «per ogni motivazione per cui crei un alert banner in alto puoi usare uno sfondo tenue
+diverso?». The strip was neutral for every kind («the system strip keeps its neutral surface
+whatever kind it is») — an open yoghurt, a loss check and a consumption prediction were the same
+card with different words, and the only signal was the rail.
+- Each reason now owns a HUE (`--banner-hue`) and the surface is a **soft wash** of it: 12 % → 4 %
+  over the theme's `--surface-bg` in light, 24 % → 8 % in dark. The theme still decides the paper
+  (light, dark, Corporate, Elegant); the tint only says WHAT the notice is about before a word is
+  read, while the rail keeps saying HOW URGENT it is.
+- The map, one line per reason: **amber** opened (warn) · **red** opened critical, expired danger ·
+  **emerald** a drink past its window (the kitchen answers) · **indigo** any medicine ·
+  **orange** expired warning · **green** expired but still good · **sky** an odd quantity (a look,
+  not a loss) · **violet** a consumption prediction · **cyan** ledger vs shelf · **slate** probably
+  finished · **rose** a double count · **teal** a missing date.
+- The «quantità insolita» strip was the only kind with no class of its own (`alert-banner`), so it
+  was the one that could never be recognised: it is `banner-review` now.
+- The theme layer no longer declares banner gradients and dark overrides (that was a second palette
+  competing with this one): `style.css` keeps the text colours, `surfaces.css` owns the surface.
+- Measured in headless Chromium (light and dark): twelve kinds, twelve distinct tints, one
+  consistent rail; the medical hue stays indigo whatever the clock says.
+
+## [1.31.31] - 2026-11-12
+
+### One row layout for every Home list
+Reported: «la lista "In scadenza", "Aperti" e "dimenticati" usano layout diversi e non va bene,
+devono usare tutte le liste lo stesso layout e quella in "In scadenza" è buono usa quello».
+The three tabs of the same block were three different cards: «In scadenza» drew `[date] [✓ Usa]
+[⋮]`; «Aperti» had no meta line at all, three blue chips in the strip and **no actions**; «Dimenticati»
+drew a bare `📅 12/03/2027` pill and its own pair of buttons, centred on the row.
+- The state badge is now ONE builder (`_alertStateBadge()`): the compact relative verdict the
+  «In scadenza» list already used (`tra 6 gg` / `OGGI` / `Domani` / `12 gg fa`), the classes
+  `style.css` owns (`today`, `expiring`, `expiring-soon`, `expiring-later`, `expired`) and the exact
+  date in the tooltip. «Scaduti», «Aperti» and «Dimenticati» call it too.
+- The two actions are ONE builder as well (`_rowMenuButtons()`), which now accepts the
+  `inventory_id` shape the forgotten endpoint returns — so the forgotten rows have the same
+  `✓ Usa` and the same `⋮` as every other card.
+- «Aperti» grew the meta line it was missing (place · 📦 stock) and moved the fact it is ABOUT —
+  how long the pack has been open (`🕓 18gg`, the sentence in the tooltip) — into the text, where
+  the pantry keeps its own opened age; the stock keeps the richer "1 conf (da 500 ml) + 250 ml"
+  wording through `_alertItemMeta(item, extra, { qtyText })`.
+- Removed the CSS the old shapes owned (`alert-item-badge.opened`, the five `opened-expiry-*`
+  colours, `stale-actions` and the centre alignment of `.stale-item`): a tab of the same block may
+  not paint a control of its own.
+- Measured in headless Chromium at 360 / 393 / 800 px: every row of the three lists is
+  **132 px** with a 62 px text block and a 34 px action line — the same numbers as the pantry
+  rows and as «In scadenza».
+
+## [1.31.30] - 2026-11-12
+
+### A medicine is not a tomato, not even in the shopping list
+Asked for: «i medicinali devono avere uno sfondo diverso (come hai fatto nei banner) e devono andare
+nella sezione Medicinali».
+- `SHOPPING_SECTIONS` gained a **💊 Medicinali** shelf (right after the household goods, before
+  «Altro»), and `getItemSection()` answers it first when the row is a medicine: the name-based guess
+  put «Rinore» among the drinks, and the household looks for it at the pharmacy counter.
+- The row wears the same indigo tint as the notice strip — `.shop-row.is-medical` /
+  `.smart-item.is-medical` — so it is recognisable without reading it. The **urgency rail stays the
+  authority on HOW urgent it is**: the tint only says WHAT the row is. The gradient is the only thing
+  painted (never the base colour): `.shop-row` is `--bg-card` and `.smart-item` is
+  `--es-surface-tint`, and the theme must keep deciding the paper under the tint.
+- `smartShopping()` now selects and returns `COALESCE(p.is_medical, 0) AS is_medical`, and the smart
+  cache carries the `medical_sections` schema marker: a payload written before the flag existed is
+  rebuilt instead of served, so no medicine can slip back among the carrots for three minutes.
+  A row typed by hand has no product behind it, so `_shopRowIsMedical()` looks it up in the pantry it
+  already holds, tolerating the variant words a box carries («Tachipirina» → «Tachipirina 1000 mg
+  compresse») and never matching on a two-letter stub.
+
+### No camera, medicine panel: the typed AIC is the whole door
+Reported: «se la fotocamera è disattivata e sono in modalità farmaci devo farmi comunque inserire
+manualmente il codice A e poi tu devi effettuare la ricerca come se lo avessi scansionato».
+- `_setScanModeInner()` opens the hand entry **at once** when the medicine panel has no camera, and
+  the hint stops asking to frame a label nobody can frame (`medical.code_no_camera`). Until now the
+  only door was the twenty-second rescue card, and `_medAskCodeSoon()` needs a stream — a phone with
+  no camera had no way at all to name a box by its code.
+- The lookup is the scan's own (`_medSubmitCode` → `_medConfirmRead`): catalogue verification, the
+  near-match picker and the name fallback all answer exactly as they do for a read code. The
+  medicine action bar keeps its place in the panel (it carries that button).
+
+### A peripheral that cannot work says why, in small red
+Asked for: «se ci sono problemi con periferiche o altro (microfono, fotocamera, altoparlante, ecc..)
+mi scrivi sempre sotto la motivazione tecnica in piccolo e in rosso?» — the tablet was saying «SHELFY
+non può ascoltare» with no reason, and the household read it as «non ha il microfono».
+- One helper, `_techReason()`, paints the engine's own words under the sentence that already exists
+  (`diag.*`, six locales, plus the raw detail the server log carries): the capture sheet
+  (`#capture-tech`), the scan page's no-camera card (`#scan-nocamera-tech`) and the cooking voice card.
+- The reasons are REAL, not a generic line: `SpeechRecognition` absent, a kiosk WebView, the
+  permission denied (`NotAllowedError`), **`audio-capture`** (no microphone at all — now its own
+  sentence, `capture.mic_missing`), no `getUserMedia` (and whether the page is a secure context — the
+  usual cause on a plain-HTTP LAN install), permission denied, no device, a driver error.
+- The MICROPHONE state is logged once per change — `[SHELFY] mic unavailable: … SpeechRecognition=…
+  secure_context=… kiosk=…` — so «il tablet dice che non ha il microfono» has an answer in
+  `data/logs/app-*.log`: on the wall the log reads `speech=true kiosk=true`, i.e. the recogniser is
+  there and it is SHELFY that does not open the microphone (the permission dialog recreates the
+  Activity).
+- `scripts/i18n-audit.py`: `shopping_sections.medicinali`, `medical.code_no_camera`,
+  `capture.mic_missing` and the ten `diag.*` lines exist in all six locales.
+
+## [1.31.29] - 2026-11-12
+
+### The opening window is the household's — averaged, never overwritten
+Reported together: «mi chiedi “aperta da” va bene ma metti anche “non aperta”, solo se la quantità
+corrisponde a quella della confezione chiusa».
+- `data/opened_shelf_life.json` stays the app's opinion; the two numbers the notice strip prints
+  («consigliato entro 3-6 gg») are now editable from the pantry edit sheet. `pao_observations`
+  (product × family × place) behind `pao_get` / `pao_save` / `pao_reset`
+  (`api/lib/pao_overrides.php`), and what every clock then reads is the **average of the
+  corrections** for that family in that place — one correction never rewrites a category.
+  `openedShelfLifeThresholds()` keeps `table_warn` / `table_critical`, so the sheet says where the
+  number came from and offers a reset; an install that never edited anything answers exactly as
+  before (`paoEnsureTable()` in `migrateDB()`).
+- **«Non aperta»**: a medicine marked open by a tap had no way back. The edit sheet clears
+  `opened_at` (`inventory_update` + `opened_at_clear`, the door the food sheet already used) and
+  nothing else — opening a medicine never rewrites the date printed on the box. It appears **only
+  while the pack is whole** (`_medPackIsWhole`: a whole number of the packs the product declares,
+  never 19 of 20); on a half box the block says why instead of writing something untrue. The
+  «Aperta da» block became `_medOpenSinceBlockHtml()`, repainted by both writes, so the control
+  always shows the stored answer.
+- The medical PAO table is v3: one rule per FORM with its words in the six shipped languages,
+  matched as whole words and accent-insensitively («comprime» finds «comprimé», «gel» no longer
+  fires on «Angelini»); single-dose containers carry 0 and `migration_med_pao_single_dose_v1`
+  re-derives the `1` that made a sealed 6-dose box read «da usare entro 1 gg dall'apertura».
+- `productKindIsPlausibleGenre()` refuses a CLASS with a tail too («Integratore alimentare a base di
+  erbe»), not only the exact umbrella label.
+
+### «Ti dico io» keeps the row you already confirmed
+Reported: «una volta fatto un articolo non lo ritrovo più nella lista… lo dovrei ritrovare con un
+badge “già confermato”». The search filtered answered rows out, so typing the name of the product
+just confirmed answered «Nessun prodotto per …» and offered to CREATE it again.
+- The row stays, carrying `audit_answered` (on a copy: the live caches are untouched), wearing a
+  badge in the answer's own words («Già confermato» / «già segnato finito» / «già segnato buttato» /
+  «già saltato») and a warmer surface, and it sinks below the open questions. Its action becomes
+  «Cambia risposta» (the card), because «✓ C'è» on an answered row writes nothing; the guard that
+  refuses a second press per row stays. Enter still lands on the first OPEN row.
+- The example in the field follows the SHELF: inventorying the medicines it asked for «Es: passata
+  di pomodoro». It reads «Es: paracetamolo» on a medical place (`isMedicalLocation`, or the pantry's
+  own filter when no place is chosen) and keeps the food example everywhere else.
+
+### No camera: the stream is off, the page is not
+Reported: «se la fotocamera non è disponibile… devi disattivarmi lo stream ma non l'intera funzione…
+tutto ciò che è manuale deve essere attivato», plus «il popup che esce è rotondo ed è brutissimo».
+- `showPage('scan')` used to return early, so typed barcode, name search and the manual form were
+  unreachable. The page opens; `initScanner()` is what refuses a `getUserMedia()` that can only
+  fail. The viewport and the camera's furniture are dropped by CSS, and the page says it in
+  `#scan-nocamera` — a card, not the capsule toast (`.toast.card` now carries the sentence wherever
+  the scan page is not on screen).
+- The AI door is the only one the stream takes away: `_updateScanAiButton()` disables it and says
+  «Il riconoscimento AI ha bisogno della fotocamera»; `_triggerManualAiScan()` refuses to read a
+  frame that does not exist.
+
+### «Butta» deletes the row — or says it could not
+Reported on a medicine: «premo Butta, mi chiede conferma e poi non lo cancella». The server log said
+`inventory_delete HTTP 500 — SQLSTATE[HY000]: General error: 5 database is locked`.
+- `deleteInventory()` ran its two writes (the `[Eliminazione inventario]` ledger row and the
+  `DELETE`) bare: any other write made SQLite answer BUSY and the request failed. It now runs in an
+  IMMEDIATE transaction with `dbWithRetry()`, and a lock that outlives the retries is reported as
+  `database_busy` (503), which the client retries. Measured on a copy of the live database with a
+  second connection holding the write lock: the old body failed, the new one deleted after 656 ms.
+- `api()` does not throw on a server error, and both delete callers threw the answer away: the sheet
+  closed, the toast said «Prodotto rimosso» and the row stayed. Every delete now goes through
+  `_deleteInventoryRow()`, which changes nothing on screen unless the server confirms.
+
+### A file rewritten while it is being served no longer kills the worker
+- `EnableMMAP off` in `.htaccess` and in the docker vhost: Apache maps the file it delivers and
+  `app.js` arrives gzipped (chunked), so truncating it under the mapping raised SIGBUS, the child
+  died (`AH00052 Bus error`) and every response in flight was cut — Chrome reports it as
+  `net::ERR_INCOMPLETE_CHUNKED_ENCODING 200 (OK)`.
+- JS/CSS/index: `no-cache` + `Last-Modified` (304) instead of `no-store` (a boot re-streamed 2.1 MB
+  every time), `ETag` unset because mod_deflate publishes a tag it then fails to match, and `sw.js`
+  fetches the shell with `cache: 'reload'` so a revalidating server cannot leave it half empty.
+
+## [1.31.28] - 2026-11-11
+
+### The Home fills the screen, then says "e altri N…"
+Reported on the wall: "un quarto del tablet sotto è vuoto, bisognerebbe espandere le liste fino alla
+fine e poi fare 'e altri x…'". The blocks were capped at a fixed number of rows (3 expiring, 5 the
+others) and that cap was **all** the panel ever showed — the note counted the rest while a whole
+quarter of a landscape tablet stayed empty.
+- `_paintAlertList()`/`_growAlertList()` keep the first slice on screen and the remainder on the
+  element, then append rows **until a whole row no longer fits above the floating nav pill** (one
+  measured row = the budget, because every row of these lists has the same height). What does not
+  fit is exactly what the note names (`dashboard.more_items`).
+- Re-filled after the dashboard paints, when a stock tab is shown and on resize (a rotation is a
+  new budget).
+- The "dimenticati" block asks the server for up to 24 rows instead of 5, so there is something to
+  grow into.
+
+### The kiosk's floating version banner is gone
+The header (`kiosk 1.7.37 (38)`) and the native Toast at launch are what the household asked for;
+a third copy floating over the page was one thing too many. The boot **log** line still carries
+both versions (`[KIOSK] apk=… app=…`), and the three `kiosk.boot_version*` keys are gone from all
+six locales.
+
+### A medicine now knows how long it keeps, and asks since when it is open
+Asked for: «per ogni farmaco mi devi chiedere se è aperto e da quanto, e calcolarmi quando buttarlo;
+“Scade dopo l'apertura (giorni)” c'è già nella scheda ma dovresti precompilarlo tu — aggiorna i
+farmaci attualmente in database».
+- `data/medical_pao.json` is the PAO table (period after opening) by the FORM that the name **or the
+  pack notes** declare: collirio / unguento oftalmico 28 days, sciroppo / sospensione / gocce orali 30,
+  crema / gel / unguento / balsamo / spray 90, fiale monodose 1, compresse / capsule / supposte 0
+  (opening changes nothing). It is **data**, not code — the vocabulary ratchet counts product words
+  in the logic files, so the table lives next to the other vocabulary.
+- `medicalPaoDaysForName($name, $notes)` (`api/lib/medical.php`) reads it; `med_classify` fills an
+  **empty** PAO from it instead of storing 0, and `migration_med_pao_default_v1` backfilled the
+  cabinet already in the database. Measured on the real one: 13 medicines, **9 got a number** —
+  Fastum, Connettivina plus, VICKS vaporub, Euclorina, Aureomicina and the myrrangin spray → 90;
+  Novalgina and Destrometorfano (gocce orali) → 30; the glycerine monodose → 1; Tachipirina and
+  Moment (compresse) stayed 0, which is the honest answer. A typed value is never overwritten.
+- `med_open` accepts `days_ago`, and the stocktake asks **«Da quanti giorni è aperto?»** with chips
+  (Oggi · 2 · 7 · 14 · 30 gg): the date becomes opened_at + PAO, so a box marked open three weeks
+  late no longer gets a date three weeks too far.
+
+### Five things the wall and the phone showed
+- **«2 {n}gg»** on the stocktake chips: `dashboard.days_short` already carries `{n}` (`«{n}gg»`), so the
+  chip printed the placeholder next to the number. It is `.replace('{n}', n)` now.
+- **Food in the pharmacy.** `_inventoryVisibleItems()` filtered by the macro domain only when no
+  place was open, so a food row that ended up in the cabinet was listed among the medicines. The
+  cabinet is a domain, not a shelf: in the medical context the list keeps `_isMedicalRow()` rows only.
+- **A row that exploded on a phone.** `nowrap` on `.inv-name` (a `display:-webkit-box` element, and
+  overridden by the stronger `.inv-name-row .inv-name` rule) made the card grow and squeezed the
+  ingredient subtitle to one character per line. The name is a one-line clamp without
+  letter-breaking, the medicine subtitle is a single ellipsised line, and the mobile selector now
+  wins over the desktop rule. Measured with the real stylesheets in headless Chromium: **132 px**,
+  name 20 px, subtitle 16 px at 500 px and at a 360 px column (was 159/163 px with a vertical
+  ingredient).
+- **«10 ~g»** in the product/recipe chips: `_itemDetailUnitLabel()` put the approximate mark on the
+  UNIT, and the sheet put it again on the number (`~10 ~g`). The mark belongs to the number, one
+  space before the unit (`~10 g`), in the chips and in the «Tutto (… )» label.
+- **The medicine edit sheet** lost its band of empty space (`.edit-modal-header` margins + heading
+  line-height) and gained the question it was missing: **«Da quanti giorni è aperto?»** with the
+  same five chips as the stocktake, writing `med_open` with `days_ago` and updating its own state
+  line in place.
+
 ## [Kiosk 1.7.38] - 2026-11-11
 
 Kiosk APK only.
@@ -141,6 +839,3269 @@ Kiosk APK only.
 
 ### The wall always says which version it is running
 A reinstall that installed nothing looked exactly like one that did: the APK version lived in
+`#header-kiosk-version`, which is the **first** thing `_paintKioskVersion()` gives up when the
+header row is narrow, and the wall has no console to ask.
+- `KioskActivity.launchWebView()` shows a Toast — `EverShelf Kiosk 1.7.33 (34)` — on **every
+  launch**, before the page is loaded, so the answer does not depend on the web app at all.
+- `app.js` paints the same two numbers in a boot banner (`_showKioskBootVersion()`): the
+  installed APK from `getAppVersion()` **and** the web app version from `.header-version` — the
+  pair that distinguishes "the APK came down" from "the app came down". It is shown on every
+  boot (no `localStorage` gate), dismissible with a 44 px ✕, gone by itself after 9 s, and built
+  with `textContent` so no product name can reach it as markup.
+- The boot log line carries both values (`[KIOSK] boot version apk=… app=…`), so
+  `grep KIOSK data/logs/kiosk-*.log` answers "did I get the latest?" without a screenshot.
+- This release also carries 1.7.32 (the console tail + `camera_permission` + `restarts_10min`
+  that make a dead renderer's report readable), which no published APK had yet.
+
+
+The stocktake now says when a product it opens was ALREADY answered — a re-scanned box,
+a second pack of the same article, a name picked twice.
+
+### Added
+- **An already-answered card says so, and stops pretending to be a question.** A card opened for a
+  row this run already answered (a barcode read again, a pack line of «Anche in», a name picked a
+  second time) used to look exactly like an open one, emerald «Confermo …» included — and pressing
+  it counted nothing and closed the sheet, which reads as the app ignoring the tap. It now carries
+  a mint line with the ANSWER KIND and the hour («✓ Già confermato 14:32», «🏁 Già segnato come
+  finito», «🗑️ buttato», «⏭️ saltato»), and its only two doors are the honest ones: **↩ Cambia
+  risposta** (`_auditReopen` — reverts that answer's queued or already-sent writes, takes it out of
+  the ledger and the tally, and puts the question back) and **Avanti →** (`_auditNext` — the same
+  step a real answer takes, counting nothing). The «Salta» link and the run's «Indietro» are hidden
+  there: they would either duplicate the forward door or undo a DIFFERENT row.
+- **«Anche in» marks the packs already done.** The list under the card prints one line per pack of
+  the same article; a pack this run already answered now shows a mint ✓ (and its `title` says
+  «Già confermato»), so «Amido di mais ×3» no longer opens three cards with no way to tell which one
+  is behind you.
+- **Answers carry the moment they were given** (`entry.at`): the history is what makes the clock
+  printable, and an answer that arrives from another device (a ledger value with no time) prints the
+  fact and no clock instead of inventing one.
+
+### Fixed
+- **The undo of any answer, not only the last.** `_auditUndo()` and the new «Cambia risposta» now
+  share `_auditRevertEntry()`, so both revert the same things: the writes still queued, the ones
+  already sent (`_auditUndoSent`), every pack the answer covered, the ledger entry and the tally.
+  A correction can no longer leave half an answer behind.
+
+### Measured
+- Rendered in headless Chromium at 390 × 844 with the real stylesheets: the answered card is
+  443 px tall (the strip is 36 px), the open card is unchanged, and the emerald primary + 2×2 are
+  absent on the answered one. `_auditReopen` clears the ledger entry, decrements the tally and brings
+  the primary back; `_auditNext` moves to the next unanswered card and counts nothing.
+
+## [1.31.26] - 2026-11-10
+
+The shopping list stops asking for what the pantry already holds, and the green
+«Sincronizzato!» strip stops offering a "Riprova" that has nothing to retry.
+Every number below is measured on a real household (a database copy, old tree vs
+new tree on the same snapshot).
+
+### Fixed
+- **A family the engine could not see.** `smartShopping()` compared a product with its
+  siblings after expanding packages into grams, so a `pz` row whose `default_quantity` is
+  the weight of ONE piece (an avocado at 160 g) read 0 of every unit while 4.5 avocados sat
+  in the fridge: «Avocado Hass» was reported "Esaurito" and put back on the list. The family
+  answer is now the larger of two readings — MEASURED (packages expanded) and COUNTED
+  (`shoppingUnitIsPack()`: packs and pieces as such) — in `evershelfFamilyUsableStockQty()`
+  and in the map `smartShopping()` builds. Two mozzarellas now cover a 1 kg pack, and six
+  tomatoes split over two rows are six.
+- **`days_left` answers for the article, not for the pack.** The row that held 2 of those 6
+  tomatoes declared «ends_in:5» and made the whole shelf "Presto". The window is
+  `familyUsableQty / dailyRate` when the family holds more than the row; what EXPIRES keeps
+  the row's own number (`$daysLeftOwn`).
+- **A generic and its own truncation are the same family.** `productMatchesShoppingFamily()`
+  rejected «Pan Bauletto al Grano Duro» (the dictionary's «Pan») filed under «Pane», so 23
+  slices of bread were invisible to the «Pane» family and the list kept asking for bread.
+  Prefix in either direction, at least three letters — «Tè al limone» still is not «Limone».
+- **The plan says HOW MUCH, the trip says WHEN.** `plan_days` (the «quantità calcolate per
+  30 giorni» setting) was used as the urgency window too, so a pantry planned for a month
+  answered «🟠 Presto» for everything that would be finished within a month: 5 apples,
+  500 g of honey, 6 packs of cornstarch, a 30-day muesli box. `smartShopping()` now flags at
+  `$signalDays` — the household's inferred spesa cycle, floored at 7 days, capped by the
+  plan, 14 with no evidence — in the high-use rule, the predictive block, the buy-cycle
+  block and in one "on the radar" block that replaces the 28/21-day staple radar.
+- **«🛒 Esaurito» ends when the shelf refills.** A row stamped "finished" is a decision and
+  every prediction spares it (`evershelfSpecIsDeliberate()`), but it survived the replacement
+  too: «Banane · 🛒 Esaurito» next to three bananas, «Burro · 🛒 Esaurito» next to a pack of
+  butter. Both prune paths now ask `evershelfFamilyBackInStock()` (the family's own scale, one
+  whole pack or half a package, fresh and above the trace threshold) and clear the row,
+  logging `shopping_finished_row_cleared`. A prediction never removes it; a shelf does.
+- **A green «Sincronizzato!» strip no longer carries a «Riprova».** `_exitOfflineMode()`
+  removes `body.offline-mode` — whose CSS was the only thing hiding the button — *before*
+  painting the green state, so the button reappeared exactly there. `_paintOfflineStrip()`
+  hides it in the synced state (and `_renderOfflineBanner()` restores it for the orange one),
+  with `.offline-banner.is-synced .offline-banner-retry` as the CSS twin.
+
+### Measured
+- On the household's real pantry (same snapshot, old tree vs this tree): **31 → 18**
+  suggested rows, nothing added, no urgency escalated. The six reported (avocado, tomatoes,
+  apples, cornstarch, honey, muesli) are gone, and the first read-path prune removes six rows
+  whose article is back on the shelf.
+- The "finished" rule, proved one case per answer: «Banane» (3 pz), «Ceci» (2 conf) and
+  «Mozzarelle» (2 pz) rows are cleared, «Trentingrana» (nothing in the ledger) is kept.
+
+## [1.31.25] - 2026-11-09
+
+The pantry row finally behaves like a shelf: the picture stops taking a quarter of
+the phone, the two facts a row is read for are legible, and the stocktake is one
+procedure of the HOUSE — on the server, resumable from any device, with counters
+that actually go down. Every number below was measured in headless Chromium with
+the real stylesheets and the real pantry.
+
+### Added
+- **The product sheet can now say whether a pack is open.** `opened_at` is what the post-opening
+  clock, the Home's "Aperti" list, the banner and the pantry filter read, and until now the only
+  way to set it was to consume something — so a pack opened by hand could only be corrected by a
+  lie about the stock. The sheet's head carries a switch ("Aperto"), which stamps today and
+  re-dates the expiry on the OPENED clock, or clears the stamp and returns to the sealed
+  estimate. A date the household typed (`expiry_user_set`) is never overwritten, and a medicine
+  keeps its own `med_open` flow (the box's PAO).
+- **A product standing in more than one place gets one line per place, each with its own
+  pencil.** The sheet opens the row that was tapped, so a correction to the fridge pack had no
+  door from here. The "Anche in" block lists every other shelf the article stands on (place,
+  stock) and its ✏️ opens THAT row in the same edit sheet; depleted traces are left out.
+- **A barcode no catalogue knows is now a question, not a dead end** (stocktake → «Scansiona»).
+  The camera closes and the search of «Ti dico io» opens with the code on its head: the household
+  is holding the box, which is the only moment the association can be made. **The list is one line
+  per PLACE, not per article** (`_auditAssignMatches()` returns every row, the shelf being
+  inventoried first): a «Riso basmati» standing in the pantry and in two living-room rows used to
+  appear once, with whichever place came first — so the shelf in front of the household was the one
+  it could not see. The pick now carries the row id, so the stocktake card that opens is THAT
+  shelf's, and the panel says it in one line (`audit.assign_places_note`). Picking a product
+  writes the code onto that article through a new action, `product_barcode_set`, and opens its
+  card so the stocktake continues on it. The next read resolves — for the session and after a
+  reload (`_barcodeRememberProduct`).
+  The write is deliberately **not** `product_save`: that is the catalogue's merge point (it
+  re-derives name, unit, pack and kind, and can merge two articles), and a hand association sent
+  through it came back with the pack reset (`default_quantity` 2 → 1, `package_unit` g → '') in a
+  test on a real row. `product_barcode_set` writes `products.barcode` and nothing else, logs
+  `api_product_barcode_set` (with the previous value), and **refuses** a code another product
+  already owns (`barcode_already_used` + `audit.assign_taken`, naming the owner) instead of
+  merging two articles behind a tap.
+- **A list has a shape while it loads, and a picture shimmers while it travels.** A cold load painted
+  nothing: the page looked finished-but-empty for the second or two a fetch takes on a phone (a slow
+  one reads it as broken). The waiting state the shopping list already had — **SHELFY breathing on
+  the splash ring over skeleton rows** with a shimmer — is now one component
+  (`_listSkeletonHtml()` / `_showListSkeleton(id, rows)` / `_hideListSkeleton(id)`, one CSS block
+  with the `.shop-*` and `.list-*` aliases, `prefers-reduced-motion` respected) and it is used by:
+  the pantry (`loadInventory`, six rows, removed by the render — and taken away when the retry also
+  fails, because an endless shimmer is worse than the truth) and the Home (`loadDashboard` →
+  `#expiring-list`, `loadStaleDashboardItems` → `#stale-list`). It never paints over rows that are
+  already there (`_showListSkeleton` checks `.inventory-item` / `.alert-item` / `.shop-row`).
+  The **pictures** are remote (Open Food Facts), so `.product-thumb`, `.inv-image` and
+  `.item-detail-image` carry `is-loading` until the image's own `onload`/`onerror` removes it: a
+  row shows a shimmering frame instead of an empty square that looks like a missing product
+  (measured on a throttled connection: 130 of 195 pantry thumbnails shimmering while their photos
+  were still in flight).
+- **A stocktake left half-done can be resumed from ANY device.** It could not: the run lived in
+  `localStorage` (`evershelf_audit_resume`), so a stocktake started in front of the fridge was
+  invisible to the phone in the kitchen, which started from zero and asked the household to do
+  again what it had already done. The state of the house is not a property of a browser: the blob
+  (scope, `order`, `index`, `answered`, `history`, `counts`) now lives in `app_settings` under
+  `audit_state` — `GET audit_state` / `POST audit_state_save` / `audit_state_clear`
+  (`auditStateRead()` / `auditStateSanitize()`, ids and counters only, capped) — and **the server
+  owns the hour**: a run nobody touched is dropped on read (`api_audit_state_expired`), so no
+  device can offer a stale resume. The client asks the server before the sheet paints
+  (`_auditLoadState`), pushes on every answer through a coalesced write and flushes on
+  `visibilitychange`/`pagehide`, and keeps `localStorage` only as an offline mirror (read when the
+  server did not answer at all). Measured with two browser profiles: profile B had an empty
+  `localStorage`, opened «Inventario veloce» and answered **«↩ Resume the stocktake (195 left)»**;
+  two answers given on B (`counts.there = 2`) were what profile A resumed, and «Fatto» on A
+  removed the row from the server.
+
+### Changed
+- **A long label may not make a row taller — and the photo may never sit under the words.**
+  The phone breakpoint shrank the text gutter to 5% while the strip stayed at 25%, so the first
+  letter of every row was printed **62 px inside the picture** (measured at a 365 px viewport) —
+  exactly what the household reported. Both now read the SAME custom property (`--row-photo-w`),
+  so they cannot drift, and the order in which the card gives things up is fixed:
+  1. the photo strip walks down a **ladder** as the card narrows — 18% → 14% → 10% → **5%**, its
+     floor: a list no longer gives a quarter of a phone to a picture (and the kiosk band's 40 px
+     tile is the same variable, so its text starts 48 px from the edge instead of 26% of a
+     1 000 px wall);
+  2. the long labels are **compact by construction**, not by a media query: **"🕓 4gg"** — the
+     unit abbreviated per language (`dashboard.days_short`: `{n}gg` · `{n}dy` · `{n}T` · `{n}j` ·
+     `{n}d` · `{n}天`) — instead of "📦 Aperto da 4 giorni", and **"📦 2 pz"** instead of
+     "🗄️ Dispensa · ne hai ancora 2 pz", with a different mark per fact (the stock wears the
+     package, the opened age the clock). The whole sentence stays in the tooltip;
+  3. only below 480 px does the **brand** go — the product NAME is never sacrificed.
+  Measured in headless Chromium with the real stylesheets (the media query needs a real viewport,
+  so every width is an iframe): all five lists stay **132.00 px** and every text line stays
+  **9–19 px clear of the picture** from 310 to 1 200 px, with no action line ever wrapping.
+  **This is a media query on the viewport, not a container query on the card** — and the reason
+  is worth keeping: `container-type: inline-size` on the row made the pantry rows collapse to
+  their own content in the touch-tablet band (296 px wide instead of 600, measured in headless
+  Chromium), because that band sizes its columns by content.
+- **Quantity and expiry are the two facts a shelf row is read for, so they are bold and a notch
+  larger** (`0.86rem/800` for the pill, `0.84rem/750` for the date, the Home badges the same) —
+  still inside the 34 px action line, so no card grows by a pixel at any width of the ladder.
+- **The stocktake card's two facts own a line each — and they are the biggest things in the card.**
+  `_auditRender` drew the place, the stock and the date as one sentence («📍 Frigo · 📦 Giacenza:
+  1500 ml · ⏳ Scade il 31/01/2027»), where two number pairs sat side by side and the stock read as
+  if it belonged to the date. The card now says the place + the stock on one line and the date on
+  the **next one with its own mark**, and the two facts the household checks against the shelf are
+  bold at `0.95rem/800` against the `0.82rem` of the line around them (`.audit-product-facts` /
+  `.audit-fact-qty` / `.audit-fact-line-expiry`, `style.css`). Measured in headless Chromium at
+  280 / 320 / 360 / 560 px in it/de/fr/zh: the date lands 5 px under the stock, the line is one
+  row of 19.75 px and nothing overflows in any locale — the expiry itself never breaks in half
+  (`.audit-expiry`), only its mark can move down if a language needs it. An expired date keeps its
+  red. The change is in `_auditRender`, so all three ways in — «Uno per uno», «Ti dico io», the
+  barcode and the «Anche in» pack card — show the same card.
+- **«Ti dico io» now says WHEN, not only WHERE**: the search results carried the place and the
+  stock and nothing else, so two packs of the same article — the rice in the pantry expiring in
+  March and the one in the cupboard expiring next month — looked identical, and picking the wrong
+  one answers the wrong question. `_auditHitFactsHtml` gives every hit the card's own two facts on
+  two lines: the place + the stock, then the date with its own mark and the card's own words
+  (`audit.expiry_on` / `expiry_was` / `expiry_none`), both bold at `0.95rem/800` against the
+  `0.82rem` of the line around them, an expired one in red. The same helper feeds the barcode
+  association picker, so a hit and the card it opens cannot disagree. The row also **wraps instead
+  of squeezing the text**: with `flex-wrap` + `flex-basis: 60%` a long action label (the German
+  «Hierher verschieben» on a 320 px phone) drops under the row, right-aligned, where the text
+  column used to collapse to **16 px** — measured in headless Chromium at 320 / 360 / 480 px: the
+  column is now 167 px in that case and no row overflows; the place and the stock are two
+  unbreakable groups (`"1 kg"` never splits) so a wrapped line never leaves its 📦 alone.
+  **Below 520 px the action is one ICON** («✓ C'è», «↪ Sposta qui», «🔗 È questo» keep their words
+  in `title` + `aria-label`, the rule the mode tabs already follow) in a 44 px tap target: with the
+  label the pill took ~110 px of a 393 px phone, the text column fell to **123 px**, the product
+  name took three lines and the place was painted UNDER the pill («Mobile Soggiorno» half covered
+  by «È questo» in the screenshot that reported it). Measured in headless Chromium with real
+  iframes at 320 / 393 / 480 / 560 px: the column is 200 px at 393 (was 123), the name is two
+  lines, «Mobile Soggiorno · 📦 500 g» and «Scade il 02/09/2028» each on one line, no overflow at
+  any width and the labels come back at 520 px. **The row also names the BRAND, on the line under
+  the product name** (`_auditHitTitleHtml`): «Fusilli Pasta di Semola di Grano Duro» is the same
+  sentence on a premium box and on the discount one, and the household recognises the pack by its
+  brand before it reads the title. One line, its tail ellipsised if a brand is absurdly long (the
+  NAME above is never cut); a product with no brand simply omits the line.
+- **A scan never walks into another shelf.** Inventorying «Mobile Soggiorno», a box the ledger had
+  in «Dispensa cucina» opened THAT card — «mi cambia tutto, mi scrive verifica dispensa cucina» —
+  so the household was asked to confirm a pantry it was not standing in front of, while the pack in
+  its hands (and any amount of it the ledger never recorded) was here. `_auditScanCard` now ASKS
+  (`_auditElsewhereView`): the product, the place the ledger has it (place + stock + date, the card's
+  own facts), and **«↪ Sposta qui» / «No, lascia dov'è»** — the eyebrow names the place being
+  inventoried («Inventario di Mobile Soggiorno») and the session, the tally and the pin are
+  untouched by either answer. «Sposta qui» writes the same `inventory_update` the ✕ row of «Ti dico
+  io» writes (`_auditSearchMoveHere`, now returning whether it succeeded) and then opens the card
+  HERE, so the stock and the date can be corrected on the shelf in front of the household; «No»
+  goes back to the camera (or to the search) and writes nothing. The ✕ rows of the search list are
+  guarded by the same question (`_auditSearchPick`), because a card about another shelf is the same
+  mistake through another door; only an explicit pick on a line that prints its place (the barcode
+  association picker) still opens that row's card.
+- **The stocktake's "Modifica quantità" is "Modifica"**: the button opens the whole edit sheet
+  (quantity, place, expiry, pack), so naming only the quantity sent the household looking for a
+  field it does not carry (`audit.change_qty`, six locales).
+- **The stocktake panel has no title.** «Verifica la dispensa» repeated what the mode switch
+  («Uno alla volta · Ti dico io · Scansiona») and the session bar («Inventario di …») already say,
+  and it took the first line of a phone screen: the head now holds only the **✕**, top-right, where
+  a thumb looks for it. The dialog keeps `audit.title` as its accessible name (`aria-label`), and
+  the summary dropped the same eyebrow (its own title «Inventario fatto» stays).
+- **The stocktake shows what is LEFT, and a confirmed product empties the search field.** Three
+  things made the progress invisible — and one made it a lie:
+  - the scope list counted the *shelf* (`Everything (207)`, `Fridge (88)`), so twenty products
+    confirmed by camera or by name left every number exactly where it was: it now counts the rows
+    this session has NOT answered yet (`_auditScopesBodyHtml`, the same `answered` ledger the three
+    ways write into), and a place with nothing left is a **completed line** (✓, dashed, not a
+    button that would open an empty run);
+  - the answer's *kind* was stored per row and the server's sanitiser cast it to `int`, so
+    `'there'` became `0` — i.e. "not answered": after a reload the counts went back to full and the
+    same rows were asked again (`auditStateSanitize` keeps `there|finished|spoiled|skip`);
+  - a session done only by camera or by name was never saved (it has no card order), so a reload
+    started from scratch: the blob now travels anyway and inherits the order a run of the SAME
+    shelf holds, so `↩ Riprendi l'inventario` survives;
+  - opening another place (or «Everything») inside the same stocktake keeps the ledger, so
+    «Tutto (206)» really opens 206 cards and not 207.
+
+  In «Ti dico io» the field starts **empty** after a confirmed product (`_auditFinish` clears
+  `_auditSearchTerm`): it used to keep the previous name and its results under it, as if the
+  confirmation had not happened. Measured on the real pantry: confirm one «latte» → `Everything
+  206 · Fridge 87`, field empty, «Tutto» opens `1 of 206`; after a page reload the same numbers and
+  `Stocktake of Fridge: ✓ 1` come back from the server.
+
+### Fixed
+- **A pack of pieces that lost some of them is OPENED — and a shelf nobody touched is not.**
+  `_isOpenedInventoryItem()` divided the stock by `default_quantity` on `pz` rows too, and on those
+  rows that number is often the **weight of the pack**: the Pan Bauletto kept in the living room (20
+  pieces of a row whose `default_quantity` is 400) read as «0.05 of a pack → opened», while the one
+  that had just been used in the kitchen (5 pieces, inside the 2 % tolerance) read as **sealed** —
+  the two answers the wrong way round. Counted units are now judged by the FRACTION of a piece or a
+  package (`0.5 pz`, `0.5 conf`), and only `g` / `kg` / `ml` / `l` compare against
+  `default_quantity`.
+  And using PART of a perishable `pz` row now stamps the opening (`useFromInventoryCore`): the bag
+  of sliced bread really is open, so the row carries `opened_at` and its date is re-dated on the
+  post-opening clock; a **non-perishable** (the 9999 sentinel: salt, sugar, a detergent) is never
+  marked opened, which is what keeps the Home's «Aperti» list honest.
+  Measured on scratch products: `pz` bread 5 → 4 through `inventory_use` became `opened_at = now`
+  with the expiry re-dated 2026-11-20 → 2026-11-13, while `pz` salt 3 → 2 stayed `opened_at = NULL`
+  with its sealed date. Client cases: `pz` 20 and `pz` 5 → sealed, `pz` 4 with `opened_at` →
+  opened, `pz` 0.5 → opened, `g` 300 of a 400 pack → opened, `g` 800 → sealed, `conf` 1.5 →
+  opened, `conf` 2 → sealed, quantity 0 → sealed.
+  A row already used *before* this fix keeps its old state (no `opened_at` is invented): the
+  «Aperto» switch in the product sheet corrects it in one tap, or the next partial use does.
+
+### Changed
+- **The two facts a row is read for are now the two biggest things in it.** The stock and the
+  expiry were 0.86 / 0.84 rem with a 750 weight — the same size as the category line under the
+  name, which is why a shelf row read as a paragraph and not as a list. They are now **0.95 rem /
+  800** (the chip, in its mint pill, at the size of the product name) and **0.9 rem / 800** (the
+  date, in its own state colour), and the strip's gap went 8 → 6 px to pay for them. Measured in
+  headless Chromium with the real stylesheets at 320 → 1200 px: every row is still **132 px**,
+  the 34 px action line absorbs the growth.
+  The date itself had to become **compact by construction**, exactly like the opened age
+  («🕓 4gg»): «⏳ Scade tra 12 giorni» is 136 px at the new size and the strip has 126 px for it
+  beside a quantity chip and two buttons on a 360 px phone (the old sizes fitted by **0.3 px** of
+  292, which is why they had to stay small). The pantry now says what the Home badges already
+  said — «⏰ Scade fra 12gg», «⚠️ 12 gg fa», «📅 ~3 mesi», «✅ Stabile» past a year — with the full
+  sentence in the `title` and the exact date in the tooltip. Two details fell out of it: the row
+  printed **two** ⚠️ on an expired row and on «Scade oggi!» (the keys already carry the glyph,
+  and the markup prefixed it again), and «📅 Quedan 3 meses» (139 px, the widest locale) wrapped
+  the action line on a phone.
+  Known and unchanged: a French «⚠️ Expire aujourd'hui !» (149.7 px) and a medicine's
+  «Aperto da 4 gg · consigliato max 7 gg» still wrap their action line at 360 px — both did
+  before this change.
+- **The stocktake's three ways are three TABS, always on screen — and three icons on a phone.**
+  The report («dove sono le tre opzioni nell'inventario veloce? non vedo più né i bottoni né le
+  icone») exposed two things: the switch was painted only by `_auditStartPaint()` — the three
+  sheets — while the pantry banner goes **straight into the card of a run** (`_auditBegin` /
+  `_auditSessionView`), so it vanished the moment the stocktake started, and its words were not the
+  household's. `_auditModeSwitchHtml()` is now rendered at the top of **every** view (the three
+  sheets, the card of the run, a card opened by name or by barcode, the picker of an unreadable
+  code — the camera keeps the full screen, it IS the third tab), with the labels **«Uno per uno» |
+  «Ti dico io» | «Codice a barre»** (`audit.mode_*`, six locales) in a segmented row on its own
+  surface (`--bg-app`, 4 px padding, emerald tint on the active tab). Measured in the simulation:
+  3 tabs with exactly 1 active in all five views. Below 480 px the CSS drops `.audit-mode-label` and
+  the tab becomes its icon — **26 px inside a 52 px tap target**, growing instead of shrinking —
+  while `title`/`aria-label` keep the word (the German «Eins nach dem anderen» wraps its label above
+  that, 60 px, as before).
+  The labels are resolved with a literal t-call at the call site, so `scripts/i18n-audit.py` sees
+  `audit.mode_*` as used instead of "defined but unused".
+
+### Fixed
+- **A barcode points at an ARTICLE, not at a package.** Scanning the code of a product the house
+  owns in more than one pack (the report: «i dadi di brodo … mi fa vedere solo una e non mi propone
+  l'altra») opened the sheet of ONE row and stopped there: the other packs were not offered
+  anywhere. Two causes, both fixed:
+  - the product sheet's «Anche in» block read `currentInventory` — **the place the pantry happens
+    to be filtered to** — so a pack on another shelf did not exist in that list at all, and two
+    packs in the SAME place were indistinguishable (no date). It now reads the whole pantry, one
+    line per ROW with place, stock **and expiry**, and the line itself **opens that pack's sheet**
+    (`_itemDetailSwitchPack`): «consume the other one» is one tap, the ✏️ still corrects it;
+  - the sheet now leads with **how much of the article the house has** (`_itemDetailTotalPacksHtml`,
+    «📦 38 pz in tutto»), because «6 pz» on a shelf that also holds a 30-pack is half the answer.
+  The stocktake card carries the same thing as a list under the facts (`_auditOtherPacksHtml`: place,
+  stock, date, one line per pack) whose tap opens **that** row's card inside the same run (mode
+  `pack`: the card returns to the run it belongs to, and the way the household chose is not
+  rewritten). Measured on the real data of «Brodo Il Dado Classico» (6 pz + 30 pz on the same shelf,
+  2 in the fridge, one depleted row): the sheet lists 2 other packs with their dates, the total
+  reads 38 pz, the tap opens the 30-pack row, and the stocktake card offers the 30-pack line which
+  opens that row's card.
+- **The shopping list stopped adding and removing the same urgent rows.** The report: «continua a
+  mettere e togliere prodotti urgenti, come se qualcosa si accorgesse che mancano e qualcos'altro
+  che ce ne sono abbastanza». It was not a feeling: two automations were deleting rows that a third
+  had just added. `shopping_remove` **unlinks** `data/smart_shopping_cache.json` on purpose, and
+  during that window both `internalShoppingPruneCovered()` (on **every** `shopping_list` read) and
+  `bringQuickSyncProduct()` (on **every** inventory write — a stocktake, answer after answer) treated
+  the missing cache as "nothing is needed": they fell back to the family-coverage rule and deleted
+  the rows, then the next cron rebuilt the cache and `internalShoppingAutoAddCritical()` put them
+  straight back. Measured on a real pantry: the list went 14 → 2 rows in minutes, while the cron log
+  showed `added: 8` — then `added: 8` again ten minutes later.
+  **No cache = no knowledge**: both paths now refuse to delete anything while the smart cache is
+  absent (only a cache that EXISTS and does not ask may remove a row), and the read-path prune asks
+  the SAME question the cron and the Bring! transport ask (`evershelfShoppingRowStillNeeded()` + the
+  family-stock callable) instead of hand-rolling a second rule. A read that deletes now writes a
+  `shopping_prune_covered` line, and a quick-sync with no cache writes
+  `shopping_quick_sync_no_cache`: the next report has evidence.
+- **The quick sync no longer dies on «database is locked».** `internalFindShoppingListRowByGeneric()` returned
+  from **inside** its `while ($stmt->fetch())` loop, leaving the read cursor open; the caller
+  (`shoppingSyncProductFromCache`) then issued the `UPDATE` on the same connection, and SQLite
+  answers that with `SQLSTATE[HY000] 5 database is locked` after the 20 s busy timeout — so the
+  real-time sync failed exactly when it had something to write (every time a suggested quantity
+  changed), leaving the row with a stale specification. The cursor is closed before returning, and
+  the reproduction (a plain CLI call of `bringQuickSyncProduct()`) now completes in milliseconds.
+- **«Panna da cucina» with six packs in the pantry read "urgent".** The `conf` unit had **no** guard
+  in `shoppingSanitizeDailyRate()` (only `pz` did), and the "typical purchase" was computed from a
+  log that counted grams as packs (597 `conf` consumed, 200 `conf` bought in one go): the row read
+  `near_empty:6 · ends_in:0 · urgency high` with **6 packs on the shelf**, so the cron kept asking
+  for what was there — and the deletion paths kept disagreeing with it. Three fixes, one vocabulary:
+  `shoppingUnitIsPack()` (`conf`/`pz`/`busta`/`pacco`/`barattolo`/`confezione`/`pezzo`, one list for
+  the rate guard, the coverage rule and the cap), the rate guard now covers `conf` (a pack a day is
+  already generous; the usage frequency is the ceiling), and `SMART_PACK_REF_QTY_MAX` (10) caps a
+  pack row's reference purchase so «86 packs» can never be the yardstick. Re-running
+  `smartShopping()` on the same data: the panna leaves the suggestions, «Amido di mais» goes from
+  `days_left 1` to 25, and the next cron adds 12 rows that then STAY.
+- **A barcode the catalogue knows but no shelf holds is now a QUESTION, not a dead end.** Scanning a
+  tin of «Tonno ai semi di girasole» from the pantry answered «non c'è nell'inventario» while the
+  tin was standing right there. The code resolves to a *second* catalogue row for the same article
+  (the one created when the code was first scanned, the stock on the row added by hand), so the
+  lookup by `product_id` found no row — and the answer was a toast that left the camera running and
+  the household with no way forward.
+  `_auditRowForProduct()` now looks the row up by `product_id` and then **by the article's name**
+  (folded, the shelf being inventoried first); that fallback writes one `[AUDIT]` line into
+  `data/logs/app-*.log`, because two `products` rows for one article is a DATA problem and the log is
+  where it is found instead of blamed on the scanner. When no shelf holds the article at all, the
+  camera closes and the picker of «Ti dico io» opens with the code on its head and **the name the
+  catalogue gave us already in the field** (`audit.assign_known_hint`, all six locales), so one tap
+  says which row it really is. An association the server refuses (`barcode_already_used`, the code
+  belongs to another row) no longer strands the run either: the card of the row the household just
+  picked opens anyway, because that row is the question in front of them.
+  Measured in the simulation (the real `audit.js` driven in node): a barcode resolving to product 99
+  — no stock — with the same article stocked on product 42 opens the card of THAT row; an article
+  with no row at all opens the picker, prefilled, bar included; a refused association opens the card.
+- **The stocktake's progress bar no longer disappears, and it actually moves.** It was the propose
+  run's own counter (`(index+1)/total`), printed only when the run had more than one card: a card
+  opened by name or by barcode is a run of **one** for the wizard, so its counter read «1 di 1» on
+  every box the household scanned and never moved — the report «rimane sempre a uno» — and the
+  three sheets' line (`_auditSessionBarHtml`) printed **nothing** on a fresh session, so switching
+  from «Ti dico io» to «Scansiona» to «Uno alla volta» looked like losing the run.
+  There is now **one bar, one number, every view**: `_auditProgress` (→ `_auditProgressHtml`) counts
+  the rows the stocktake is ABOUT — the place being inventoried, or the whole pantry — against the
+  ones the session answered, i.e. the same ledger the scope list counts, so «Frigo (37)» and the
+  bar can never disagree. It is painted by the three mode sheets, by **every** card (a proposed one
+  and a single question alike), by the panel of an unreadable barcode (`_auditAssignView`) and by
+  the camera (`#audit-scan-progress` → `_auditScanProgressPaint()`), with the breakdown beside the
+  count («40 di 206 · ✓ 33 · 🏁 3»). The open card counts as the one being looked at (`inHand`), so
+  the first of fifteen reads 7% and never an empty line; the bar keeps a 64 px minimum and the count
+  wraps under it, so a long place name or a big font cannot squeeze it away (measured in headless
+  Chromium: the card head stays **23 px** at 320 → 600 px, with and without all four counters).
+- **The tally stopped jumping back to «✓ 1».** `_auditScopeKey()` read the **pantry's own filter**
+  before the stocktake's choice, so a run started on Frigo followed `currentLocation` the moment it
+  pointed elsewhere: `_auditSessionFor()` then opened a session for the new place, which starts at
+  zero. Measured in the simulation (`/tmp` harness driving the real `audit.js`): one answer on Frigo
+  → the pantry filter moves to Dispensa → the sheet read «Inventario di Dispensa: **✓ 1**» and the
+  next answers counted 1, 2 on the wrong shelf while Frigo's rows were unanswered again. The scope
+  is now **pinned** when a run starts or a mode is entered (`_auditScopePinned` / `_auditSetScope`,
+  released by `_auditStop`, so the next stocktake starts from the place the household is standing
+  in), and `_auditAdoptRunCounts()` never replaces a session that has answers (a barcode-only run
+  has no card order, and adopting the server's blob over it was a second way to lose the ledger).
+  Same simulation after the fix: Frigo keeps counting 1 → 2 → 3 across the filter change, the mode
+  switch and a scanned box.
+
+### Fixed
+- **The chat's «Usa» buttons now come from the recipe's ingredients, not from its prose.** The
+  report: «quando mi propone una ricetta i bottoni “usa” sono di ingredienti che non vengono nemmeno
+  citati nella ricetta». `_chatUseActionsHtml()` matched the pantry against the **whole reply**, and
+  a recipe proposal opens by listing what is about to expire — the real answer from the DB reads
+  «i prodotti freschi che scadono prima sono: **Pan Bauletto** … **Yogurt** … **Kiwi rossi e
+  Zucchine** …» before the dish, so «Zucchine» got its own «Usa» button on a French Toast. Each
+  button is now taken from the reply's **ingredient sections**
+  (`_chatIngredientBlocks()`: every `### Ingredienti:` / `**Ingredienti:**` label up to the next
+  label — a reply may propose two options — in the six languages), and only when the reply has no
+  such section (a plain answer: «hai il latte in frigo, usalo») does the whole text remain the
+  scope. Measured on the two real conversations in the database: 2 ingredient blocks and 1 found,
+  every button's keyword now appears in an ingredient line, and «Zucchine» — named only in the
+  introduction — no longer has one.
+
+### Changed
+- **The four exceptions are a 2×2 grid on every screen.** «Finito», «Andato a male», «Modifica»,
+  «Sposta» were already `grid-template-columns: 1fr 1fr` — but a `@media (max-width: 420px)` override
+  collapsed them into a **column of four** on every phone («mettimi i 4 bottoni in griglia 2 x 2»),
+  which pushed the question and the product off the screen. The override is gone: the four labels are
+  short by construction, a long locale («Se ha estropeado») wraps **inside** its cell instead of
+  widening the grid, and on a phone the cells only lose padding (`8 px`, `0.82 rem`). Measured in
+  headless Chromium with the real stylesheets at 320 → 900 px: **2 rows × 2 cells everywhere**, cell
+  137 px at 320, 157 at 360, 256 from 600 up, no label clipped, and the two cells of a row always
+  share the height.
+- **The stocktake's camera lives inside the panel, not over the whole screen.** The report: «quando
+  si usa la telecamera per il codice a barre puoi lasciarlo dentro al tab e non farlo a tutto
+  schermo?». `#audit-scan-overlay` was `position: fixed; inset: 0` — opening the barcode tab threw
+  the sheet, the three tabs and the running tally away and left a black viewfinder, so the household
+  lost sight of the place it was inventorying. The live view is now a framed 4:3 box **in the sheet's
+  body** (`_auditScanLiveHtml()`, `.audit-cam`), painted by `_auditStartPaint()` when `_auditCamOn`
+  is set: the header, the tabs, the progress bar and the status line all stay around it, and the
+  video is capped at 46 vh so the sheet never becomes a viewfinder. **Two ✕, two meanings**: the one
+  ON the picture turns the camera off (`audit.scan_stop_camera`, six locales) and leaves the sheet
+  open on its tab with the «Apri la fotocamera» button, while the panel's own ✕ closes the
+  stocktake. Measured in headless Chromium with the real stylesheets: 320×240 at a 360 px phone,
+  491×368 from 600 px up (4:3, 46 vh cap) with the guide frame inside, panel 420–566 px tall.
+  Measured in the simulation: the panel stays visible with the viewfinder in it, the three tabs are
+  there, the tally reads «1 di 5 · ✓ 1» under the picture, and stopping the camera repaints the
+  tab with the start button.
+
+### Fixed
+- **The stocktake asks each ARTICLE once per shelf, not once per pack.** The report: «facendo
+  l'inventario misto tra lettore codici, ti dico io e uno per uno poi mi richiede le stesse cose che
+  ho già confermato». The pantry really does hold several packs of the same product in the same
+  place — **17 such groups** in this household's own data (Amido di mais ×3, Limone ×3, Riso basmati
+  ×3, i dadi, il tonno, il mais…) — and «Uno per uno» asked one card per ROW, so the same name and
+  photo came back with only the date changed. `_auditAnswer()` now answers the **whole shelf
+  position** in one go: «C'è» confirms every pack of that article in that place, «Finito» /
+  «Andato a male» queue **one write per pack** (the API empties one row per call, so two packs need
+  two and the shelf really ends up empty), the tally still counts ONE answer, and the card advances
+  past the packs it just covered (`_auditAdvancePastAnswered()`). Another SHELF stays another
+  question, and «Annulla ultima» reverts the whole answer — every queued or already-sent write and
+  every `answered` entry (`entry.rows` / `entry.siblings`).
+  Measured in the harness against the real `audit.js` (rows 8+9 of «Tonno ai semi di girasole» in
+  the pantry, row 10 in the fridge): «C'è» stamps 8 and 9 and leaves 10 alone, «Finito» sends exactly
+  **two** `inventory_use` calls and never the fridge one, the tally reads ✓ 1, the undo empties the
+  queue and the ledger, and the card after the answer is row 10 — the sibling never comes back.
+
+## [1.31.24] - 2026-11-08
+
+### Security
+A security report from **Thomas Lempa** (thank you) walked the server side of the app, the
+`ha-evershelf` integration and the PWA. Everything it found is fixed here; nothing was
+exploited, and the two items that change a default are called out as such.
+
+- **`gemini_usage` answered without the API token.** The action is handled *before* the
+  router (`if ($_GET['action'] === 'gemini_usage')`) and that branch never asked for
+  authentication: anyone who could reach the port read the AI usage history, the inventory
+  counts, the DB size and the backup timestamps. The branch now calls
+  `evershelfRequireAuthForSensitive()` itself.
+- **The Telegram webhook accepted anyone, and could send the list to anyone.** It is public by
+  design (Telegram cannot present `X-API-Token`) and its only gate was
+  `TELEGRAM_ALLOWED_CHAT_IDS` — with an **empty** allowlist every chat id in the body was
+  accepted. It now verifies the value Telegram echoes back
+  (`setWebhook(..., secret_token: …)` → `X-Telegram-Bot-Api-Secret-Token`, `hash_equals`
+  against the new `TELEGRAM_WEBHOOK_SECRET`) and, with no secret **and** no allowlist, refuses
+  to answer at all (`telegramWebhookAuthVerdict()`, 403 `webhook_not_configured`). Existing
+  installs that use the allowlist keep working; a secret is what new ones should set.
+- **The Google Drive callback accepted a code it never asked for.** `gdrive_oauth_callback` is
+  public and it overwrites `GDRIVE_REFRESH_TOKEN`, so a third party could hand the server an
+  authorization code of *their* account (login CSRF) and from then on the nightly backup went
+  to their Drive. The consent URL now carries a single-use `state`
+  (`api/lib/gdrive_state.php`): 32 random bytes, only the SHA-256 on disk (`data/`, 0600),
+  ten minutes, one outstanding flow at a time, and a wrong value is refused **before** Google
+  is contacted. A value that does not match never cancels the pending flow (any anonymous
+  request could otherwise interrupt the consent the household is doing).
+- **`test_recipe_stream.php` was a web endpoint that printed part of `GEMINI_API_KEY`.** It is
+  a CLI test, so it now answers 404 to anything that is not the command line
+  (`PHP_SAPI !== 'cli'`) and `test_*.php` no longer travels inside the Docker image
+  (`.dockerignore`). The key is no longer printed at all, not even its first characters.
+- **The Health Bridge pairing QR was drawn by `api.qrserver.com`.** The payload carries the
+  bridge token in clear, so the household's token ended up in a third party's access log. The
+  picture is now rendered by this server (`action health_bridge_qr` → `api/lib/qr.php`, the
+  same encoder that already draws the donation QR, authenticated) and returned as a PNG data
+  URL with an SVG fallback; the client shows a hint instead of silently failing when no
+  picture can be drawn (`settings.health.qr_unavailable`, six locales).
+- **`HA_TOKEN` / `TTS_TOKEN` followed a string prefix, not an origin.** The TTS proxy attached
+  the bearer token when `str_starts_with($url, HA_URL)` — and `http://ha.local.evil.example`
+  starts with `http://ha.local`. `evershelfSameOrigin()` compares scheme + host + port
+  (normalised defaults) and is the only gate now.
+- **An attribute value is escaped with `escapeAttr()`, not `escapeHtml()`.** `escapeHtml()` only
+  covers `& < >`, so a product image URL carrying `"` could close the attribute. Every
+  `src="${…}"` / `href="${…}"` of the frontend (`app.js`, `audit.js`, `receipt.js`,
+  `settings_search.js`, `core/support.js`) now uses the quote-safe escaper; text and titles
+  keep `escapeHtml()`.
+- **DNS rebinding has a guard: `ALLOWED_HOSTS`** (opt-in, comma list, `*.example.lan`
+  allowed). The browser cannot protect a LAN install here — a page on `evil.example` can point
+  its own DNS at your address, and CORS / `Sec-Fetch-Site` are then satisfied because the
+  request really is on `evil.example`. Only the server knows which names it answers to.
+  Empty means off, because those names are not knowable from the code.
+- **An install with no `API_TOKEN` now mints one** (`evershelfEnsureApiToken()`, called from
+  the HTTP bootstrap). `API_TOKEN=` empty is not "some protection", it is *no* authentication:
+  every action answered the whole LAN. The token is written to `.env` (or to the
+  `app_settings.env_overrides` fallback when that file is read-only), enforced from that same
+  request on, and the one-time pairing code that lets a phone in is printed in the log right
+  after it — `Settings → System → Security` shows it on a paired device. Two escape hatches,
+  both explicit: `ALLOW_OPEN_LAN=true` keeps the old behaviour, and the
+  `data/api_token_autogen.json` marker means a token is never minted twice (a rotating token
+  would lock every device out). **This is the one change a household will notice**: an
+  existing install that never set a token has to pair once after updating.
+
+### Fixed
+- **The first boot after an update could die with `no such column: p.is_medical`.** `migrateDB()`
+  dates the stock rows that arrived without a best-before date, and that pass filters on
+  `COALESCE(p.is_medical, 0) = 0` — while the `ALTER TABLE` that creates `is_medical` sat three
+  hundred lines further down in the same function. An installation coming from a version without
+  the medical module (no column, and no `migration_infer_missing_expiry_v1` flag) reached that
+  SELECT with the column still missing: every request answered 500 and the app looked dead, with
+  no data lost but no way in. The medical columns are now created at the top of the migration,
+  before anything reads them (idempotent, so it is a no-op on an installation that already has
+  them). Found by the new upgrade check below, not by reading the diff.
+
+### Fixed
+- **A Home row was not the same row as a pantry row — and the four Home lists were not the same
+  either.** Measured in a headless browser with the real stylesheets, not by eye:
+
+  | | before | after |
+  |---|---|---|
+  | pantry | 132 px, radius 18 px | 132 px, radius 18 px |
+  | Home · expiring (with a brand) | **149.86 px** | 132 px |
+  | Home · expiring (rows after the first) | **131 px** | 132 px |
+  | Home · expired | 132.86 px | 132 px |
+  | Home · opened | **120.8 px** | 132 px |
+  | Home · forgotten | **190.8 px** | 132 px |
+  | corner / shadow | 24 px + `--shadow` | 18 px + `--es-shadow-card` |
+  | row spacing | 8 px | 10 px |
+
+  Six distinct causes, all in the "two lists that are the same" block of `surfaces.css`:
+  - **the brand was a flex sibling of the name**, so beside a two-line title it could not fit
+    and dropped onto a third line — `_alertItemHead()` now puts it inside the name, exactly like
+    the pantry's `.inv-brand-inline` (the same markup, so the same height);
+  - **`.alert-item + .alert-item { border-top: 0 }`** (a leftover from when notices were joined
+    by a hairline) made **every row after the first** 1 px shorter than the first;
+  - **the corner and the shadow came from the wrong token** (`--radius` / `--shadow`, 24 px)
+    while `elegant.css` re-skins the pantry card with `--es-radius-card` (18 px) and
+    `--es-shadow-card`: the "slightly different shape";
+  - **the title was `1rem` against the pantry's `0.95rem`** — the same product name at two
+    sizes, which is why the expired row came out 0.86 px taller;
+  - **the action line had no floor**, so a row whose badges are only small text (the "opened"
+    list, no `✓` / `⋮`) was 23 px against the pantry's 34 → the row 11 px shorter;
+  - **the "forgotten" row carried two badges plus two buttons**, which wrapped onto a second
+    line at phone width. It now shows the expiry date (the relative distance stays in the
+    tooltip) and the opened age stays in the meta line and in the sheet.
+  Height, radius, shadow, border and the 10 px rhythm are now identical in all five lists at
+  every width — re-measured after the fix: **132.00 px × 5**.
+### Upgrade check
+- **`php scripts/check-upgrade-migration.php`** answers "will this release eat the household's
+  data?" with evidence instead of optimism: it builds a database with the **old** code (a
+  `git worktree` of `--from`, default `origin/main`), fills it with realistic content — 1 000+
+  rows across products, stock with hand-typed dates, rows with no date at all, stock in the
+  retired `altro` place, transactions, shopping list, recipes, settings, tags, health data —
+  then opens that same file with the **new** code, which runs `initializeDB()`/`migrateDB()`
+  exactly like the first request after the update. It then compares every table row by row
+  (46 checks) plus the idempotency of the second and third boot (2 more): no table, column,
+  row or value may disappear, the new columns and tables must be
+  added to the *existing* database and not only to fresh installs, every legacy setting must
+  keep its value, `integrity_check`/`foreign_key_check` must pass — and a second and third boot
+  must change nothing. The repairs a release applies on purpose (entity-decoded titles,
+  inferred expiry dates, `altro` → `dispensa`, recomputed derived columns) are counted and
+  printed, and a derived value that ends up **empty** fails the run. `--json` for CI, `--keep`
+  to inspect the two temporary trees. Exit code 1 is a merge blocker.
+
+### Verified
+The four server fixes and the two guards were exercised against a running `php -S`: `gemini_usage`
+401 without / 200 with the token; `gdrive_oauth_callback` 403 with no state, 403 with a bogus
+one; `telegram_webhook` 403 `webhook_not_configured`, 403 `forbidden` for a missing or wrong
+header, `{"ok":true}` with the right one; `test_recipe_stream.php` 404 over HTTP; an unlisted
+`Host` 403 while a listed one answers 200; and a fresh install with an empty `.env` minting its
+token, writing it, and answering 401 on the next request — while `ALLOW_OPEN_LAN=true` minted
+nothing. The pure rules (`evershelfHostAllowed`, `evershelfSameOrigin`,
+`telegramWebhookAuthVerdict`, the OAuth state issue/consume cycle) are covered by a 32-case CLI
+harness run against the real library files.
+
+## [1.31.23] - 2026-11-08
+
+### Fixed
+- **«✓ C'è» could be pressed twice on the same row and counted twice.** In the quick stocktake's
+  «🔎 Ti dico io» the answer writes nothing (the shelf is right — that is the whole point), so
+  nothing changed and the row stayed in the list: every press added another confirmation to the
+  session. Mode 1 already filtered answered rows out (`_auditBegin`), the search did not. Three
+  fixes, in depth:
+  - `_auditSearchMatches()` skips a row this stocktake already answered — by hand, by name or by
+    barcode — so the row **disappears** from the results the moment you confirm it (and the same
+    filter feeds `_auditSearchPickFirst`, i.e. Enter cannot re-answer it either);
+  - `_auditSearchQuickThere()` reads the session before answering: a double tap (or a slow phone)
+    now only redraws the list;
+  - `_auditAnswer()` refuses a second answer for the same row, which is what could also have queued
+    a second `inventory_use` for «🏁 Finito» / «🗑️ Andato a male» when the same product reached a
+    card twice (a barcode of a box already answered, a row reopened from the queue).
+  `_auditUndo()` deletes the entry, so a real correction still goes through — verified with a vm
+  test that runs the real `audit.js`: answered row excluded, double tap counts 0, new row counts 1,
+  list empty after the answer, and the row back in the list after an undo.
+- **A recipe proposed products that were not in the pantry.** The AI writes `from_pantry: true` on
+  every ingredient it believes is on the shelf (the prompt tells it to), and
+  `enrichRecipeIngredientsStock()` is the only thing that checks it against the real inventory. When
+  that read failed (a heavy `inventory_list?for_recipe=1&include_depleted=1` on a 197-row pantry),
+  the `catch` swallowed the error and **the AI's claims stood**: rows rendered with ✅ and a working
+  **Usa** button for food that is not there, and the tap answered "non è in dispensa". A row we could
+  not verify is now a MISSING row — struck through, no button, no ✅ (`stock_missing = true` in the
+  `catch`), which is the same rule the successful pass already follows.
+
+
+### Fixed
+- **"Una confezione da 1000 g" was refused with «deve superare i 20 g».** The floor that exists to
+  stop "2 g typed instead of 2 pieces" (`inventoryMinAddQuantity`, `_ADD_MIN_QTY_FOR_UNIT`) was being
+  applied to a **number of packs** using the **package's** unit: one confezione is `1`, and 1 is not
+  "less than 20 g". Both sides now skip the floor when the quantity counts packs or pieces — the
+  product is sold in confezioni, or the unit being written IS `conf`/`pz` — because a pack is
+  measured by its own size (`default_quantity` + `package_unit`), never by the floor of the unit
+  printed on it. A bare weight/volume entry keeps the floor, which is the case it was written for.
+  The refusal is also traced (`ADD below floor unit=… qty=… min=… product_unit=… pkg=…`), so if it
+  ever happens again the exact numbers are in the log instead of a guess.
+- **"Prodotto non nell'inventario" about a product that was right there.** Every discard refreshes
+  the app in the background (`refreshAppDataAfterMutation`), and during that window
+  `currentInventory` can be empty or filtered to another place — so the *second* discard in a row
+  found nothing in the client caches and told the household their food did not exist. Both
+  `_submitWasteRecord()` and `deleteInventoryItem()` now ask the server once (`inventory_list`)
+  before giving that answer, exactly like the edit sheet already did.
+
+### Changed
+- **The quick stocktake has a THIRD way in — the barcode — on its OWN camera, and the three ways share
+  ONE inventory.** The wizard could propose the rows it knows or take a name; now «📷 Scansiona» opens
+  a **dedicated stream** (its own overlay, `#audit-scan-overlay`, started the moment you choose the
+  mode) and the first code read opens the same card the other two ways use. It is deliberately
+  **independent of the scanner the shopping trip and the medicine cabinet use**: no `showPage('scan')`,
+  no `_spesaMode`, no AI identification, no panels — a stocktake in front of a shelf is a different
+  procedure. Only the decoder (`_ensureBarcodeEngines()` + `_scanDetectFrame()`) and the catalogue
+  lookup (`_resolveBarcodeLookup()`) are shared, because a second copy of either would read the same
+  code differently. A product standing in two places answers with the row of the place you are
+  inventorying; an unreadable code or a box the ledger does not know keeps the stream running and says
+  why. Answering the card reopens the camera on the next box (the tally of the three ways is printed
+  under the viewfinder), ✕ or Esc goes back to the sheet, and a `visibilitychange` handler releases the
+  stream so a camera never outlives it. And it is not a separate session: `_auditSession` holds the
+  tally (`✓ confermati · 🏁 esauriti · 🗑️ deperiti · ⏭️ saltati`), the answers and the propose run's
+  point, every sheet prints it with «Riepilogo» and «↩ Torna alla card», and «Fatto» closes it — so a
+  fridge checked by hand, three products found by name and two scanned boxes are ONE stocktake with
+  one summary. Six locales.
+- **«Ti dico io» (the quick stocktake's search) now answers about the shelf you are inventorying.**
+  The list mixed rows that really exist with products the app merely knew (dashed "not in the
+  pantry" rows leading to the add form) and with rows already finished, and the place you had opened
+  lived only in the banner's title: searching "latte" in the fridge gave a list where the fridge's
+  own row sat somewhere in the middle. The search is now built from rows that hold **usable stock
+  only**, split into `here` (the place this stocktake is about — `_auditScopeKey()`: the run's
+  scope, otherwise the pantry's open place, otherwise the last one, kept in
+  `evershelf_audit_scope`) and `elsewhere`, and the first group is printed under its own heading.
+  Every hit opens with the place mark — **✓** it stands here, **✕** it does not — and the action on
+  the right answers the same question: the emerald **✓ C'è** confirms the row with one tap and no
+  card (`_auditSearchQuickThere`, the same "there" answer the card records), a neutral **Sposta qui**
+  (`_auditSearchMoveHere` → `inventory_update` with the new location, so the ledger keeps its
+  «Spostamento» trail) brings it where it belongs and the row flips to ✓ at once.
+- **«Butta» is «Butta/Elimina»** (`action.throw_btn`, `inventory.item_detail_throw_short`), and a
+  medicine's `medical.discard` says «Elimina»: the same button covers a discard and a row that
+  should not exist, and the label now says both. Six locales.
+- **A fifth waste reason: «🧾 Errore inventario».** The household kept improvising it with "Altro":
+  a duplicate row, a wrong quantity that made the app invent a product, a scan that landed on the
+  wrong article. It is still a discard — the stock leaves the shelf — but the reason says the row
+  was WRONG rather than that food was wasted, so a correction no longer counts as waste in the
+  statistics. `WASTE_REASON_KEYS` + the six locales.
+- **A product photo is cached where it is used, not where it lives.** `products.image_url` is a remote
+  Open Food Facts URL and the fetch handler ignored every other origin, so each render asked the
+  network again — and offline the picture never appeared at all, which is what a household reads as
+  "le foto ci mettono una vita". `sw.js` keeps them in their own `IMG_CACHE`
+  (`evershelf-images-v1`): cache-first over the `images.*` / `static.*` fact hosts only (never the API
+  host, where cache-first would freeze a search), `IMG_MAX` 400 photos pruned oldest-first, and the
+  cache **survives** a shell update (the `activate` cleanup skips it). Opaque responses carry no CORS
+  headers and `cache.put()` stores them all the same. The bleed experiment below keeps the same
+  pictures, so a row now paints instantly the second time it is seen.
+- **The package photo leads the row — as a LAYER, not a box.** A 44×44 frame cost a whole column of
+  every row and hid most of the packaging. The photo now takes the LEFT QUARTER of the card, full
+  height, dissolving into the text, so a row reads as one object (the package and its facts) instead
+  of a picture plus a paragraph. It is the same grammar in all three places that carry facts — the
+  pantry row, the Home's notice row and the product sheet head — and the rules live in
+  `assets/css/surfaces.css`, next to `.product-thumb`, which is the component they extend:
+  - the strip is `absolute` and the card clips it, so the card's corners are the photo's corners;
+  - the picture is scaled to 150% and pulled 50% left: `object-fit: cover` never crops horizontally
+    in a strip this wide, so without that the visible part was the package's LEFT edge; now its
+    CENTRE sits in the opaque zone and the right edge lands exactly where the dissolve has reached
+    zero (measured with a three-band test image: the visible zone went from 32/32 red to 32/32
+    green). The pair is tuned together — `margin-left = width − 100%`;
+  - no photo → the category emoji takes the SAME strip, same size, same dissolve, so a list never
+    changes shape depending on whether Open Food Facts had a picture;
+  - every line of the card keeps a 26% gutter (26/22% below 420 px), so nothing is ever printed on
+    the photo, and the layer is `pointer-events: none`: tap, hold and swipe are untouched;
+  - every card is the same height: the name stops at two lines, the meta line at one, and the top
+    block carries a 62 px floor — a row called "Fagioli" is as tall as "Latte Intero (Milbona,
+    Pilos)". The floor is skipped on the touch-tablet/kiosk band, whose height comes from the
+    action strip on the right (which also keeps its full width there — padding it squeezed
+    `840ml · Aperto da 0 giorni · ✓ Usa` into three broken lines).
+- **One list grammar: the Home and the pantry draw the same list.** In the pantry a row *is* a card
+  on the canvas; on the Home the same rows sat inside a tinted frame (`.urgency-hub` white,
+  `.alert-section` amber) with hairlines between them, so the two lists read as two different
+  products. The containers are plain sections now — their title, then the cards — and a notice row
+  carries the pantry card's chrome *down to the pixel*: `--bg-card`, `--radius`, `--shadow`, the same
+  1 px `--surface-border` hairline (which is 2 px of the height), `12 px` padding, `10 px` between
+  the text block and the action line, the same 62 px floor on the text block and the same 34 px
+  action line. Measured: **132 px, both lists, at 360 / 460 / 500 / 892 px**.
+- **On a tablet the two lists were two different layouts.** `tablet.css` turns the pantry row into a
+  horizontal band — photo, text, then `quantity · expiry · ✓ Usa · ⋮` on the right — while the same
+  Home row kept its action strip under the text, so side by side on the same screen the lists
+  disagreed about where the buttons live. `.alert-item` follows the same band now (same `8px 10px`
+  padding, the strip on the right and `flex: 0 0 auto` so it cannot be squeezed into two lines by the
+  text beside it — the pantry strip had the same squeeze), and the two text blocks share a 53 px
+  floor: the pantry's is taller only because of the star button next to the name, a control the Home
+  does not have. The **typography is one** as well — title `1rem/700/1.3`, secondary line
+  `0.8rem/1.35`, `4 px` between them — and the star is set to `line-height: 1` so an icon cannot set
+  the height of a line of text. Measured: **71 px both lists** at 900 px; **132 px both** stacked at
+  460 px (the only differences left are content: a longer title wraps, a longer time string).
+- **The elements of a row are the same, in the same order.** The badge strip always takes its own
+  line — to the right of the text it left a hole between the name and the brand and made both wrap
+  for no reason at ~890 px — and the row ends with `[expiry] [✓ Usa] [⋮]` in both lists: the pantry's
+  ⋮ moved from the name line into the action line, and it is the same quiet 34 px glyph the Home
+  used to draw as a bordered 40 px chip (which alone made its action line 6 px taller). The brand
+  sits beside the name in both, never pushed to the far right. And `✓ Usa` collapses to a bare check
+  below 520 px **in both lists** — before, the pantry kept the word and the Home did not.
+- **Nothing scrolls visibly under the bottom bar.** The bar is a floating pill (`elegant.css`:
+  rounded, 10 px from the bottom and from each side), so the pantry rows travelled across its
+  margins and through the notches of its rounded corners while a household was reading them — the
+  one thing on the screen that moves where the eye lands last. `body::after` now paints the canvas
+  over that whole band: one step under the bar (`z-index: 90`, the bar is 100), `pointer-events:
+  none`, opaque from 10 px down — in PIXELS, not percentages, because the pill rises
+  `--es-nav-height + --es-nav-gap` (72 px) inside a band of `--nav-height + 14px` — and dissolving
+  in the 10 px above it, so a row fades out instead of being sliced. No `backdrop-filter` on
+  purpose: a blur over a scrolling list repaints every frame, and the opaque part already hides
+  everything. Measured with a magenta slab filling the band: the side gaps and the corner notch go
+  from `rgb(252,1,253)` to the canvas colour while the pill's own paint is untouched.
+- **The splash had a SECOND progress line, and it was the stray line under the stage caption.**
+  In a `?debug=1` boot a 3 px track and its fill (`.preloader-bar-track` / `#preloader-bar`) sat
+  between the caption and the credits: it duplicated the boot rail's own connector
+  (`--preloader-progress`, which `_preloaderStage()` already raises) and it was still coloured for
+  the old **dark** splash, so on today's light canvas only the line survived — its status words
+  (pale green/amber) were invisible, and what a household saw was "a strange line that forms".
+  The bar is gone for good: the rail IS the progress, and a `?debug=1` boot keeps only the check's
+  name (`.preloader-status-text`, repainted in the slate family `#475569` / `#b45309` / `#b91c1c`
+  so it can be read at all). `setProgress()` lost its bar branch instead of keeping a reference to
+  an element that no longer exists. And the foot is now **one block**: the credit line, the project
+  chip and SHELFY live in `.preloader-foot` with an 8 px gap, so their spacing comes from one place
+  instead of three negative margins that cancelled the rail's 18–28 px gap. And **«Sistema OK» no
+  longer flashes** at the end of a clean boot: `_runStartupCheck()` un-hid the ticker for 220 ms even
+  outside debug mode, so a household saw a sentence appear and vanish on the way out. Nothing to
+  report means nothing is printed — the ✓ of the `ready` stage is the "all good" signal, and the line
+  stays where it belongs, in `?debug=1`.
+- **"E -": the app name was being CLIPPED, not dropped.** On a phone the header read like a broken
+  title (the name cut to a glyph) and no code looked wrong: `.header-title` is a flex item, so its
+  default `min-width: auto` pinned it to the width of the whole `nowrap` title. It never shrank — it
+  overflowed `.header-title-wrap`, which clips (`overflow: hidden`), so `scrollWidth === clientWidth`
+  at EVERY viewport and `_paintKioskVersion()` (the function whose only job is to drop what does not
+  fit) measured nothing and dropped nothing. Three fixes: the row can now shrink (`min-width: 0`,
+  with the logo `flex: 0 0 auto` so the mark is the last thing to give way); the fallback chain gained
+  its last step — after the kiosk label and the branch, **the NAME goes entirely** instead of being
+  clipped (`.header-title.is-name-hidden` → logo + app version, the version raised a notch because it
+  is then the only text up there); and the `hidden` flags are reset on every measurement, because a
+  branch hidden by a narrow measurement could never come back after a rotation. Measured on the real
+  header, with the two action buttons present: 320–340 px → logo + version, 360–400 px → logo + name
+  + version (branch gone), 430 px and up → the branch returns.
+
+  ads — in English, on purpose.** Under the open-data credit there is now one quiet chip — the
+  GitHub mark, «Free and open-source project», the address of the repository
+  (`github.com/dadaloop82/EverShelf`, a real link, the same one Settings → About already offers)
+  and **two standard badges instead of more prose**: the SPDX licence code `MIT` (read from the
+  repository's own `LICENSE`, never a badge the project does not own) and `No ads`, which is a
+  fact — the banner slots are commented out on purpose. The three strings are **not translated**:
+  the splash is painted before the language is known (translations land while it is already on
+  screen), so a translated line would flash in one language and settle in another, or print a
+  half-translated mix on a new device — `startup.powered_by_open_data` already worked that way. The
+  meaning is carried by the marks (`assets/img/icons/github.svg`, `license.svg`, `no-ads.svg`, all
+  in the service-worker shell, so an offline boot still shows them) and by a code that is the same
+  in six languages; they keep GitHub's slate instead of the app's emerald (the emerald on that
+  screen belongs to the stage that lights up), and the chip is `tabindex="-1"`: the splash is
+  `aria-hidden` and deletes itself ~1.7 s after boot, so a keyboard never lands in it. The same
+  facts, translated, are one tap away in Settings → About.
+
+
+### Fixed
+- **Two ways a best-before date could move on its own, and neither was the household.** Found by
+  auditing this install row by row (`expiry_user_set`, `added_at`, `updated_at` against the estimate):
+  nothing bulk-ran, no migration restarted (every flag in `app_settings` is present), no row carried
+  a date recomputed "from today" for all rows — but two defects did produce dates nobody typed:
+  1. **The backfill counted shelf life from the day it ran, not from the day the product entered the
+     pantry.** Four rows of *salt* added on **2026-03-10** were dated **2027-11-07** — the day the
+     pass ran, plus a year. The pass now anchors on `added_at` (`expiryDateFromDays($days, $added_at)`).
+  2. **The `9999` sentinel — "non-perishable" (salt, sugar, honey, vinegar, bicarbonate) — became a
+     real date**: `today + 9999 days` = **2054-03-13**. Two rows carried it (cider vinegar, muesli).
+     A pantry may say *"senza scadenza"*; it may not invent the year 2054. The sentinel now yields
+     **no date at all**, in the add path, the backfill, the fridge recalculation and the "opened"
+     path (`min(sealed, opened)` can still keep a real date, it just cannot invent one).
+  Dates set by hand (`expiry_user_set = 1`, 95 rows here) are never touched by any of this.
+- **`scripts/fix-expiry-anchors.php` repairs what already happened**, instead of re-entering it by
+  hand: it prints (dry run) the rows whose date is hung off `updated_at` and re-anchors them on
+  `added_at`, and clears any date in the year 2050+ — with a `VACUUM INTO` backup before writing and
+  a `--min-shift` (default 3 days) so a row bought the day before it was used is left alone.
+  On this install: 7 rows re-anchored, 2 cleared, 95 hand-set dates untouched.
+
+
+### Fixed
+- **The wall said "microphone not allowed — check the browser permissions", and the permissions were
+  fine.** That sentence is `capture.mic_denied`, and it was reached through the fallback card's
+  **"🔄 Riprova a voce"**: `_captureRetryVoice()` called `_captureStartVoice()` with **no guard**, so
+  on the tablet the session started, Android refused the microphone (a permission surface cannot
+  come to the front over a locked-task Activity) and the sheet blamed the household's permissions.
+  The tablet HAS a microphone; it is SHELFY that cannot listen in that WebView. Now:
+  - `_captureStartVoice()` refuses on a kiosk wherever it is called from (trace
+    `SHELFY startVoice refused on kiosk`) and says `capture.kiosk_no_voice`;
+  - `_captureRetryVoice()` does the same instead of arming a session it cannot run;
+  - the button is **hidden** on a kiosk (`html.is-kiosk #capture-fallback .capture-fallback-retry`)
+    so the card offers only what works: the chat, and the example phrases one tap each.
+  Same rule as v1.31.19: a wall never promises, nor blames, a voice it does not have.
+
+
+### Fixed
+- **"Questo tablet non ha il microfono" was a lie, and the tablet's owner called it.** The wall HAS a
+  microphone — what it cannot do is let SHELFY *listen* in that WebView without the Activity being
+  recreated. The sentence said the wrong thing about the hardware; it now says the truth, in all six
+  locales: *«Su questo tablet SHELFY non può ascoltare: tocca una delle frasi qui sotto (o apri la
+  chat).»* (`capture.kiosk_no_voice`). The presentation follows: on a kiosk `_shelfyOpenIntro()`
+  replaces the lead line ("ascolto, capisco…") with the same sentence — borrowing the key that
+  already exists, so no new translation — and carries `data-i18n` with it, so a language change
+  keeps it. The microphone button stays hidden there: offering a control that cannot work is the
+  other half of the same lie.
+
+
+### Fixed
+- **Tapping SHELFY no longer does its heaviest work while the app is still booting.** The wall's log
+  of v1.31.17 is one second long: `09:27:17 [BOOT] type=reload v=1.31.17` →
+  `09:27:18 [SHELFY] open` → **five `renderer-killed-oom` in the same second**, with no camera page
+  open and 1108 MB free. At that instant the page is still loading settings, stats, the dashboard and
+  its own inventory; SHELFY's open added a 136 KB `inventory_list` on top of that. The rows are
+  needed by the END of a turn, not by the open, so while `body.is-booting` is set the sheet no longer
+  fetches them (`_captureInventoryRows()` fetches on demand when a lookup needs them).
+- **A kiosk never probes the on-device speech stack.** `_captureProbeLocal()` called
+  `SpeechRecognition.available({ processLocally: true })` — an Android query for the on-device
+  recognition language pack — on **every** SHELFY open, on a device whose capture is by tap only
+  (`_openCaptureSheetInner()` refuses to arm a recogniser there). Waking the speech service inside
+  the renderer that is already the biggest process on the tablet buys nothing and costs everything.
+- **The next kill will name its step.** `_openCaptureSheetInner()` now writes `step=0 open …
+  booting=…`, `step=1 rows`, `step=2 probe`, `step=3 intro|sheet` to the server log through
+  `_kioskTrace()`, so a kill during that tap is no longer a guess about which line was running.
+
+
+### Fixed
+- **The scanner no longer decodes the RAW camera frame sixty times a second — this is what killed
+  the kiosk renderer.** Every pass called `detect(videoEl)` on the `<video>` itself: at 1080×1920
+  that is a ~8 MB bitmap allocated inside the WebView renderer, up to 60 times a second (≈500 MB/s
+  of churn) while the camera is live. The wall proved it: with **no wasm engine loaded at all**
+  (v1.31.16 skips ZBar and Tesseract on a kiosk — the log says `ZBar skipped on kiosk`,
+  `Engines ready — native: true, ZBar: false`) the renderer was still killed **three times in one
+  second**, 3–4 s after `Unified scanner started`, with the camera already running happily before.
+  Now:
+  - the frame is drawn into **one reused canvas, downscaled so its SHORT edge is 720 px** (a
+    portrait wall frame becomes 720×1280, a phone 1280×720) — capping the long edge would have left
+    405 px of width on a portrait video, too little for a dense EAN-13;
+  - the engine is asked at most **once every 150 ms on a kiosk / 80 ms elsewhere** (≈6–12/s);
+  - the boxes come back in canvas pixels and are mapped to video pixels
+    (`_codesToVideoSpace()`), so the lock rectangle, the AI crop and the confirmations keep working
+    on the coordinates everything else expects.
+  Measured: **6 detect/s on `CANVAS 1280×720`, zero JS errors** (was ~60/s on the raw 1080×1920
+  video) — the per-second allocation drops from ~500 MB to ~22 MB. Phones and desktops get the same
+  (cheaper) path, and a barcode held in front of the lens stays in frame for dozens of reads.
+
+
+### Fixed
+- **"All'avvio dice che non c'è la connessione" non è più un vicolo cieco.** `_runStartupCheck()`
+  asked for `health_check` **once**, and any failure — including the 12 s `AbortController` — landed
+  in a single catch that declared *"Cannot reach the server"* and parked the household on a Retry
+  screen. That is the report: the log of the wall (`[RELOAD] startup_retry`) is a boot that had to be
+  restarted by hand. Now the health check is asked up to **three times** (0 / 800 ms / 2 s) with the
+  attempts written to the client log (`[STARTUP_FAIL]` / `[TIMEOUT]` / `[STARTUP_RETRY]`), and a
+  **timeout is not "the server is not there"**: `AbortError` takes the same friendly exit the
+  rate-limited branch already had ("Server busy — continuing with cached data"), so a PHP side that
+  is momentarily busy (a backup, the cron holding the SQLite lock, an import) can no longer keep the
+  app from starting.
+- **A first load that dies in flight asks again instead of showing an empty pantry.** `loadInventory()`
+  has always kept the visible list when an answer is an error — but on the **first** load there is
+  nothing to keep, so the household saw an empty pantry that came back on the next reload ("sembra
+  che perda tutti i dati"). When the inventory is empty and the read failed, the page now retries
+  once after 1.5 s (logged as `[API_RETRY]`) before settling on an empty page.
+- **A kiosk no longer instantiates ZBar next to the native detector.** `_ensureBarcodeEngines()`
+  loaded the ZBar wasm (~2 MB, plus its own per-frame decode path) **even when `BarcodeDetector`
+  was present and working** — the wall's log line `Engines ready — native: true, ZBar: true` is the
+  fingerprint, and every `renderer-killed-oom` recorded there happened 5–15 s after the camera
+  started with both engines live. On a kiosk with a native detector ZBar is now skipped
+  (`ZBar skipped on kiosk — the native detector reads`, verified: **0** requests to
+  `assets/vendor/zbar`, `native: true, ZBar: false`); a kiosk *without* the native API still loads
+  it, because there it is the only engine. Phones and desktops are unchanged.
+
+
+### Logging
+- **Three levels, two rivers, and a device tag that stops lying.** The client had **no levels at
+  all**: the first argument of `remoteLog()` was a free-form TAG (`SCAN`, `JANK`, `API_ERROR`,
+  `CAM`…) and `clientLog()` filed every line under whatever the **User-Agent** said. An Android
+  WebView reports `Android` exactly like a phone, so the wall's own evidence was written as
+  `[phone]` — which is how one afternoon of kiosk logs got read as "the phone". Now:
+  - every line is `[timestamp] [INFO ] [WARN ] [ERROR] [device] tag text`;
+  - `data/logs/app-YYYY-MM-DD.log` and `data/logs/kiosk-YYYY-MM-DD.log` are **separate rivers**
+    (`source` + `device` are declared by the client: `kiosk|tablet|phone|desktop`);
+  - the kiosk's **native** reports (`report_error`, console tail, `renderer-killed-oom`) land in
+    the same `kiosk-*.log`, so rebuilding a wall timeline is one command, not two files;
+  - `LOG_LEVEL` in `.env` governs both the server and what clients may store (`EVERSHELF_LOG_KEEP_DAYS`
+    = 14 days of retention, `data/logs/` is git-ignored);
+  - one device can be raised alone for an afternoon: `?log=debug` (or
+    `localStorage.evershelf_log_level`, or `setLogLevel('debug')` from the console);
+  - `data/client_debug.log` stays as a compatibility mirror for `get_client_log`.
+- The existing call sites did not change: `_logLevelFromTag()` reads the level out of the tag
+  (`UNCAUGHT`/`API_ERROR` → error, `JANK`/`TIMEOUT`/`MEM` → warn, the rest → info), and new code can
+  pass it explicitly (`remoteLog('info', 'CAM', …)`). `scanLog()` is filed as `[INFO] [SCAN]`, or
+  `[ERROR]` when the line says `CAMERA ERROR`/`TIMEOUT`.
+- The kiosk APK carries the level with every report (`info` for a page trace, `warn` for a killed
+  renderer, `error` for a JS exception): `ErrorReporter.reportMessage(…, level = …)`.
+
+### Fixed
+- **A kiosk no longer runs the digit OCR, which is what killed its renderer.** The wall's own log
+  of one attempt is the whole diagnosis:
+  `08:46:36 [SCAN] Stream OK — camera 0` → `08:46:47 [SCAN] Local OCR engine ready` →
+  `08:47:01 [kiosk] renderer-killed-oom` → `08:47:10 [BOOT] type=navigate` (a new Activity, no
+  `PAGEHIDE`: the page never got to say goodbye). Loading the Tesseract worker and drawing
+  1080×1920 video frames into a canvas to hand them over is the heaviest thing the scan page can do,
+  and it happened while the camera was live — with `avail_mb` between 814 and 1121 of 2857, so it
+  was never a RAM shortage. A wall reads **barcodes**, and the native `BarcodeDetector` does that
+  without any wasm; the digits-under-a-damaged-barcode rescue (step 4 of the scanner loop) now stays
+  on phones and desktops, `_tryLocalEanDigitOcr()` refuses on a kiosk as well, and the medicine
+  panel keeps its own reader — which loads the engine when the household really asks for it.
+- **SHELFY never arms a recogniser on a kiosk.** `webkitSpeechRecognition` exists in some Android
+  WebViews and opens a **microphone** session through the `WebChromeClient`; a permission surface
+  cannot come to the front over a locked-task kiosk, the Activity is recreated, and the wall reads
+  that as "tapping SHELFY restarts the app" — the symptom that survived v1.31.1's keyboard fix.
+  `_openCaptureSheetInner()` and `_captureSyncMicAvailability()` now treat a kiosk as "no
+  recogniser": the mic is hidden, the sheet says `capture.kiosk_no_voice`, the example sentences
+  stay one tap away.
+- **A camera that never answers says so instead of leaving a grey box.** The wall reported "the
+  stream does not open, there is a grey box" with **nothing** in the log, because a `getUserMedia()`
+  whose request died with a previous renderer neither resolves nor throws — the promise simply stays
+  pending under the black cover `showPage('scan')` puts there. After 8 s the page now writes
+  `CAM getUserMedia timeout` to the server log and shows the camera error with one **Riprova**
+  (`_cameraRetry()`: `stopScanner()` releases whatever the old attempt left, then a fresh request).
+- **The page can now say what it was doing when the renderer died.** `_kioskTrace(tag, msg)` writes
+  to the server log immediately (`_remoteLogSync`, keepalive — it survives the death of the page)
+  and, when the APK exposes it, to the native report through `_kioskBridge.logEvent()`. It is called
+  at the decisive points: scanner init, stream OK, camera error, timeout, retry, SHELFY open (with
+  whether a recogniser exists at all). Every previous attempt left us guessing; this one will not.
+
+## [Kiosk 1.7.32] - 2026-11-08
+
+Kiosk APK only.
+
+### The wall's report carries the page's own last words
+- `onConsoleMessage` used to forward **only** ERROR lines. What the page is doing when a renderer
+  dies is an INFO line (`Stream OK`, `Local OCR engine ready`, a `[CAM]` trace) — so the console is
+  now kept in a bounded ring of the last 30 lines, **whatever the level**, and it rides along in
+  the `renderer-killed-oom` / `renderer-crashed` report, together with `camera_permission`,
+  `lock_task`, `restarts_10min` and `restart_delay_ms`.
+- New JS bridge `logEvent(tag, message)`: `app.js` reports the few facts that decide the wall's two
+  symptoms (camera asked/answered/failed/timed out, recogniser present or not) straight into the
+  server log. An older `app.js` that does not know the method checks `typeof` first, so the two
+  sides never depend on each other.
+- **The restart is not a loop any more**: three renderer kills inside ten minutes make the next
+  restart wait 20 s instead of 600 ms, and the console tail says what the page was doing. A wall
+  that restarts every few seconds is worse than a wall that waits.
+
+
+### Fixed
+- **Opening the scanner no longer downloads a 23 MB model.** `showPage('scan')` called
+  `_getCategoryPipeline()` on every device, which imports 0.9 MB of transformers, instantiates the
+  ONNX Runtime wasm and fetches `Xenova/all-MiniLM-L6-v2/onnx/model_quantized.onnx` — **22.9 MB** —
+  *while* `getUserMedia()` is starting. Reproduced here against this very server: opening the
+  scanner is what makes those five requests appear, and the `[LONGTASK] 6795 ms page=scan` line in
+  `data/client_debug.log` is that wasm compile blocking the main thread right before `Stream OK`.
+  On a 2.8 GB WebView renderer that is the largest spike the page can produce, at the worst
+  moment — the wall reported it as "the camera does not open any more" and, when the renderer was
+  killed, as "the app restarted". The classifier only ever feeds a *category guess* for a typed
+  name that names no genre (`classifyCategoryByEmbedding()`), so it now loads when that guess is
+  made and never on the scan page; and on a kiosk it is skipped altogether
+  (`_isKioskDevice()`), where the vocabulary (`guessCategoryFromName`) is the same dictionary that
+  classifies everything else. Verified: **0** requests to `vendor/transformers/**` on an open of the
+  scanner (was 5, model included), with the camera streaming 1920×1080 and the action bar on screen.
+- **A kiosk does not warm the OCR engine 400 ms after the camera starts.** `initScanner()` scheduled
+  `_ensureTesseractWorker()` unconditionally — a multi-megabyte wasm instantiation while the
+  household is still aiming, undoing the boot-time skip that v1.31.2 added for exactly this reason.
+  Every OCR path awaits the worker itself, so the engine still arrives when a pass really needs it
+  (the scanner's own digit read is one, a couple of seconds later): it simply no longer competes
+  with the camera's first frames.
+- **A long list is laid out for real, not estimated.** v1.31.11 put `content-visibility: auto` +
+  `contain-intrinsic-size: auto 88px` on `.inventory-item` / `.alert-item` / `.shop-row` on the
+  kiosk. Measured on these stylesheets at a tablet viewport: an off-screen row is laid out **90 px**
+  while the *same* row is **102 px** the instant it becomes relevant (the plain rule is 114 px), so
+  the list's height comes from numbers that are not the rows — the scrollbar lies, a
+  `scrollIntoView` lands elsewhere and every row resizes as it enters the screen (~2 400 px of
+  accumulated error over 197 rows). It looked like a rendering fault on the wall. Removed: the boot
+  storm it was written for is answered by the read cache in `api()` (`_API_READ_CACHEABLE`), which
+  is where the eight `inventory_list` calls of one boot came from in the first place.
+- **The stall detector stops reporting timers that were merely asleep.** `_watchMainThreadStalls()`
+  measured a `performance.now()` delta inside a 1 s interval and called any gap a block — but a
+  hidden page throttles timers to one per minute, so a background tab wrote
+  `[JANK] blocked ~59 000 ms` every minute for hours and one line claimed **3 021 357 ms** (50
+  minutes) while other lines kept arriving. That is the noise that made "the kiosk freezes" look
+  proved yesterday: the clock now runs only while `document.visibilityState === 'visible'` and
+  restarts on `visibilitychange` / `pageshow`.
+
+## [Kiosk 1.7.31] - 2026-11-07
+
+Kiosk APK only.
+
+### An install failure is never answered with "uninstall the app"
+- The wall asked to uninstall the app on an update, while **every published APK is signed with the
+  same key** — proved here without `apksigner`, by reading the APK Signing Block of 1.7.26 → 1.7.30
+  (SHA-256 `36:D8:4A:…:CB:25`, `CN=EverShelf`). "Signatures do not match" was our own misdiagnosis.
+- What really happened: `STATUS_PENDING_USER_ACTION` starts the **system installer**, and the app is
+  in **lock task mode** (screen pinning) — another app cannot be brought to the front, the launch
+  was swallowed, the result came back as *cancelled*, and `onActivityResult` popped the
+  "uninstall" dialog for an install that never ran.
+  Lock task is now suspended for the duration of the confirmation and re-entered afterwards.
+
+### Retry, not uninstall
+- The "uninstall" dialog appears **only** when the two signer fingerprints really differ. Any other
+  failure offers a **retry** that re-commits a session with the APK already on disk (no second
+  6 MB download), and a cancelled confirmation says "annullato" with the retry button — never
+  "uninstall the app".
+
+### Everything is logged
+- `install_start`, `install_session`, `install_pending_user_action`, `install_confirm_result` and
+  `install_result` (status **and** `statusMessage` and the result extras), each carrying the APK and
+  installed `versionCode`, **both signer SHA-256 fingerprints**, `signer_match`,
+  `can_install_unknown` and the lock-task state — so the next refusal explains itself instead of
+  asking the household to destroy the appliance.
+
+## [1.31.13] - 2026-11-07
+
+### Fixed
+- **The scanner's three buttons are real buttons.** `Identifica AI · Cerca · Manuale` carried
+  **no CSS rule at all** — nothing for `.scan-action-bar`, nothing for `.scan-action-btn`: the
+  browser drew them (grey 3D border, default font, no touch target, no pressed state), next to a
+  rest of the app that is fully themed. They now follow the house grammar: `--touch-min` (44 px),
+  `--radius-sm`, `--surface-bg` + `--surface-border` for the two neutral secondaries and **one
+  emerald** (`--brand-primary`) for `Identifica AI`, the action that actually identifies something;
+  a soft pressed state, `prefers-reduced-motion` respected, `text-overflow: ellipsis` so the
+  longest label never breaks the row. The equal-share rule is scoped to `.scan-action-bar >`
+  children, so the medicine panel's lone `Scrivi codice` button (a direct child of the page, same
+  class) keeps its own size, and the strip disappears when the medicine panel hides all three.
+
+## [1.31.12] - 2026-11-07
+
+### Fixed
+- **The scanner's last row no longer hides behind the bottom nav.** The scan page is locked to one
+  screen (`height: calc(100dvh - header - nav)`, `overflow: hidden`), and the three buttons
+  `Identifica AI · Cerca · Manuale` sit at its bottom with **no CSS rule at all**: as flex items
+  they defaulted to `flex-shrink: 1`, so the column compressed them below their own content and the
+  buttons were cut in half under the nav — untappable. They are now `flex: 0 0 auto` (the stream
+  above is the element that gives space back, down to 72 px instead of 120), and the status line is
+  clamped to two lines so a long sentence can never push the row out again.
+- **«Leggo i numeri sotto il codice…» no longer stays on screen for ever.** The local digit OCR
+  sets that line and never cleared it: on a wall pointing at a shelf with no barcode in view, the
+  scanner looked stuck mid-read permanently. The line now belongs to the attempt that sets it (a
+  found code keeps whatever the confirmation says), and every fruitless attempt slows the next one
+  down (1.8 s → 3.6 → 5.4 → 7.2 s, reset by a new scan session): a kiosk was running Tesseract
+  every 1.8 seconds for hours on nothing.
+
+## [1.31.11] - 2026-11-07
+
+### Fixed
+- **The wall's boot stopped asking for the same data eight times.** The Apache log of one boot on
+  the tablet is a loop: `inventory_list` (136 KB) requested **eight times in four seconds**,
+  `stats` four, `shopping_list` four, `smart_shopping` three, `products_list` (309 KB) — every
+  answer parsed again into a fresh graph of ~200 row objects on a pantry with 197 rows. That storm
+  is what makes the WebView renderer the biggest process in the system, and Android kills exactly
+  that process: `[kiosk] [renderer-killed-oom]` twice within seconds of a boot, once **two seconds
+  after the page appeared** (with `avail_mb=1268` of 2857 free and `priority=2`, i.e. the renderer
+  was IMPORTANT and still chosen). The heavy reads (`inventory_list`, `products_list`, `stats`,
+  `shopping_list`, `smart_shopping`, the dashboard summaries, …) now share the answer that is
+  already in flight or just arrived (`_API_READ_CACHEABLE`, 2 s, promise-shared inside `api()`);
+  any write drops the whole cache, and `refreshAppDataAfterMutation()` drops it too, so a mutation
+  is never read back stale.
+
+### Added
+- **A long list on the wall only renders what is on screen.** `content-visibility: auto` (+
+  `contain-intrinsic-size`) on `.inventory-item` / `.alert-item` / `.shop-row` **on the kiosk
+  only**: 197 rows no longer lay out, paint or decode their images all at once, while the phone and
+  the desktop keep the current rendering.
+- `[MEM] boot` / `boot+5s` / `boot+20s` on the wall: the JS heap and the device figures on the way
+  up, so the next restart is a number instead of a guess.
+
+## [1.31.10] - 2026-11-07
+
+### Fixed
+- **The wall stopped restarting itself: an OOM-killed renderer and a resume reload.**
+  The kiosk logs finally named it. `[kiosk] [renderer-killed-oom]` arrived with
+  **`priority=2`** — `RENDERER_PRIORITY_WAIVED`, the priority Android gives a WebView it
+  considers *not visible* — three minutes after a boot, while the household was opening SHELFY;
+  the page came back by itself and read as "the app restarted". The APK now calls
+  `setRendererPriorityPolicy(RENDERER_PRIORITY_IMPORTANT, false)`: on a wall tablet the page IS
+  the appliance and its renderer is never waived, so it is no longer the first thing the system
+  kills. (`[PAGEHIDE] unload` with no `[RELOAD]` line is what proved the reload came from outside
+  the page, and there was no `kiosk-create`/`page-watchdog`/`kiosk-resume-reload` report to
+  explain it: the renderer was resurrected, not the Activity.)
+- **A resume no longer reloads the app for a URL the app itself changed.** `onResume` compared
+  the WebView URL strictly, so any normalisation (`host` → `host/`, `…/index.html`, `?lang=`,
+  `#page-…`) looked like "not on the app any more" and reloaded the whole app on return from
+  standby. It now reloads **only** when the WebView is genuinely off the app (error page,
+  `about:blank`, `data:`, another host), and it **reports** every such reload instead of hiding
+  it behind a duplicated fingerprint.
+
+### Added
+- **The restart is measured, not guessed.** `[MEM]` in `data/client_debug.log` when SHELFY opens
+  and closes on a wall (`shelfy-open` / `shelfy-close`) carries the page's JS heap
+  (`used/total/limit`), the number of images and pantry rows, **and** the device's own figures
+  from the kiosk bridge (`avail_mb`, `total_mb`, `threshold_mb`, `low_memory`, `memory_class_mb`);
+  the APK logs the same snapshot at boot, on every memory trim, and attached to a dead renderer.
+  `[kiosk] [lifecycle] onPause/onResume` names the other half of the timeline, so a reload after a
+  wake can never be mistaken for SHELFY doing it again. **Kiosk APK 1.7.30.**
+
+## [1.31.9] - 2026-11-07
+
+### Fixed
+- **The kiosk update no longer sits on «scaricamento in corso» forever.** The APK was fetched with
+  `DownloadManager`, which is the wrong tool on this setup in two ways: it validates HTTPS against
+  the **system** trust store (a LAN install answers with a self-signed certificate) and it waits
+  for a network Android considers "internet" — which a LAN-only tablet never has. Result: the
+  request stayed `PENDING` and **not a single byte reached the server** (the Apache access log has
+  no `GET /dispensa/releases/evershelf-kiosk.apk` at all, only the `kiosk_update` JSON). The APK now
+  downloads **inside the app** with `openTrustedConnection()` — the same trusted connection every
+  other call uses — into the app's own folder, with the progress on the same banner, and a failure
+  is said out loud (`install_download_failed` + «Riprova») instead of hanging. `installApk()`'s
+  existing checks (PK magic, package name, versionCode) still run before the installer opens.
+  **APK 1.7.28 (versionCode 29).**
+
+### Added
+- `install_download_ok` / `install_download_failed` reports (bytes + elapsed time), so the next
+  update attempt is visible in `data/error_reports.log` even when it fails.
+
+## [1.31.8] - 2026-11-07
+
+### Added
+- **The quick stocktake has two ways, and both land on the same card.**
+  - **«Uno alla volta»** — as before: the app proposes the rows it knows, scoped by place.
+  - **«Ti dico io»** — a field where the household types the product name. `_auditSearchMatches()`
+    looks in the pantry ROWS first (name, brand, accent-insensitive: `Caffè` finds `caffe`) and
+    shows where it is and how much is on record; tapping one opens the **same** card (confirm /
+    finished / spoiled / edit / move), and `_auditFinish()` returns to the search with the term
+    still in the field and a `Fatto: {name}` toast. A search card is one question, never a
+    resumable run (`_auditPersist()` skips it).
+  - The second mode exists for what the first cannot see: a product the catalogue knows with **no
+    stock anywhere** is listed as `audit.search_not_stocked` and opens the add sheet
+    (`_auditSearchAddProduct()`), and a name that matches nothing offers `audit.search_create` →
+    the product form with the name already typed (`_auditSearchCreate()`).
+  - The chosen mode is remembered (`evershelf_audit_mode`), and mode 1's card carries a quiet
+    «🔎 Ti dico io» link that keeps the run (it is persisted, resumable as always).
+  - An empty pantry no longer closes the stocktake on a toast: it says there is nothing to propose
+    and offers the search.
+
+### Changed
+- `audit.mode_propose` / `audit.mode_search` and the search strings in the six locales
+  (`search_hint`, `search_placeholder`, `search_none`, `search_create`, `search_not_stocked`,
+  `search_badge`, `search_another`, `search_saved`).
+
+## [1.31.7] - 2026-11-07
+
+### Changed
+- **The «dove l'hai messo?» countdown is the app's confidence, not a constant.** It used to be
+  10 s when there was a precedent and 20 s otherwise; now it is **dynamic between 2 and 20 s**
+  (`_movePromptSeconds()`), driven by `_moveHistoryConfidence()` — how much the last five choices
+  AGREE on a place (7 of 8 to the fridge) times how many times it was actually seen, with a genre
+  habit weighing 0.55 against the product's own history (1.0) and nothing known counting 0:
+  - four identical choices → **2 s** (the presumed answer is on screen; the only job is to stop it
+    in the rare wrong case),
+  - one sample → ~**9 s** (a single observation can only be so sure of itself),
+  - a genre-only habit → ~**10–13 s**,
+  - no history at all → **20 s**, and the pack stays where it was.
+  A single function maps 0..1 to the seconds and is clamped to `[_MOVE_PROMPT_MIN_S, _MOVE_PROMPT_MAX_S]`,
+  the printed seconds keep following the real countdown (`startMoveModalCountdown`), and any touch
+  still stops the clock.
+
+## [1.31.6] - 2026-11-07
+
+### Fixed
+- **A kiosk no longer frosts the backdrop — the likely reason SHELFY "restarted the app".**
+  `backdrop-filter` on a full-screen overlay is re-composited every frame; on an Android WebView
+  with a modest GPU, opening SHELFY (a `.modal-overlay` covering a dashboard full of photos and
+  shadows) stalled the page long enough for the kiosk's **6 s page watchdog** to reload it — a
+  reload from outside the page, which is exactly the `[PAGEHIDE] unload` the logs showed at
+  14:11:32 with no `[RELOAD]` line in front of it. `tablet.css` now forces
+  `backdrop-filter: none` on every overlay/anchor element when `html.is-kiosk`.
+- **The kiosk reports were never arriving.** `ErrorReporter.doPost()` used a plain
+  `URL(...).openConnection()`, so on a LAN install with a **self-signed certificate** every POST
+  died in an `SSLHandshakeException` — caught, logged to logcat, invisible to the server. That is
+  why `data/error_reports.log` has never contained a single `[kiosk]` line, and why "did the
+  update install?" could not be answered. The reporter now trusts the app's certificate exactly
+  like every other call (`openTrustedConnection()`) — **APK 1.7.27**.
+- **A watchdog no longer reloads for a hiccup.** The page probe now waits 10 s (was 6) and the
+  page is reloaded only after **two consecutive misses**; both are reported
+  (`page-watchdog-miss`, then `page-watchdog-reload`).
+
+### Added
+- **The kiosk's APK version goes into the server log** (`[KIOSK] apk=1.7.27 (28)`) at every boot:
+  "is the update really installed?" is now answered by `data/client_debug.log`, not by a photo of
+  the header.
+- **A blocked main thread is measured, not guessed.** A 1 s timer (plus the `longtask` observer
+  where the browser has it) writes `[JANK] blocked 5200ms shelfy=open page=dashboard` for any
+  stall ≥ 1.5 s. The next stall will say what it was doing when it froze.
+
+## [1.31.5] - 2026-11-07
+
+### Changed
+- **Two versions in the header, and the app version never loses.** `v1.31.5` and the APK that
+  runs it (`kiosk 1.7.26`) are **two elements** now — `.header-version` (read by `reportError()` as
+  the app version, so it must stay a bare semver) and `#header-kiosk-version`, dimmer and
+  emerald, separated by a dot. `_paintKioskVersion()` measures the row: if it does not fit the
+  kiosk label goes first, then the branch label, and it is the **title** that gets ellipsised —
+  on a phone you still read the app version, on the wall you read both (verified at 1000/420/260
+  px). Re-measured on resize and after the translations arrive; the label appended to the kiosk
+  controls in the corner is gone (it was the thing eating the space).
+
+### Added
+- **A reload now names its author in the log.** Every self-reload goes through
+  `_reloadPage('why')` (language, backup restore, setup language, startup retry, pairing,
+  API token), which writes `[RELOAD] why shelfy=… page=…` **before** reloading, and a
+  `pagehide` handler posts `[PAGEHIDE] reload:<why>` or `[PAGEHIDE] unload` with
+  `fetch(…, {keepalive:true})` — the buffered logger would flush two seconds after the page is
+  gone. So the next «SHELFY restarts the app» is decidable: `unload` with no `reload:` line means
+  something OUTSIDE the page reloaded it (the kiosk's ↻, its watchdog, or a new Activity), which
+  is exactly what the tablet still does.
+- Evidence from the server while writing this: the tablet still loads `/dispensa/` twice, 16 s
+  apart (10:31:24 → 10:31:40), and `data/error_reports.log` still has **no `[kiosk]` line at all**
+  — the APK on the wall does not have the instrumentation, i.e. the 1.7.26 update has not been
+  installed yet (`kiosk-create` would appear at every start).
+
+## [1.31.4] - 2026-11-07
+
+### Changed
+- **The camera stream carries one thing: the box on a read barcode.** The moving scan line
+  (three keyframes), the particle cloud and its 180 ms pixel scout, the pulsing ring, the
+  drifting dots, the lookup spinner, the live digits, the green ✓ flash, the corner brackets
+  and the `2×` badge are all gone. None of it helped anybody aim, and on a low-end tablet it
+  was a repaint per frame over the camera feed. What appears when a code is actually read is
+  the lock box, placed where the barcode was — and it holds still (no animation).
+- **The status line and the camera controls moved under the picture** (`.scan-below-bar`):
+  torch, shopping mode and flip are still one tap away, with the status text beside them,
+  instead of floating in a dark gradient on top of the stream.
+- **An AI identification is no longer interrupted by a barcode.** Pressing «Identifica AI»
+  started the model reading the frame, but the barcode hunt kept running: one read called
+  `onBarcodeDetected()` → `_resetAiFallbackForNewScan()` bumped `_aiVisualGen`, and the answer
+  arrived classified as *stale* and vanished. Now the hunt pauses for the whole AI turn
+  (`pauseScanner()` also in `_tryGeminiNumberOCR()`), `onBarcodeDetected()` drops a read while a
+  turn is in flight, and a turn that ends without opening anything resumes the scanner itself.
+
+## [1.31.3] - 2026-11-07
+
+### Added
+- **The kiosk version is on the wall.** The header (and the controls in the corner) now print
+  `v1.31.3 · kiosk 1.7.26 (27)`: the page version AND the APK that is running it. An APK too old
+  to answer says `kiosk < 1.7.26`, which is the answer to "did I install the right one?".
+- **A kiosk update announces itself.** The check ran only from a button in Settings and the
+  native side throttled it to **6 hours**, so a release published after the last check stayed
+  invisible for the rest of the day. Now the check runs at boot, the throttle is 30 minutes, and
+  a newer APK raises a toast (`kiosk.update_toast`) plus a badge on ⚙️ — the Settings panel is
+  only where the *install* button lives, not where the news lives.
+
+### Fixed
+- **"Mantieni le impostazioni" now really keeps them.** The kiosk wizard's keep answer applied
+  four switches and nothing else: the Gemini key and the Bring! account never travel to the
+  device (`get_settings` only says whether they exist), so the wizard asked for both again — on
+  every launch. Their steps are now skipped when the server already holds them
+  (`KEY_GEMINI_ON_SERVER` / `KEY_BRING_ON_SERVER`), and "Riconfigura" clears those flags so the
+  questions come back when they are wanted.
+- **Kiosk APK 1.7.26 (versionCode 27)** — adds `getAppVersion()` to the JS bridge and the 30-minute
+  update throttle.
+
+## [1.31.2] - 2026-11-07
+
+### Fixed
+- **A kiosk no longer instantiates 20 MB of WASM at boot.** `preloadBarcodeEngines()` warmed
+  ZBar and the whole Tesseract core on every start, for a scanner nobody had opened. On a
+  low-RAM tablet WebView that spike is the cheapest way to lose the renderer — and a dead
+  renderer means `onRenderProcessGone` → `recreate()` → the page loads the URL again, i.e. "the
+  app restarted". The preload is now skipped on a kiosk (`_isKioskDevice()`): `initScanner()`
+  loads the engines on demand behind its own loading state, so the first scan is a little
+  slower and the kiosk stays up.
+- **The kiosk can now prove what reloads it.** The tablet's page reloads showed up in the
+  server access log (two page loads seconds apart) but nowhere in the app's reports: the APK
+  now reports `kiosk-create` (`recreated` true/false), `kiosk-config-change` (which change
+  arrived) and `kiosk-resume-reload` (with the WebView URL and the configured one). And
+  `sameAppUrl()` treats `/dispensa/`, `/dispensa/index.html` and a URL with a query string as
+  the same page, so an `onResume` can no longer reload the app for a difference that is not one.
+- **APK 1.7.25 (versionCode 26)** — needed for the OTA check to see the update.
+
+## [1.31.1] - 2026-11-07
+
+### Fixed
+- **The kiosk no longer restarts the whole app when SHELFY opens.** The Android WebView has no
+  speech engine, so SHELFY fell back to the text field — and focused it. A soft keyboard over an
+  immersive full-screen WebView relayouts the page, and Android answers that configuration change
+  by **recreating the Activity**: a new WebView, the URL loaded again, the splash on screen. On the
+  wall that is "opening SHELFY restarts everything". Two layers of fix:
+  - **App (works on the tablet already in the kitchen):** `_isKioskDevice()` keeps every keyboard
+    surface closed on a kiosk — `_captureShowType()` refuses to open the row, the "Preferisco
+    scrivere" link is hidden and `_openCaptureSheetInner()` never focuses the field. The sheet says
+    `capture.kiosk_no_voice` («Questo tablet non ha il microfono per SHELFY: tocca una delle frasi
+    qui sotto…») and the example phrases are one tap away, so the assistant is still usable with no
+    keyboard at all.
+  - **APK (`evershelf-kiosk`):** the manifest now declares **every** `configChanges`
+    (`screenLayout|smallestScreenSize|navigation|uiMode|density|fontScale|layoutDirection|locale|
+    colorMode|mcc|mnc|touchscreen` on top of the four it had) and `KioskActivity` overrides
+    `onConfigurationChanged()` to re-apply immersive mode instead of being recreated — a keyboard,
+    a rotation or a locale switch can no longer reload the app. **This half needs a new kiosk build**
+    (the app updates itself, or rebuild and reinstall the APK).
+
+## [1.31.0] - 2026-11-07
+
+### Added
+- **The shopping list says when the suggested quantity would end up in the bin.** A row now
+  carries, beside the suggested amount, the **amount that fits the food's own shelf life**
+  (`🍃 (2 pz)`) and the sentence that explains it («Meglio 7 pz: la quantità suggerita
+  durerebbe 44 giorni, ma scade in 28 — il resto andrebbe buttato»). The server computes it
+  in `smartShopping()` (`waste: {keep_qty, keep_unit, shelf_days, cover_days, leftover}`,
+  helper `shoppingWasteSafeQty()`): daily consumption against the shelf of that KIND of place,
+  landed on something a shop really sells. It only fires on **perishable** categories with a
+  shelf ≤ 45 days and never on a durable staple — a marker that cries waste on a box of cereal
+  is the noise that teaches the household to ignore it. Nothing is forced: the household buys
+  what it decides, it just knows before paying.
+- **A purchase is always dated.** `inventory_add` (and the CSV import) now infers the
+  best-before date when nobody typed one — the same estimate the add form shows, on the kind
+  of place, extended for a vacuum pack — and stores it as an **estimate**
+  (`expiry_user_set = 0`), so the product sheet still says «stimata» and one tap corrects it.
+  A medicine is never dated by the app. `migrateDB` dated the rows that were already stored
+  without one (`migration_infer_missing_expiry_v1`): a row with no date never enters
+  «in scadenza», so the pantry could never warn about it.
+
+### Changed
+- **In cooking mode the microphone starts OFF, and only a tap turns it on.** The recogniser used
+  to arm itself 5 s after the recipe appeared (and again after every step): in a kitchen that is
+  Chrome's start chime over the recipe and a microphone nobody asked for. Now `startCookingMode()`
+  leaves `_cookingVoiceAuto = false`, a card anchored to the 🎤 explains — **on every open**, with
+  the real words of `vocabCookingVoice()` — that the mic is off and that tapping it is what starts
+  listening, and it fades by itself after **5 s** (it used to be once per device, 8 s). A second
+  tap mutes, closing the recipe resets everything, and after a heard command the session re-arms
+  once the step's text-to-speech has finished, so a hands-free cook still works.
+- **Two gestures on a shopping row, and nothing else.** Swiping **left** is «comprato» (it
+  writes the stock and takes the row off the list), swiping **right** is «non lo compro» (the
+  dated dismiss that comes back on its own). The third zone that opened the **camera** on a
+  long right swipe is gone, and so is `markShoppingItemBought()`: a full-width swipe used to
+  start the scanner instead of buying something, which is what made the gesture feel doubled.
+
+### Fixed
+- **A write that dies in flight is queued instead of dropped.** In a supermarket the phone
+  drops in and out of the network on every aisle: marking a row «comprato» while it was down
+  wrote nothing and the item came back on the list at home. `api()` now hands a failed write to
+  the offline queue (`_queueWriteAfterNetworkFail()`), returns the optimistic answer and
+  replays it with `_syncOfflineQueue()` — at boot, on `online` and when offline mode is left.
+  One list of replayable actions (`_OFFLINE_QUEUEABLE_ACTIONS`) for both paths, and
+  `_offlineReplay` stops a failed replay from queueing itself again.
+- **SHELFY's sheet is cheap to paint, and opening it can no longer take the app down.** The
+  capture button declared its listening state twice, one of them animating a 26 px
+  `box-shadow` at 60 fps for the whole conversation — a blurred shadow repainted every frame,
+  on top of the wrapper ring, which is exactly what a low-end kiosk WebView kills (a renderer
+  restart reads as «the app restarted»). The ring is now a `transform`/`opacity` animation on
+  the wrapper only, the level loop stops when the sheet is off screen or the page is hidden,
+  `_openCaptureSheet()` guards the body (a throw closes the sheet, logs `shelfy-open-failed`
+  and says `capture.open_failed`), and a kiosk never auto-focuses the typing field (no system
+  keyboard over a wall tablet).
+
+## [1.30.17] - 2026-11-06
+
+### Fixed
+- **A shopping trip created one product per PACKAGE.** The identity of a food is its name, but
+  the duplicate finder only reused a row when the brand was compatible — and the spesa flow
+  sends the brand printed on the pack. So `Banane [SCB]` and `Banane [Iper Poli]`, `Panna da
+  cucina` ×3, `Tonno all'olio d'oliva` ×4 all lived side by side, and each of them was its own
+  family in the shopping engine: the list asked for food that was on the shelf, the anomaly
+  banner counted one purchase twice, the Storico showed the same load twice. An exact name (or
+  the same article at another number, `Pomodoro` ↔ `Pomodori`) now reuses the row across brands —
+  the brand is a VARIANT of a food, never its identity. The kept row is the one the household
+  already uses (barcode, picture, a real category, the stock), and every cross-brand reuse is
+  logged (`product_reuse_brand_variant`). A barcode still wins first, and loose produce still
+  never merges into the pantry's tin of the same word.
+- **Produce no longer arrives as "confezioni", and nothing starts below the pantry minimum.**
+  A loose fruit read off the label became `1 confezione da 0,757 kg` (Cachi), which broke the
+  piece fractions, the minimum quantities and the family; and a label misread gave 1 g of
+  broccoli or 2 ml of cream as the starting amount, which the form then refused. Produce stays
+  out of `conf` (a prepared salad keeps its bag), and the starting amount is at least the
+  pantry's own minimum for that unit. The vocabulary remains the authority on what is sold by
+  the piece.
+- **`scripts/consolidate-duplicate-products.php`** (new): merges the same-name groups that were
+  created before the rule, with the move the app itself does (inventory, transactions and tags
+  follow the kept row, then the duplicate is deleted). It backs up first (`VACUUM INTO`), skips
+  any group whose stocked rows disagree on the unit (a real conversion, not a merge), and has
+  `--dry-run`. Run on this pantry: **27 groups / 34 rows merged**, 4 groups left on purpose.
+  Verified: inventory rows 210 → 210, total quantity in the pantry 40 053,961 → 40 053,961,
+  transactions 2169 → 2169. Products 539 → 506.
+
+## [1.30.16] - 2026-11-06
+
+### Fixed
+- **SHELFY pulled the Home page out from under the conversation.** The always-on idle clock
+  (2 minutes) only stood down for the shared `#modal-overlay`, so a SHELFY turn — the one flow
+  where the household never touches the screen — let it fire: `showPage('dashboard')` ran while
+  the assistant was still talking, which reads as "l'app si riavvia quando si usa SHELFY". Any
+  visible dialog now stops the auto-home (`_visibleOverlays()`: SHELFY, the chat, a product
+  sheet, the waste sheet), a live turn keeps the clock screen away (`_captureTurnLive()`), and
+  **every recognised chunk refreshes both idle clocks** (`_noteVoiceActivity()`): talking IS
+  using the app.
+- **A reload can now be proved instead of guessed.** One line per boot in
+  `data/client_debug.log` says how the page was loaded (`type=reload` — the browser/app reloaded
+  it — versus `type=navigate`, a fresh open) and whether the previous session had SHELFY open
+  (`shelfy=open`, kept in `sessionStorage`, which a reload preserves and a new launch does not).
+  If the assistant really restarts the app, the next occurrence says so with a type and a page.
+
+## [1.30.15] - 2026-11-06
+
+### Fixed
+- **"Aggiungi" wrote nothing on a pantry the household had renamed.** The place guessed by the add
+  form was the built-in `dispensa`; once that place was deleted (here the kitchen pantry is
+  "Dispensa cucina") the field held a slug no place answers to, the API replied a bare English
+  "Invalid location" and the catalog row stayed **with no stock on any shelf** — a dead button.
+  The guess now always lands on a place that **exists** (`_existingLocationFor()`: the one NAMED
+  after it, then one of the same **kind** — a pantry is still a pantry —, then the first legal
+  place), and the server sends a missing place to the first one that exists and answers
+  `error_key: error.invalid_location` (six locales) instead of untranslated prose.
+- **A retried purchase doubled the stock.** `inventory_add` wrote the row and then answered
+  **HTTP 500** when the shopping-list sync met SQLite's "database is locked": the phone showed
+  "Errore di connessione" for a purchase that HAD been recorded, the household pressed again five
+  seconds later, and the same 250 ml landed twice (Storico: `limmi succo di limone` 250 + 250 at
+  17:31:21 and 17:31:26) — which is also where a phantom "hai più scorte del previsto" banner
+  comes from. The list sync is best effort now: the stock write answers success and the failure is
+  logged (`api_inventory_add_restock_failed`).
+- A refused place is diagnosable: the log carries the place that arrived and the list of the valid
+  ones (`api_inventory_add_invalid_location`), because "Invalid location" alone never said **which**
+  place was wrong.
+
+## [1.30.14] - 2026-11-06
+
+### Changed
+- **The AI cost pill is a notification again, not a fixture.** It stays out of the header and
+  appears for **8 seconds** right after the assistant works (it still shows the MONTH total plus
+  the month, "~€0,36 NOV"). A permanent figure in the header is noise; hiding it forever is a
+  guess. The boot paint and the 5-minute refresh are gone.
+
+## [1.30.13] - 2026-11-06
+
+### Fixed
+- **What is about to finish belongs to the list, not to the suggestions.** Butter sat in the
+  footnote at **1% of its usual pack** because it had never been *used* in the ledger: the split
+  only asked "is it rarely used?". A row is a suggestion only when the shelf is comfortable —
+  more than a quarter of the usual purchase left AND a run-out date beyond the planning window
+  (`SHOPPING_ABOUT_TO_FINISH_PCT`). Anything that will finish between today and the next shop is
+  in the list, which is what a shopping list is for. Burro (1%) → **in lista**, cioccolato (61%)
+  stays a suggestion; 57 rows, 1 suggested.
+
+## [1.30.12] - 2026-11-06
+
+### Fixed
+- **Spices were bought by the hundred gram.** `sale_units.json` had no rule for `condimenti`, so
+  oregano came out at 80 g for the month. A jar is the unit: 10 g steps, 10 g minimum, 50 g cap.
+  Origano 80 g → **50 g**, rosmarino → 10 g.
+
+## [1.30.11] - 2026-11-06
+
+### Fixed
+- **Yogurt was missing from the list.** The dismiss map ("non serve") contained `yogurt` from a
+  tap weeks ago, and the guard added in 1.30.7 muted the whole generic for the whole window. A tap
+  cannot silence a staple: a product used at least once a week (`SHOPPING_HIGH_USES_PER_MONTH`)
+  now ignores the dismissal, and buying it clears the entry anyway. Yogurt (38 uses in 90 days) is
+  back in the list at 1000 g.
+- **"Suggeriti" was stealing products the household uses.** The split moved a row out of the list
+  when it had been bought once — even when it was finished ("molti suggeriti li uso, quindi
+  dovrebbero stare in lista"). A row is only suggested when it is **rarely used AND still on the
+  shelf**; anything the pantry uses and has run out of stays in the list where it belongs.
+  On this pantry: 47 rows → **56 in the list, 2 suggested** (chocolate with stock, butter never used).
+- **"Aggiungi" from a suggestion did nothing.** Two causes: the chips of the strip under the list
+  had no click handler at all outside the forecast tab (fixed in 1.30.10), and the success toast
+  fired even when the server wrote nothing. The chip now reports what really happened —
+  `added` / `updated` from the response, "Era già in lista" when nothing was written, the error
+  when there is one — and re-enables itself instead of staying disabled.
+
+## [1.30.10] - 2026-11-06
+
+### Fixed
+- **Adding a suggested product wiped the suggestions.** The chips in the strip under the list had
+  their click handler attached only in the forecast tab, and the add path (a) reloaded the whole
+  page and (b) let a payload WITHOUT the `suggested` key reset the list to `[]` — so one tap made
+  every suggestion disappear. Now the strip is wired on the shopping page too, a response that does
+  not carry the list no longer replaces it, and the add is optimistic: the chip leaves the strip,
+  the row appears in the list, and the server syncs in the background.
+- **The search now filters the suggestions**, both the inline section and the "Suggeriti" strip.
+  A search that leaves the suggestion area untouched promises rows that are not in the list; with
+  no match the area disappears entirely.
+
+## [1.30.9] - 2026-11-06
+
+### Added
+- **The shopping list shows it is loading, with SHELFY.** A cold load used to be an empty page
+  with one line of text ("Connessione…") and then the whole list at once. Now the list keeps its
+  shape while it waits: the avatar breathes on the same emerald ring as the splash, a line says
+  "SHELFY sta preparando la lista…", and four skeleton rows shimmer where the products will be.
+  A background refresh still never blanks what the household is already looking at.
+- **The estimated spend breathes while it is recomputed**, instead of freezing on "…".
+
+## [1.30.8] - 2026-11-06
+
+### Fixed
+- **The AI cost pill was not the month total, it was a five-minute flash.** The figure WAS the
+  month (`gemini_usage.month_stats`: 73 calls, ~€0,36 in November) but the pill appeared for five
+  minutes after each call and then vanished — so the only moment the household ever saw it was
+  right after an action, which reads as "the cost of what I just did". It is a standing figure
+  now: painted at boot (and every 5 minutes), it carries the month next to the amount
+  ("~€0,36 NOV") and pulses for a second when it updates instead of disappearing.
+- **The screensaver never came on the shopping page.** Both `resetInactivityTimer()` and
+  `activateScreensaver()` returned early when `_currentPageId === 'shopping'` — the page this
+  household lives on — so the idle screen only appeared elsewhere. The idle screen is an overlay
+  and a tap dismisses it: it is allowed everywhere now, except while a session is really running
+  (cooking mode, or a scan/spesa flow with the camera). The 2-minute auto-home still keeps off
+  the shopping page, which is the guard that actually matters there.
+
+## [1.30.7] - 2026-11-06
+
+### Added
+- **Search in the shopping list**, filtering as you type (accents and case ignored), 44 px tall.
+  The priority pills count what the search leaves, so a pill never promises a row you cannot see.
+- **The suggested products are on the list page** (collapsed strip at the bottom, one tap to add),
+  not only in the forecast tab.
+
+### Fixed
+- **A purchase from the list never reached the Storico.** `_shopRowBought()` wrote the stock to
+  `dispensa` — a place this household had **deleted** — so the server answered
+  "Invalid location" and no transaction was created (nothing to see, nothing to undo). It now
+  uses the place the product really lives in and falls back to a place that exists. Verified:
+  `inventory_add` → transaction `in` → visible in Storico → `transaction_undo` puts it back.
+- **Removed items came back.** `smart_shopping` did not consult the dismiss map: the next cache
+  rebuild put them in the suggestions again. The server skips them now, and the client filters
+  them out of the inline suggestions and the suggested strip too. This pantry's list went from
+  73 predicted rows to **47** once the dismissed products stopped being re-proposed.
+- **Missing prices said nothing.** A line without a price shows `n.d.` with the reason in the
+  tooltip instead of a mute dash, and the total explains itself on hover ("based on 66 priced
+  items out of 71").
+- The `Da comprare` section header (title + count) is gone: the count lives in the badge and in
+  the pills, and the header was a third place saying the same number.
+
+## [1.30.6] - 2026-11-06
+
+### Fixed
+- **"Di cipolle ne uso tanto e me ne consiglia 3".** Two rules were capping a real need to a
+  tenth of itself: the shelf-life estimate gave a **dry onion 10 days** (the figure for a cut
+  one) and a blanket "fresh = one week" cap then cut every fruit and vegetable to 7 days — so a
+  30-day plan asked for 3 onions while the household buys ~10 a month. The onion estimate is 30
+  days now (like potatoes, which already were) and **the category-wide cap is gone**: each
+  product is planned on its own shelf life (bananas 5 days, onions and potatoes 30).
+  On this pantry: **Cipolle 8 pz** (was 3), Patate 8, Pomodori 6, Uova 12 (two trays of 6).
+- **"Latte di Montagna" was its own milk family** while the fridge had five kinds of milk, so
+  the list asked for milk the household already owned. The phrase rule ("head + di + noun")
+  turned the name into a generic even when the dictionary already knew the head word — "latte"
+  is a genre, so the generic is **Latte** and the brand belongs to the variant. Five milk
+  products are one family again and the row disappeared from the list.
+- **A brand is never a generic.** When the vocabulary does not recognise a product,
+  `computeShoppingNameCanonical()` now answers **nothing** and the caller keeps the generic it
+  already has: the old first-token fallback renamed rows to "Armonia", "Limmi", "Zagara",
+  "Campagnole" — one family per brand — at every page load, because
+  `internalShoppingNormalizeNames()` runs on each read. That pass uses the canonical (no AI, no
+  brand) path now.
+- **`migration_shopping_generic_v5`** recomputes the stored generics with that pipeline and
+  merges the list rows onto them (once: it cannot churn, since an unknown product is left alone).
+
+## [1.30.5] - 2026-11-06
+
+### Fixed
+- **"10 giorni" without a word next to it.** On a narrow screen the horizon label was
+  `display: none` and the box showed a bare number: it now SHRINKS instead of disappearing, the
+  redundant "gg" unit is gone (the sentence already says "giorni") and the number input gets
+  narrower — the box always reads "Quantità per 9 giorni [9] Auto".
+- **The badge on Spesa was not the list.** It came from a second, asynchronous fetch of
+  `shopping_list`, so it lagged behind every row added / bought / dismissed (75 while the list
+  had 71). It is now written from the rendered rows at every pass, with no round trip.
+- **The cycle is explained, and 30 is the default again.** `SHOPPING_DEFAULT_PLAN_DAYS` is 30:
+  the inferred cycle only wins when there is something real to average, and the label carries a
+  tooltip saying which — "Media delle tue ultime 9 spese" on this pantry (9 days), "Storico
+  insufficiente: 30 giorni di default" otherwise. `plan_days_source` / `plan_days_samples`
+  travel in the payload (cache included) so the client never guesses.
+- **The inferred cycle no longer mixes two kinds of evidence.** Real shopping sessions
+  (`data/shopping_spend.json`, one per spesa) are used alone when there are at least three; the
+  inventory loads are the fallback, clustered into trips and requiring four of them. On this
+  instance the nine sessions average 8.7 days → 9.
+- **"Usa" in a recipe was a 34 px pill with 0.78 rem text** next to a 1.1 rem ingredient name:
+  it is a 44 px emerald action now (the only control of the row, and the one that writes stock).
+
+## [1.30.4] - 2026-11-06
+
+### Changed
+- **The header is ONE line.** The horizon block stacked a title, an explanatory sentence
+  ("Periodo personalizzato (30 giorni) I freschi si calcolano su 7 giorni") and a control row —
+  the tallest thing in a header where the products should be. The sentence is gone, the label,
+  the number, the unit and the reset sit on the same baseline, and the two boxes stay side by
+  side on any screen wider than a phone.
+- **The horizon is measured from the household, not typed by them.**
+  `smartInferShoppingCycleDays()` now clusters consecutive buy days into ONE trip (food is put
+  away over an evening: three logged days are not three shops) and includes the interval still
+  open — last shop → today — before averaging. On this pantry the 61 logged days are 5–6 trips
+  and the cycle comes out at **10 days**; the stored `shopping_plan_days` (a 30 that nobody
+  chose) was removed, so the app plans on the real rhythm and the label says "Quantità per 10
+  giorni". A household that prefers a fixed window can still type it — "Auto" brings it back.
+
+### Removed
+- `#shopping-plan-days-hint` and its four i18n keys from the code path (the strings stay in the
+  locale files, unused): a sentence that repeats the number next to it is not a hint.
+
+## [1.30.3] - 2026-11-06
+
+### Fixed
+- **The pills cut in half ("the hidden green button").** A horizontally scrolling row inside a
+  column flexbox is SHRUNK by the layout algorithm: `.shop-filter-row` had `overflow-x: auto` and
+  no `flex: 0 0 auto`, so it collapsed to half its height and read as a button poking out of the
+  header. The head row gets the same treatment.
+- **The estimated spend was arithmetically wrong on several lines** (`_calcEstimatedTotal`):
+  a `default_quantity` below 20 is a PIECE count, not a weight — "Rotolo, 2 rotoli" was read as a
+  2 g pack, so 500 g became 250 packs clamped to 6 = **€15 for a roll** (now €2.50). A multi-pack
+  label ("confezione 4x55g") now weighs 4 × 55 g instead of taking the first number (Monte
+  €13.20 → €6.60), and a label amount under 20 g/ml is treated as a misread piece count. The
+  total of this instance's list moved from **€286.16 to €255.14**, with the pieces counted:
+  10 eggs → 2 boxes of 6 (€3.58), 3 frozen pizzas → 2 boxes (€6.40), 3 tins of tuna → 3 (€9.57).
+- **`SQLSTATE[23000] ... UNIQUE constraint failed: index 'idx_shopping_list_name'` on a page that
+  was only READING the list.** `internalShoppingNormalizeNames()` renames rows to the canonical
+  generic at every load, and since that canonical is now the PLURAL it could collide with a row
+  already carrying it. It merges the notes into the survivor and drops the duplicate instead of
+  throwing; the two insert paths use `INSERT OR IGNORE` and report `skipped` when the row was
+  already there (the lookup before them was a check, not a lock). Nothing here has anything to do
+  with Bring: the internal list uses the same generic machinery.
+- **"Auto (30gg)"** was a hardcoded label: it now prints the server's real cycle
+  (`Auto ({days} gg)`), so a reset cannot promise a horizon it will not apply.
+
+## [1.30.2] - 2026-11-06
+
+### Fixed
+- **One number per generic: no more "Peperone" next to "Peperoni".** The pantry title is
+  singular by design ("Uovo medio") and the shopping word was copied from it, so the list grew
+  two rows of the same vegetable — Peperone/Peperoni, Patata/Patate, Gnocco/Gnocchi,
+  Cipolla/Cipolle, Formaggio/Formaggi. `computeShoppingName()` now hands every generic to
+  `productKindShoppingPlural()`, and a list is a list of things to buy: plural.
+
+### Added
+- **The plural is language data, not code** (`api/vocab/<lang>.json` → `number_forms`, the table
+  the singular/plural engine already read): 55 pairs added in `it` — vegetables (Peperone,
+  Patata, Zucchina, Melanzana, Carciofo, Finocchio, Zucca…), fruit (Fragola, Ciliegia, Pesca,
+  Albicocca, Anguria, Nespola…), nuts and legumes (Noce, Mandorla, Nocciola, Cece, Fagiolo,
+  Lenticchia, Pisello), prepared food (Gnocco, Uovo, Cotoletta, Bistecca, Panino, Pizza,
+  Tavoletta, Scatola) and the olives. A word the language does NOT declare is left alone: latte,
+  pane, pasta, tonno, sale, olio have no plural in this table and the app will never invent
+  "Latti". A language without the table (en/de today) simply keeps its words as they are.
+- **A phrase takes the number on its head**: "Marmellata di limone" → "Marmellate di limone",
+  "Succo di pera" → "Succhi di pera". Only a real connector (`phrase_connectors`) opens that
+  door, so "Formaggio fresco" is never turned into "Formaggi fresco".
+- **`migration_shopping_generic_v4`** rewrites the stored generics and MERGES the rows that
+  differed only by number: on this instance 72 rows, 0 singular/plural pairs left, 0 duplicated
+  generics in the smart list.
+
+## [1.30.1] - 2026-11-06
+
+### Fixed
+- **"Esaurito Esaurito".** The stock state was written twice — once in the subtitle and once by
+  the reason line under it. The battery badge owns that word now (`🪫 Esaurito`) and the reason
+  is dropped when its CODE is `out_of_stock`: comparing translated strings was fragile, two
+  synonyms would still read twice.
+- **"70 voci · ~3167 pezzi".** The footer summed `suggested_qty` across units, so 1000 g of
+  flour + 1500 ml of juice + 3 apples made 2503 "pieces". It counts REFERENCES now
+  (`{items} prodotti in lista`), which is the only number that means anything across aisles.
+- **The pastel squares that looked like broken images.** A row with no photo drew a tinted
+  tile of the category colour; now it draws the category's own emoji (🧅 🍌 🧀 🥛) large, on the
+  neutral frame the pantry already uses.
+- **`Suggeriti` ignored the sale units** (`Formaggio ~504 g`): `_effectiveSmartQty` recomputes a
+  quantity for another horizon and that path knew nothing about packs. It snaps to `sale_step`
+  now, so the client can never print a quantity the server would not have suggested.
+- **The purple button.** "Suggerisci cosa comprare" was `.btn-accent` (violet) in an emerald app:
+  it is the primary again.
+
+### Added
+- **The priority pills of the shopping list** — `[ Tutti (58) ] [ 🔴 Urgente (8) ] [ 🟠 Presto (15) ]
+  [ 🟡 A breve ] [ 🔵 Previsione ]`, each with its count, empty pills hidden, one active at a time.
+  Grouping by aisle stays, but it is no longer the ONLY way to read 58 rows.
+- **One header line**: the estimated spend on the left, the horizon and its control on the right.
+  Two stacked banners cost a third of a phone screen before the first product.
+- **The horizon says where it comes from**: "Quantità per N giorni (dal tuo ciclo medio di spesa)"
+  — `plan_days_default` is inferred from the purchase history, so it is not a number imposed by
+  the app.
+
+### Changed
+- **The row is a ROW again (68–76 px).** The stepper `[−] 3 pz [＋]` and the two 46 px buttons are
+  gone: 58 rows at 140 px is a page nobody scrolls to the end of. The suggested quantity is
+  CONFIRMED by default and tapping the number opens a micro-popover; the two answers are the
+  swipe (right = bought, left = not needed) or a discreet ✓ / ✕ that disappears on touch screens.
+- **"Comprato" writes the stock**, not just the archive: the purchase goes into the inventory
+  (which is what lands in the Storico as a load) and then the row leaves the list. Only when the
+  suggested quantity speaks the product's own unit — "2 confezioni" must never become "2 g".
+
+## [1.30.0] - 2026-11-06
+
+### Changed
+- **A need is not a purchase.** The list computed what the household consumes and printed it as
+  what to buy: **1022 g of Trentingrana**, **13 eggs**, **9 boxes of crackers**, **80 g of oregano**.
+  `data/sale_units.json` now describes the real shelf unit of each category (eggs 6/10/12/20/30,
+  cheese in 250 g steps, meat 100 g, snacks one multipack) and `saleUnitSnap()` (api/lib/sale_units.php)
+  rounds the need **up** to it. The server also sends `sale_step`, so the new stepper in the UI moves
+  by one real pack — the client and the server can no longer disagree on what "+1" means.
+- **Fresh produce is planned over a week, never over the month.** A 30-day horizon on bananas and
+  oranges asks for fruit that rots in five days and made the header claim "quantità calcolate per
+  30 giorni" over 3 bananas. `saleUnitsFreshHorizonDays()` caps frutta/verdura/pane/carne/pesce/
+  latticini/surgelati at 7 days whatever the window says, the header now states both horizons, and
+  `SHOPPING_DEFAULT_PLAN_DAYS` is **7** (a weekly shop) instead of 30. Dry goods are unaffected:
+  their quantity is one or two packs, which is what the snap guarantees.
+- **The priority scale is recalibrated server-side.** 75 rows out of 75 wore "⚡ Urgente", which is
+  the same as marking none: a red badge on the onions destroys the red badge on the salt.
+  `shoppingRecalibrateUrgency()` keeps red for an **essential** item that is finished — a rule, not a
+  product list: used twice a week or more (`SHOPPING_ESSENTIAL_USES_PER_MONTH`) **and** out of stock.
+  A frequent regular goes orange, everything else settles at "A breve". The pass only ever calms a
+  badge down. On this instance: 16 critical/4 high → **7 critical / 12 high / 48 medium / 5 low**.
+- **Rarely bought products leave the list.** A product bought once, months ago, is not a shopping
+  need and it buried the milk. `shoppingSplitSuggested()` moves it to a `suggested[]` payload array,
+  rendered as a collapsed **Suggeriti (N)** strip where one tap puts it back in the list. Anything
+  already on the list (`on_bring`) or critical stays where it is.
+- **Seasonal suggestions only from the household's own history.** The card was allowed to fire on a
+  coarse kind-level habit ("someone buys some vegetable twice"), which is how **corbezzolo** and
+  **cardo gobbo** ended up on an Italian pantry's list. A suggestion now needs specific evidence:
+  this produce, or its buyable family, bought or eaten by them in the last year.
+- **A shopping generic is never a container word.** Because every title now leads with its genre,
+  the shopping name took the first word: the list was titled **Frutta**, **Verdura**, **Latticini**,
+  **Carne**, **Condimenti**. The heads live in the vocab (`shopping_container_heads`, six locales),
+  `productKindShoppingGeneric()` asks the rest of the name to the same dictionary — and only accepts
+  a word the pantry already knows as piece produce, because a brand ("Milbona") is not a generic.
+  The migration `migration_shopping_generic_v1` repairs the rows already stored:
+  `Frutta limoni → Limoni`, `Verdura peperone → Peperone`, `Verdura patata → Patata`.
+
+### Added
+- **The shopping card has three answers, and all of them are buttons.** The actions used to live in
+  one line of 11 px text ("← rimuovi · → a casa | scansiona") — on a wall-mounted tablet every tap
+  was a miss, and the quantity was a passive purple string you could not touch. Now: thumbnail,
+  generic name, the specific one under it with the stock ("Rossa di Tropea · Esaurito"), the priority
+  badge, a **`[−] 3 pz [＋]` stepper** (step = `sale_step`, the correction is kept per product on the
+  device so a refresh does not undo it), and two 46 px buttons — neutral **✕ Non serve** (the dated
+  dismiss, restorable from the drawer) and emerald **🛒 Comprato**. One delegated listener, no inline
+  handlers, and the swipe stays as a shortcut instead of being the only way.
+- **Frequency and stock are drawn, not printed.** "📈 ~14/mese" became **🔥 Quotidiano / ⚡ Abituale /
+  ☕ Occasionale**, and the stock level is a battery (🪫 / 🟨 / 🟩), with the exact number in the
+  tooltip.
+- `GET shopping_dismissed` + `POST shopping_dismissed_restore` (`{key}` | `{all:true}`) and the
+  **Non comprati (N)** drawer under the list.
+
+### Fixed
+- Dried herbs and spices (origano, basilico, prezzemolo, salvia, rosmarino, alloro, timo, spezie,
+  curcuma, paprika, zenzero, cannella, zafferano, curry…) are preserves by definition:
+  "Spezie Origano foglie" was announced as "fuori stagione" in November because its category is
+  `verdura` and the catalogue matched the plant name.
+- The priority pills now carry their counts: a filter that does not say how much it hides is a guess.
+
+## [1.29.22] - 2026-11-06
+
+### Changed
+- **The cooking microphone re-arms itself after every step.** It went silent at each step change,
+  so a command meant touching the screen first. Now every step arms it **5 seconds after the card
+  appears** (the time the voice needs to finish — listening while SHELFY reads feeds her own words
+  back in) and it keeps listening until it hears something. A command that changes the step starts
+  the cycle again, `rileggi` re-arms after 2.5 s, and the button becomes a **mute**: tap = off
+  (`Microfono spento…`), tap again = on. Still not endless listening: after three silent endings
+  it stops for that step (`_COOKING_VOICE_RETRIES_MAX`), and it never opens while SHELFY's sheet,
+  the finish card or another recogniser holds the microphone.
+
+### Added
+- **The shopping list counts its priorities, and remembers what you refused.** The filter pills
+  were there without numbers: each one now carries its count (`Tutti 76`, `🔴 Urgenti 16`, …) so a
+  filter never hides something without saying how much. Under the list, a **Non comprati (N)**
+  drawer lists every product the household took off the list — with the date it comes back — and
+  each row has **↩ Ripristina** (plus “Rimettili tutti”). It reads the dismiss map that
+  `shopping_remove` already wrote (`shopping_dismissed`, `SHOPPING_DISMISS_DAYS`), through two new
+  actions: `GET shopping_dismissed` and `POST shopping_dismissed_restore` (`{key}` or `{all:true}`).
+
+### Fixed
+- **Dried herbs and spices are no longer “out of season”.** `Spezie Origano foglie` sits in a jar
+  for a year, but its category is `verdura` and the produce catalogue matched the plant name: the
+  shopping review announced “fuori stagione: Zucchine, Origano” and offered to remove both. The
+  herb/spice head nouns (`origano`, `basilico`, `prezzemolo`, `salvia`, `rosmarino`, `alloro`,
+  `timo`, `spezie`, `curcuma`, `paprika`, `zenzero`, `cannella`, `zafferano`, `curry`, …) are
+  preserves by definition, like “surgelato” and “in barattolo” already were.
+  Verified on November: Origano/Basilico → not seasonal, Zucchine → still hidden, Pomodori/
+  Cipolle/Limoni → all-year crops, untouched.
+
+## [1.29.21] - 2026-11-06
+
+### Changed
+- **The cooking step is centred, bigger, and scrolls itself.** The card was left-aligned and the
+  text ran to the top-left corner of a slab: now the card centres its content (`align-items:
+  center`, `text-align: center`), the sentence goes up to `clamp(26px, 3.6vw, 40px)`, and when it
+  does not fit the body **scrolls by itself** (`_cookingAutoScrollStart`: 26 px/s down, a pause at
+  the bottom, back up, stopped the instant the step changes or the screen closes — and never with
+  `prefers-reduced-motion`). Nobody scrolls a recipe with wet hands.
+- **Every step with a duration has an ACTION, bottom-left.** "Avvia il timer di 06:00 per Cookeo"
+  is an instruction; `⏱️ 06:00` is a number to decode. `_cookingPaintStepAction()` paints it from
+  the same suggestion the pill uses (one timer engine), and it disappears the moment the timer
+  starts.
+- **The ingredient chips say name, brand and what is left.** "Tonno (Rio Mare) · 52 g — ne restano
+  120 g": `ing.brand` and `ing.stock_remain` were already there, they just were not shown. The
+  appliance chip is gone from that row — the tools bar above the card already lists them, and a
+  🔌 pill among ingredients is a category error.
+- **SHELFY is reachable from the stove.** Her avatar sits in the cooking header and opens the
+  capture sheet; `body.cooking-mode-active #capture-sheet { z-index: 100000 }` puts it above the
+  cooking overlay (99998) — without that rule the sheet opened *behind* the recipe and looked
+  broken.
+- **The shopping list marks what is already on it.** The missing-ingredients popover shows
+  `Già in lista` per row and writes only the rest; with everything already listed the button is
+  disabled (`È già tutto in lista`) instead of duplicating.
+- **Chips on one line, and the sentence breathes.** Each ingredient chip is a single row again
+  (`Affettato mortadella (Iperal, Salumificio Volpi) · 70 g — ne restano 69 g`) stretched across the
+  width, with a small `In questo passo` label above it: the chips of a step are the ingredients
+  THAT sentence names (verified step by step), and the label makes that obvious instead of looking
+  like leftovers. The step text gained 22 px of padding above and below and its own scroll area
+  (`max-height: min(52vh, 440px)`).
+- **The auto-scroll actually scrolls now.** It measured `.cooking-body`, which in the flex layout
+  never overflowed while the *sentence* did: it now picks the element that really overflows
+  (`#cooking-step-text` → `#cooking-card` → `.cooking-body`) and drives that one.
+- **The sticky footer of the recipe sheet is opaque.** It was an 82%→transparent gradient, so
+  every line scrolled *through* the buttons — the ugliest thing in the sheet. The bar is now solid
+  `var(--bg-card)` and the soft edge moved ABOVE it (a 18 px `::before` fade), where it dissolves
+  the text without ever showing it under the actions.
+- **The 🎤 explains itself.** A microphone icon says nothing on its own, so the first time cooking
+  mode opens (once per device, `evershelf_cooking_voice_hint_v1`) a coach mark appears under the
+  button: title, an arrow pointing at the mic, and the three words the recogniser actually listens
+  for — taken from `vocabCookingVoice()`, so an English tablet reads *next / back / read again* and
+  a German one *weiter / zurück / nochmal*. It closes on its own after 8 s, on a tap outside or on
+  the ✕, and the mic pulses while it is up.
+- **The version number moves again.** It had stayed on 1.29.20 across several rounds because only
+  the cache-busting stamp was being bumped: `1.29.21` re-stamps the five touchpoints, `_I18N_VERSION`
+  included — which is also what makes a browser pick up the new translation keys instead of
+  printing `cooking.exit`.
+
+## [1.29.20] - 2026-11-05
+
+### Added
+- **Recipes can be voted 0–5 stars, and the book can be filtered by the vote.** `recipes.rating`
+  (a new column, added by `migrateDB` for existing installs) holds the household's own number —
+  `0` is a real value and means "not rated". `POST recipes_rate` clamps it to 0–5 server-side,
+  refuses a row that does not exist (`not_found`) and logs every change
+  (`event: recipe_rate`): a vote is user data and there is no history to undo it from. In the
+  recipe sheet the five stars sit in the meta line next to the favourite star
+  (`_recipeRatingStarsHtml` / `rateRecipe`): the vote lives on the ARCHIVE row, so a recipe that
+  was never saved is archived first (same rule as the favourite), tapping the value you already
+  gave clears it, and the stars repaint in place so the ingredient list is never re-rendered. The
+  card in the book carries the compact `★★★☆☆` next to the time, and three chips join the filter
+  row — `⭐ 5`, `⭐ 4+`, `⭐ 3+` (numbers, so no translation). When two copies of the same dish are
+  merged by content hash the surviving row keeps the BETTER vote.
+- **A recipe already cooked says "Rifai questa ricetta" instead of "scala gli ingredienti".**
+  `used` is not a view flag: `cookRecipeDeductSelected()` writes it into the archive JSON, which
+  is why a dish you already made reopens with every row struck through — and the green footer
+  button still offered to scale a list with nothing left to scale (tapping it only produced
+  "Seleziona almeno un ingrediente"). The footer now answers the state of the pantry
+  (`_recipePendingPantryCount` / `_recipeScalablePantryCount`): while something is pending it is
+  "✓ Ho cucinato questo piatto", and once everything is deducted it becomes **🔄 Rifai questa
+  ricetta** (`_recipeRedoIngredients()`), which puts every row back as pending — checkbox back,
+  `Usa` alive, steps and the cooking session reset to the first one — and persists the reset, so
+  the next open agrees with the screen. Nothing is written to the pantry: it only forgets that it
+  HAD been. The same button also refreshes in place after a deduction (`_refreshRecipeCookFooter`)
+  and, when there is nothing left to scale at the end of cooking mode, the completion card offers
+  the redo too.
+- **"Already made" starts from the FIRST deducted row, not the last — and the footer says it at
+  once.** Two holes kept the old "✓ Ho cucinato questo piatto (scala gli ingredienti)" on dishes
+  the household had already cooked: the rule waited for EVERY row to be used (a partially scaled
+  dish — three of the twelve cooked recipes in the real archive — still showed it), and
+  `submitRecipeUse()` (the per-row `Usa`) wrote `used` without ever repainting the footer, so the
+  old label survived the whole session. `_recipeCookFooterMode()` now answers from
+  `_recipeUsedPantryCount()`: one deducted row is enough to make the dish "made", and both paths
+  (one-tap and per-row) refresh the button in place.
+- **An ingredient the pantry no longer has is struck through, and a dish that cannot be cooked says
+  so.** `enrichRecipeIngredientsStock()` found no stock for a row and quietly `continue`d, so the
+  sheet kept a `✅`, a checkbox and a `Usa` button that could only answer "non è in dispensa".
+  Every such row is now marked `stock_missing` (recomputed on each render, never stored in the
+  archive — the flag is a fact about the shelf, and it would also change the content hash): it is
+  struck through in red with a ❌, loses its checkbox and its `Usa` (a neutral "Non disponibile"
+  tag instead), and stops offering the tap-to-use panel. When EVERY pantry ingredient is gone the
+  sheet opens with a red banner — "⚠️ Questa ricetta non si può fare — gli ingredienti necessari
+  non sono più in dispensa: …" — and the green footer button is disabled ("Ingredienti non
+  disponibili") instead of failing row by row. A recipe that lost ONE ingredient keeps a working
+  button: in the real archive 16 of 18 recipes are in that state, and a red alarm on all of them
+  would only teach the household to ignore red.
+- **The end-of-cook card asked to scale ingredients that were already scaled.**
+  `_cookingFinishPrompt()` counted `_cookingRecipe` — the DEEP COPY taken when the overlay
+  opened — so a resumed session (or any deduction made from the sheet) left a stale snapshot: the
+  rows were already struck through, the footer already said "Rifai questa ricetta", and the card
+  still asked "vuoi scalare 5 ingredienti?". The count now reads `_recipeSheetSource()` — the
+  sheet is the list `cookRecipeDeductSelected()` acts on — and `_syncCookingRecipeUsedFlags()`
+  keeps the copy aligned on resume, after a deduction and after a redo. With nothing left to
+  scale the card says exactly that and offers "Chiudi" + "Rifai questa ricetta".
+
+### Fixed
+- **A voice turn waited for the cloud before doing anything.** `SpeechRecognition.stop()` does not
+  end a session locally: Chrome uploads the audio and calls `onend` after a round trip nobody
+  controls, and the whole turn sat on that. The measured 30 s — and the fallback card that said
+  "la richiesta ha impiegato troppo tempo" about a sentence the app had already heard in full —
+  came from there. The silence deadline (`armSilenceStop`) now arms a **700 ms hand-over guard**:
+  `heard` is complete by definition (every result is merged into it, interim included), so the
+  sentence is parsed locally as soon as the stop is requested; `onend` only overtakes the guard
+  when the browser is quick, and a late final is dropped by the turn id. The status line no
+  longer claims "Interrogo l'inventario…" while the app is really waiting for a transcript.
+- **The microphone had two clients.** The level meter opened `getUserMedia` + an AnalyserNode on
+  the first recognised word, while the recogniser was running — the pattern that makes Chrome on
+  Android drop the session mid-sentence (it then got resumed, and the household paid two silence
+  windows for a sentence that was already over). The bars are now driven by the recogniser's own
+  results: one client, no extra permission, same picture. The cleanup helper no longer calls
+  `_captureSetState('idle')` either — the turn owns the state.
+- **A resumed session paid a full interim window.** `_CAPTURE_RESTARTS_MAX` goes 4 → 2, and when
+  the resumed session already holds text the deadline is 1 s instead of 2.2 s.
+- **The capture searched the open shelf, not the pantry.** `currentInventory` is filtered by the
+  open place, the macro domain and the tag chips, and the fresh `inventory_list` only ran when
+  that array was EMPTY — a filtered list is not empty, so «ho usato il riso» answered "non è in
+  dispensa" while standing in the fridge. The capture now reads its own short-lived cache, filled
+  by one `inventory_list` warmed when the sheet opens (so the round trip happens while the
+  household is still talking) and invalidated by `refreshAppDataAfterMutation()`.
+- **On-device recognition when the browser really has it.** `processLocally` is set after a
+  `SpeechRecognition.available()` probe per language: a plain "available" takes the cloud round
+  trip out of the turn, anything else (downloadable, unavailable, an older engine) keeps the
+  networked recogniser. A pack that disappears mid-session falls back instead of failing every
+  turn.
+- **A recipe step could lose its beginning.** `recipeNormalizeParsedRecipe()` read `text` before
+  `instruction`, so a step object that carried a fragment in one field printed "confezione di
+  Tonno all'olio…" without its first half. The fullest candidate wins, whichever key carries it.
+- **«Genera nuova ricetta» reopened the last recipe seen.** `openRecipeDialog()` short-circuited on
+  `_cachedRecipe` — the last recipe RENDERED, which the archive view sets too — so after reading a
+  dish the button reopened it instead of the generator. It now always paints the form.
+- **A violet rule under the recipe lists.** `.recipe-archive-date` used the 2 px `--accent`
+  underline (violet) under "Ricettario & Idee", the favourites and every history date: a second,
+  wrong palette in an emerald app. One neutral slate hairline now.
+
+### Added
+- **Mealie was wired and invisible: now it works in both directions.** The endpoints existed
+  (`mealie_list`, `mealie_import`) and nothing called them, the cache held zero recipes, and
+  nothing EverShelf → Mealie ever happened. Now:
+  - the recipe page carries a `📚 Mealie` chip at the end of the filter row: it opens a panel that
+    lists the Mealie cookbook (`mealie_list`), imports ONE or **all** of them (`mealie_import`),
+    syncs the cache and sends the cooked dishes;
+  - `POST mealie_push` sends a dish to Mealie. Mealie does not refuse a duplicate name — it
+    accepts it and appends `-1` (measured), so the name is looked up BEFORE creating
+    (`mealieFindRecipeSlugByName`): an existing recipe is updated in place, never twinned.
+    `mealieRecipeToMealiePayload()` maps ingredients (`"52 g Tonno"`), steps (`[{text}]`),
+    servings and the times (`"10 min"` → `PT10M`, `"1 h 30"` → `PT90M`);
+  - **automatically**: after a cook the client pushes that recipe once (`_mealiePushCooked`, never
+    blocking, silent without Mealie) and the cron sweeps 3 cooked-but-missing dishes per run
+    (`mealiePushPendingCooked`). `data/mealie_pushed.json` remembers what went out, keyed by
+    TITLE, so cooking the same dish twice does not send it twice;
+  - the import stopped writing the fake meal `'import'` (not a meal, not a slot): it is `libero`,
+    with its content hash, like every other archived recipe.
+  Verified against the live instance: 11 recipes synced into the cache, 3 cooked dishes
+  created/updated with clean slugs, test artifacts removed, Mealie back to its 11 recipes.
+
+### Changed
+- **Cooking mode, rebuilt for a screen read from two metres.** The 3D vertical carousel (a
+  half-cut sentence above and below the step), 20 px type on pure black and 11 px ingredient
+  tags were exactly what a cook with steam and wet hands cannot use. Now:
+  - **one card, no ghosts**: the neighbours stay in the DOM (the navigation code reads them) but
+    are never drawn, and the step fades in with a 220 ms transition;
+  - **kiosk typography**: `clamp(24px, 3.2vw, 34px)` with `line-height: 1.5`, and the AMOUNTS and
+    the FOOD stand out (`mark.ck-qty` mint bold, `mark.ck-ing` lighter bold). Both come from the
+    recipe itself — the units are symbols (`g`, `ml`, `°C`, `%`) and the names are the ingredient
+    list — so nothing language-specific lives in the function;
+  - **ingredients first**: the step's own chips (36 px, 14 px semibold, slate + emerald border)
+    sit at the top of the card, before the sentence that uses them;
+  - **header and status**: `✕ Esci` · dish · `🔊` and `🎤`; below, `Passo n di m` with a segmented
+    emerald bar, restart and the running timers;
+  - **one timer**: the duration inside the sentence is the button, and the duplicate chip below
+    disappears when the sentence already carries it; the floating pill shows a short name
+    (`Cookeo · 05:59`, never `Avvia Cookeo…`) and the beep + spoken alert were already there;
+  - **who is reading**: SHELFY's avatar with waves while the voice speaks (`_cookingReading`,
+    driven by the utterance's own start/end); the step never advances by itself;
+  - palette **Deep Slate & Emerald** (`#0F172A` background, `#1E293B` card at 16 px radius,
+    emerald pill 52 px for the primary action).
+- **Voice commands while cooking, and SHELFY on the phone.** `🎤` listens for ONE phrase per tap
+  (continuous listening was removed once because Chrome's restart chime was louder than any
+  hands-free gain): *avanti* / *indietro* / *rileggi* move the recipe, and the words are DATA
+  (`api/vocab/<lang>.json` → `cooking_voice`, merged by `vocabCookingVoice()`, 20/16/19 synonyms
+  across the six languages). Anything else is a QUESTION — «non ho il limone, cosa posso usare?» —
+  and goes to SHELFY in the chat with the sentence already written: substitutions get answered by
+  the model that knows the pantry.
+- **The shopping list says what is already on it.** The missing-ingredients popover marks each row
+  `Già in lista` and adds only the rest; when everything is already there the button is disabled
+  (`È già tutto in lista`) instead of writing duplicates.
+
+### Changed
+- **The "missing ingredients" warning says what it means, and acts.** The `⚠️ n` badge in front
+  of the meal icon is gone: it read as a crash counter (red border, warning triangle, a bare
+  number) and it pushed the titles of half the list out of alignment. What is left is a SOFT
+  AMBER chip in the meta row — `🛒 Manca 1 ingrediente` / `🛒 Mancano 2 ingredienti` /
+  `🛒 Nessun ingrediente in dispensa` (`#FEF3C7` fill, `#FDE68A` border, `#92400E` text, 12 px
+  semibold): a pantry condition, not an alarm. It is a BUTTON: tapping it opens a small popover
+  that names what is missing (`Manca dalla dispensa — Panna 30 ml`) with **＋ Metti in Spesa**,
+  which writes those names straight to the shopping list (`shopping_add`).
+  `_recipeArchiveMissingInfo()` now also returns the missing items themselves.
+- **The medicine company words left the code and became data.** `_medShortCompany()` carried a
+  `Set` of Italian/English/French company words (`aziende`, `chimiche`, `riunite`,
+  `farmaceutico`, `laboratoires`, …) plus a regex alternation in `_medCommercialName()`: the
+  right values in the wrong place, because §4b says the vocabulary is DATA. They now live in
+  `api/vocab/<lang>.json` under `company_stop_words` (one list per language, 87 merged words
+  instead of 28) and reach the browser through `vocabCompanyStopWords()` in
+  `assets/js/core/vocab.js` + the regenerated `assets/js/vocab.generated.js`. A new legal form
+  (GmbH, Sàrl, Co., Ltd…) is one word in the JSON, never a line in a function, and the trailing
+  "– AZIENDE CHIMICHE …" regex is built from the same list. Behaviour verified unchanged on
+  real catalogue strings ("AZIENDE CHIMICHE RIUNITE ANGELINI S.P.A." → "Angelini").
+- **"Tipo di pasto" is a real chip grid now, not checkboxes inside balloons.** The native square
+  is gone from the eye (the `<input>` stays in the DOM — it is the state, the keyboard target and
+  the screen-reader control — but it is invisible), the chip itself is the pill: `height: 36px`,
+  `border-radius: 8px`, `padding: 0 14px`, `font-size: 13px`, `white-space: nowrap`, its whole
+  surface emerald (`#10b981`) when it is on and `#f8fafc` when it is off; "A ritmo mio" answers in
+  amber because it changes the portions, not the pantry. The labels no longer wrap ("⏰ Priorità /
+  Scadenze") and nothing is 60 px tall.
+- **The options are grouped and the weekly plan is a chip.** Two blocks with a small grey label —
+  🎯 *Obiettivi e preferenze* (Piano, Pasto Veloce, Extra Salutare, Poca Fame) and ♻️ *Gestione
+  dispensa* (Scadenze, Cose Aperte, Zero Sprechi, A ritmo mio) — inside a `flex-wrap` container, so
+  they pack themselves instead of leaving holes. The full-width "✓ 🐟 Pesce" bar is now the FIRST
+  chip of the list, pre-selected and removable with the ✕ on it (`_clearMealPlanChip()`: the chip
+  stays, grey and re-selectable, because today's plan is information, not a switch). Persons +
+  meal-plan hint are a wrapping flex row, so a missing hint no longer leaves a half-empty column.
+- **The recipe book has filters.** A scrolling row of chips under "Genera nuova ricetta" —
+  Tutte · the meals · ⚡ Rapide (<15 min) · 🍲 Cookeo / Forno — filtering the archive the page has
+  already loaded. It reorders/filters the book only; the history stays a plain log.
+- **The generator fits a tablet.** «Succo di frutta» is no longer a meal (it is a drink: it stays
+  in the labels, not in the picker), so five chips sit on one row; persons + this week's
+  suggestion share a two-column row; the option chips are a 3-column grid; and the CTA is always
+  `✨ Genera Ricetta` — it used to rename itself "Genera porzioni sul mio fabbisogno" when a
+  parameter changed.
+- **A past meal now says WHEN and can be repeated.** The history card carries `🕐 20:15` (the
+  archive's own `savedAt`) and a `🔄 Ripeti pasto` action that reopens the SAVED recipe (no AI
+  call, no different dish) with the footer that scales the whole ingredient list pulsing once.
+- **The recipe actions are a sticky footer.** Cooking mode, "Ho cucinato questo piatto" and the
+  favourite used to sit between the ingredients and the procedure: reading how to cook the dish
+  meant scrolling past the three buttons that end the meal. The per-ingredient `Usa` is now a
+  quiet neutral pill — the ONE emerald action of a recipe is the footer's "Ho cucinato questo
+  piatto", which scales the whole list in one tap, and a solid green button on every row was
+  competing with it.
+- **The duration inside a cooking step is the timer.** `_parseStepTimers()` is the one parser
+  (the old `_parseStepTimer()` is its number), and the run that states the time is rendered as a
+  tappable pill that starts the same countdown `addSuggestedCookingTimer()` starts — beep and
+  spoken alert included — instead of asking the household to read "⏱️ 08:00" and find something
+  else to press.
+- **The wait says what it is doing.** SHELFY's avatar over three staged sentences
+  (`recipes.loading_step_1..3`) until the stream's own statuses take over.
+
+### Cooking mode
+- **Finish asks the question, once.** Pressing `🏁 Fine` dropped the household back on the recipe
+  sheet, where the meal still had to be registered by scrolling to "Ho cucinato questo piatto" —
+  after five steps in front of the stove the dish is already on the table. `navigateCookingStep()`
+  now opens `_cookingFinishPrompt()`: "🎉 Buon appetito — scalo {n} ingredienti e registro il
+  pasto?" with an emerald **Conferma e scala** (writes the pantry, closes everything, lands on the
+  dashboard already refreshed) and a neutral **No, solo esci**. Esc is the neutral answer; nothing
+  is written without it.
+- **The screen stays awake.** `navigator.wakeLock.request('screen')` on entry, released on exit and
+  re-asked when the tab comes back (the browser drops it while hidden): waking a tablet with wet
+  hands is the thing this removes. Unsupported browsers lose nothing.
+- **Timers say a name a cook would say.** `_extractTimerLabel()` printed strings cut in the middle
+  of a word ("Frullatore/mixer unire confezi…"): with an appliance in the sentence the chip is now
+  `_stepApplianceName()` + the time — "Avvia Frullatore: 00:20", "Avvia Cookeo: 08:00" — and the
+  action-word derivation stays as the fallback. The running timers keep living in their own bar
+  above the wheel, so an 8-minute Cookeo stays on screen while the next step is read.
+- **Each step repeats its own doses.** `#cooking-step-ings` was deliberately emptied ("ingredients
+  are shown in the recipe view only"); it now carries the pills of the ingredients THAT sentence
+  names (head words, so "Tonno all'olio di oliva sgocciolato" is found by "tonno") plus the
+  appliance, and disappears when the step names nothing.
+- **Quick doses follow the order of magnitude.** `_fractionChipOptions()` hardcoded 10/25/50 g for
+  any mass: opening 2 g of oregano from a recipe offered half a jar. The recipe sheet passes the
+  dose it needs (`refQty`), so the chips are 1 g · 2 g · 4 g · the whole pack; the product sheet
+  (no reference) keeps the old grocery steps untouched.
+- **"Altra idea" in the head.** `🎲` next to the title re-rolls the recipe (the current one stays
+  in the archive) instead of forcing a scroll to the bottom of the sheet.
+- **The generator must not contradict its own table.** Rule 4b in both recipe prompts: every
+  number quoted in a step has to match the `ingredients` list ("1 pz di Pan Bauletto" ⇒ "1 fetta",
+  never "2 fette").
+
+## [1.29.19] - 2026-11-05
+
+### Fixed
+- **A chosen candidate — or the 10 s auto-pick — registered nothing.** When the spoken sentence
+  was ambiguous SHELFY offered the four closest pantry rows and drained the bar on the most likely
+  one, but every card carried the row's **pantry index** (37, 41 …) while `_captureChoicesCache`
+  holds at most four entries: `_captureChoicesCache[37]` was `undefined`, so both the tap and the
+  timeout returned in silence — the cards disappeared and no quantity was ever written.
+  `_captureChoose()` now resolves the row by that index (and hides the cards only once it has one),
+  so the choice opens the usual 10 s confirmation and the consume reaches `inventory_use`.
+- **«Una busta di cioccolato» against a row kept in grams took 1 g.** `_captureQtyFor()` gave up on
+  a package word when the row was measured in g/ml and its caller fell back to one piece — a single
+  gram, which on the shelf reads as "it took nothing off". One pack of a mass row is the amount
+  that row calls a pack (`_rowPackInUnit()`: `default_quantity`, read in the row's own unit exactly
+  like `isSuspiciousDefaultQty()` does), so a 100 g bar loses 100 g and a 1 l bottle 1000 ml. A `pz`
+  row is left alone: its `default_quantity` may be a legacy label weight, never "one piece".
+
+## [1.29.18] - 2026-11-05
+
+### Added
+- **The stocktake card says when it expires, and the primary asks the whole question.**
+  The fact line gained the date — «📍 Frigo · 📦 Giacenza: 1500 ml · ⏳ Scade il 31/01/2027»
+  («Senza scadenza» when the row has none, red when the date is already past) — and the emerald
+  primary now answers it in one sentence: **«Confermi 1500 ml in Frigo che scade il 31/01/2027?»**,
+  with «…, scaduto il 01/11/2026?» for an expired row and «Confermi 2 pz in Frigo?» when there is
+  no date to confirm.
+- **The sentence shortens itself, it is not guessed from a breakpoint.** `_auditFitConfirm()`
+  measures the question after the paint (lines × line-height): past two lines it swaps in
+  «Confermi 1500 ml?», and a rotation or a resize re-measures the card on screen. The date is
+  formatted with the app's collation (`formatDate()`), so it reads 31/01/2027 in Italian,
+  31.01.2027 in German and 2027/01/31 in Chinese.
+
+
+### Removed
+- **«Quasi finito» is gone from the stocktake card.** It was a link that looked nothing like the
+  rest of the card, appeared on every product and — the real problem — wrote a quantity the
+  household never said (100 g, half a pack) while reading like a third way to confirm. A count
+  must record what is on the shelf, never a threshold the app invented: whoever has a little left
+  says the real amount through «Modifica quantità», and the shopping list follows the shelf. The
+  answer, its ready-made quantity, its keyboard shortcut and its line in the summary are all
+  removed (the footer is now «Salta» only, and the summary counts confirmed / used up / spoiled /
+  skipped).
+
+
+### Changed
+- **The stocktake card says each thing once.** It used to print the same quantity four times — in
+  the heading, in a giant badge, inside a spoken sentence («Ci sono ancora 1500 ml di Succo…») and
+  again in the primary button — while eight commands stacked in three different colour languages.
+  The card now reads in half a second: a **real progress bar** (it fills on the card you are
+  looking at, so 1 of 15 is 7% and never an empty grey line) with «1 di 15» beside it, the product
+  as facts once (56 px photo, name, **brand on its own line**, «📍 Frigo · 📦 Giacenza: 1500 ml»),
+  then **one** emerald primary `✓ Confermo 1500 ml`, then a neutral **2×2** for the exceptions
+  (`🏁 Finito`, `🗑️ Andato a male`, `✏️ Modifica quantità`, `📍 Sposta`) and two quiet links in the
+  footer (`⚠️ Quasi finito`, `Salta →`).
+- **«Finito» and «Andato a male» are twins and now look like it**: same neutral cell, same weight,
+  thin border — no more solid red next to a purple outline. The scale is a **mint pill**
+  (`#F0FDF4`, emerald border) like the product sheet, never a purple dashed button; the picker,
+  the summary and the focus ring moved to the same emerald tokens.
+- «Quasi finito» stays reachable (it writes the low threshold, which is what puts the item on the
+  shopping list) but as a footer link instead of an eighth button.
+
+### Notes
+- `scripts/i18n-audit.py` now also scans `audit.js`, `receipt.js` and `settings_search.js`: the
+  stocktake card paints a dozen translated strings from its own file, and its keys were never
+  checked against the six locales. Every `audit.*` key is used and present again.
+
+
+### Fixed
+- **«Dispensa (15)» over an empty pantry.** The place counts came from `inventory_summary`, which
+  counted **every** inventory row: a product at zero and a 2 g trace the list itself hides were
+  both "products on a shelf", so the rail and the pantry title promised rows the pantry then
+  refused to show. The count now applies the pantry's own rule (`isInventoryDepleted`, `quantity >
+  0`), so a count and the list behind it are the same fact.
+- **A brand-new install could not start.** `migrateDB()` queried `app_settings` (the title-entities
+  and opened-row markers) *before* the table was created, so a fresh database answered
+  `no such table: app_settings` with HTTP 500 on every request — only an instance with a
+  pre-existing database survived. The table is now created by one helper
+  (`evershelfEnsureAppSettingsTable()`) as the first thing both `initializeDB()` and `migrateDB()`
+  do.
+
+### Added
+- **Every place can be deleted, built-in ones included — as long as it is empty.** `POST
+  location_delete` (`locationDeleteAction`) is the one door: it refuses a place that still holds
+  usable stock (`settings.custom_locations.in_use`, with the count) and refuses to remove the last
+  remaining place (`last_place`), because the next product needs somewhere to go. A built-in is
+  recorded in `app_settings.deleted_locations` (and `validInventoryLocations()` stops accepting
+  stock there, so it cannot come back through an old client); a custom place also loses its label.
+  Deleting Dispensa retires its legacy alias `altro` in the same shot. Settings now lists **all**
+  places with a ✕ — rename stays on the custom ones, whose names are the household's words —
+  and a **Luoghi eliminati** line under it puts a place back (`POST location_restore`): a
+  destructive action with no way back is a trap, and a deleted built-in has no other door,
+  because its name lives in the translation files.
+
+### Changed
+- **The quick stocktake is a small pill, and only on a place.** In the whole-house view the big
+  emerald banner asked to "check 107 products": no shelf, no session. It is now one quiet button
+  (⚡ Inventario veloce) that exists only while a specific place is on screen — pharmacy included —
+  and it starts the wizard on exactly those rows.
+
+
+### Changed
+- **The quick stocktake is not a setting any more.** It used to be a global switch in
+  Settings → *Inventario veloce*: nobody walks into the settings, flips a toggle, goes to the
+  fridge and comes back to switch it off — and a toggle that never stuck left the feature
+  invisible with no way to tell why. The switch is **gone** (`AUDIT_MODE_ENABLED` no longer
+  exists in the settings page, in the settings registry, in the API payload or in
+  `.env.example`): the banner now lives in the pantry, always visible as long as the shelf has
+  something to check, it names the place you have open («⚡ Inventario veloce · Frigo — 42
+  prodotti da verificare») and its **Avvia verifica rapida** starts the wizard on exactly those
+  rows, with no scope picker in the way. The whole-house view keeps the picker (a hundred
+  products in one run is not a session) and a paused run for the same place continues where it
+  stopped.
+- **A settings row with a stepper is one line.** *Salva ogni* and *Preferiti automatici dopo*
+  stacked label, then the control, then the hint — which left an empty expanse of card to the
+  right of the `[−] N [+]` block and read as a broken layout on a tablet or a desktop. Label and
+  explanation now sit on the left and the stepper on the right (`.settings-stepper-row`,
+  `space-between`, vertically centred), the same line grammar as a toggle row.
+- The automatic-favourites rule now explains itself in a sentence («Quanti utilizzi servono
+  perché un prodotto diventi preferito: la regola promuove solo i 3 più usati in assoluto»)
+  instead of a lowercase fragment that only made sense after the number it followed.
+
+
+### Added
+- **The pantry can be grouped by place.** Under the status chips a quiet switch says
+  **Raggruppa per: 📁 Categoria | 📍 Posizione**. «Categoria» is the default and the list you
+  know; «Posizione» keeps the same rows but sections them by shelf — Dispensa → the marked
+  cabinet → the fridges → the custom places, the order every other surface already uses — with
+  the place icon, the name and the count in the header. Standing in front of the fridge the
+  question is «cosa c'è qui», not «cosa cucino»: that is the mode for it.
+- The choice is remembered on the device (`localStorage`), the switch hides itself once a single
+  place is open (it would be one group) and in the medicine cabinet, and a search result stays
+  flat: the grouping reorders the list, it never filters it — the place filter is still the one
+  control in the strip above.
+
+
+### Changed
+- **The product sheet opens with the package, not with a line of grey text.** The thumbnail is
+  **64×64** with a 12 px radius — enough to tell «grano duro» from «integrale» — and it is a
+  control: one tap opens the photo **full screen** (`openProductImageLightbox`), where an
+  ingredient list, a nutrition table or a lot number can be read off the box itself. Esc, ✕ or a
+  tap outside closes the picture and the sheet underneath is still there. The title takes the
+  first line (18 px, bold, slate-900) and the **brand moves to its own line** (13 px, medium,
+  muted): `Pan Bauletto al Grano Duro` and `Mulino Bianco` are two facts, not one parenthesis.
+- **The edit sheet breathes.** 14 px between the field groups, 6 px between a label and its
+  field, a 20 px padding and a body that scrolls at `85vh` instead of being squeezed to fit: on a
+  wall tablet — and on a desktop, where the compression looked even worse — the form was
+  unreadable, labels touched the controls and the buttons had no air under them.
+- The recipe «Usa» head follows the same hierarchy (title, brand line, genre), so the three
+  sheets speak the same language instead of one of them parenthesising the brand.
+
+### Added
+- **A voice turn has a clock.** SHELFY's turn now has a **15 s** deadline and a status line that
+  says what it is doing («Interrogo l'inventario…» after 4 s, «la risposta sta impiegando più del
+  previsto» after 8 s). When the clock runs out the sentence is not lost: the fallback card
+  quotes it back and offers **💬 Continua nella Chat** — the transcript is written into the chat
+  field and sent, so nothing has to be repeated — and **🔄 Riprova a voce**. The same card appears
+  when a sentence cannot be mapped to an action, and an answer that arrives after the deadline is
+  dropped (`_captureTurnId`) instead of opening a sheet nobody asked for.
+
+### Notes
+- The Home keeps its direct interaction: the dashboard rows open on tap and hold, and the
+  horizontal swipe stays where it has no horizontal neighbours (the pantry list).
+
+
+### Fixed
+- **A wine open for 26 days is no longer a bin job.** The post-opening clock called every
+  drink past its drinking window «probabilmente andato» and painted **🗑️ Butta** as the red
+  primary. For cooking an opened white wine keeps for months, so the family now declares
+  `cook_after` (10 days) in `data/opened_shelf_life.json`: the server answers `cook_only`
+  plus the hint key, the strip leads with the emerald **🍳 Usa per cucinare**
+  (`bannerUseInRecipe()`), **🗑️ Butta** stays *inline* as a neutral secondary, the drinking
+  window is no longer printed and `_bannerPriority` drops the row below one that is really
+  spoiled. The notice is a sentence, not a verdict («ha perso il profumo da tavola, ma è
+  perfetto per sfumare e insaporire») — and it stays deterministic: no model call, no network.
+- **A wine is 🍷, not 🥤.** `category` is the shelf a product sits on, not what it is: every
+  drink is `bevande`, so the generic fast-food cup was drawn on a bottle of Trebbiano. Each
+  PAO family now carries its own `icon`; the pantry row (`family_icon`) and the clock
+  (`pao.icon`) hand it over and `_productFamilyIcon()` puts it in the 44×44 tile — beer is 🍺,
+  spirits 🥃, a soft drink keeps the category emoji.
+- **The pantry place menu opens.** The pill «📍 Tutte le locazioni ▾» answered nothing,
+  because the menu was `position: absolute` inside `.location-tabs` — a strip with
+  `overflow-x: auto`, which clips its own children: the tap *did* open it, out of sight. It is
+  now a fixed layer anchored to the trigger (`_locFoodMenuPlace()`), flips above the strip
+  when there is no room below, and closes on scroll/resize (the first 350 ms forgiven, so a
+  tap that scrolls its own button into view does not slam it shut).
+- **The medicine panel keeps the whole camera.** The `A [ 040313076 ] [Conferma]` row was
+  anchored under the viewfinder of every medicine scan, stealing space and reading as a
+  barcode field. It now lives behind **✏️ Scrivi codice** (`#scan-med-code-open`, a toggle that
+  puts it away again with the same tap) and appears by itself only in the twenty-second rescue
+  card, when the reader really cannot win. Nothing is asked to the household that the panel
+  already knows: an EAN goes to the food catalogue, an AIC/Code 32 to the medicine form.
+
+### Changed
+- The recipe **«Usa»** sheet opens with the product's own facts — thumbnail, name, brand,
+  category, place, opened days, vacuum and the expiry verdict of the shelf the selector has
+  open (`_recipeUseHeadHtml` / `_recipeUseSyncHead`) — instead of a bare title, and its
+  fraction chips follow the quantity typed or weighed (`_recipeUseSyncFractions`).
+- A partial use asks where the opened pack went only when a portion really stays on the
+  shelf: `_leftoverAfterUse()` reads the smallest of `remaining` / `total_remaining`, so
+  «se è finito è finito» — nothing left, a trace, or a `pz` row with whole pieces — skips the
+  question without stranding the caller.
+
+## [1.29.10] - 2026-11-03
+
+### Fixed
+- **Scrolling the pantry no longer opens a product.** A tap opened the sheet after up to
+  28 px of travel, so on a tablet the finger that had already started the list moving ended
+  the gesture on a dialog nobody asked for. A pantry row now needs a real tap: **10 px** of
+  vertical travel turns the gesture into a scroll, a `pointercancel` (the browser taking the
+  touch for the scroller) is never a tap, the gesture must not have moved `.inv-scroll` and
+  `touch-action: pan-y` stays on the list. A quick tap that never scrolled anything is still
+  forgiven, so a fat finger keeps working.
+- **The anomaly banner confirms the shelf, not the estimate.** «Riso basmati — hai più
+  scorte del previsto» offered `✓ Conferma 88 g` as its primary: one tap turned two
+  physically stocked kilos into the algorithmic guess. The primary is now
+  `✓ Confermo 2000 g` — it acknowledges the notice and **writes nothing**; «Modifica
+  quantità» opens the product sheet for a real correction.
+- **Dry staples raise no predictive notice.** Rice, pasta, flour, oil, tinned and jarred
+  goods and spices keep for months: an empty ledger is the normal state of a pantry nobody
+  writes into, so `getInventoryAnomalies()` and `getConsumptionPredictions()` skip them
+  (`evershelfIsDurableStaple()` reads the same sealed shelf-life table as the expiry badge).
+- **One discard sheet, everywhere.** Swiping left on a pantry row opened a legacy «Cosa vuoi
+  fare?» chooser, and its «Butta» landed on `showThrowForm()` — a modal listing every place
+  and every pack plus a `throwAll`/`throwPartial` pair. Both are gone: the row, the banner,
+  the swipe and the action page all open the unified **«Registra cibo gettato»** sheet
+  (quantity + the four reasons), a medicine keeps its short confirm, and the action page
+  asks only *which place* when the product sits in more than one.
+- **The left swipe is gone.** The row already carries `✓ Usa` and `⋮`, so there was nothing
+  to add one tap away. The remaining right swipe needs ≥ 52 px and a clearly horizontal run,
+  and opens the same product sheet a tap opens.
+
+## [1.29.9] - 2026-11-03
+
+### Fixed
+- **Where the opened pack went is now always asked.** After "ho usato 200 ml di latte" the
+  product sheet said nothing about the remaining pack: the legacy USE page asked, but it
+  **skipped the question entirely** once a habit existed, so a move to the fridge happened
+  without a word — and from the sheet it never happened at all. The question is now asked
+  every time, from the sheet too (which stays on the pantry instead of jumping to the
+  dashboard), with the presumed answer already selected: the product's own history, then its
+  **genre**, so a yoghurt inherits the fridge the milk taught.
+- **The countdown says what it is doing.** The control carrying the presumption drains
+  right→left with the remaining seconds printed on it: **10 s** when the app has a precedent,
+  **20 s** when it has none (the pack then stays where it was, and the app says so). Any
+  touch stops the clock, so the tap is always the household's, and ✕ applies nothing.
+
+## [1.29.8] - 2026-11-03
+
+### Fixed
+- **A pack of milk could only be consumed by the pack.** With 12 confezioni da 1 l in the
+  fridge, the product sheet (“Usa”) spoke only in `conf`: the field was in packs, the
+  scale strip was hidden for that unit, and typing 250 was clamped to the 12 packs on the
+  shelf — one keystroke away from “ho finito tutto”. The sheet now carries the pack's own
+  measure: a `Confezioni | ml` selector (only for a `conf` row whose pack is sold in g/ml),
+  the field in millilitres, the shortcuts as amounts of the pack (250 ml · 500 ml ·
+  1000 ml · Tutto) and the scale reading converted into the fraction of the pack. A
+  number typed in the wrong unit is understood instead of clamped: `250` in the
+  “Confezioni” field of a 1 l pack becomes 250 ml and the selector moves with it. An
+  already-opened pack opens on a 250 ml dose, exactly as the pantry row already shows it.
+- **The scale reads a pack, and speaks the product's density.** A reading of 250 g of milk
+  is stored as 242,7 ml (1,03), never 250, and `kg`/`l` rows accept the plate too (250 g →
+  0,25 l) — they used to answer “metti sulla bilancia” while it was already on it.
+- **“Ho usato 250 ml di latte” now records 250 ml.** The voice path fell back to one whole
+  pack when the amount and the row were in different units; the pack behind the row is
+  the conversion, so the card says “Registro 250 ml di Latte”.
+
+## [1.29.7] - 2026-11-01
+
+### Changed
+- **SHELFY has a state machine, so it never looks frozen.** A voice turn now has three
+  visible states: *listening* (the avatar with the live level and the moving bars),
+  *thinking* (the fill and the bars stop, the ring closes into an emerald spinner and the
+  status line says “Sto elaborando…”) and then the confirmation card. The comment that
+  the app had stopped is what the live test felt: ~7 s of a perfectly still screen
+  between “Ho mangiato una mela” and the card.
+- **The silence deadline dropped from 2.5 s to 1.4 s.** Once the recogniser marks the
+  phrase final, 1.4 s of quiet closes the sentence; while only an interim result exists
+  the deadline stays 2.2 s, because cutting there is what used to eat the last word of
+  “Ho usato 2 arance”.
+- **The microphone is SHELFY's face.** The same avatar as the nav, the intro and the
+  confirmation card sits inside the ring, so the assistant you talk to is the assistant
+  you see — no more generic cyan microphone.
+- **The transcript is a speech bubble.** The avatar plus a high-contrast bubble with a
+  tail, instead of a bare grey line floating between the circle and the form.
+- **Typing is a deliberate choice.** The `[Esegui]` field is no longer part of the voice
+  view — it read as “press me to confirm what you just said”, and the test ended with a
+  tap on Esegui after the sentence had already been recognised. A neutral “Preferisco
+  scrivere” link opens it, and it opens by itself only when the browser cannot listen at
+  all (or the microphone is denied). The fixed “Consenti il microfono…” line is replaced
+  by “SHELFY ti ascolta…” as soon as the first word arrives.
+
+## [1.29.6] - 2026-10-31
+
+### Added
+- **SHELFY greets from the splash.** The preloader now closes with the assistant's avatar
+  under the open-data line: a small transparent PNG floating on a soft emerald ring that
+  breathes (the same face as the bottom nav and the capture sheet). It stays still with
+  `prefers-reduced-motion` and shrinks on a short viewport, so the boot rail always fits.
+
+## [1.29.5] - 2026-10-31
+
+### Changed
+- **SHELFY acts where you are.** “Ho mangiato una mela” no longer navigates to the legacy
+  full-page *Usa / Consuma* (← Indietro, the purple recipe button, “Tutte una parte”): the
+  sheet closes, a floating card shows what will be registered with a 10 s bar draining
+  right→left, **Modifica** stops the clock and opens the compact product sheet at that
+  quantity, **✕ Annulla** writes nothing. Emptying a row still keeps its slide-to-confirm,
+  on that same sheet.
+- **Countdowns show their seconds.** Every SHELFY countdown prints the remaining time on
+  the control (`.shelfy-arm-count`) and the fill is the clock (mint, right→left).
+- **A face for the assistant.** The centre of the bottom nav, the capture sheet, the intro
+  and the confirmation card show SHELFY's avatar (`assets/img/shelfy/`, transparent PNG,
+  in the service-worker shell).
+- **“…alla spesa” is a shopping line.** A new `shop` intent in the vocabulary data:
+  *Aggiungi le uova alla spesa* adds to the list, *Aggiungi il latte* still stocks the pantry.
+- **Natural example chips** in the capture sheet and the intro, in all six locales.
+- **Tablet / kiosk CSS** (`tablet.css`) activates on `html.is-kiosk` / `html.is-touch-tablet`
+  instead of a bare `min-width`, so desktop monitors keep the base layout.
+
+### Fixed
+- **`&quot;` in titles.** `productTitleDecodeEntities()` and the client's
+  `decodeHtmlEntities()` decode repeatedly (double-escaped `&amp;quot;` included), and a
+  migration repairs rows already stored escaped (`migration_decode_title_entities_v1`),
+  so the pantry and the history stop printing the raw entity.
+- **History: the ↩ confirm is emerald for a restock.** Undoing a consumption puts stock
+  back — it is no longer painted danger-red, and it no longer fires on a countdown.
+- **`1/pz` in a toast.** `showToast()` normalises a stray slash between a number and its unit.
+- **`scripts/bump-version.sh`** now rewrites the `sw.js` CACHE when the stamp suffix grew
+  past one letter (`[a-z]*`) — it silently skipped the line before, leaving clients on the
+  previous cache.
+
+## [1.29.4] - 2026-10-29
+
+### Changed
+- **Splash preloader (startup audit).** Three readable phases (`system` → `pantry` → `ready`)
+  paced ~380 ms each (~1.2 s floor); household language instead of PHP/files/DB jargon; light
+  canvas + soft cross-fade (no dark→white flashbang); free-API logos removed from splash
+  (quiet Open Data line; full credits stay in Settings).
+
+## [1.29.3] - 2026-10-29
+
+### Changed
+- **Food “Usa” sheet restored.** Typed quantity (e.g. `2.5`), live scale fill for g/ml, and
+  equal-height primary vs danger “Usa tutto” — same capability as recipe-use, styled for the app.
+- **Medicine Usa / Modifica / Butta** are cabinet-specific: no vacuum, scale or recipe; insert-time
+  fields (categories, ingredient, pack, month/year expiry, PAO) surface on edit; discard uses
+  smaltimento wording.
+
+### Fixed
+- **Cooking mode bip-bip-bip.** Removed the always-on SpeechRecognition hands-free mic that
+  restarted every few seconds and played Chrome’s start chime over the TTS.
+
+## [1.29.2] - 2026-10-29
+
+### Added
+- **Italy Farmadati PARAF/EAN (`9xxxxxxxx`).** Codes like `989022227` are not AIFA AICs: Italy
+  modules detect them (`parafCode` / `paraf_code`), `med_lookup` returns `paraf:true` without
+  inventing catalogue rows, and the UI shows a confirm dialog explaining the proprietary
+  Farmadati Italia Srl registry before opening an empty editable medicine form so the household
+  can stock a new cabinet product. Core stays country-neutral (thin optional hook only).
+
+## [1.29.1] - 2026-10-29
+
+### Changed
+- **Medicine OCR ask card is the message.** No more truncated status chip over the camera before
+  the white “cannot read” card; the locked `A` prefix sits beside a digits-only AIC field.
+- **Unknown AIC → name search.** When a typed/OCR code is not in the catalogue, ask for the
+  commercial name and offer **4 AIFA packs** (rewrite + “4 more”), with **form + pack size** on
+  each row so two CONNETTIVINA PLUS packs are distinguishable.
+- **Name search is forgiving.** Marketing suffixes AIFA never stored (`Bio`), stems, pack strengths
+  (`1000`), and brand typos (`conettivina`, `tachiprina`) still find real packs; ranking prefers
+  the commercial name over a shared ingredient.
+- **Near-match prefers the 6-digit family.** `A029788027` offers Destrometorfano Sella packs
+  (gocce `041`, …) instead of unrelated Sella neighbours at distance 2.
+- **Scan overlay aims at the printed AIC.** No barcode-style rectangle; large OCR-B ghost digits
+  at 70% opacity and “frame A + 9 digits, not the barcode”; short status strings that wrap on a
+  phone; partial reads no longer reset to `A000000000`.
+- **Opened medicine: ¼ · ½ · ¾ chips** set remaining quantity from the full pack.
+
+### Fixed
+- Ghost AIC preview stopped updating after empty OCR passes; longer partials are kept.
+
+## [1.29.0] - 2026-10-28
+
+### Changed
+- **Cabinet list shows what matters for a box.** Name, smaller brand, expiry date, application
+  category, residual quantity and sealed/opened — no location badge and no redundant “Farmaco”
+  tag (you already opened the cabinet).
+- **Medicine titles are never prefixed with “Farmaco”.** The food genre pipeline treated the AI
+  word as a grocery kind and wrote `Farmaco tachipirina`; medicines skip the prefix, the word
+  is in `umbrella_labels`, and existing rows are healed on classify / maintenance.
+- **Skin creams get a category chip.** Topical corticosteroids (`D07*`, e.g. Euclorina Eritemi e
+  Dermatiti) and antifungals (`D01*`) map to **firstaid**, with dermatitis/erythema/eczema words
+  added to that category’s symptom list — the form used to leave every chip empty for those ATC.
+- **Medicine AIC OCR is leaner.** One thin strip + `psm 7/13` first (whitelist `A0-9`), smaller
+  default crop (720 px / ~100 kpx), 8 s job timeout, and pageseg mode is not re-set every pass.
+  Ink/boost and off-guide strips rotate in only after misses — fewer wasted seconds on a phone.
+- **Uncertain AIC: pick a real pack on the camera, never invent one.** `_medOpenFamily()` no longer
+  opens an empty product form (“crea un farmaco”); the household chooses among catalogue rows over
+  the scanner, or types the AIC. Empty `_medStartManualEntry('')` is refused. `MED_DEBUG` stays
+  off (`false`); no `data/med_debug/` artefacts to clear.
+
+### Fixed
+- **Medicine save: the category toast was a lie.** `med_classify` / `med_open` were called with
+  the payload in the GET-params slot of `api()`, so on POST the body stayed empty, PHP saw
+  `product_id=0` and answered `medical.classify_error` (“Non ho potuto salvare la categoria”)
+  while the product itself had already been written. The calls now put the JSON in the body; the
+  official ATC of the catalogue row is stored with them, and the server accepts a full AIFA code
+  (`N02BE01`) against the household prefixes (`N02B`) instead of demanding an exact match. The
+  follow-on “salvato ma non nell’armadietto” was the same bug cascading: without `is_medical=1`
+  the cabinet answered `error.food_in_cabinet`. Classify now blocks the stock step on failure.
+- **`medical.only_catalogue` no longer mentions the pantry.** The refusal is about the national
+  database (AIFA), not about “already in dispensa”; spray/device packs whose MINSAN starts with
+  `9` (Rinorex, Rinoreal, …) are not in the AIFA medicines export at all.
+
+### Changed
+- **The application category is ticked from the ATC, and the map now covers what a household
+  actually has.** “Fastum gel” (`M02AA15`, a topical NSAID) arrived with **no category** because
+  `data/medical_categories.json` only listed the oral ones (`M01A`). The ATC prefixes are DATA, and
+  the form ticks the closed chip they resolve to (`_medCategoryFromAtc()`), so the map was widened:
+  `M02A` → **pain**, `S01` → **eyes** (not only `S01X`), `D08/D03/D06/D09` → **firstaid** (it had
+  none), `A02A/A03/A06` join `stomach`, `R05*`/`R06`/`M03` replace their narrower prefixes. The
+  same prefixes feed the offline «cosa ho in casa per…» search (`med_symptom_search`), and
+  `data/medical_atc.json` (the Phase-2 map) gains `M02A` and `A02A` so both files agree. An ATC the
+  closed taxonomy does not know (an antibiotic, `J01*`) leaves the chips empty on purpose: the app
+  never invents a household category.
+- **A medicine box asks its state first, and the pack is read from the container — not from the
+  dose.** “Fastum gel 2,5% 25 mg/g … tubo 50 g” was shown as **25 mg**: the form took the first
+  number on the box, which is a dose per gram, not what the tube holds. `_medPackSize()`
+  (`core/med.js`) now reads the container: countable pieces first (“10 compresse”), otherwise the
+  g/ml measure, **skipping anything written as a ratio** (`25 mg/g`, `mg/ml`) and keeping the
+  largest — so the tube is **50 g**. The block is re-ordered as the household asked: **sealed or
+  already opened** first (it decides what the number means), then “Quanto ne hai” — on a sealed box
+  the quantity IS the pack, detected and editable — and, **only when the box is opened**, a second
+  field “Confezione intera”. The pack is stored as `products.default_quantity` (the pack size the
+  rest of the app already reads: fractions, “sta per finire”, shopping list) while
+  `inventory.quantity` stays the stock, so expiry alerts and the shopping list keep working
+  unchanged. Two new keys (`medical.pack_detected`, `medical.pack_qty_label` + hint) in the six
+  locales.
+- **One screen for a medicine, and it ends in the cabinet.** The flow used to be able to fall back
+  to the pantry step (asking the same quantity a second time) whenever the stock write was refused.
+  Now a missing cabinet is **created on the spot** (`_medEnsureCabinet()` → the default
+  `medical.default_location_name`, `medical.cabinet_created`), a failed write **keeps the form with
+  every answer** and says `medical.stock_failed` (tap Save again), and a success lands on the
+  **cabinet list with the new row in it** (`showPage('inventory', cabinet)`) instead of the
+  dashboard. The **package code is no longer shown** on a medicine (`#pf-barcode-group` hidden: if
+  the form is open, the code was already read and verified), and the pack size — “how many it should
+  hold” — is the catalogue's (`medical.pieces_hint`), with the quantity prefilled from it, so the
+  only question left is “how many you have”. Editing a catalogue entry ends in the same place
+  (the cabinet list, or the dashboard when no cabinet exists) instead of the pantry step.
+- **The label reader preprocesses the crop properly, instead of making “one black-and-white copy”.**
+  Tesseract binarizes internally (Otsu), so the old single **global** threshold (58 % between min and
+  max) let the lamp gradient of a glossy blister decide the cut: measured on a synthetic strip with a
+  40→240 gradient it turned 7140 px of the dark side into “ink” and lost the digits on the bright one
+  (168 px). The first two passes now get
+  * a **local Bradley threshold** (`_binarizeScanCanvas()`, integral image, window = 1/8 of the short
+    side, margin 0.15 → **240/240** ink pixels on the same strip, i.e. exactly the 480 strokes, split
+    evenly across the gradient), and
+  * a **contrast stretch (2 %–98 %) + 3×3 sharpen** (`_contrastScanCanvas()`) for grey ink under poor
+    light.
+  The other four passes keep the raw pixels, so a clean label is never harmed by over-processing, and
+  `_medDebugPass()` now records the `prep` of each pass instead of a `binarize` boolean.
+- **No “new medicine”: a box is added only when the catalogue knows it.** The medicine form no
+  longer carries the word at all (`medical.form_title` is “💊 Farmaco”, not “Nuovo farmaco”), and
+  nothing can be invented: `_medStartManualEntry()` asks the local catalogue **before** any form
+  opens (`_medLookupCatalogue()`), a code it cannot name keeps the scanner running
+  (`medical.only_catalogue`, or `medical.scan_needs_catalog` when no dataset is imported), the
+  name field is **read-only** in medicine mode with `#pf-med-name-hint`
+  (`medical.name_from_catalogue`), `submitProduct()` refuses a medical row without
+  `_medConfirmedAic` (set only by `_medFillFromCatalogue()`), the manual switch on a product that
+  does not exist yet is refused, and the blocked-country dialog lost its “Aggiungi a mano”.
+  **Gone with it**: the name read off the label (`_medReadLabelName()` / `_medPickNameLine()` /
+  `_medLabelNameFill()`), the “stable but unknown → open an editable form” branch in
+  `_medConfirmRead()` (it now says `medical.only_catalogue`) and the three keys that fed them
+  (`medical.match_needs_catalog`, `medical.read_unknown_hint`, `medical.scan_unsupported_manual`).
+  The two ways in are a `medicines` row the app recognised (or a neighbour the household picked on
+  the “Non è questo?” card) and a product that already exists.
+- **Scanning a medicine no longer asks where to put it — nor the quantity twice.** A recognised
+  box is stocked from the medicine form itself (`_medStockAddDirect()`): the answers on that one
+  screen — how many, the printed expiry, sealed/opened — write the pantry row **straight into the
+  cabinet the module owns**, and the flow ends on the dashboard with a confirmation. The pantry
+  step, with its "📍 Dove lo metti?", is gone from the medicine flow; it survives only as the
+  fallback of a refused write (no cabinet configured, a server answer), with every answer already
+  filled in.
+- **A box's expiry is a month and a year.** `#pf-med-expiry` is no longer a `type=date`: the month
+  is a picker with its **name in the UI language** (`_medExpiryMonthName()`), the year is a
+  **typed field** (`inputmode="numeric"`, so a phone opens the keypad and a desktop types it), and
+  the stored value is the **last day of that month** (`_medExpiryIso()`) — which is what the print
+  means. The same pair replaces the date field of a medicine on the pantry step
+  (`_medAddExpiryHtml()`), where the "nuovo acquisto / già in dispensa" question — a pantry
+  concept — is gone as well.
+- **No food or pantry wording left in the medicine flow**: the submit button says what the tap
+  does (`medical.form_save`, "Salva nell'armadietto"), the pantry step of a medicine is titled
+  "Aggiungi all'armadietto" and **hides the place picker** (`#add-location-group`: a medicine has
+  one legal place), the action page of a medical row says "nell'armadietto dei farmaci" instead
+  of "in dispensa/frigo" and offers **no recipe button at all** (`medical.action_add_sub`,
+  `medical.action_use_sub`), and no rule, hint or toggle can estimate a date on a medicine
+  (`recalculateAddExpiry()` returns early for a medical row).
+
+### Fixed
+- **The month list of a medicine's expiry was always empty.** The markup names those controls
+  `pf-med-expiry-month` / `pf-med-expiry-year` (hidden `pf-med-expiry`), while the helpers build
+  every id from a prefix (`#<prefix>-expiry-month`) and were called with `'pf'`: the lookup found
+  nothing, so the `<select>` stayed empty, the hidden ISO date was never written and the save
+  answered "inserisci la scadenza". The prefix is `'pf-med'` at every call site now (the pantry
+  step keeps `'add'`, which always matched), the two prefixes live in
+  `_MED_EXPIRY_FORM_PREFIXES`, and `_medExpiryFillPickers()` **warns in the console** when a
+  prefix does not match the markup instead of leaving a dead control on a phone. Verified with a
+  harness that reads the ids **from `index.html`**.
+- **The month of a medicine's expiry could not be chosen at all.** The list was painted by JS only,
+  so whenever that painter did not run (a box added **by hand** through the "è un farmaco?"
+  switch, a form reopened) the `<select>` was empty — and, in a flex row with `min-width: 0`,
+  invisible: nothing to tap, nothing to type. The **twelve names now live in the language file**
+  (`months.january` … `months.december`, the six locales — nothing hardcoded in the markup or in the
+  code) and `_medExpiryPaintMonthOptions()` paints them from `translatePage()`, i.e. as soon as the
+  strings are loaded: the control is ready **before** any form opens, whichever path gets there.
+  `_medExpiryFillPickers()` only decides *what is selected* (and fills an empty list as a last line
+  of defence), the month keeps a floor width (`min-width: 130px`), the year is a **typed field**
+  whose hint is a translation too, and `keep` never throws away what the household already chose. A
+  year that has already gone answers *data nel passato* (`_medExpiryErrorKey()`) instead of
+  "inserisci la scadenza".
+- **A medicine no longer wears the food icon.** Every row fell back to its food **category**
+  emoji when the URL had no picture — and a medicine is stored as `altro`, so a box of tablets was
+  drawn as 📦, the same mark a custom place and an unidentified product use (a mis-saved category
+  could even put a 🥛 on it). EverShelf Med now has its own drawn mark,
+  `assets/img/icons/medicine.svg` (a capsule with a cross, in the module's medical tint
+  `#6366f1`, shipped in the service-worker shell) and one rule for drawing it:
+  * `_productThumbHtml()` uses it as the fallback of a medical row (pantry, dashboard, banner),
+    with the medical tint on the frame;
+  * `_productCatIconHtml()` covers the plain emoji slots (detail sheet, action hero, add preview,
+    products list);
+  * the pantry badge says **Farmaco** (`medical.row_tag`) instead of the food category, and the
+    "altro → let the AI guess a category" repair never touches a box;
+  * grouped lists put medicines under their own **Farmaco** group with the pill as the header;
+  * `_locIconMarkup()` draws the **place**: the cabinet is the pill in the dashboard pill, the
+    pantry tab and every place picker (native `<option>`s keep the 💊 character, an image cannot
+    go in an option label).
+
+## [1.28.7] - 2026-10-28
+
+### Fixed
+- **A scanned medicine asked where to put it: “Dispensa / Frigo” instead of the cabinet.** The box
+  was saved with `products.is_medical = 0` (the row in the household’s DB: AIC
+  `A012745093`, the catalogue notes filled in, no flag), so `_isMedicalRow()` said “food” and the
+  pantry step offered the fridge. Three guarantees now make that impossible:
+  * `submitProduct()` reads the medicine answer from the page MODE **or** the switch **or** the
+    medical chips, and in medicine mode it always calls `med_classify` — the DB flag is written
+    even when the taxonomy chips are empty — and a failure is said out loud instead of being
+    swallowed by `.catch()`;
+  * `_isMedicalRow()` also treats a row carrying `med_tags` / `med_ingredient` as a medicine, so a
+    classification written by any path counts;
+  * saving a medicine no longer goes through the product ACTION page: it lands **straight on the
+    pantry step**, whose place is pinned to the cabinet (`_renderLocationSelector(.., ‘medical’)`),
+    with quantity, printed date and sealed/opened already answered — one tap. A medicine with no
+    cabinet configured now says so (`medical.no_cabinet`) instead of quietly falling back to the
+    pantry, which the server refuses anyway.
+
+## [1.28.6] - 2026-10-28
+
+### Removed
+- **The whole PHP guard suite, the temporary diagnostics and the dead maintenance CLIs.** 71 files in
+  `scripts/test-*.php`, `scripts/fixtures/`, the one-off ops/GitHub helpers
+  (`audit-*`, `backfill-finished-shopping`, `sync-shopping-bring`, `triage-open-issues`,
+  `github-issue-triage`, `reply-issue-200`, `delete-feature-issue-comments`,
+  `fix-mangled-kind-titles`, `merge-duplicate-products`, `migrate-env-security`,
+  `re-enrich-recipe`) and the 130 KB of fixtures only they read. The CI job `unit-tests` is gone
+  with them, and `auto-merge-to-main` no longer waits for it. **The regression net is gone on
+  purpose: `git revert <this commit>` brings it back in one command.**
+- **`docs/openapi.yaml`** — a 39-path, five-week-old spec that had drifted from the router
+  (`med_lookup`, `support_qr`, `location_rename`, `recipe_archive` and `app_bootstrap` were all
+  missing) while three documents called it “the full OpenAPI 3.1 spec”. `docs/wiki/API-Reference.md`
+  is the API document; the references that promised the stale file are corrected.
+- **The medicine read diagnostic** (`data/med_debug/`, `MED_DEBUG=true`): the investigation it
+  existed for is closed, so the folder is deleted, the flag is back to `false` in `.env` and the
+  ignore entries are gone.
+- **Dead code**: `_medRenderNeighbours()` (no caller since the confirmed read became a link), and
+  the “guard test `scripts/test-….php`” promises in `api/*`, `assets/js/app.js`, the generators
+  and the country schema, which described files that no longer exist.
+
+### Changed
+- `AGENTS.md`, `.clinerules`, `CONTRIBUTING`/`docs/wiki/Contributing.md`, `docs/CODEBASE-MAP.md`,
+  `docs/CORPORATE-UI.md`, `docs/OPTIMIZATION-BACKLOG.md` and the wiki pages no longer instruct
+  anybody to run a suite that is not there: only the syntax checks, the i18n audits, `shellcheck`
+  and the generated-artefact checks remain.
+
+## [1.28.5] - 2026-10-28
+
+### Fixed
+- **`A029788027` was not an unknown medicine: it was a misread pack.** The formulary has
+  `029788015`, `029788041` and `029788054` — all *Destrometorfano Bromidrato Sella* (compresse,
+  gocce, sciroppo) — because an AIC is **6 digits of the medicinal product + 3 of the pack**, and
+  the digits an OCR loses are the last ones. A read with no exact row is now checked against its
+  **pack family** (`_medFamilyRows()`): when the family exists the form opens on the correction
+  card (“Il codice non è esatto: quale confezione hai in mano?”) with the real names and pack
+  sizes, and the wrong number is **never stored** (`_medOpenFamily()` leaves the barcode empty).
+  Only a read whose prefix is unknown too keeps the old “twice identical → open with a warning”
+  path.
+
+### Added
+- **An OPTIONAL online catalogue provider, off by default.** `MED_LOOKUP_PROVIDER` /
+  `MED_LOOKUP_URL` / `MED_LOOKUP_KEY` (see `.env.example`): when a household sets them, a code the
+  local table knows nowhere is asked to the provider (Medifontis’ documented `GET /v1/drugs`, or
+  an own endpoint) and the answer is **written into the local table**, so the next scan is instant
+  and offline. Evaluation of why it is not the default: Medifontis indexes the **same AIFA open
+  data** we already import (`sourceUrl: confezioni_fornitura.csv`, ~160k packs), so it adds no
+  coverage; it adds a key, a quota, a network failure in a pharmacy with no signal, and it sends
+  the AIC of what someone just scanned to a third party — a health signal. The catalogue stays the
+  authority a scan is verified against.
+
+## [1.28.4] - 2026-10-28
+
+### Fixed
+- **After twenty seconds the reader now ASKS, in words that fit.** The card that stops the camera
+  said it in the status chip — a `nowrap` + ellipsis line — so what the household saw over a
+  black frame was a truncated, illegible string. The frozen viewport is now covered by a real
+  card (`#scan-med-ask`: an icon, “Non riesco a leggere il codice” and a sentence that WRAPS,
+  “Scrivilo qui sotto come è stampato sulla scatola (es. A040313076), oppure riprova la
+  scansione”) in six locales, and the chip is left empty. The camera chrome (guide, HUD, torch)
+  disappears, the input takes the full width and the two answers sit under it:
+  **Conferma** and **Riprova la scansione**. The attempts stop as well as the stream: `_scannerGen`
+  is bumped, so a pass the worker was still chewing on can no longer open a form behind the card.
+
+## [1.28.3] - 2026-10-28
+
+### Added
+- **A medicine box is now asked what a box is: how much, until when, sealed or opened** — on the
+  medicine form itself, in the medical block. Quantity is counted in the unit the pack is
+  measured in (`_medFormStockPrefill()`: "10 compresse" → **10 pz**, "1 flacone 200 ml" →
+  **200 ml**, "tubo 30 g" → **30 g**, a typed value is never overwritten), the date is the one
+  **printed on the box** (mandatory, a past one refused, ≤ 3 days warned) and the pack is
+  **sealed or already opened** (which lets the server start its own clock). The answers travel
+  into the pantry row — `unit`/`default_quantity` on the product, the date and the opened state
+  pre-filled in the add step — so stocking a box is one tap and not a second interrogation.
+  Editing the catalogue entry never asks the date again (the stock row owns its expiry).
+
+### Fixed
+- **A medicine smaller than the pantry floor is no longer refused.** The 20 g/ml floor exists for
+  "2 g typed by mistake"; it made a 10 ml eye-drop bottle unfillable. Both the client and
+  `addToInventory()` skip it for a medical row.
+
+## [1.28.2] - 2026-10-28
+
+### Changed
+- **The medicine form stopped talking about numbers.** A confirmed read opened with
+  “AIC · A042386348” over a name the catalogue had already put in the field: the
+  banner is gone (markup, JS and CSS), the “Riconosciuto…” line is gone (it repeated
+  the field above), and what is left is **one link**, “Non è questo?”, without the card
+  around it — the alternatives are still one tap away when a digit was read wrong. The
+  packaging code of a box is announced by a toast, never printed on the form.
+
+## [1.28.1] - 2026-10-28
+
+### Fixed
+- **The camera never started: `_setScanMode()` threw on every scan page open.** v1.28.0 removed
+  the "💊 Leggi AIC" button and left the identifier behind (`ocrBtn`) in the panel setup. The
+  function threw `ReferenceError`, so `showPage('scan')` never reached **`initScanner()`**: the
+  camera, the barcode decoder and the label OCR never ran, the status chip never changed and the
+  household saw a frozen frame — which reads exactly as "it does not read anything". The dead
+  line (and the CSS that sized its column) is gone, and `_setScanMode()` now runs its body inside
+  a `try` (`_setScanModeInner()`): a cosmetic detail can never cost the scanner again. Guard:
+  `scripts/test-medical.php` fails if that identifier ever comes back, if the wrapper
+  disappears, or if `initScanner()` stops following `_setScanMode()` in the scan branch.
+- **The reader answers faster, and a certain read stops asking questions.** From the household's
+  own successful scan: the pass that read the code was the **binarized strip** (0.8 s) and it
+  arrived only after eight passes and two AI calls. The rotation is five regions now, the
+  binarized one first, the region that worked last time goes first on the next attempt, and
+  the AI fallback waits for ~8 passes and runs at most once every 12 s. A **confirmed** AIC
+  shows one line ("riconosciuto A…") and a **"Non è questo?"** link that reveals the
+  neighbours on demand: the alternatives belonged to a doubtful read, and showing them next to
+  a code the catalogue confirms only made the household wonder. The **active ingredient** now
+  fills its own field (it lived only inside the notes), and the add step **refuses an expiry
+  date in the past** and warns when it is three days away — nothing is written before that
+  check. The "an opened pack counts its expiry from the opening" line is gone: it explained a
+  rule nobody asked about on that screen.
+- **The thin `0` after the A: a read is now REPAIRED as a candidate, and the catalogue decides.**
+  The household's label (`A042386348`) was read `A42386348` by every pass — a correct line with
+  one character lost — so the pattern never matched and nothing happened. A read of `A` + 8
+  digits now yields the `0`-restored number as a **candidate**, which goes through the same
+  catalogue verification as any read (`_medTryLooseReads` → `_medConfirmRead`): verified on the
+  household's own read, `A42386348` resolves to AIC `042386348` = Brufen Analgesico 400 mg
+  12 compresse (Mylan). The AI never guesses a medicine: a variant that is not in the AIFA rows
+  opens nothing — and the reader never asks a model: the catalogue is the only authority.
+- **One label attempt at a time.** The scan loop and the barcode kick could run together, the
+  jobs interleaved in the worker and every one of them timed out (the 20 s storm in the log) —
+  which also made the reader believe the device was slow and shrink the pictures. The size is
+  now lowered only when a pass FINISHES slowly.
+- **No more worker restarts, and a slow device gets smaller pictures.** Every timeout used to
+  terminate the OCR worker, so the next attempt reloaded the 3 MB model — the household's log
+  shows a restart loop where NOTHING could ever finish (12 s timeouts on a 102k-pixel strip). 
+  Now a timeout only releases the queue, the deadline is 20 s, and the pictures get smaller
+  (640 px / 60k) only when a pass FINISHES slowly — the timeouts were the queue storm, not the
+  device. Each pass logs **how long it took**, so the real speed is measured instead of guessed.
+- **The printed `A` must START a token.** The log showed the reader returning `AIC 014058142`: 
+  the pack's progressive number promoted to a drug code because the tail of the word printed
+  above it (`AAA`) sat right before the digits. A letter `A` in front now rejects the match,
+  while any other letter (the previous word of the line, after the separators are compacted)
+  is accepted — the case `…compresseA040313076` still reads.
+- **A medicine now has a real expiry, and no estimate.** Food gets a shelf-life estimate because
+  nobody prints one; a medicine box prints `scadenza MM/AAAA`, so the add step for a medical row
+  shows **an empty date field and asks for that date** (`add.expiry_from_pack`), refuses a past
+  one, warns when it is three days away, and **refuses to save without it**
+  (`add.expiry_required`). The history average and the AI shelf-life hint are skipped for a
+  medicine (they would invent a date), and switching "appena comprato"/"ce l'avevo già" keeps
+  the date the household typed instead of re-estimating it. The expiry camera button stays
+  food-only: the medicines module never calls a model.
+- **A code the catalogue does not have is no longer a dead end.** The household's box read
+  `A029788027` three times, identically, and the AIFA rows have no such pack: the app refused
+  it (rightly — a wrong digit must not open a box) and the screen simply kept scanning, which
+  reads as "it did nothing". The SECOND identical read now opens the form **with that code** and
+  says it: "A029788027 non è nel catalogo AIFA: controlla il codice sulla scatola o correggilo
+  qui" (chip + toast, six locales). Nothing is invented: the code is what the camera read, the
+  name stays empty until the household fills it.
+- **Twenty seconds, and the camera really stops.** The nudge used to be a toast over a live
+  preview — invisible in practice. Now `stopScanner()` releases the camera, the code row lights
+  up and takes the focus, and a **"Riprendi"** button restarts the reader when the household
+  wants another go.
+- **The medicine form lost its noise.** A confirmed box now shows the code in the banner and one
+  line ("Riconosciuto A042386348"), with **"Non è questo?" as a small footnote at the end** of the
+  card instead of a button in the middle of the information; the "Farmaco riconosciuto / il nome
+  arriva dal catalogo…" texts and the "Fonte: AIFA · N farmaci" line are gone (three keys
+  removed from the six locales). The **"Scade dopo l'apertura (giorni)" field is gone too**: it
+  asked the household to compute a rule the pack never prints. A PAO already stored in Settings
+  is preserved, and the closed category + the active ingredient still fill themselves from the
+  catalogue row (ATC → category, `PF-MED-INGREDIENT` ← principio attivo).
+- **Ten seconds without a read, and the household is asked for the code.** The log of one scan of
+  the Brufen box shows 25 `job timed out` and passes coming back with `"A"`, `"A 2"`, `""`: on
+  that phone the bundled engine cannot finish a pass, and the camera loop was busy waiting for
+  it. After ten seconds the code row is **highlighted, focused, and says so** in six locales
+  ("scrivilo qui sotto, es. A042386348"); after three timeouts in the same session the local
+  engine is **not asked again** — it wedges — while the barcode keeps trying, so the camera stays
+  responsive and the field is the answer. The number is verified by the catalogue exactly like a
+  read: nothing is guessed.
+- **The BARCODE comes first again, magnified.** The household's log showed the decoder
+  hallucinating on a dense Code 39 (`18FJXD`, `1836XD` for a bollino that prints
+  `A042386348`): at 720p, with the sticker filling a third of the frame, each module is ~2 px.
+  The medicine panel now decodes a **2× crop of the guide rectangle** (native detector + ZBar,
+  every other frame) **before** any OCR: that is the pharmacist's path — the number that comes
+  back IS the catalogue key, no guesswork — and the rear camera asks for 1920×1080 instead of
+  1280×720. The OCR stays as the second path (binarized strip first). A worker that stops
+  answering is replaced after two timeouts without a successful pass in between: the 20 s
+  `job timed out` storms in the log were a wedged engine, not a slow device.
+- **The medicine reader NEVER calls the AI.** A vision-model fallback (`gemini_med_aic`) was
+  added for devices too slow for the local engine and has been **removed on the household's
+  instruction**: a medicine is identified by a printed code verified against the catalogue,
+  never by a model. The shelf-life AI hint is skipped on a medical row too, so nothing about a
+  drug ever leaves the database. Guard: `scripts/test-medical.php` fails if any `gemini_*` /
+  `_medReadLabelAi` reference comes back.
+- **The phone needed half a second per 10k pixels: the reader now sends STRIPS.** The read
+  diagnostic caught it: on the household's phone every `recognize()` exceeded 7 s (a 400k-pixel
+  crop), while the engine's self-test (77k) passed — the frames themselves were perfect. The
+  unit of work is now a **thin strip of the guide rectangle** (~1/3 of its height, 900 px wide,
+  ~100k pixels, three overlapping strips covering the whole label, plus the 1.5× one and a
+  binarized copy), the whole-frame pass is gone (0.9 Mpx bought nothing), the pixel budget is
+  180k and a job may take 12 s. The guide rectangle itself is taller (18% → 26% of the viewport)
+  with the hint "inquadra l'etichetta intera": the household aimed at a letterbox and the
+  printed line kept falling out of it.
+- **Two undeclared variables: the label reader had NEVER run.** `_medFullPassAt` (shipped in
+  v1.28.0) and `_medOcrQueue` (lost in this cycle's timeout refactor) were used but never
+  declared, so `_medReadLabelOcr()` threw `ReferenceError` before reading anything: the OCR
+  produced **no log line, no frame, no feedback**, and the scan loop swallowed the error. Both
+  are declared now, a failed attempt always says why (`Medicine OCR attempt failed: …`), and
+  `scripts/test-medical.php` gained a **static declaration check** over every `_med*` symbol
+  the app uses (declarations may live in app.js, `core/med.js` or `med/italy.js`) — the check
+  fails on the exact bug that cost this round, and on the next one.
+- **The phone's own video is portrait, and the reader now knows it.** The remote client log showed
+  `videoWidth: 720, videoHeight: 1280`: the bands were computed for a landscape frame and the
+  canvas could reach 0.7 Mpx, which `tesseract.js` chews on for tens of seconds. The bands are
+  now 40% of the height with a 0.4 Mpx **pixel budget**, the side cap is 900 px again, and every
+  OCR job has a **7 s deadline** that releases the queue and replaces the worker after two
+  timeouts — a `recognize()` that never settled used to hold `medOcrBusy` forever, which is
+  exactly 'two minutes and nothing happens'. The reader also says WHY it bailed out (module
+  off, no pattern, no frame) and the scan panel logs which mode it is in.
+- **TEMPORARY diagnostic for the medicine reader (`MED_DEBUG=true`).** `POST med_debug` records,
+  per OCR pass, the region/psm/video geometry, the text it got and — bounded to a dozen small
+  JPEGs per session — the crop itself, under `data/med_debug/` (400 events / 40 pictures max,
+  nothing leaves the server, 403 the moment the flag is off). It is the tool used to diagnose
+  the household's own phone: turn `MED_DEBUG=false`, or delete the folder, when the
+  investigation is over.
+- **The medicine reader can read a printed AIC again, and a barcode is a way in again.** The
+  scanner had been left with ONE path — the OCR of the printed block — because an earlier
+  release refused every barcode in the medicine panel. On a real Italian box that means a single
+  point of failure: one missed digit and the reader reports nothing at all, which is exactly what
+  "l'OCR non funziona più" looked like. Now:
+  - the **AIC itself, printed as a Code 39 on the bollino** (`A040313076`), is accepted again, and
+    so is AI `710` of the FMD DataMatrix. Both go through the same verification as any read
+    (`_medConfirmRead()`): a number the AIFA catalogue does not contain — the lot `16G87N`, the
+    pack's progressive number `0140581421`, a serial that happens to start with an `A` — is
+    refused and the reader keeps going, instead of blindfolding the whole scanner;
+  - Italy's schema declares `national_code: "both"` / `barcodes: true`, and the pack's
+    progressive number is now listed under `ignored` with its own label
+    (`medical.code_progressive`), so the household is told *what* was read and discarded;
+  - the OCR regained the hand of a human holding the box: **one rotating band of the whole frame
+    per attempt** (`_medFrameBands()`, half the frame tall, 50 % overlap) beside the guide
+    rectangle, so a printed block that sits outside the drawn box is still found;
+  - the modes were measured, not guessed, on a reproduction of a real Italian bollino
+    (Tachipirina orosolubile, `A040313076`, lot `16G87N`, progressive `014058142`): a half-frame
+    **band read with the single-line mode (psm 7) returns `'32'` — or nothing at all on a
+    smaller frame — because a band holds several lines; with psm 6 the same band reads
+    `A040313076`**. The band pass therefore switched to psm 6, and a **psm 13 (raw line)** pass
+    was added on the guide rectangle: it is the pass that returned the printed block clean even
+    on a blurred, downscaled frame (`44040313076`, repaired to the AIC by the prefix tolerance);
+  - **the reader now answers in about a second instead of five**, and the chip belongs to it: on a
+    phone ONE attempt used to run six OCR jobs in a row (3-5 s) while the lot barcode rewrote the
+    status every 1.5 s with a 125-character sentence the chip cut to "… non è il numero …". Now
+    an attempt is **one region**, rotating through the rectangle and three half-frame bands, with
+    the two winning regions first (measured on a 1280x720 phone frame with the sticker at 40% of
+    the width: the block segmentation on the rectangle and the middle band carried the AIC),
+    every 900 ms; a packaging code announces itself once per 8 s and never over a line the reader
+    just wrote; the message fits the chip in six locales; the crop now **grows** beyond the drawn
+    rectangle instead of shrinking inside it (an AIC line wider than the frame lost a character at
+    each end), and the canvas is 1400 px so a box read from 30 cm has thick enough characters;
+  - the printed `A` that the camera turns into a `4` (or `@`, `&`) is **recovered**, and a page
+    whose letter is lost entirely hands its digit runs to the catalogue
+    (`_medOcrDigitCandidates()` → `_medTryLooseReads()`, four at most, each one verified). Both
+    forgiving paths are **closed when no catalogue is loaded**: there is nothing to prove a
+    number with, so the strict rule stays.
+- **Moving a product to another place no longer re-dates it.** The suggested expiry follows the
+  **kind** of place — pantry, fridge, freezer — and never its name, so "Dispensa cucina" is
+  dated exactly like "Dispensa" (`storageKindOfLocation()`, ported to PHP as
+  `storageKindOfLocationPHP()`; the kind is read from the built-in key, from the label the
+  built-ins carry in the active language and from the words the CSV import already knew — no new
+  vocabulary, six locales covered). Beyond that, a pick between two places of the **same** kind
+  now leaves the date alone instead of silently replacing it with a rule estimate: the add form
+  (`recalculateAddExpiry()`) and both edit modals (`recalcEditExpiry()`) recompute only when the
+  kind changes, or on purpose (the vacuum toggle, "appena comprato"), and the AI hint may no
+  longer apply days that belong to a place the household did not choose. A custom freezer
+  ("Freezer garage") is a freezer for the estimate and for the safety verdict too.
+
+### Added
+- **The add step asks a medicine box its own two questions.** Food asks "quanto?" and "quando
+  scade?"; a box also asks **sigillata o già aperta** — an opened pack calls `med_open`, so its
+  expiry becomes today + the storage life after opening (`med_pao_days`) — and **quante ne
+  restano**, as fractions of the pack the catalogue describes ("10 buste" → tutta / ¾ / ½ / ¼,
+  from `_medPackCount()`). A liquid ("1 flacone 200 ml") names no pieces: the fraction row stays
+  hidden and the quantity field is the answer. Nine new keys in all six locales.
+
+## [1.28.0] - 2026-10-27
+
+### Added
+- **A medicine box is now read the way Italy prints it: the AIC, not the barcode.** The Italian
+  pack carries no drug barcode — the SSN label is a **Pharmacode/Laetus** (a packaging code of
+  the line) and the 2D DataMatrix carries a lot/serial — while the number that identifies the
+  drug is **printed** (`A040313076`, Code 39; or 9 bare digits in the older Code 32 form; or
+  AI **710** of the FMD DataMatrix). The scanner now follows that: the AIC is the only medicine
+  code, the packaging codes are listed as `ignored` in
+  `data/medical_code_schemas.json` and are **never** sent to a catalogue, and the label is
+  OCR'd instead (the bundled Tesseract, second parameter set: letters + digits, block
+  segmentation). In the medicine panel the label is the SOURCE, not a fallback: the read starts
+  on the first usable frames, repeats every 2 s (bounded to 45 attempts) and takes **only the
+  printed `A` + 9 digits** — a bare 9-digit run is the pack serial printed under the SSN barcode
+  and is never accepted. The panel draws **one rectangle** (the OCR's field of view) with the
+  expected shape `A000000000` in a monospaced face, and hides the particle cloud and the
+  sweeping line of the barcode hunt. Above all, **a barcode is no longer a drug number in that
+  panel**: the SSN label carries several Code 39s (AIC on top, pack serial at the bottom) that
+  are indistinguishable by shape, so only the EU FMD DataMatrix (AI 710) is accepted; anything
+  else sends the scanner to the printed block. A **💊 Leggi AIC** button forces a pass.
+  Every path that used to claim a Pharmacode as the medicine number is gone, including the dead
+  `_looksLikeMedicineCode()` heuristic.
+- **The Italian rule is a MODULE, not a corner of the core.** `api/lib/medical.php` and
+  `assets/js/core/med.js` are now country-neutral: they load the schema, walk the GS1 element
+  string, apply the `codes`/`ignored`/`ocr` lists and ask the country module one question —
+  *is this read one of YOUR drug codes?* The AIC (three printed forms + AI 710) and the AIFA
+  column names live in `api/lib/med/italy.php` and `assets/js/med/italy.js`, registered by the
+  `"module": "italy"` the schema declares. A country that only needs a regex (PZN, CN, NDC)
+  needs no module at all; dropping Italy leaves a scanner that still reads the others.
+- **A local AIFA catalogue, imported once.** Because no free, unlimited, key-less REST API
+  exists for Italian medicines, the app never calls one: `php scripts/import-medicines.php
+  <file.csv|xml> --country=IT` loads the AIFA open data into a `medicines` table (AIC as the
+  key, headers recognised by NAME from the country module, `--dry-run`/`--truncate`/`--limit`,
+  CSV and XML, fixtures in `scripts/fixtures/aifa_sample.*`). `GET med_lookup` answers by AIC or by name from that table
+  (authenticated, read-only, no network), and the medicine form shows the match — name, active
+  ingredient, form, pack, company — with a **"Usa questo nome"** button: the household
+  confirms, nothing is auto-filled. Settings → 💊 Farmaci says how many medicines are loaded,
+  and says it out loud when none are (an unknown AIC then means "no catalogue", not "no such
+  drug").
+- **The FMD DataMatrix is decoded.** `medicalGs1Parse()` / `_medGs1Parse()` (core, GS1
+  standard) walk the element string — fixed-length AIs, variable ones ending at FNC1 — and
+  return GTIN, expiry, batch, serial and AI `71x`; the Italian module reads the AIC out of
+  AI 710, so a modern EU box is answered with its drug number instead of its lot.
+
+- **The label standard is a CONTRIBUTABLE per-country schema, and the scanner is BLOCKED where it
+  is missing.** `data/medical_code_schemas.json` is now v3: every country declares `codes`
+  (what identifies the drug), `ignored` (the packaging codes to throw away), `ocr` (the printed
+  pattern + the `sample` the guide frame shows + the `hint_key` for that country), `fmd` +
+  `fmd_national_ai`, `dataset` (open data? which importer?) and a `scan` summary the UI reads. Two
+  more countries are wired: **Germany** (PZN printed in clear text and as Code 39, `PZN 00000000`;
+  the IFA catalogue is licensed, so the name is typed) and the **United States** (NDC printed,
+  `00000-0000-00`, with the **openFDA NDC Directory** as a free JSON catalogue — the importer now
+  reads JSON too, and the catalogue key is the national number whatever its length). France keeps
+  the EAN-13 (the CIP-13 *is* the EAN), Spain and Austria use the FMD/AI 710, and a country with no
+  schema gets a **dialog** that says the label standard is missing, offers the hand entry and
+  points at the new contributor guide `docs/wiki/Medicines-Country-Schemas.md`.
+### Fixed
+- **The pack serial is no longer read as the drug number.** An SSN label carries a second Code 39
+  with the pack's progressive number (`014058142`), which has the same shape as an old Code 32
+  AIC: the scan stored it as "A014058142" and the catalogue, of course, knew nothing about it.
+  Italy now accepts **only the printed `A` + 9 digits** (and AI 710 of the FMD DataMatrix) — in the
+  barcode path too — so a bare 9-digit read is refused. When such a barcode is read the medicine
+  panel says it in the status line (`medical.scan_code_ignored`) and goes back to the label, the
+  digit-under-the-bars OCR does not run in that panel at all, and the label reader reads **only**
+  the guide rectangle (no full-frame second chance, which could catch another printed number).
+  Italy now declares **`scan.barcodes: false`**, so the medicine panel runs **no barcode engine
+  whatsoever** (native detector, ZBar, Quagga and the digits OCR are skipped); Germany and the
+  US keep their barcode path, because there the Code 39/EAN *is* the drug number.
+- **Fixed: the quarter/half/three-quarter buttons are back, in the product sheet.** When "Usa" started opening the modal instead of the old USE page, the fraction shortcuts stayed behind and a piece could only be consumed one at a time. The sheet now carries **¼ · ½ · ¾ · 1** chips (plus **2** when there are two or more) for pieces and packs, and ¼·½·¾·pack for weights when the pack size is known — one tap, the stepper follows.
+- **Fixed: the label reader could go blind, and now proves it works.** Removing the resolution re-negotiation (it restarted the camera on some phones) and serialising the OCR jobs — the label reader and the name reader shared one worker and could answer each other's job, which returns nothing — plus one synthetic `A040313076` image at panel open: if the engine itself is broken on the device, the status says so instead of the frame never filling. What each pass read is one line in the existing status chip (`Letto «…»`).
+- **The two buttons are gone**: "Leggi AIC" and "Aggiungi a mano" are replaced by **one field** to type the code and Conferma — same verification as a scan, and the catalogue names the box.
+- **The medicine catalogue downloads and refreshes itself.** Switching the cabinet on is the consent: the app fetches the free AIFA *confezioni* export (160 000 packs: AIC, name, company, pack, ATC, active ingredients) by itself, once a day at most and again every 30 days — also from the cron. Settings → Farmaci keeps *Aggiorna dal sito AIFA*.
+- **A scanned AIC is verified before it is used.** A code the formulary does not contain is a misread digit: the scanner says so and keeps reading instead of opening the wrong box (`A040313076` read as `A040313072`: `...72` is not a medicine).
+- **Fixed: nothing is drawn over the camera any more** — the read box is gone too; the guide frame fills in with the digits as they are recognised, and that is the whole feedback.
+- **Fixed: the white box over the scanner is gone.** The medicine hint was a bordered white card of three lines above the camera and the read line was another one: both are now one line of dark glass, and the hint is a single sentence.
+- **Fixed: the form now fills itself.** A recognised AIC writes the **name, the company, the notes and the closed category** from the catalogue (empty fields only: a typed value always wins). With no catalogue loaded the card says so instead of staying silent — and the **name printed on the box is read** by one extra OCR pass, with a notice saying it came from the label.
+- **Fixed: no card over the camera.** The four-code confirmation that popped up over the viewfinder is gone: a read opens the medicine form as before, and the codes one digit away are **“Non è questo?” chips on the catalogue card**, next to the name they would change. The camera keeps one line of text, nothing else.
+- **The guide frame fills in with the digits being recognised** (`A0403130···`, emerald when complete) — the placeholder is no longer decorative.
+- **Fixed: why the reader struggles.** One pass now reads the **whole frame** as sparse text every few seconds (a box outside the rectangle was silently unreadable), the tight band is widened to 1.5×, and the read line says when there is **no OCR engine** or, with `?debug=1`, the frame size and the exact crop rectangle.
+- **Fixed: a medicine is confirmed, not assumed.** An OCR read of `A040313076` that came back as `A040313072` was accepted silently — one digit, the wrong box. The reader now asks the local catalogue for the **real codes next to the read** (`med_lookup?near=1`, ranked by edit distance) and the scan page shows up to **four** of them, each with the name, dosage and pack printed on its box: one tap, and a wrong digit is visible before anything is stored. Without a catalogue the card says so instead of inventing neighbours.
+- **The guide frame fills in with the digits already recognised** (`A0403130···`), and the name card says **where the name comes from** (`Fonte: AIFA open data · N farmaci`) with the active ingredient, form, pack, company, ATC and class.
+- **The AIFA file can be loaded from Settings** (Farmaci → *Importa il file del catalogo*): the same import as the CLI, without SSH. The free national dataset is a **file** — no key-less medicine API exists — so it is read once, locally, and deleted after the import; no scan ever leaves the server.
+- **Fixed: the label reader can be watched, and it reads a real label.** A one-line report under
+  the camera says what it actually saw (“Letto «…»”, plus the crop when nothing matched), so
+  “it does not read” and “it read something else” can be told apart at a glance. The crop is
+  binarized and blown up, the alphabet is cut to `0-9A`, the block is retried with a wider
+  page segmentation and a 1.6× wider band, a letter-spaced `A 0 1 2 3 4 5 6 7 8` and the classic
+  `A0l2345678` confusions are repaired (inside an A-code only), and the loop keeps reading at
+  4 s instead of stopping after 45 passes.
+
+### Changed
+- **Two scan panels, never mixed.** The household said it plainly: a food panel that answers with
+  drug codes (and a drug panel that asks a food catalogue) is confusion. `#page-scan` now has two
+  modes chosen by the PLACE the pantry is showing — open the medicine cabinet and the scanner IS
+  the medicine panel: title *Scansiona farmaci*, only **💊 Leggi AIC** and **Aggiungi a mano**, no
+  AI vision, no food name search, no shopping session, no favourites rail (`is-medical-scan`
+  hides every food control in CSS and JS hides the medicine ones outside that mode). Any other
+  place keeps the food panel. A drug code read in the food panel shows one inline notice with
+  *Apri 💊 farmaci*, which puts the pantry on the cabinet and opens the medicine panel in the same
+  tap; an EAN read in the medicine panel is refused with `medical.scan_not_medicine` instead of
+  being sent to five food catalogues. The old "is it a medicine?" dialog is gone, with its
+  four translation keys.
+- **The name catalogue is optional, and it says so.** The medicine form no longer announces a
+  database to download when nothing has been imported: it simply shows no catalogue card, the
+  code is stored and the household types the name. Settings → 💊 Farmaci still explains the
+  optional AIFA import (`medical.dataset_empty`), and the card only appears when there is
+  something to offer.
+- **The medicine form's catalogue note and the credits page tell the truth again**: the name
+  can now come from the AIFA import (`medical.no_catalogue`, `medical.sources_note`,
+  `credits.medicines_note`, `credits.source_aifa_what`, `credits.source_pharmacode_what`,
+  `credits.source_fmd_what`), and the identifying-data disclaimer stays on screen. 21 new keys
+  in six locales.
+
+## [1.27.0] - 2026-10-27
+
+### Added
+- **Settings now answers "which free API do we use, why, and in which context" in one tap.**
+  A primary button sits in the free-API card, immediately above the support card and its
+  buttons: it opens a dialog with one block per service the app really queries — the official
+  logo, **why** we call it (`credits.api_*`), **where** in the app it happens
+  (`credits.api_*_where`), the licence and the project's own URL, plus the note that no free
+  catalogue covers medicines. Everything is painted from the generated
+  `assets/js/free_apis.generated.js` (offline, before any token) so the dialog and the
+  **Crediti** page can never disagree; its footer still leads to the full thanks page.
+- **A custom storage location can be renamed**, not only added and deleted: a pencil next to
+  the ✕ opens a small dialog (`location-rename-overlay`, Esc closes it) that posts
+  `location_rename`. The new name is **one server action, because a location is three rows**:
+  the label in `CUSTOM_LOCATIONS` (.env, or the SQLite fallback when the file is read-only,
+  read back before answering), the slug on `inventory.location`, and the label stored in
+  `app_settings.medical_locations` by the medicine wizard. Stock and history move with the
+  slug inside one transaction, so the pantry tab never points at a place that no longer
+  exists; refusals (reserved builtin, duplicate, comma, > 40 chars) answer with an `error_key`
+  translated in all six locales.
+
+### Changed
+- **The dashboard's places are one dropdown, and the medicine cabinet keeps its own 💊 pill.**
+  A row of pills stops working at the fourth place — the exact reason the pantry filter became
+  a `<select>`. The Home block now follows the same grammar: `#dashboard-location-select` lists
+  Dispensa, the fridges and every custom place with its product count (and a ⚠ where there is
+  something expired or expiring, since a native list has no red dot), and picking one opens the
+  pantry **on that place**. The control is a way in, not a filter, so it resets after the pick:
+  the same place can be chosen twice. The marked cabinet is deliberately **outside** the list as
+  an always-visible 💊 pill — a cabinet buried in a dropdown is a cabinet nobody opens — and the
+  `＋` that leads to Settings → Luoghi stays next to them.
+- **A food's screen no longer offers the medicine cabinet (and a medicine offers no food place).**
+  The edit form's "📍 Posizione" drew every location the instance has, so a yoghurt could be
+  sent to 💊 *Armadietto farmaci* and a box of pills to the fridge — and the server answered
+  `error.food_in_cabinet` / `error.medicine_needs_cabinet` on save. The group now comes from
+  `_locationsForEdit()` (the row's own place plus the legal ones) and the domain is decided by
+  the **product** (`_editDomainIsMedical()`, falling back to where the row sits): a flagged
+  medicine only ever sees the cabinet, a food never sees it. When a row has a single legal place
+  — a medicine already in its cabinet — the whole block is removed instead of drawing one dead
+  button (`.form-group[hidden]`, because `display: flex` would otherwise defeat `hidden`). The
+  same domain rule now guards the "Da dove?" picker when a settings change repaints it.
+- **The pantry shows the place you opened — header included.** Opening the fridge left the page
+  header reading "Dispensa" and, right above the list, the **medicine-cabinet pill** (it sits
+  before the dropdown): the one thing the household had just chosen was the only thing not
+  written on screen. `_syncInventoryTitle()` now puts the opened place in the header (its icon
+  and name, from the one location list) and restores `inventory.title` — `data-i18n` and all, so
+  a later language pass cannot leave a stale name — when the filter goes back to "Tutti". The
+  cabinet pill is removed from the strip while **another** place is open and comes back where it
+  is the way in: the cabinet itself, or "Tutti" (never buried in a menu).
+- **A medicine box's lot code is no longer read as its AIC.** The report's code `16G87N` is the
+  lot/serial part of the box's EU FMD DataMatrix, not a national medicine code: the detector
+  stripped its letters, got `1687`, and happily claimed a "4-digit Pharmacode", opening the
+  medicine form for a code nobody had read. The rules now live in
+  `data/medical_code_schemas.json` as a `pattern` per code, matched against the **whole** read by
+  both detectors (`_medCodeMatches()` in the browser, `medicalCodeMatches()` on the server — two
+  ports, one rule): the AIC is `^A?\d{9}$`, so both forms the box can print are recognised (the
+  official 9 digits, and `A` + 9 digits in Code 39, e.g. `A017837016`), the Pharmacode is a
+  numeric `^\d{3,6}$` inside 3…131070, and a read with letters in it that matches nothing is
+  **not** claimed. Such a code never reaches the five food catalogues either (its digits are not
+  a product code — that was a wrong lookup waiting to resolve somebody else's product): the
+  household is asked once, with the code it heard. A real Italian drug catalogue exists (AIFA
+  publishes the medicines dataset as open data; third-party REST aggregators expose it), and the
+  schema note says so — wiring one in stays a product decision, because the module deliberately
+  claims no drug and works offline.
+- **The medicine cabinet always sits right after Dispensa, and wears a 💊 instead of the
+  cardboard box.** A custom location used to be appended in the order it was typed, with the
+  same 📦 as a cellar: the cabinet ended up last in the dashboard rail, in the pantry tabs and
+  in the add/use pickers, looking like any other place. The one ordered list
+  (`mergeCustomLocations`) is now Dispensa → the marked medicine cabinet → the fridges → the
+  other custom places, `MEDICAL_LOCATION_ICON` / `CUSTOM_LOCATION_ICON` are declared once, and
+  the Settings card and the medical picker read the same list (the picker used to invent its
+  own order and `LOCATION_META`, which never existed). `med_status` now also returns
+  `medical_locations`, so a brand-new device paints the cabinet correctly at boot instead of
+  only after someone opens the medical settings.
+- **The pantry's location filter is a dropdown, and the medicine cabinet keeps its own pill.**
+  A linear row of tabs stops working at the fourth place: `#location-tabs` now holds a native
+  `<select>` (`#location-select`, `inventory.location_filter`) with every place plus "Tutti",
+  and the marked cabinet stays **outside** the list as an always-visible 💊 pill — a cabinet
+  buried in a menu is a cabinet nobody opens. While the cabinet is open the select shows a
+  disabled entry with its name, so it never claims "Tutti" over the cabinet's stock.
+- **Adding a medicine is not adding food any more.** Scanning a recognised code opened the
+  ordinary product form — "Scatta foto e identifica con AI", the food category, unit/package,
+  tags and a **Famiglia** field that suggested "Spaghetti" — plus a switch asking "is it a
+  medicine?" right after the app had answered that itself. The form now switches to a
+  **medicine mode** (`#page-product-form.is-medicine-form`): a banner states the code it read
+  (AIC/Pharmacode/PZN, from the country schema) and that no drug catalogue exists, so name and
+  maker are typed; the food-only fields (`pf-food-only`) disappear, the "is it a medicine?"
+  switch goes away, the labels become **Nome del farmaco / Casa farmaceutica / Codice della
+  scatola**, and the **closed medical taxonomy** is the category (at least one chip is
+  required — it answers "what do I have for…" — and the product is stored as a box in
+  `altro`, never in a food category). The add step drops the "sotto vuoto" option for a
+  medicine. Nine new keys in six locales; the guard test runs the shipped switch in node.
+- **The splash prints the logos of the free APIs only, no names** — and only the ones that
+  read at that size. The row under the boot rail wrapped onto three lines on a phone and read
+  like a menu; three of the six marks are **horizontal wordmarks** (Open Products / Beauty /
+  Pet Food Facts are 7:1), which a 22 px square squashes into an invisible sliver — that was
+  the "the last three logos are missing" report. The shape is now **data**
+  (`wide` / `splash` in `data/free_apis.json`): the splash paints only the three readable
+  marks, while the Settings card, the dialog and the thanks page give a wordmark a wide box
+  instead of a sliver, with its name. A line above them says what they are
+  (`startup.free_apis_lead`, six locales), and the logos **light up one by one** (`--i`
+  staggers a glow animation; `prefers-reduced-motion` switches it off). The files stay local:
+  no third-party request behind a thank-you.
+- **The splash lasts at least 3 s on every boot.** The warm-reload shortcut (250/500 ms) is
+  gone: a fast server no longer makes the boot rail flash past, and the same 3 s floor applies
+  in debug and production.
+
+### Fixed
+- **Opening a location showed the whole house.** In the pantry, "Ultimi usati" and "Più usati"
+  were built from every transaction of every place, and the search looked at all locations —
+  so "Dispensa cucina" answered with products that are not in it. `recent_popular_products`
+  now takes `location` (history **and** stock of that place) and the rail follows the filter;
+  the search runs on the rows of the place on screen (`currentInventory`), and switching place
+  **clears** a leftover search query and tag filter — a query typed somewhere else is what
+  made five products in "Dispensa cucina" look like one.
+- **Food and medicines can no longer share a place.** Food cannot be added (or moved) into
+  the medicine cabinet, and a medicine cannot be placed anywhere else. The client only offers
+  the legal places (`_renderLocationSelector(…, kind)` for the add form, `_locationsForDomain()`
+  for both move dialogs) and the server refuses the rest on **every door**:
+  `inventoryLocationDomainError()` is asked by `addToInventory`, `updateInventory` and the CSV
+  import, and answers `error.food_in_cabinet`, `error.medicine_needs_cabinet` or
+  `error.medicine_location_missing` (six locales). A product that *becomes* a medicine
+  (`med_classify`) has its stock moved into the cabinet, so the rule never depends on the
+  order of the actions; the marked place is read in both stored forms (typed label or slug).
+- **A second database connection turned a move into "database is locked".** Adopting a custom
+  place that lost its label used to call `getDB()`, which builds a NEW PDO and runs the
+  migrations on it: the connection stayed open for the rest of the request and the next
+  `UPDATE` answered `database_busy`. The orphan lookup now receives the request's connection
+  (`inventoryOrphanCustomLocations(?PDO $db)`) and never opens one.
+- **Adding a product lit up TWO locations ("Dispensa" and "Dispensa cucina").** The add form
+  picked the button by asking whether its *text* contained the location key: "dispensa" is a
+  substring of "dispensa cucina", so both pills turned green — and a custom place matched
+  nothing at all, because its label is not its slug. Every location button now carries its
+  own key (`data-loc`) and the selection goes through one resolver that accepts a slug **or**
+  the typed label (`resolveLocationKey()` → `markLocationButton()`): exactly one place, the
+  right one. The same rule covers the history hint and the AI hint, and **the place the
+  household picked wins**: `selectLocation()` records the choice (`dataset.userPicked`) and no
+  hint may move it afterwards. A medicine still defaults to its cabinet — now as a real key
+  instead of the stored label.
+- **"Invalid location" when adding a product to a place you had just created.** The Settings
+  card kept a new custom location **in the browser only** — the page-wide "Salva" was what
+  wrote it — while the pantry validates the location **server-side** against
+  `CUSTOM_LOCATIONS`: the first product saved there answered `Invalid location`. Creating a
+  place now persists it before showing it (add, remove, the medical wizard and the first-run
+  setup share one writer, `_saveCustomLocations()`), and a refused save is reported instead of
+  leaving a phantom place in the pickers. The toast no longer says "premi Salva" and the card
+  no longer mentions the removed "Altro" location (six locales). The server also **adopts a
+  custom place that still holds stock but lost its label** (`inventoryOrphanCustomLocations()`
+  → `inventoryLabelFromSlug()`), so the existing `Dispensa cucina` reappears as "Dispensa
+  cucina" — readable, and it accepts products again — instead of being an invisible slug.
+- **The Italian medicine label from a real photo is recognised.** Three defects stacked on the
+  same path: (1) `_tryConfirmBarcode()` dropped every code shorter than 8 digits, so the
+  documented Pharmacode/Laetus (3–7 digits) never reached the medicine detection; (2) the
+  AIC — `A017837016`, `A` + 9 digits, Code 39 — lost its `A` to the digit-only cache key and
+  was only checked **after** five food-catalogue requests had answered "not found" (offline:
+  an error toast); (3) the country schema fell back only on `APP_LANG`, so an Italian UI over
+  an instance that never set it got **no schema at all**. Now a national code
+  (`_medNationalCode()`) is answered before any request, keeps the box's own code, and
+  `med_status?lang=` falls back to the UI language. Verified against the three codes printed
+  on the report's photo (`A017837016`, `A034548040`, `A012745182`).
+- **A medicine cabinet marked with the typed label is a medicine row again.** The wizard stored
+  "Armadietto Farmaci" while `inventory.location` holds `custom_armadietto_farmaci`, and the
+  two were compared raw: `_medLocationKey()` now normalises both forms (and the picker offers
+  the slug), so the tint, the block and the recipe exclusion apply to the real cabinet.
+
+### Guard
+- `scripts/test-location-rail.php` (rewritten): runs the shipped `renderLocationRail()` and
+  `_dashboardLocationGo()` in node against stubs and locks the new grammar — the places are one
+  `<select>` (one option each, count + ⚠), the cabinet is **not** an option and keeps its 💊 pill
+  with its own count and red dot, a custom place gets its own option, a hostile name is escaped,
+  the `＋` is the last control and picking a place opens the pantry on it and resets the select.
+- `scripts/test-medical.php` gained the code-format block: every national definition carries a
+  whole-code `pattern`, `16G87N` is **not** a medicine code, the AIC is recognised as
+  `A017837016` and as the bare 9 digits, a number above 131070 is not claimed, a letter-carrying
+  code never reaches the food catalogues, and the shipped JS detector is run in node and
+  compared with the PHP one over a probe list (including the EAN that must stay a food path).
+- `scripts/test-medical.php` gained the edit-screen block: the position group is built from
+  `_locationsForEdit()` in both edit forms (never from every location), a single legal place hides
+  the block, and the shipped `_editDomainIsMedical()` + `_locationsForEdit()` run in node — food
+  never gets the cabinet button, a medicine only its cabinet, a food flagged as food keeps a way
+  OUT of the cabinet, and the legacy `altro` key still reads as the pantry.
+- `scripts/test-location-order.php` grew the strip behaviour: it runs the shipped
+  `_syncLocationFilterUi()` + `_syncInventoryTitle()` in node and locks that opening a place
+  hides the cabinet pill and writes "🧊 Frigo" in the header, while "Tutti" brings both the page
+  name and the pill back (the `[hidden]` rule is checked in CSS too).
+- `scripts/test-location-rename.php` (new): the action is dispatched, the handler moves stock
+  + history + the medicine marking in one transaction, rewrites the label list in place,
+  writes/reads back the env value, refuses with `error_key`s, and the client paints a pencil,
+  a dialog and calls the action; every label exists in six locales.
+- `scripts/test-credits.php`: the splash body must not print `preloader-api-name`, the free-API
+  card opens the dialog above the support card, and the five `credits.why_*` keys exist in all
+  six locales. `scripts/test-preloader-stages.php` now locks the 3 s floor and the absence of
+  the warm-boot shortcut; `scripts/test-medical.php` locks the national-code short-circuit,
+  the relaxed length floor and the UI-language country fallback.
+- `scripts/test-location-order.php` (new): runs the shipped `mergeCustomLocations()` in node
+  and locks the one order (Dispensa → 💊 cabinet → fridges → rest) and the one pair of icons,
+  whatever order the places were typed in and whether the marking was stored as a label or a
+  slug.
 `#header-kiosk-version`, which is the **first** thing the header gives up when its row is narrow,
 and the wall has no console to ask.
 - `KioskActivity.launchWebView()` shows a Toast — `EverShelf Kiosk 1.7.33 (34)` — on **every
@@ -162,6 +4123,1109 @@ and the wall has no console to ask.
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.26.0] - 2026-10-27
+
+### Added
+- **The three open barcode sources the app really queries are now in the credits, with their
+  logos**: **Open Products Facts** (parapharmacy, devices, supplements — the family that
+  recognises most over-the-counter packs), **Open Beauty Facts** (cosmetics/hygiene) and
+  **Open Pet Food Facts**. The resolver has been calling them for a while (`opf`, `obf`,
+  `opff` in the lookup chain) while the credits listed only Open Food Facts, Open Prices and
+  Open-Meteo: the brand assets are vendored from the projects' own static server
+  (`assets/img/apis/open-{products,beauty,pet-food}-facts.svg`), the licence is ODbL/CC-BY-SA
+  and each row says what it is used for and where, in the six locales.
+- They are in the service-worker shell too, so the splash and the credits page paint offline.
+
+### Fixed
+- **A commercial trial endpoint was in the default lookup chain.** `api.upcitemdb.com/prod/trial`
+  was called on every miss — no credit, no opt-in, a barcode leaving for a third party by
+  default. It is now behind `UPC_LOOKUP_ENABLED` (default `false`, documented in `.env.example`
+  and in the settings allowlist), so the free, credited sources answer first.
+
+### Guard
+- `scripts/test-credits.php` now fails when the resolver queries a barcode host that is not in
+  `data/free_apis.json` (compared by registrable domain, so `it.openfoodfacts.org` counts as
+  `world.openfoodfacts.org`) and when the trial endpoint comes back as a silent default. The
+  rule “every source that answers a scan is credited” is now enforced, not remembered.
+
+## [1.25.1] - 2026-10-27
+
+### Added
+- **The credit list now names its sources, where the free APIs are.** The medical code schemas
+  are built from documents that are not called at runtime: the **GS1** prefix list, the
+  **Pharmacode/Laetus** article, the German **PZN** article and the **EU FMD** delegated
+  regulation (CC BY-SA where it applies) — plus **AIFA** marked *Phase 2, not used yet*. They
+  are rows in `data/free_apis.json` (`sources`), generated into `EVERSHELF_DATA_SOURCES` and
+  painted on the **Crediti** page right after the API cards, each with its licence and link.
+- The first row of that block is the module itself: **“EverShelf Med — nessuna API esterna”**,
+  so nobody has to wonder why medicines never appear among the services.
+
+### Notes
+- No medicine API is used, in any country: `api/lib/medical.php` makes no network call and the
+  module only talks to our own endpoints (`med_status`, `med_symptom_search`, `med_classify`,
+  `med_open`). A logo would have to belong to a service that exists.
+
+## [1.25.0] - 2026-10-27
+
+### Added
+- **Per-country barcode schemas, as data.** `data/medical_code_schemas.json` now says what a
+  medicine pack looks like in 17 countries, with the sources in the file: GS1 prefix ranges
+  (Italy `800–839`, Germany `400–440`, France `300–379`, Spain `840–849`, UK `500–509`,
+  US `000–139`), national formats (`pharmacode` for the Italian **SSN** label — an integer
+  3–131070 read from bars, not decimal digits — `pzn` 8 digits in Code 39 for Germany,
+  `pzn_in_ean` `908888…` for Austria, `cn`, `ndc`, `aic`) and whether the EU FMD DataMatrix
+  applies. A contributor adds a country by editing the JSON: no code, no migration.
+- **The scanner asks the schema, not a guess.** `_medDetectCode()`/`medicalDetectCode()` answer
+  `high` (Italy/Germany: recognised, straight to the medical form), `probable` (partial
+  countries: the app asks) or nothing at all.
+- **Country picker** in *Settings → Farmaci* (`med_country`, stored in `app_settings`; country
+  names come from `Intl.DisplayNames`, so there is no 17th translation table to maintain).
+
+### Changed — blocked where we have no data
+- **A country with no schema claims nothing.** The scan no longer pretends: it says there is
+  no schema for that country and leaves the box to the manual path (💊 in the product form).
+  That is the “block it where you could not get the information” rule, applied to recognition.
+- **Honest gap, documented:** the EU FMD **DataMatrix** is declared (`fmd: true`) but not yet
+  decoded — browser barcode engines rarely expose `data_matrix`, and its GS1 element string
+  (GTIN + expiry + batch + serial) needs its own tests. Decoding it is the next step that
+  would prefill the expiry date straight from the box.
+
+## [1.24.1] - 2026-10-27
+
+### Changed
+- **The recipes have their nav slot back.** Round 14 traded the "🍳 Ricette" tab for "📷 Scanner"
+  on the argument that the dashboard already carries the orange recipe CTA — in use that made
+  the recipes feel *gone*. The bottom bar is Home / Dispensa / **Ricette** / SHELFY / Spesa /
+  Storico / Config again, and the **scanner keeps no slot**: it is still one tap away from the
+  dashboard, the product modal and the spesa flow (all of them call `showPage('scan')`), which
+  is how it was actually reached.
+
+## [1.24.0] - 2026-10-27
+
+### Fixed
+- **Scanning a medicine box did nothing.** Italian boxes carry an **EAN-13** (often `80…`, GS1
+  Italy) — and the medical path explicitly excluded 13-digit codes, so the lookup ended on Open
+  Food Facts (which has no medicines), fell to the generic "not found" toast and the camera
+  resumed. With the module on, an unknown code is now a **decision, not a dead end**:
+  - Pharmacode/Laetus/short code → straight to the manual entry, **medicine switch already on**
+    and the 8 category chips ready;
+  - EAN-13/EAN-8 the food catalogues miss → one question: *"È un farmaco o un integratore?"*
+    → **💊 Sì** (medical form) / **No** (normal product) / [Annulla] (camera resumes, via Esc too).
+- The scanned code is kept on the box, so the same pack scanned again is still identifiable
+  even though no catalogue answered.
+
+### Changed — honest about what is *not* there
+- **No medicine catalogue is queried, in any country.** The module states it in
+  *Settings → Farmaci* (`medical.no_catalogue`: the barcode — SSN label included — stays
+  attached to the box, the name is typed) and the **credits page** now closes the list with
+  what no free API covers (`credits.medicines_note`): Open Food Facts has no medicines, national
+  datasets (AIFA) arrive only in Phase 2, filtered to OTC/SOP. The missing service belongs in a
+  credit list.
+- **No country gate, on purpose:** with nothing looked up there is nothing to gate — the module
+  works everywhere. Phase 2 (a national catalogue) is when the gate becomes mandatory, and the
+  wiki says so: `docs/wiki/Medicines.md` documents the EAN vs SSN/Pharmacode reality and the
+  scanner's behaviour in a table.
+
+## [1.23.2] - 2026-10-27
+
+### Changed
+- **The five paragraphs of the notice are resolved with literal `t()` calls.** They were
+  built as `t('medical.' + k)`, which works at runtime but is invisible to
+  `scripts/i18n-audit.py` (its JS regex only sees a bare key): a paragraph that silently
+  lost a translation would not have failed the build. The keys are now written out, and
+  the guard test locks all five in the six locales.
+
+## [1.23.1] - 2026-10-27
+
+### Fixed
+- **Enabling the medicine cabinet did nothing.** The first-run "Attiva" and the Settings switch
+  saved through `_saveSettingToServer()`, which posts to **`save_settings`** — the `.env`
+  writer, whose key map has no `med_enabled`, no `med_disclaimer_accepted`, no
+  `medical_locations`. The keys were silently dropped, the screen landed on Settings, and the
+  switch was still off because the server had never been told. The module now writes through a
+  dedicated `_medSaveInstanceSettings()` → **`app_settings_save`** (and `med_setup_done` was
+  added to the writable allow-list); after saving, the UI **re-reads the server** so the switch
+  can never disagree with what was stored, and a failed save says so instead of pretending.
+
+### Changed
+- **The first run is a real three-step flow:** question → **full notice** → **the place**.
+  Step 2 is no longer a terse line: five paragraphs that say what the app is (an inventory),
+  what it never does (no diagnosis, no therapy, no dose), that the symptom search is a reminder
+  of what you bought (not an opinion for you, your allergies, your other medicines or a child),
+  never a substitute for advice and never for an emergency, what the dates mean (printed date +
+  your after-opening days, expired boxes go to the pharmacy), and that the data stays on your
+  server and the module can be switched off without deleting the rows. The consent checkbox
+  gates the step (the button starts disabled).
+- **Step 3 requires the dedicated location**: pick an existing one or create it right there
+  ("Armadietto farmaci" prefilled). Finishing stores enable + consent + location + setup_done
+  in one save and opens the module with a confirmation toast.
+- **"↺ Rivedi l'introduzione"** in *Settings → Farmaci*: the question can be reopened at any
+  time (it forgets the answer on the server, not the data). The one-time question now follows
+  the **server** (`med_setup_done`) instead of this browser's localStorage, so a reset shows it
+  again on every device.
+
+## [1.23.0] - 2026-10-27
+
+### Added
+- **The product form asks the question the scanner could not answer.** A medicine box scanned
+  into the catalog used to become a normal product that had to be re-classified later, in
+  another section. The form now carries **"💊 È un farmaco / integratore"** (only while the
+  module is on): turning it on shows the **8 closed categories** as chips, the active
+  ingredient and the **PAO days** in place, and the add step lands in the **dedicated
+  location** instead of guessing the pantry. The fields are stored through `med_classify`
+  (the one action that owns those columns, with the tag allow-list and the PAO bounds), so
+  `product_save` stays untouched and there is no second dictionary of medical fields.
+- Opening a product for editing shows its own medical fields (toggle on, chips selected,
+  ingredient and PAO filled), so correcting a box is the same gesture as creating it.
+
+## [1.22.2] - 2026-10-27
+
+### Fixed
+- **The opened banner threw `_openedQueueSiblings is not defined` on every dashboard paint.**
+  `dismissBannerItemAfterAction()` was missing its closing `}`, so the five functions below it
+  (`_openedQueueSiblings`, `_showOpenedTab`, `bannerUseInRecipe`, `bannerSnoozeOpened`,
+  `_bannerMenuToggle`) were parsed **inside** it: `node -c` passed, the file loaded, and the
+  notice crashed at runtime — "🗑️ Butta / 🍳 Usa per ricetta / ⋮" on an opened product did
+  nothing. The stray brace that used to close the outer function was removed with it.
+- **Same class of bug in `receipt.js`** (`_receiptCancel()` swallowed `_receiptRender` and
+  `_receiptConfirm`): fixed too, even though the receipt flow is parked.
+
+### Added
+- **`scripts/test-js-structure.php`** — the guard that was missing: no top-level `function`
+  may be swallowed by a missing brace (brace matching over every shipped script), and every
+  inline handler in the markup must resolve to a real top-level function, binding or browser
+  API. This is the trap `AGENTS.md` warned about for `core/vocab.js`; now it cannot happen
+  silently in `app.js` either.
+
+## [1.22.1] - 2026-10-27
+
+### Fixed
+- **The medicine cabinet dialogs had no surface.** The first-run question (and the mandatory
+  notice and the symptom search) were built with `class="modal-card"` — a class that does not
+  exist in the stylesheets (the app uses `.modal-content`, which is what paints
+  `background: var(--bg-card)`, radius and padding). The overlay dimmed the page while the
+  dialog itself was transparent, so the text floated over the dashboard. The three dialogs now
+  use the real class; one shared primitive, no new CSS.
+- **And above the splash.** The first-run question is drawn while `#app-preloader`
+  (z-index 200000) may still be on screen and `#network-error-overlay` sits at 300000,
+  so the overlay's default 200 could hide it behind the app. The three medical dialogs
+  now sit at 300500 — above both, below the auth overlays (400000) that own pairing.
+
+## [1.22.0] - 2026-10-27
+
+### Added
+- **💊 Farmaci is a section of its own** (`Settings → 💊 Farmaci`, next to *Cucina*), and the
+  module is **asked once at boot** when it has never been configured: *"Vuoi gestire anche i
+  farmaci?"* → **Attiva** (with the mandated notice) or **Non ora**, which is stored as a
+  decision and never asks again. Off by default either way.
+- **A dedicated location, with its own colour.** The module cannot be enabled into the pantry:
+  pick the location that already holds the medicines or **create one** ("Armadietto farmaci"),
+  and that location gets its own pill/tint because it holds only that. Medical rows carry a
+  💊 tag and a tint (`.alert-item.is-medical`), never a new palette.
+- **A closed taxonomy of 8 household categories** (`data/medical_categories.json`): *Febbre e
+  dolore, Stomaco e digestione, Raffreddore/tosse/gola, Allergie, Ferite e primo soccorso,
+  Occhi e vista, Crampi e muscoli, Integratori e vitamine* — multi-select on the box, never
+  free text (a free tag would rot the offline search). Each category carries the words the
+  household actually says in the six shipped locales and the ATC prefixes it will map to when
+  the AIFA import lands.
+- **Simplified PAO per medicine.** "Scade dopo l'apertura: [30] giorni" + **🔓 Segna aperto**
+  on each box: the operational expiry becomes *today + N* (`expiry_user_set = 1`, so a rescan
+  cannot undo it) and the notice fires from that date. Only the boxes with a number set are
+  rewritten; the printed date still rules until the seal is broken.
+- **The scanner knows the difference.** A Pharmacode/Laetus or a short code the food
+  catalogues cannot know is **not an error**: with the module on, the app opens the manual
+  entry prefilled and says *"Codice rilevato. Inserisci il nome del farmaco e scegli a cosa
+  serve."*; EAN-13/EAN-8 stay on the food path, and a known medicine opens the product modal.
+- **Medicines keep their place in the expiry lists** (expiring rows with the 💊 tint) while an
+  **expired** box still leaves the "Scaduti" block for its own one with **🗑️ Smaltito** —
+  special waste, never "save it by cooking it".
+
+### Notes
+- **Free APIs**: already surfaced in the **preloader** strip and in *Settings → 💚 Crediti*
+  (with what each service gives us, where we use it and its licence), fed by
+  `data/free_apis.json`; nothing new was needed here.
+- **Phase 2 (parked, documented)**: AIFA open data filtered to OTC/SOP classes only (a 2–3 MB
+  local catalogue instead of the whole hospital dataset), Pharmacode → AIC decode on the
+  scanner, duplicate-active-ingredient warning and the leaflet link. Nothing of this phase
+  invents drug data.
+
+## [1.21.0] - 2026-10-27
+
+### Added
+- **💊 EverShelf Med — the medicine cabinet, opt-in.** Off by default (`MED_ENABLED` or the
+  *Settings → Salute* switch): a household that only counts tomatoes never sees a single
+  medicine string. Turning it on **without accepting the notice** opens the notice instead of
+  enabling anything — the acceptance is stored once per instance (`med_disclaimer_accepted`),
+  so a new phone is not re-asked, and the medical UI does not open without it.
+- **Two domains, never mixed.** A location can be marked as medical (*Settings → Salute*), and
+  `products.is_medical` marks a single box. Those rows are **excluded from the recipe flow**
+  (`inventory_list?for_recipe=1` filters them server-side) and an **expired medicine leaves the
+  “Scaduti” block** — it is not food to save by cooking: it gets its own block with
+  **🗑️ Smaltito** (special waste, “portali in farmacia”).
+- **“What do I have for…?” — deterministic and offline.** `data/medical_atc.json` maps ATC groups
+  to labels and to the words a household actually says, in **all six locales**; `medicalMatchSymptom()`
+  tries the **longest phrase first** (“mal di testa” before “testa”), `med_symptom_search` returns
+  only the medical rows that match, and **no AI, no network, no dosage** is involved. The
+  disclaimer is the first block of the answer, and the copy never states a dose (guard-tested).
+- **Classification without a fake catalogue.** The AIFA/AIC import is a later step (and inventing
+  drug data is not an option), so the household teaches the module: each box in a medical
+  location gets an **ATC group chosen from the local map** (never free text) and its **active
+  ingredient** (`med_classify`, logged as `med_classify`). That is what the symptom search reads.
+- **SHELFY asks the map, not the model.** When the capture cannot act on a sentence and the module
+  is on, “ho un forte mal di testa” is handed to the local symptom map; if it matches, the capture
+  sheet closes and the answer opens in its own sheet — the sentence is never turned into a product.
+
+### Docs
+- `data/medical_atc.json` is **data**, like the vocabulary: a new symptom group is a JSON row plus
+  six label keys. Guard test: `scripts/test-medical.php` (42 checks: opt-in, disclaimer, domain
+  separation, matcher, safety copy, schema, wiring).
+
+## [1.20.0] - 2026-10-27
+
+### Fixed
+- **The scale no longer lies about being connected.** The Android bridge answers every new
+  relay client by **replaying its cached status** (`connected`, device `QN-KS`, battery) **and
+  the last weight** — with the physical scale switched off. The app trusted that one message
+  and painted a green pill with “448.5 g” that nobody had just weighed (verified by dumping
+  the relay: status + one weight, then silence for 12 s). Rules now: the **first** reading of
+  a relay session is the cached replay and is ignored (never shown, never used to autofill a
+  form); a reading is **live** only when a second one arrives and the last is younger than
+  `SCALE_LIVE_MS` (10 s); **“gateway reached” alone is not “scale on”** — the pill stays neutral
+  with an amber pulse and says *waiting for the scale* (`scale.status_waiting`, six locales).
+  The live window also expires by itself (5 s tick), so a replay that stopped cannot leave a
+  weight on screen.
+
+### Added
+- **The scale is a hardware indicator, not a ghost icon** (audit, round 14). It was a white
+  glyph on a white header with a 6 px dot, and its feedback was a toast that covered the
+  buttons. Now: **hidden** when no gateway is configured; a neutral pill with a crossed-Bluetooth
+  look while it searches; a **mint pill with the live weight** (`⚖️ 245 g · 🔋`) when a real
+  reading streams. Tapping opens a **popover** under the icon — device, battery, the weight in
+  large, **Tara** (local baseline, since the bridge is read-only) and **Disconnetti/Connetti**
+  — instead of a bottom toast.
+- **The scanner owns a nav slot.** The bottom bar had a “Ricette” tab while the dashboard
+  already carries the orange recipe CTA; the slot now reads **📷 Scanner**, so the camera is
+  under the thumb on a phone or a kiosk. Recipes keep their CTA and SHELFY.
+- **Scanning something you already have opens the product modal** (consume / consume all /
+  throw) instead of the old full-page product sheet: a barcode at the fridge is an action, not
+  a description to read.
+
+### Changed
+- **The shopping session scans first and asks for the total at the end.** Tapping the cart used
+  to open the camera **and** the “how much did you spend?” dialog at once — a form on top of the
+  live video, covering the first product. Now: cart → continuous scanning → *Fine spesa* →
+  optional **numeric keypad** with the total (only when something was actually loaded),
+  `[Salva totale]` / `[Salta]`.
+- **The receipt file-upload is gone** (the `Scontrino` button on the scan page, and its settings
+  toggle is parked/hidden): nobody browses a file manager on a wall tablet while emptying the
+  bags, and a crumpled thermal receipt is exactly what local text extraction gets wrong. The
+  OCR code stays in the repo, unreachable, for the day a camera path lands.
+
+### Tests
+- New `scripts/test-spesa-flow.php` (24 checks): camera first, amount only at the end, keypad
+  present, `spend_add` still the ledger entry, no file input on the scan page, six locales.
+- `scripts/test-ui-palette.php` grew to **75 checks**: the scale pill/popover, “a gateway replay
+  cannot paint a live pill”, the scanner tab replacing the recipes tab, the ✓-opens-the-modal
+  rule, and the barcode→modal rule. `scripts/test-receipt-ocr.php` now asserts the entry point
+  is **absent** and the toggle parked.
+
+## [1.19.1] - 2026-10-27
+
+### Fixed
+- **No more flashbang at boot.** The splash is `#0c1222` and the app is white: swapping one
+  for the other in a frame blinded a dark kitchen. The launch is now three soft steps — the
+  content fades (200 ms), the canvas lifts to the app colour (`is-lifting`), then the element
+  fades out in **300 ms** and is removed after the transition (it used to be removed 60 ms
+  early, cutting the fade).
+- **The boot check list is for developers, not for the household.** Thirty lines of
+  "Controllo PHP", "PHP upload (16M)", "Config sessione"… and 40 ms of artificial wait each
+  (plus a forced 3 s minimum splash) are gone from normal boots: the rail still settles — so
+  a real failure stays visible with its popup — and the only line is **"Sistema pronto"** for
+  a beat. The full list is back with `?debug=1` (or `localStorage.evershelf_debug = '1'`),
+  where the 3 s pacing and the per-check labels still apply.
+- **One surface for "consume", not two.** The row's **✓ Usa** closed the sheet and navigated
+  to the legacy full-page USE form (the old red "Usa TUTTO", the green bar, the purple
+  recipe button) while the same row's **⋮** opened the clean product modal — the same
+  decision drawn twice. The ✓ now opens **the same modal** (stepper + primary), and
+  **"Ho consumato tutto"** keeps the slide-to-confirm dialog **over the modal** instead of
+  navigating (`_loadUseProduct()` separates the data load from the page). The guided page is
+  left to SHELFY and the scale, which drive its fields.
+
+### Changed
+- **The credits left the overview.** That footer took a third of a phone screen right above
+  the nav bar, stealing space from the food lists: the thanks now live in **Settings → 💚
+  Crediti** (and in the 🔌 card), while the **splash** keeps showing the marks at boot.
+
+### Tests
+- `scripts/test-preloader-stages.php` locks the debug gate (`?debug=1`, debug-only 40 ms and
+  3 s pacing), the `is-lifting` sequence and the 300 ms fade;
+  `scripts/test-ui-palette.php` locks "✓ Usa opens the modal" and "consume everything stays in
+  the modal"; `scripts/test-credits.php` now asserts the overview is **free** of the credits
+  footer.
+
+## [1.19.0] - 2026-10-27
+
+### Added
+- **The official logos of the free services, everywhere — and a page that thanks them
+  properly.** The credits now use the projects' **own brand assets**, vendored under
+  `assets/img/apis/` (no third-party request at runtime, and a missing file falls back to the
+  monogram instead of a broken image):
+  Open Food Facts (`off-logo-icon-light.svg`), Open Prices and Open-Meteo (their published
+  app icons). They appear in **four** places, all fed by the same `data/free_apis.json` →
+  `assets/js/free_apis.generated.js`:
+  1. the **splash**, under the boot rail, painted before any token exists and offline;
+  2. at the **bottom of the overview** (`#app-footer-dashboard`);
+  3. the **Settings card** (🔌 API gratuite);
+  4. a **dedicated thanks page** — *Settings → 💚 Crediti* — where each service gets a
+     block with its logo, what it gives us, **where and for what we call it**, the licence
+     and the link, plus the note that the logos belong to their projects and are used only
+     to identify them.
+- **`scripts/test-credits.php`** (new, 62 checks) locks it all: the list, the logo files
+  really being images and never a remote URL, the four surfaces, the generated file in the
+  service-worker shell, one "where" sentence per service, and the copy in all six locales.
+
+### Changed
+- `data/free_apis.json` gained a `logo` field (version 2) and the `logo_note` attribution;
+  the generator and `GET free_apis` pass the logo through only when it is a **local**
+  `assets/img/*` path, so a thank-you can never become a tracking pixel.
+- The Settings tab strip gained a tab (`tab-credits`, section *system*); the search schema
+  was regenerated (`php scripts/gen-settings-schema.php`).
+
+## [1.18.1] - 2026-10-27
+
+### Added
+- **The splash credits the free services too.** The boot screen now shows the marks of the
+  open data providers under the boot rail — the same list as the footer and the Settings
+  card. It is painted from **`assets/js/free_apis.generated.js`** (generated from
+  `data/free_apis.json` by `php scripts/gen-free-apis-js.php`, in the service-worker shell):
+  at splash time there is no token yet and the app must boot offline, so the row cannot be a
+  fetch. Marks and names only, decorative for screen readers (`aria-hidden`) and quiet on a
+  short window (names drop below 560 px height); the accessible credit with the licences
+  stays in *Settings → 🔌 API gratuite*, and the Settings card now reads the same generated
+  file first, falling back to `GET free_apis` only if the bundle is stale.
+
+### Tests
+- `scripts/test-vocabulary.php` now locks `free_apis.generated.js` in sync with
+  `data/free_apis.json` (same rule as the vocabulary and the anti-waste facts), and
+  `scripts/test-preloader-stages.php` asserts the row, its style, the generated script in the
+  page and in the service-worker shell, and that the painting happens at `DOMContentLoaded`
+  from the data (never a hardcoded list).
+
+## [1.18.0] - 2026-10-27
+
+### Added
+- **The post-opening clock (PAO) is deterministic — and it is DATA.** The printed date on a
+  package only speaks for a sealed package; once it is opened the clock that matters is the
+  post-opening stability. It used to be answered by an **AI call** (paid, non-deterministic,
+  sometimes hallucinating “60 days for yoghurt”) on top of a 200-line regex chain. Now
+  `data/opened_shelf_life.json` carries **32 macro-families** with two thresholds per storage
+  place — `warn` (quality starts to go) and `critical` (almost certainly spoiled) — sourced
+  from USDA FoodKeeper + EFSA/EC guidance, with the keywords of the six languages in the
+  data and `api/lib/opened_shelf_life.php` as the only reader (`openedShelfLifeThresholds()`,
+  `openedShelfLifeState()`, `openedShelfLifeSummary()`). No model call, no network.
+- **The “opened too long” notice has its own state machine.** `getStats()` now ships a `pao`
+  block on every opened row (`days_open`, `warn`, `critical`, `state`, `score`), and the
+  banner judges an opened row **by that clock instead of the printed date**: a wine open for
+  17 days in the fridge (4 / 10) is now *critical* — “probabilmente andato” — where it used to
+  show a generic “Controlla” because the bottle “expires” in 2027. Amber rail for `warn`, red
+  for `critical`.
+- **Priority is a severity score** (`days open ÷ critical`): a critical opened row outranks
+  everything (3000+), a warning one comes next (1500+), then a printed-date danger. The notice
+  names the one that matters most and adds a discreet **“e altri N prodotti aperti da
+  verificare”** that jumps to the *Aperti* tab (a carousel of dots made the second product
+  invisible).
+- **A recovery action, not only a bin.** The opened notice answers the two decisions that must
+  be fast: **🗑️ Butta** (red primary) and **🍳 Usa per ricetta** (neutral, SHELFY asks the
+  recipe engine for a dish that uses it up). *Finito*, *Modifica* and **“È ancora buono”**
+  (snooze for 3 days, stored in `app_settings.opened_check_snoozed`) live behind a compact
+  **⋮** that opens **in place** — the primary actions are never hidden, the rest is one tap
+  deep, and the strip keeps the same one-colour grammar.
+- **Credits for the free services, in the app.** `data/free_apis.json` lists what this
+  instance actually talks to — **Open Food Facts** (ODbL · CC-BY-SA), **Open Prices** (ODbL),
+  **Open-Meteo** (CC BY 4.0) — with the licence each one asks to be credited with, served by
+  `GET free_apis` and rendered twice: a horizontal **footer** (names in a row, each with what
+  it gives us) and a **Settings → 🔌 API gratuite** card with a thank-you line. The monogram is
+  neutral on purpose: official logos are trademarks and are not shipped in the repo.
+
+### Changed
+- **A false positive fixed before it shipped:** shelled nuts were matching the “frutta”
+  keyword of fresh produce (critical after 25 days) and breadcrumbs were matching fresh bread
+  (critical after 148 days). Two extra families — `nuts_dried` and `breadcrumbs` — and a
+  `gnocc*` stem were added after checking the real pantry.
+
+### Tests
+- `scripts/test-opened-shelf-life.php` (new, 125 checks): the table schema, the thresholds the
+  audit asked for (wine 4/10, milk 3/6, sauces 3/7, soft cheese 4/8, mayonnaise 30/60,
+  biscuits 20/45, default 5/10), **23 real product names mapped to the right family** (with
+  the two false positives above), the state machine boundaries, the `pao` summary, the server
+  and client wiring, and the ten new keys in all six locales with their placeholders.
+
+## [1.17.0] - 2026-10-27
+
+### Added
+- **The product photo leads every row.** A packaging is recognised in milliseconds (the
+  colours of a biscuit box, the silhouette of a milk bottle); a title like “Vino bianco
+  Trebbiano IGT Rubicone (Vesoletto)” is read word by word. Home, the banner and the pantry
+  now open with the same **44×44** thumbnail in a neutral frame (light surface, hairline
+  border, 8 px radius, `object-fit: contain` so a transparent barcode PNG is not cropped),
+  rendered by one helper — `_productThumbHtml()` — and by `_bannerIconSet()` for the notice
+  strip. The fallback is **semantic and never empty**: the category emoji (🍎 🥛 🥫 …,
+  📦 when the category is unknown) sits under the picture and is revealed when the URL is
+  missing or fails to load, so a product nobody has photographed still has a face. The
+  pantry's `.inv-image` was brought to the same frame; the detail modal is untouched.
+  `getStats()` now ships `p.image_url` for the “in scadenza” and “scaduti” lists (the rows
+  had no photo to show), while the opened/forgotten lists already selected it.
+
+### Changed
+- **One action colour in the banner.** The strip kept four pastel tones ([Finito] sky,
+  [Buttato] pink, [Modifica] azure) that made the notice look like a different app from the
+  rows underneath: now only the answers that write the outcome (`Usa`, `Conferma`,
+  `Sì, è finito`) are solid emerald, everything else is a neutral secondary. Every action
+  stays **inline** — hiding them behind a ⋮ is the regression this strip was rebuilt for.
+- **SHELFY’s “Iniziamo” is emerald.** The purple `#7C3AED` left over from the old accent is
+  gone: the assistant’s primary is the app’s primary (`#059669`), one tap away from the
+  “Esegui” of the same sheet.
+- **“Controlla” is a neutral tag, not a yellow badge.** The safety verdict that asks for a
+  look no longer competes with the expiry badge it refers to; `Va bene`, `Non mangiare` and
+  `Buttalo` keep their colour — those answer the question the user actually asked.
+- **The example pills wrap instead of scrolling.** `.capture-hints` goes `flex-wrap: wrap`
+  with `justify-content: center`: the last pill was cut in half by the edge of the sheet.
+
+### Tests
+- `scripts/test-product-thumb.php` (new) locks the component, the 44×44/`contain`/neutral
+  frame, the emoji fallback (and the 📦 default), the escaped URL, the banner and pantry
+  wiring and both `getStats()` queries; `scripts/test-ui-palette.php` now asserts the banner
+  grammar (emerald answers + neutral secondaries) instead of the pastel classes.
+
+## [1.16.39] - 2026-10-27
+
+### Fixed
+- **SHELFY no longer swallows the last word.** Two shapes did it. The transcript join
+  compared *characters*, so a one-letter overlap was enough to eat the start of the next
+  word: `"aggiungi il"` + `"latte"` became `"aggiungi il atte"` (the product then did not
+  exist) — the join is now **word-level**. And Chrome on Android closes the recognition
+  session at the first final phrase even with `continuous = true`: `onend` submitted right
+  there, so `"Ho usato 2 arance"` arrived as `"Ho usato 2"`. A session the **browser**
+  ended mid-sentence is now **resumed** (`_CAPTURE_RESTARTS_MAX`, bounded) and keeps the
+  same sentence; only the session **our own silence deadline** stopped may hand the
+  sentence over (`_captureVoice.stopRequested`). The deadline itself goes from 1.8 s to
+  2.5 s, because a natural pause between `"ho usato"` and `"2 arance"` was closing it.
+- **No more doubled phrases.** Chrome capitalises the interim result and lowercases the
+  final one: `"Ho mangiato"` + `"ho mangiato una mela"` printed `"Ho mangiato ho mangiato
+  una mela"`, because the raw-string comparison saw two different prefixes. The join
+  ignores case now, and a word the browser was still spelling out (`"la"` → `"latte"`) is
+  one word, not two.
+- **A sentence it cannot act on says so — it never opens “Nuovo prodotto”.** Both
+  fallbacks (an add intent with no catalogue match, a spoken name with only a derived
+  article in the pantry) closed the sheet and opened the empty new-product form, for a
+  product that does not exist. They now say “I did not understand” (`_captureNotUnderstood()`,
+  which also removes the “Ho capito” chips) and leave the sheet open for a retry. Creating
+  an article stays the user's decision.
+- **`capture.no_product` no longer promises an add form** (all six locales): it reads
+  “I did not understand: {name} is not in the pantry. Try the exact name.”
+
+### Changed
+- **The sentence SHELFY heard is the biggest text in the sheet.** It is what the user
+  checks before confirming an action, and it was a 15 px italic footnote: now a highlighted
+  block, 1.06 rem and semibold (bold once final), with `overflow-wrap` so a long word
+  cannot escape the card.
+
+### Tests
+- `scripts/test-capture-parse.php` locks it: the join in node (case, word boundary,
+  restarted phrase, shorter echo, repeated number), a fake recogniser that closes the
+  session mid-sentence (nothing may be submitted at that moment, the resumed session must
+  deliver `"Ho usato 2 arance"` once), no capture path may call `startManualEntry()`, and
+  the transcript CSS must stay 1 rem+ / semibold on a tinted background.
+
+## [1.16.38] - 2026-10-26
+
+### Fixed
+- **SHELFY no longer interrupts you mid-sentence.** The browser marks a phrase *final* at
+  the first short pause, and the loop submitted that chunk: “Ho usato 200 grammi di pasta”
+  arrived as “Ho usato”, the sheet closed and — with no product in the parse — the add form
+  for an article that does not exist opened. The recogniser now runs **one session per tap**
+  (`continuous = true`) closed by our own silence deadline (`_CAPTURE_SILENCE_MS`, 1.8 s,
+  armed by the first result so taking a breath is not an error), finals and the
+  never-finalised interim text are glued into one sentence, and **only `onend` submits** —
+  no restart loop, so no start chime either. New guard drives the real
+  `_captureStartVoice()` against a fake recogniser that emits exactly that sequence: the
+  first final must not be submitted and the whole sentence must arrive once.
+- **One sentence, not “ho ho ho usato…” (twice over).** The Web Speech API is not
+  consistent: Chrome re-delivers the finished results on later events, and Chrome on
+  Android **restarts `ev.results` at every phrase** with the phrase itself already
+  cumulative. Appending printed “ho ho ho usato ho usto ho usato una” on the first shape
+  and “ho consumato ho consumato ho consumato 250 ho consumato 250 grammi …” on the second,
+  for a single sentence. The transcript is now rebuilt from the event and **joined by its
+  overlap** (`_captureJoinText`: a longer text that already starts with what we heard
+  replaces it, a restarted one is stitched once, a shorter echo never erases anything) and
+  the interim belongs to the same sentence, so it cannot survive as a duplicate. The
+  fake-recogniser guard replays all three shapes and asserts “ho consumato 250 grammi di
+  pasta” arrives exactly once.
+- **No “Ho capito” written above “non ho capito”.** The chips *are* the interpretation:
+  they are shown only for a sentence that carries an action. A bare “ho usato” hides them
+  and the status explains that SHELFY did not understand, with the transcript still on
+  screen and the sheet open for a retry.
+- **A sentence with no product is not an action.** `_captureSubmit()` now goes through
+  `_captureIsActionable()`: a bare “ho usato” / “ho finito” (or an empty transcript) says
+  *not understood* and keeps the sheet open for a retry, instead of opening an empty add
+  form (recipe questions stay valid). Locked in node: bare intent → not actionable, spoken
+  product → actionable.
+- **SHELFY could not be closed and heard nothing.** A refactor deleted
+  `_captureVoiceStop()` while three callers kept calling it: the `ReferenceError` stopped
+  `_closeCaptureSheet()` at its first line, so the dialog stayed on screen (and Esc did
+  nothing), and it stopped `_captureStartVoice()` at its first line, so the recogniser
+  never started — no transcript, and the microphone never filled with the voice.
+  The function is back, closing now hides the sheet **before** any cleanup can fail
+  (a cosmetic error can never trap the user again), and `scripts/test-capture-parse.php`
+  locks both: every `_capture*()` call must have a definition, and the sheet's closer
+  must hide first.
+
+### Changed
+- **The USE confirm drains again — 10 s, then SHELFY confirms.** When the agent opens the
+  “Usa” sheet from “ho usato …” it arms *Usa questa quantità* with the reverse progress bar
+  (`_shelfyArmButton`, `.shelfy-armed` → `shelfy-drain`, `--shelfy-ms: 10000`): any touch
+  anywhere cancels it and leaves the decision to you, otherwise the quantity is consumed.
+  The page's own 15 s idle confirm is cleared first, so a single bar runs and it also works
+  for grams and millilitres. “Ho finito …” (use-all) and *Aggiungi* still wait for a tap —
+  emptying a row or creating an article is not something the agent does on its own. The
+  toast now says the 10 seconds (`capture.qty_hint`, all six locales), which is what the
+  intro already promised.
+- **The capture lexicon is DATA, one schema per language.** The intent words, spelled
+  numbers, units (with their multiplier: `etti` → g ×100), fractions, "all of it" and
+  stop words left `app.js` and now live in `api/vocab/<lang>.json` under `"capture"`
+  (intent, numbers, units, fractions, all_words, stop_words) —
+  the same vocabulary file the product titles already read, generated for the browser by
+  `scripts/gen-vocab-js.php`. `assets/js/core/vocab.js` merges the six shipped languages
+  (current one first) through `vocabCaptureLexicon()`, so an Italian sentence still works
+  on an English UI and vice versa. Every language now carries the same coverage —
+  Italian, English, German, French, Spanish and Chinese — and no product word, unit or
+  article is left in the code: the guard test parses 38 sentences from
+  `scripts/fixtures/capture-cases.json` (one per intent per language, units, fractions,
+  "all of it") on **all six interface languages** and fails if a locale loses a section
+  of the schema.
+- **Language metadata is data too.** Each `api/vocab/<lang>.json` gained a `"locale"`
+  block — the language's own name (`Italiano`, `Deutsch`, `简体中文`…), its collation tag
+  and its recogniser tag. `_SUPPORTED_LANGS` and `_collationLocale()` in `app.js` now
+  read it (`vocabLanguages()` / `vocabCollationTag()`): the language picker, the `?lang=`
+  deep link, date and number formatting and the TTS voice all come from the JSON, so
+  `app.js` no longer carries a translated word of its own.
+- **The offline anti-waste facts moved out of the code.** The screensaver fallback
+  sentences (IT/EN/DE) were a literal in `app.js`; they now live in
+  `data/food_facts_fallback.json` and reach the browser as
+  `assets/js/food_facts.generated.js` (`php scripts/gen-food-facts-js.php`, offline,
+  in the service-worker shell). `scripts/test-vocabulary.php` also stopped skipping its
+  own generated-file check (the assertions sat after the script's `exit`) and now fails
+  when either generated file drifts from its JSON, when a language file loses its
+  `locale`/`capture` block, or when a language name / anti-waste sentence reappears in
+  `app.js`.
+
+
+### Changed
+- **SHELFY has no voice of its own and never confirms by itself.** The spoken read-back,
+  the speaker toggle and the 10-second auto-confirm on the USE / ADD buttons are gone: the
+  agent opens the panel with the quantity already set and **the tap is the confirmation**.
+  The recipes keep their voice — that is a different feature and it stays untouched.
+- **“Ho usato un’arancia” no longer opens the orange juice.** The matcher scored any name
+  *containing* the word at 0.78, enough to pass as a confident match; now **position
+  decides**: the word (or its plural) leading the name is the product (0.9+), a word buried
+  in a longer name is a derived article (0.55, below the threshold, so SHELFY asks). Four
+  candidates, the closest draining for **10 seconds** and taken if nothing is touched; a tie
+  (within 0.08) asks too. When only a derived article exists, it proposes adding what was
+  actually said instead of opening the juice.
+- **Eaten and drunk are consumption too**: mangiato/mangiata/mangiati/mangiate,
+  bevuto/bevuta/bevuti/bevute, assaggiato, drunk/drank/tasted, getrunken, bu/bue/bues,
+  goûté, bebido/bebida/probado, 喝/吃完 — in the six languages the parser already reads.
+- **The presentation has a face**: an avatar that floats, a hand that waves and a breathing
+  ring (still with `prefers-reduced-motion`) instead of a wall of text.
+
+## [1.16.36] - 2026-10-25
+
+### Changed
+- **The assistant is called SHELFY in the chat too.** The chat header still said “Gemini
+  Chef” and the scan overlay “Gemini Vision”: those are the *assistant’s* name, not the
+  provider’s, so they now say “SHELFY” and “AI Vision” / “AI OCR” (it/en/de/fr/es/zh). The
+  Settings pages keep the provider’s real name (`Google Gemini`, `API Key Gemini`) because
+  there the name is the thing being configured — renaming it would be a lie.
+- Two dead keys left the locales (`nav.gemini`, `gemini.chat_title`): the navigator item
+  went away in 1.16.22.
+
+## [1.16.35] - 2026-10-25
+
+### Added
+- **Esc closes the dialog on top, and Tab stays inside it** (audit I3 + I4, the last two
+  open accessibility items). One `keydown` handler covers every `.modal-overlay` — present
+  and future — instead of the two ad-hoc Escape handlers that used to exist: the top
+  dialog is closed through its own state-cleaning closer
+  (`_OVERLAY_CLOSERS`: `closeModal`, `_closeCaptureSheet`, `_shelfyCloseIntro`,
+  `closeSupportModal`, `closeRecipeDialog`), the focus returns to the element that opened
+  it (`_lastFocusedOutside`), and `Tab` / `Shift+Tab` cycle inside the dialog instead of
+  walking into the page behind it. The first-run setup wizard is deliberately **not**
+  dismissible with Esc: it is a guided flow, not a notice.
+- `#modal-overlay` is announced as a dialog (`role="dialog" aria-modal="true"`), like the
+  wizard, the support modal and SHELFY's sheet already were.
+- Visibility is decided by `getClientRects()`, not `offsetParent`: a `position: fixed`
+  overlay has no offset parent even when it is right there on screen.
+
+## [1.16.34] - 2026-10-25
+
+### Changed
+- The two voice error messages now name the two real causes instead of saying “not allowed”:
+  *“Microfono non consentito: controlla i permessi del browser e apri l’app in HTTPS”* and
+  *“Questo browser non ha il riconoscimento vocale: scrivi qui sotto (SHELFY capisce lo
+  stesso)”*, in all six locales — a microphone needs a secure context, and a LAN install on
+  plain `http://192.168.x.x` is the usual reason a phone hears nothing.
+
+## [1.16.33] - 2026-10-25
+
+### Fixed
+- **Nothing was being recognised, and the app beeped every few seconds.** The listening
+  session was restarted whenever the recogniser ended (to “survive the timeouts”), and each
+  restart makes the browser play its start chime — right in the middle of the sentence —
+  while throwing away the interim transcript already spoken. One utterance per tap now:
+  `continuous = false`, no restart loop, and **if the browser ends without finalising, the
+  interim text is the sentence.**
+- **The keyboard no longer opens under the voice.** `_openCaptureSheet()` focused the text
+  field on open, which pops the soft keyboard over the sheet the user opened to speak; it
+  now blurs it (only the no-recognition fallback focuses the field).
+- **The recogniser listens to the language the user speaks.** It used the interface
+  language, so an English UI made an Italian sentence unrecognisable even though the parser
+  understands all six: the device language wins when supported, the interface language is
+  the fallback.
+- **One microphone client at a time.** The level meter (getUserMedia) started together with
+  the recogniser; on several phones two simultaneous consumers leave the recogniser hearing
+  nothing. The meter now starts on the first result — it is cosmetic.
+
+## [1.16.32] - 2026-10-25
+
+### Changed
+- **No banner hides its actions behind a ⋮ any more.** The last ones folded Finito /
+  Buttato / Correggi into a menu because the strip “only fits one row”: there is room, and
+  a hidden button is a button nobody presses. Every entry renders its actions inline (they
+  wrap on a phone) and **every entry carries a Modifica** — expired, review, prediction,
+  finished, anomaly and the quantity anomaly. The expired strip went from seven buttons to
+  the four that matter (Usa, Finito, Buttato, Modifica): extend and vacuum live in the
+  product sheet, “ignore” was the ✕.
+- **The dashboard updates itself after every change.** Correcting an expiry date in “Salva
+  lo spreco” left the row on screen until a reload: the row now fades out where it is
+  (`is-leaving`, 220 ms) and the blocks are rebuilt from the server on a debounced
+  `_dashboardLiveRefresh()`, wired into the edit save, an extended expiry, a consumption,
+  a deletion and the shared post-mutation hook.
+- **The assistant has a name: SHELFY.** It presents itself once per device (“Ciao, sono
+  SHELFY”, what it does, the phrases it understands, how the confirmation works), can be
+  reopened with the `?` in its sheet, and every status line now speaks in its name.
+- **SHELFY opens the panel it is about to change, with the quantity already set**: “ho usato
+  1 arancia” → the USE panel of the arancia with 1 piece; “249 grammi di orecchiette” → 249 g;
+  “ho finito tutti i fusilli” → the USE panel with “use it all”; “aggiungi 1 litro di latte”
+  → the add form with 1000 ml; fractions (mezza, un quarto, tre quarti) included.
+- **The confirm is a reverse scrollbar**: the button drains for **10 seconds** and then acts;
+  any touch or key press stops it, and pressing the button itself confirms immediately.
+- **Four candidates when the name is ambiguous**, each with picture (or category icon), name,
+  brand, place and quantity; the closest match drains for **15 seconds** and is taken if
+  nothing is chosen.
+
+## [1.16.31] - 2026-10-25
+
+### Fixed
+- **A product past its expiry date can no longer go unmentioned.** Reported with
+  “Preparato solubile Ovomaltine”, expired 5 days earlier and never listed: the server
+  returned it in `stats.expired` all along, and the dashboard dropped it because the
+  *verdict* (`getExpiredSafety`) answered “ok / Va bene” for anything in the low-risk
+  group within 30 days. A safety opinion was being used as a visibility filter. The
+  expired list is now filtered by the date only (a depleted trace still isn’t stock), and
+  the pill keeps saying whether the row is still usable — “Va bene” on a past-date item
+  is information, not a reason to hide it.
+- **Drinks are no longer “fine for a month”.** Beverages and soluble preparations
+  (`bevande`: juice, milk, cocoa…) fell in the low-risk group, so a carton past its date
+  said “Va bene” for 30 days. They now get “Controlla” up to 30 days (with the drink
+  wording) and “Non bere” after that.
+- **The newest expiry is listed first** (the block used to sort oldest-first and cap at
+  five rows, so a box from six months ago could push out the product that expired
+  yesterday).
+
+## [1.16.30] - 2026-10-25
+
+### Changed
+- **The capture microphone has a real animated border.** A static edge (and a quiet
+  box-shadow) was not enough to read “this is tappable”, and the button keeps
+  `overflow: hidden` for the level fill, so the border could not be drawn on the button
+  itself — a pseudo-element inside it would be clipped. The button now sits in
+  `.capture-mic-wrap`, which draws a **turning gradient ring** (a 3px slice of a conic
+  gradient, masked to a ring, `capture-ring-turn` 3.6 s linear) plus a **breathing halo**
+  (`capture-mic-halo`, out of phase with the ring). While the app records, both speed up
+  to 1.1 s; with `prefers-reduced-motion` the ring is static and the halo stays lit. The
+  button also gained a 2px emerald edge and a `:focus-visible` outline.
+- The wrapper is hidden with the button when the browser has no speech recognition, so
+  a ring never spins around nothing.
+
+## [1.16.29] - 2026-10-25
+
+### Changed
+- **The anomaly banner asks one question and offers two answers**: “✓ Conferma 2000 ml”
+  (solid emerald, writes the ledger value) and “Modifica quantità” (neutral, opens the
+  product sheet, where the real figure can be typed — or the item marked as finished /
+  discarded). “Finito”, “Buttato”, “Correggi”, “Ignora” and “🤖 Spiega” left the strip:
+  the first two are ordinary product actions, “Ignora” duplicated the ✕, and the sentence
+  above already says why. Six pastel buttons for one number is a control panel, not a
+  notice.
+- **The primary never wraps**: “Aggiorna a 3500 / ml” broke in two lines and pulled the
+  whole row out of alignment; the label is “Conferma N unit” with `white-space: nowrap`.
+- **✕ now really dismisses**: closing an anomaly persisted nothing, so the same strip came
+  back on the next refresh. It records the dismissal (`dismiss_anomaly` + review flag) and
+  — unlike the old “Ignora” — never posts `inventory_confirm_finished`.
+- The title uses the amber of its rail (`#92400E`), the description stays slate: one
+  accent per strip.
+
+### Removed
+- `finishBannerAnomaly()`, `throwBannerAnomaly()`, `explainBannerAnomaly()`,
+  `editBannerAnomaly()`, `dismissBannerAnomaly()` and their translation keys: dead code
+  once the strip has two choices, because the product sheet already does all of it.
+
+## [1.16.28] - 2026-10-25
+
+### Changed
+- **One voice for the whole app.** The capture sheet built its own
+  `SpeechSynthesisUtterance` (locale only, rate 1.02), so it sounded different from the
+  cooking steps. It now speaks through `_speakBrowser()` — the same on-device engine, the
+  same Settings voice, rate and pitch, the same kiosk native bridge — and stays local: no
+  cloud TTS endpoint is ever called from the capture, whatever the recipes engine is set
+  to.
+- **The voice is picked for the language of the text.** `_pickTtsVoice()` is the one rule:
+  the voice chosen in Settings when it speaks that language, else an offline
+  (`localService`) voice of that language, else any offline voice, else the first. The old
+  fallback preferred any Italian voice, so a German or French interface could read its own
+  language with an Italian engine; Settings → TTS test had the same hardcoded Italian and
+  now follows the interface language too.
+
+### Fixed
+- Closing the capture sheet cancelled `speechSynthesis`, cutting the confirmation sentence
+  (“Hai usato 1 mela. Confermi?”) a fraction of a second after it started.
+
+## [1.16.27] - 2026-10-25
+
+### Changed
+- **The anomaly banner shows its actions inline, each with its own colour**: “Aggiorna a
+  2000 ml” (solid emerald), “Finito” (emerald tint), “Buttato” (soft red), “Correggi”
+  (sky), “Ignora” (neutral). Collapsing them behind a ⋮ made the ⋮ look like a broken
+  list of centred words.
+- **“Dimenticati” is the same card as “In scadenza”**: the theme still painted it purple
+  with a violet frame, and inside the hub it had lost its left padding, which clipped the
+  hint. Same surface now, one 4px rail per tab (amber expiring, sky opened, emerald
+  forgotten).
+- **“Dimenticati” ranks by expiry**: the 5 products closest to their expiry date among
+  the rows that were never used or idle for 21+ days, each with the date and its
+  countdown (`forgottenExpiringItems()`, `stale_inventory_items&mode=expiry`). The
+  30-minute rotation is gone: a sealed box of salt no longer outranks tomorrow's yoghurt.
+- **The capture mic breathes at rest** (slow aura + hover): it now reads as a button that
+  wants to be tapped.
+- **The capture session listens long enough**: `continuous = true` with restarts while the
+  sheet is open, “Ti ascolto ancora…” instead of “non ho capito” after the first pause, and
+  the error only after several silent seconds.
+- **The capture understands more**: fractions (“mezza mela”, “un quarto di torta”), weights
+  written without a space (“300gr”), canonical units (`gr` → `g`) and “ho finito tutti i
+  fusilli” (`use_all`). A dictated quantity opens the product sheet with the stepper
+  already on that number; “ho finito” opens the same sheet, where “Ho consumato tutto” is
+  the confirmation — the sentence alone never writes.
+- **The capture talks back**: on-device TTS reads what it understood and asks for the
+  confirmation, only for dictated sentences, with a speaker toggle in the sheet.
+- **“Cosa posso dire”** lists the whole lexicon as tappable examples, in all six locales.
+
+## [1.16.26] - 2026-10-25
+
+### Changed
+- **The product modal has one hierarchy.** Four saturated buttons (orange *Usa*,
+  green *Usato tutto*, purple *Crea ricetta*, red *Butta*) competed in one row; the
+  frequent action is now a stepper (“Quanto ne hai consumato?”) with a solid emerald
+  “Registra consumo”, an emerald-tinted “Ho consumato tutto” under it, and the support
+  actions (recipe, discard, extend expiry) as neutral grey buttons.
+- **Barcode and timestamps left the middle of the card**: they live in a collapsed
+  *Dettagli* footer, one tap away.
+- **Rows lead with consumption, not with the calendar**: the permanent “Estendi
+  scadenza” pill is gone (it moved into the detail modal); the row carries a quick
+  “Usa” and the ⋮ that opens the modal.
+- **The anomaly banner offers a named action**: “Aggiorna a 2000 ml” (writes the ledger
+  value into the pantry row) instead of the unreadable “Giusta”, with ✕ / *Ignora* to
+  leave it alone; the remaining actions moved into the ⋮ menu, which now renders as
+  real buttons instead of naked centred words.
+- **The capture sheet follows the emerald palette**: “Esegui” is the emerald primary,
+  the suggestion chips are solid neutral pills (a dashed border reads as “drop zone /
+  disabled”) and the microphone shows a sonar ring while it records.
+- The “Altro” buttons left the add/use forms for good: the location was removed in
+  1.16.19 and its key is only a legacy alias now.
+
+### Fixed
+- Two buttons still offered the removed “Altro” location, pointing at a translation
+  key that no longer existed (caught by `scripts/i18n-audit.py`).
+
+## [1.16.25] - 2026-10-25
+
+### Round 3: the waste block holds food, the alert strip holds errors
+- **A data error is not wasted food.** The anomaly banner (“Quantità insolitamente
+  alta: … 250000 g, confermi?”) lived *inside* “Salva lo spreco”. It now sits in its own
+  dismissible strip **above** the hub (`#alert-banner` → `.system-alert`, neutral surface
+  with an amber left rail, ✕ to dismiss). The hub is shown only when there is expired
+  food — an inventory anomaly can no longer make it look like something to cook.
+- **No more full-width “Controlla” bar.** The safety verdict was a `inline-flex` chip
+  inside a stretching column, so it drew a yellow bar as tall as a row. It now rides on
+  the metadata line (`alert-item-meta-row`, wrap when narrow) at 12 px: one slim row per
+  product, like the lower lists.
+- **No more “cabins”.** Every semantic block resets all four sides to the 1 px hairline
+  and keeps the colour only as a 4 px left rail (danger / warning / info / brand); the
+  system strip stays neutral whatever kind it is, so the amber and orange gradients from
+  the theme no longer come back through `.banner-anomaly` / `.banner-expired-*`.
+- **The calendar icon is a real target.** “Estendi scadenza” is a 40 px pill with a dark
+  icon, 8 px away from the ⋮ and with its label visible from 520 px up — no more
+  guessing which of the two a thumb will hit.
+
+Guard tests: `scripts/test-urgency-hub.php` (66 checks — the banner is outside the hub,
+above it, and an anomaly alone no longer opens the food hub) and
+`scripts/test-ui-palette.php` (53 checks — the four-side reset, the 4 px rail, the meta
+row, the compact verdict, the extend pill and the neutral system strip).
+
+## [1.16.24] - 2026-10-25
+
+### Banners now say **where** the product is
+The anomaly banner asked *“Quantità insolitamente alta: Pasta Fusilli (Barilla) — hai
+250000 g, confermi?”* without saying which shelf to look at — and a product can sit in
+more than one place.
+- `inventory_anomalies` groups the locations too (`GROUP_CONCAT(DISTINCT i.location)`)
+  and returns `locations` (every place it is) plus `location` (the first, for old
+  clients).
+- One helper builds the line — `Dove: 🗄️ Dispensa · 🧊 Frigo` — resolving the keys
+  through the client's location map, so custom locations read with their icon/label and
+  a stale `altro` still lands on dispensa.
+- The line appears on **every** banner entry that points at an inventory row: anomaly
+  (both directions), review, consumption prediction, finished/vanished and the
+  “no expiry” reminder. `dashboard.banner_location` in six locales, styled at the
+  13 px muted level of the row metadata — one more line, not another frame.
+
+Guard test `scripts/test-urgency-hub.php` (64 checks) locks the SQL, the payload
+fields, the three helpers, the five call sites and the key in all six locales.
+
+## [1.16.23] - 2026-10-25
+
+### The capture sheet starts listening by itself
+Opening the sheet (a tap on the centre button) now starts the microphone immediately —
+the tap **is** the gesture the browser needs, so asking for a second one was pointless.
+- The recogniser is created and started **synchronously inside that gesture**, before
+  any `await` (Safari and stricter browsers refuse a recogniser started later); the
+  level meter, which is only cosmetic, starts right after and is not awaited.
+- The idle line no longer says “tap the microphone”: it reads “Parla pure: ti ascolto.
+  Oppure scrivi qui sotto.” in the six locales.
+- Where the Web Speech API is missing (or the microphone is denied) the text field
+  takes over and only then receives focus — focusing it during voice would pop the
+  keyboard over the sheet.
+
+Guard test `scripts/test-capture-parse.php` (171 checks) locks the auto-start, the
+start-before-await order and the reworded idle line.
+
+## [1.16.22] - 2026-10-25
+
+### The centre button: no label, bigger, alive, and no brand
+- The text label under the centre button is gone: the microphone **is** the label
+  (the accessible name stays `capture.title`, six locales).
+- It is bigger than the other tabs (48–64 px, icon 24–32 px, lifted 18 px) so the
+  primary action reads as the primary action.
+- It **always** breathes: a 4.2 s scale+glow cycle with a halo one step behind, and
+  the halo/breathing stop under `prefers-reduced-motion`. It used to be still — a
+  still button in the middle of a bar looks like decoration.
+- Every trace of the old product branding is gone from the shell: the dead
+  `.nav-gemini-*` rules were removed from `style.css` (the indigo sparkle, its
+  no-AI greying and its offline hiding). The capture button stays available offline
+  on purpose — “use” and “add” work without a server.
+- The glyph is a plain stroke microphone (capsule, arc, stem), not a sparkle: the
+  AI chat keeps its own Gemini mark on the chat page, where it belongs.
+
+Guard test: `scripts/test-ui-palette.php` (47 checks) now also asserts no label, the
+bigger clamp, both keyframes, the reduced-motion guard, no `nav-gemini` anywhere and
+that the button is not hidden offline.
+
+## [1.16.21] - 2026-10-25
+
+### The capture sheet finally talks back
+The sheet looked dead: a mic button with no feedback, no transcript, no
+interpretation — so a wrong parse was indistinguishable from a broken app. Now:
+- the mic **fills with the incoming audio level** (`getUserMedia` + `AnalyserNode`,
+  RMS into `--level`) and five bars move with it: “it is listening” is visible even
+  with the sound off;
+- the transcript appears **while it is still guessing** (grey italic) and becomes
+  solid when final;
+- before routing, the sheet shows what it understood as chips — intent · product ·
+  quantity — so a wrong read is visible as a wrong read;
+- an ambiguous product is **asked**, not guessed: the closest pantry rows appear as
+  one-tap chips and the text stays editable;
+- the microphone and the recogniser are released on close/end (no hot mic).
+
+**Internal multilingual model, no external AI.** A lexicon per intent (consume /
+add / recipe / throw) in all six UI languages, scanned together so an Italian
+sentence works on an English UI; Unicode-aware word boundaries (`\p{L}`) so
+“äpfel”, “caffè” and “cucino” match while “tomates” no longer loses “ate”; longest
+word first so “buttato” wins over “butta”; spelled numbers 1–10 in six languages
+(“due mele” → 2); units as standalone tokens (the “l” of “apfel” is not a litre);
+and a similarity scorer (exact > plural/stem > prefix > substring > token overlap)
+that ranks the pantry rows — ≥ 0.75 routes straight, otherwise the sheet asks.
+
+Guard test `scripts/test-capture-parse.php` — **168 checks**: 18 sentences across
+the six languages (intent + product + quantity), the ranking, the meter/interim/
+chips wiring, “no `api()`/`fetch()` in the parser” and the lexicon coverage.
+
+## [1.16.20] - 2026-10-25
+
+### UI review round 2 — the three structural fixes and the palette
+- **“Dimenticati” escaped the stock hub.** The stale list is fetched asynchronously and
+  finished *after* the tab was chosen, then set its own panel visible again — so it
+  reappeared under whichever tab was active (the “le liste sotto sono ancora entrambe
+  visibili” report). The loader now re-applies the tab selection like the other two do;
+  exactly one panel is visible whichever request finishes last.
+- **No more duplicated food in “Salva lo spreco”.** The expired products are rows of
+  the hub, and the anomaly banner repeated the same product a few pixels above:
+  `loadBannerAlerts()` now drops expired entries whose product is already listed and
+  keeps the banner for what the list does not show (anomalies, predictions, reviews).
+- **The six pastel buttons are gone.** `[Finito][Usa][Buttato][Modifica][Estendi][Chiudi]`
+  collapsed into one primary action (preferring “Usa”) plus the same 40 px ⋮ menu the
+  stock rows use; the other actions live in a neutral panel under the row. Handlers
+  untouched, all seven banner kinds render through the same helper.
+- **“Fresh & Crisp Slate” palette**: canvas `#F8FAFC`, white cards, hairline `#E2E8F0`,
+  text `#0F172A` / muted `#64748B`, one brand emerald `#059669`; semantic states as
+  light background + dark text + accent line (danger `#FEE2E2/#991B1B/#EF4444`, warning
+  `#FEF3C7/#92400E/#F59E0B`, info `#E0F2FE/#075985/#0284C7`). Blocks are white with a
+  soft shadow and a **4 px left accent line** instead of coloured frames; the header is
+  a white surface with dark icons instead of the deep forest-green bar.
+- **Three text levels**: product title 15 px/600, metadata 13 px/400 muted, badge
+  12 px/600 — the 10-11 px “grey noise” lines are gone.
+- **One relative-date format**: `tra 6 gg` / `36 gg fa` everywhere on the dashboard
+  (`_relativeDaysAhead()` / `_relativeDaysAgo()`, six locales), replacing the mixed
+  “6 giorni”, “8gg”, “Da 36g”.
+- **Centre button**: microphone glyph and “Ascolta”/“Listen” label, emerald fill — the
+  primary action is voice.
+
+Guard tests: `scripts/test-stock-hub.php` (43), `scripts/test-urgency-hub.php` (51) and
+the new `scripts/test-ui-palette.php` (42) lock the behaviour and the palette.
+
+## [1.16.19] - 2026-10-25
+
+### The “Altro” location is gone
+“Altro” was a generic bucket: whatever did not fit a real place ended up there, so
+stock hid instead of living where it belongs. It is removed as a **location** —
+Dispensa, Frigo, Freezer plus the custom ones are the real places now.
+- **Nothing is lost:** a one-shot migration moves every row that still pointed at
+  `altro` to the first location (`dispensa`), and the client shows a notice once per
+  device that names the count and the destination: *“La locazione «Altro» non esiste
+  più: N prodotti sono stati spostati in «Dispensa».”* (`location_altro.removed`,
+  six locales). The flag lives in `app_settings` (`migration_location_altro_v1`), so
+  the migration runs exactly once and cannot re-count on the next boot.
+- `get_settings` exposes the record (`location_altro_migration`) so a device that was
+  offline during the upgrade still learns it once; a device paired afterwards is not
+  told about a migration that happened before it existed.
+- The inventory filter tab, the add-location form, the import hints and the location
+  pickers no longer offer it; `settings.custom_locations.builtin_hint` no longer
+  names it either.
+- Old data that still says `altro` (a stale cache, an old export) is read as
+  `dispensa` through `normalizeLocationKey()` — the same destination as the
+  migration — so a product never shows a location that does not exist.
+- The **category** `altro` is a different thing (the classifier's fallback for an
+  unknown name) and stays untouched; the guard test checks both sides.
+
+Guard test `scripts/test-location-altro-removed.php` (34 checks): a real SQLite
+database migrates `altro` → `dispensa`, records `moved: 1`, is one-shot on the next
+boot, keeps other locations intact; the client no longer offers the location, keeps
+the legacy alias, and the six translations carry the notice.
+
+## [1.16.18] - 2026-10-25
+
+### The dashboard becomes a triage screen (UI pass, blocks 1-7 + voice)
+Five differently coloured frames in one scroll looked equally urgent, six micro
+buttons sat on every row, and the analytics pushed "what expires tomorrow" below the
+fold. Each change below is one block of the UI audit and has its own guard test.
+
+**One calm surface (new `assets/css/surfaces.css`)**
+- Neutral card chrome everywhere, one semantic tone per block as a 3 px rail + a dot
+  in the title, badges carry the colour. Loaded after the themes, before
+  `mobile.css` (which stays last for phone geometry), with tokens for dark mode.
+- Secondaries meet a 40 px touch minimum; the orange gradient CTA is a calm accent.
+
+**Locations are a rail, the shopping count is a badge**
+- The fixed 2×2 grid (Dispensa/Frigo/Freezer/Spesa) is a snapping row of dynamic
+  pills: icon, name, count, a red dot where something is expired or expiring, empty
+  locations dimmed, and a dashed “+” that opens Settings → Luoghi di conservazione.
+- The purchase flow left the stocking states: the list size is a badge on the Spesa
+  tab, the euro estimate stays in the shopping page header.
+
+**Urgency hub** — the anomaly banner, the expired list and the recipe CTA are one
+container with a header (“Salva lo spreco”, count, 🍳 Ricetta) and one place that
+decides whether it is worth showing.
+
+**Stock hub** — “in scadenza / aperti / dimenticati” are three tabs of one block with
+live counters, instead of three stacked lists. Rows keep a single primary action and
+a 40 px ⋮ opening the full sheet (extend stays as a calendar glyph).
+
+**Analytics moved to Storico** — anti-waste, nutrition, macros, spend, freshness and
+monthly charts live in a collapsible “📊 Statistiche” block at the top of Storico; the
+dashboard keeps one line: “N usati · M buttati negli ultimi 30 giorni”.
+
+**Capture button** — the centre of the nav is a sparkle, not a brand. It opens a sheet
+that accepts a spoken (Web Speech API, on-device) or typed sentence and routes it to
+the flow that already does the job: use → use form, add → add form prefilled, recipe →
+chat. Nothing is applied without confirmation; a missing mic degrades to typing.
+
+## [1.16.17] - 2026-10-25
+
+### Deep audit pass — the settings API stops leaking, the CI starts testing
+The full audit is `todo/AUDIT-2026-10-25.md` (internal, lettered sections A–M).
+
+**Security**
+- `app_settings_get` returned **every** row of `app_settings`, including
+  `env_overrides` — the fallback copy of environment values that holds the real
+  `GEMINI_API_KEY`, `BRING_PASSWORD`, TTS token and, on some installs, `API_TOKEN`
+  when `.env` is read-only (issue #298). It is also on the DEMO read-only allowlist.
+  Both handlers now share one allowlist (`evershelfClientSettingsKeys()`): reading
+  hides the internals (`hidden` is reported), writing refuses them
+  (`error.settings_key_not_allowed`), all-or-nothing, with a 1 MB body cap
+  (`error.settings_too_large`).
+- The three new error keys exist in all six locales; `app_settings_save` answers the
+  same `success:false` contract as the rest of the API.
+- Guard test: `scripts/test-app-settings-api.php` (59 checks) also asserts that every
+  key the frontend writes is on the allowlist.
+
+**Backups**
+- `createLocalBackup()` now runs `PRAGMA quick_check` on the `.part` file **before**
+  the rename: a truncated snapshot can no longer be promoted to “the backup” and
+  discovered on restore day (`error.backup_integrity`, `event=backup_integrity_failed`).
+  Guard test: `scripts/test-backup-integrity.php`.
+
+**Performance**
+- Five indexes for the hot read paths (`inventory.added_at`, `products.lower(name)`,
+  the three shopping key expressions), created idempotently in `initializeDB()` and
+  `migrateDB()`; `scripts/test-db-indexes.php` proves with `EXPLAIN QUERY PLAN` that
+  they are used and that no statement scans the tables wholesale.
+- One full `get_settings` round-trip removed from every boot (`syncSettingsFromDB()`
+  reuses the payload `_initApp()` already fetched) and the web-push DDL is gone from
+  that path.
+
+**Accessibility / UX**
+- `#toast` is `role="status" aria-live="polite"`, so “Salvato”/“Errore” are announced;
+  `#setup-wizard` and `#support-modal` are real dialogs (`role`, `aria-modal`,
+  `aria-labelledby` pointing at their translated heading).
+- The offline banner tooltip says when the server last answered, so a kiosk can tell
+  “no network” from “stale data”.
+- The offline queue keeps its 100-operation cap but no longer drops work silently:
+  the drop is logged and shown once per session (`error.offline_queue_full`).
+
+**Translations**
+- The Mealie wizard (~59 keys) and the recipe preferences (~25 keys) were never
+  translated: French and Spanish users saw the whole panel in English. Both blocks are
+  now translated in fr and es, plus the recipe input hints in de. Identical-to-English
+  values: 497 → 339, and every remaining one is a brand, a token, a URL example, a unit
+  or a country name.
+
+**CI**
+- New jobs: **PHP Regression Tests** (all 55 `scripts/test-*.php` — they never ran in
+  CI), **Shell Scripts** (`shellcheck`), **Generated Files** (settings schema + code
+  indexes drift), and the JS lint now covers `sw.js`, `core/*.js`, the other browser
+  scripts and the ESM `mcp-server`.
+- The “translation completeness” step compared only top-level JSON keys, so it could
+  never fail: it now runs `scripts/i18n-audit.py`.
+- Pull requests against `develop` run the same gates, and `auto-merge-to-main` waits
+  for all of them.
 ## [Kiosk 1.7.31] - 2026-11-07
 
 Kiosk APK only.

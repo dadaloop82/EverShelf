@@ -11,7 +11,7 @@
  *   api/lib/settings_schema.php              (server/tests)
  *
  * It never invents an entry: a control that is not in index.html is not in the
- * registry, and scripts/test-settings-schema.php fails when the two drift apart.
+ * registry; the two must not drift apart.
  *
  * Usage: php scripts/gen-settings-schema.php [--check]
  *   --check  exit 1 when the generated files are stale (CI-friendly)
@@ -23,7 +23,10 @@ $check = in_array('--check', $argv ?? [], true);
 $html = (string)file_get_contents($root . '/index.html');
 $envExample = (string)file_get_contents($root . '/.env.example');
 
-preg_match_all('/^([A-Z][A-Z0-9_]+)=/m', $envExample, $m);
+// Optional keys are written commented out (`# TELEGRAM_BOT_TOKEN=`), and they are still
+// settings of this instance: a control that cannot name its `.env` key is invisible to
+// anyone who searches for that key, and the guard below cannot see the key at all.
+preg_match_all('/^#?\s*([A-Z][A-Z0-9_]+)=/m', $envExample, $m);
 $envKeys = array_values(array_unique($m[1] ?? []));
 
 // ---------------------------------------------------------------- the region
@@ -34,6 +37,15 @@ if ($start === false) {
 }
 $nextSection = preg_match('/\n\s*<section class="page"/', substr($html, $start), $sm, PREG_OFFSET_CAPTURE);
 $end = $nextSection ? $start + $sm[0][1] : false;
+// The settings page is the LAST page of the SPA, so there is no next `<section>`
+// to stop at: without this the region ran to the end of the file and picked up the
+// controls of the dialogs that follow it (the recipe sheet's `recipe-persons`),
+// which the search then offered although they are not on this page. `</main>`
+// closes the page area.
+if ($end === false) {
+    $mainEnd = strpos($html, '</main>', $start);
+    $end = $mainEnd !== false ? $mainEnd : false;
+}
 $region = $end !== false ? substr($html, $start, $end - $start) : substr($html, $start);
 
 // tab -> section, from the tab strip
@@ -44,8 +56,13 @@ foreach ($m[1] as $i => $group) {
 }
 
 // ------------------------------------------------- split the region by panel
+// A panel may carry more than `class` and `id` (e.g. `data-autosave`, which names the
+// function that writes its controls), so the id is looked for anywhere in the tag
+// instead of immediately after the class: the old pattern silently stopped seeing
+// `tab-ha` / `tab-notify` / `tab-calendar` the moment they grew an attribute, and
+// their controls were attributed to the previous panel.
 $panels = [];
-preg_match_all('/<div class="settings-panel[^"]*" id="(tab-[a-z-]+)">/', $region, $pm, PREG_OFFSET_CAPTURE);
+preg_match_all('/<div\b[^>]*class="settings-panel[^"]*"[^>]*\bid="(tab-[a-z-]+)"[^>]*>/', $region, $pm, PREG_OFFSET_CAPTURE);
 $count = count($pm[1]);
 for ($i = 0; $i < $count; $i++) {
     $id = $pm[1][$i][0];
@@ -60,7 +77,7 @@ $keywordKeys = [
     'PRODUCT_VARIANTS_ENABLED' => 'settings.search_kw.family',
     'PRODUCT_KIND_PREFIX'      => 'settings.search_kw.kind',
     'AUTO_FAVORITE_MIN_USES'   => 'settings.search_kw.favorites',
-    'AUDIT_MODE_ENABLED'       => 'settings.search_kw.audit',
+    'AUDIT_MODE_BATCH_SIZE'    => 'settings.search_kw.audit',
     'RECEIPT_OCR_ENABLED'      => 'settings.search_kw.receipt',
     'GEMINI_API_KEY'           => 'settings.search_kw.ai',
     'AI_PROVIDER'              => 'settings.search_kw.ai',
@@ -84,21 +101,32 @@ $idToEnv = [
     'setting-telegram-token'      => 'TELEGRAM_BOT_TOKEN',
     'setting-telegram-chats'      => 'TELEGRAM_ALLOWED_CHAT_IDS',
     'setting-mealie-sync-days'    => 'MEALIE_CACHE_SYNC_DAYS',
+    // The control id is not simply the .env key lowercased: without these the
+    // registry left `env` empty and searching for the key found nothing.
+    'setting-mealie-token'        => 'MEALIE_API_TOKEN',
+    'setting-zerowaste-tips'      => 'ZEROWASTE_TIPS_ENABLED',
+    'setting-webpush-enabled'     => 'WEB_PUSH_ENABLED',
+    'setting-shopping-auto-add'   => 'SHOPPING_AUTO_ADD_THRESHOLD',
+    // One switch, two radios (plan | trip).
+    'setting-shopping-remove-plan' => 'SHOPPING_REMOVE_ON_BUY',
+    'setting-shopping-remove-trip' => 'SHOPPING_REMOVE_ON_BUY',
+    // The four idle-screen switches are ONE comma list on the server.
+    'setting-screensaver-view-meal'      => 'SCREENSAVER_VIEWS',
+    'setting-screensaver-view-alerts'    => 'SCREENSAVER_VIEWS',
+    'setting-screensaver-view-nutrition' => 'SCREENSAVER_VIEWS',
+    'setting-screensaver-view-fact'      => 'SCREENSAVER_VIEWS',
 ];
 
-/** Controls nested in the same block as another control: listed explicitly. */
+/**
+ * Controls nested in the same block as another control: listed explicitly.
+ *
+ * Empty on purpose: the sweep now treats `.settings-stepper-row` as a block of its
+ * own, so the three steppers of the product-rules and retention cards are found and
+ * labelled by the `for="…"` of their `<label>`. The manual entry that used to live
+ * here produced a duplicate `setting-audit-batch-size` the moment the sweep learned
+ * about steppers.
+ */
 $extraEntries = [
-    [
-        'id'        => 'setting-audit-batch-size',
-        'env'       => 'AUDIT_MODE_BATCH_SIZE',
-        'tab'       => 'tab-general',
-        'label'     => 'settings.product_rules.audit_batch_label',
-        'hint'      => '',
-        'card'      => 'settings.product_rules.card_title',
-        'card_hint' => 'settings.product_rules.card_hint',
-        'keywords'  => 'settings.search_kw.audit',
-        'type'      => 'int',
-    ],
 ];
 
 $entries = [];
@@ -118,7 +146,10 @@ foreach ($panels as $panel) {
         $cards[] = ['at' => $cHit[1], 'title' => $ckeys[1][$ci][0], 'hint' => $ckeys[2][$ci][0]];
     }
 
-    if (!preg_match_all('/class="form-group/', $body, $fm, PREG_OFFSET_CAPTURE)) {
+    // A control lives in a `form-group` OR in a one-line stepper row (label + hint on
+    // the left, [−] N [+] on the right): both are block boundaries, and without the
+    // second the stepper inputs were attributed to the next form-group of the card.
+    if (!preg_match_all('/class="(?:form-group|settings-stepper-row)/', $body, $fm, PREG_OFFSET_CAPTURE)) {
         continue;
     }
     foreach ($fm[0] as $i => $hit) {
@@ -149,6 +180,12 @@ foreach ($panels as $panel) {
             continue;
         }
         $label = $lm[1];
+        // A <label for="…"> names its control exactly: prefer it over "the first key in
+        // the block" (a stepper row also carries the unit label next to the buttons).
+        if (preg_match('/<label[^>]*\bfor="' . preg_quote($id, '/') . '"[^>]*data-i18n="([^"]+)"/', $body, $lfor)
+            || preg_match('/<label[^>]*data-i18n="([^"]+)"[^>]*\bfor="' . preg_quote($id, '/') . '"/', $body, $lfor)) {
+            $label = $lfor[1];
+        }
         $hint = '';
         if (preg_match('/class="settings-hint"[^>]*data-i18n="([^"]+)"|data-i18n="([^"]+)"[^>]*class="settings-hint"/', $block, $hm)) {
             $hint = $hm[1] !== '' ? $hm[1] : $hm[2];

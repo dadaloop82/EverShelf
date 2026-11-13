@@ -20,9 +20,17 @@ explains that the project has real running costs and offers two options:
 | 💙 **Donate with PayPal** | shows the donation link with a QR code to scan from a phone | |
 | ⏳ **Later** | nothing for now: the app stays exactly as it is | ✅ |
 
-The answer is stored in `.env` (`SUPPORT_MODE` + `SUPPORT_DECIDED`) and can be
-changed any time under **Settings → Info → ❤️ Support EverShelf**, or from the
-**❤️ Support EverShelf** button at the bottom of the settings page.
+The answer is stored in `.env` (`SUPPORT_MODE` + `SUPPORT_DECIDED` + the
+`SUPPORT_ANSWERED_AT` clock) and can be changed any time under **Settings → Info →
+❤️ Support EverShelf**, or from the **❤️ Support EverShelf** button at the bottom of
+the settings page.
+
+Once answered, the dialog behaves according to the answer: **a donation is never asked
+again** (the QR has been shown and used — only Settings can change it), while **Later**
+keeps it quiet for about six weeks and then lets it come back on a random start (one
+boot in four): roughly one reminder every other month, never on a schedule — «a random
+un mese sì e uno no». Closing the dialog with ✕ is not an answer, so that one returns at
+the next start.
 
 While nobody has answered, the answer already in effect is **"later"**: the dialog
 preselects it, and the app behaves the same as before the question was ever asked.
@@ -93,10 +101,16 @@ What a re-enable touches (the comments in the code name the same list):
 | 2. Un-comment the provider/banner helpers and the payload keys | `api/lib/support.php` |
 | 3. Un-comment the `.env` mapping + provider clamp in `save_settings` | `api/index.php` |
 | 4. Un-comment the `.env` block (`SUPPORT_BANNERS_AVAILABLE`, `ADS_*`) | `.env.example` |
-| 5. Un-comment the two `[data-ad-slot]` divs (dashboard + screensaver) | `index.html` |
+| 5. Un-comment the `[data-ad-slot]` div on the dashboard | `index.html` |
+
+> The idle screen has **no banner slot** any more: the 2.0.0 redesign renders one card at a
+> time in `assets/js/screensaver.js` and there is no place a third-party banner could sit
+> without covering the clock or the card. Bringing ads back means re-introducing a slot
+> there too (and the CSS rule that went with it), not only un-commenting the dashboard one.
+
 | 6. Un-comment the CSS block and the renderer + `online`/`offline` listeners | `assets/css/style.css`, `assets/js/core/support.js` |
 | 7. Un-comment the two radio buttons and the two branches | `evershelf-kiosk` (`activity_setup.xml`, `SetupActivity.kt`) |
-| 8. Put the banner assertions back | `scripts/test-support-monetization.php` |
+| 8. Put the banner assertions back | |
 
 `_renderAdSlots()` still exists as a **no-op** on purpose: a client cached in a kiosk
 WebView may call it, and a missing function would throw instead of doing nothing.
@@ -170,5 +184,5 @@ keeps the whole answer in the file and removes the second step.
 | Markup (dialog, Settings card), the two parked slots as comments | `index.html` |
 | Styles | `assets/css/style.css` (section “SUPPORT DIALOG (donation)”) |
 | Strings (6 locales) | `translations/*.json` → `support` |
-| Guard test | `scripts/test-support-monetization.php` |
+| Guard test | |
 | Kiosk wizard step | `evershelf-kiosk` → SetupActivity “features” step |

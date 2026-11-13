@@ -42,11 +42,16 @@ function _settingsSearchInit() {
                    placeholder="${placeholder}" aria-label="${placeholder}"
                    aria-describedby="settings-search-hint" autocomplete="off">
             <button type="button" id="settings-search-clear" class="search-clear-btn" hidden
-                    aria-label="${escapeHtml(t('settings_search.clear'))}">×</button>
+                    aria-label="${escapeAttr(t('settings_search.clear'))}">×</button>
+            <kbd class="settings-search-kbd" aria-hidden="true">Ctrl K</kbd>
         </div>
         <p class="settings-hint" id="settings-search-hint">${escapeHtml(t('settings_search.hint'))}</p>
         <div id="settings-search-results" class="settings-search-results" hidden></div>`;
-    page.insertBefore(wrap, page.firstElementChild);
+    // Its own slot at the top of the page (index.html), so the field is the first
+    // thing on the page instead of an element inserted before an unknown child.
+    const mount = document.getElementById('settings-search-mount');
+    if (mount) mount.appendChild(wrap);
+    else page.insertBefore(wrap, page.firstElementChild);
 
     const input = document.getElementById('settings-search');
     input.addEventListener('input', _settingsSearchRender);

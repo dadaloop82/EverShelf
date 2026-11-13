@@ -4,6 +4,7 @@
  */
 
 require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/demo.php';
 
 /** Effective API token: API_TOKEN takes precedence over legacy SETTINGS_TOKEN. */
 function evershelfEffectiveApiToken(): string {
@@ -16,6 +17,141 @@ function evershelfEffectiveApiToken(): string {
 
 function evershelfApiTokenRequired(): bool {
     return evershelfEffectiveApiToken() !== '';
+}
+
+/** Where the "a token was already generated for this install" marker lives. */
+function evershelfApiTokenMarker(): string {
+    return dirname(__DIR__, 2) . '/data/api_token_autogen.json';
+}
+
+/**
+ * Refuse a request whose `Host` is not in `ALLOWED_HOSTS` — the DNS-rebinding guard.
+ *
+ * A container published on the LAN can be reached by a page the household merely *visits*:
+ * the attacker's DNS answers `evil.example → 192.168.1.10`, the browser therefore sends
+ * `Host: evil.example`, and every same-origin decision the browser makes — CORS, cookies,
+ * `Sec-Fetch-Site` — is satisfied, because from the browser's point of view the request IS
+ * on evil.example. Only the server can tell, because it knows which names it answers to.
+ * OPT-IN (`ALLOWED_HOSTS` empty = no enforcement): the set of names a household uses is not
+ * knowable from the code — a bare IP, `.local`, a reverse proxy's domain, a tunnel. Set it
+ * as a comma list; `*.example.lan` matches every subdomain.
+ */
+function evershelfEnforceAllowedHosts(): void {
+    $raw = trim((string)env('ALLOWED_HOSTS', ''));
+    if ($raw === '' || PHP_SAPI === 'cli') {
+        return;
+    }
+    $host = strtolower((string)parse_url('http://' . (string)($_SERVER['HTTP_HOST'] ?? ''), PHP_URL_HOST));
+    if (evershelfHostAllowed($host, $raw)) {
+        return;
+    }
+    EverLog::warn('Request rejected: Host not in ALLOWED_HOSTS', [
+        'event' => 'host_not_allowed',
+        'host'  => $host,
+    ]);
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => false, 'error' => 'host_not_allowed']);
+    exit;
+}
+
+/**
+ * The rule of evershelfEnforceAllowedHosts(), on its own: is $host one of the names in the
+ * comma list? An exact match, or a `*.suffix` entry (which never matches the bare suffix).
+ * An empty host never matches; an empty list is handled by the caller (it means "off").
+ */
+function evershelfHostAllowed(string $host, string $rawList): bool {
+    $host = strtolower(trim($host));
+    if ($host === '') {
+        return false;
+    }
+    $list = array_values(array_filter(array_map(
+        static fn($v) => strtolower(trim((string)$v)),
+        explode(',', $rawList)
+    )));
+    if (in_array($host, $list, true)) {
+        return true;
+    }
+    foreach ($list as $entry) {
+        if (!str_starts_with($entry, '*.')) {
+            continue;
+        }
+        $suffix = substr($entry, 1); // ".example.lan"
+        if (strlen($host) > strlen($suffix) + 1 && str_ends_with($host, $suffix)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Mint an API token on the first start of an install that has none.
+ *
+ * `API_TOKEN=` empty was the documented default and it means "no authentication at all":
+ * every action, `inventory_list` included, answered anyone who could reach the port. The
+ * README says to set it, and the household that never read the README is exactly the one
+ * running an open pantry on the LAN. So the token is generated here, written to `.env`
+ * (or to the `app_settings.env_overrides` fallback when the file is read-only) and enforced
+ * from this same request on; the one-time pairing code that lets a phone in is printed in
+ * the log next to it and is shown under Settings → System → Security on a paired device.
+ *
+ * Two escape hatches, both explicit: `ALLOW_OPEN_LAN=true` keeps the old behaviour, and the
+ * `data/api_token_autogen.json` marker means this never mints a *second* token — a rotating
+ * token would lock every device out on every request.
+ */
+function evershelfEnsureApiToken(): void {
+    if (PHP_SAPI === 'cli') {
+        return; // cron and the CLI scripts have no HTTP surface to protect
+    }
+    // A public demo is not an install: minting a token there would lock every visitor
+    // behind a pairing code, and the demo's writes are blocked at the router anyway.
+    if (evershelfDemoRequested()) {
+        return;
+    }
+    if (evershelfEffectiveApiToken() !== '') {
+        return;
+    }
+    if (in_array(strtolower(trim((string)env('ALLOW_OPEN_LAN', ''))), ['1', 'true', 'yes', 'on'], true)) {
+        return;
+    }
+    $marker = evershelfApiTokenMarker();
+    if (is_file($marker)) {
+        return; // generated once already: the operator removed it on purpose
+    }
+
+    $token = bin2hex(random_bytes(32));
+    clearEnvOverrides(['API_TOKEN']);
+    $via = 'env';
+    $stored = evershelfWriteEnvFile(evershelfEnvFile(), ['API_TOKEN' => $token], dirname(__DIR__, 2) . '/.env.example');
+    if ($stored) {
+        loadEnv(true);
+    } else {
+        // Read-only .env (a mounted secret, a container layer): keep the value in the DB
+        // override table, the same fallback save_settings() already uses.
+        $via = 'override';
+        $stored = saveEnvOverrides(['API_TOKEN' => $token]);
+        loadEnvOverrides(true);
+    }
+    if (!$stored || evershelfEffectiveApiToken() === '') {
+        // Never leave a half-configured install rotating a token: log and stay as we were.
+        EverLog::error('API token autogeneration failed — set API_TOKEN by hand in .env', [
+            'event'    => 'api_token_autogen_failed',
+            'env_file' => evershelfEnvFile(),
+        ]);
+        return;
+    }
+    @file_put_contents($marker, json_encode([
+        'created' => date('c'),
+        'storage' => $via,
+    ], JSON_PRETTY_PRINT));
+    EverLog::warn('API token generated on first start (set ALLOW_OPEN_LAN=true to keep an open LAN install)', [
+        'event' => 'api_token_autogenerated',
+        'hint'  => 'pairing code below; Settings → System → Security on a paired device',
+    ]);
+    // Mint the code now so the pairing code lands in the log right after this line.
+    if (function_exists('evershelfPairingEnsure')) {
+        evershelfPairingEnsure();
+    }
 }
 
 function evershelfGetProvidedApiToken(): string {
@@ -130,6 +266,12 @@ function evershelfCsrfGuardAllows(string $action, string $header, string $conten
 }
 
 function evershelfActionNeedsAuth(string $action, string $method): bool {
+    // Demo mode is a public, read-only showcase: `evershelfDemoBlocksAction()` is the
+    // guard that protects it (no write ever reaches a handler), and asking a visitor
+    // to pair before looking at the demo would defeat the point.
+    if (evershelfDemoRequested()) {
+        return false;
+    }
     if (!evershelfApiTokenRequired()) {
         return false;
     }
@@ -194,7 +336,38 @@ function evershelfRequireApiAuth(string $action, string $method): void {
     exit;
 }
 
+/**
+ * True when two URLs point at the same ORIGIN (scheme + host + port), not merely at a
+ * string that starts the same way.
+ *
+ * `str_starts_with($url, 'http://ha.local')` also accepts `http://ha.local.evil.example/x`,
+ * and the caller of this rule (the TTS proxy) is about to attach the Home Assistant or the
+ * TTS bearer token to that request: a prefix match hands the household's token to any host
+ * whose name begins with the configured one. Ports are normalised (80/443 are default), the
+ * host must be present and case-insensitive, and a relative/invalid URL never matches.
+ */
+function evershelfSameOrigin(string $a, string $b): bool {
+    $origin = static function (string $url): ?string {
+        $p = parse_url(trim($url));
+        if (!is_array($p) || empty($p['host']) || empty($p['scheme'])) {
+            return null;
+        }
+        $scheme = strtolower($p['scheme']);
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return null;
+        }
+        $port = isset($p['port']) ? (int)$p['port'] : ($scheme === 'https' ? 443 : 80);
+        return $scheme . '://' . strtolower($p['host']) . ':' . $port;
+    };
+    $oa = $origin($a);
+    $ob = $origin($b);
+    return $oa !== null && $ob !== null && hash_equals($ob, $oa);
+}
+
 function evershelfRequireAuthForSensitive(string $action): void {
+    if (evershelfDemoRequested()) {
+        return; // public demo: no token to present, nothing behind it but sample data
+    }
     if (!evershelfApiTokenRequired()) {
         return;
     }
@@ -219,7 +392,15 @@ function evershelfSendSecurityHeaders(): void {
         return;
     }
     header('X-Content-Type-Options: nosniff');
-    header('X-Frame-Options: SAMEORIGIN');
+    if (evershelfDemoRequested()) {
+        // A demo exists to be EMBEDDED by the marketing site (an iframe on socly.it and
+        // friends). `X-Frame-Options` has no "allow that other origin" value, so the demo
+        // speaks `frame-ancestors` instead — `DEMO_FRAME_ANCESTORS`, default `*`, because a
+        // public demo carries nothing but sample data.
+        header('Content-Security-Policy: frame-ancestors ' . evershelfDemoFrameAncestors());
+    } else {
+        header('X-Frame-Options: SAMEORIGIN');
+    }
     header('Referrer-Policy: same-origin');
     header('Permissions-Policy: camera=(self), microphone=(self), geolocation=()');
     header('Cross-Origin-Opener-Policy: same-origin');
@@ -229,6 +410,54 @@ function evershelfSendSecurityHeaders(): void {
     if ($https || $proto === 'https') {
         header('Strict-Transport-Security: max-age=31536000');
     }
+}
+
+/**
+ * `app_settings` keys the client owns (shared across devices).
+ *
+ * The table also holds instance internals: `env_overrides` (a fallback copy of
+ * environment values — real API keys and passwords once `.env` is read-only,
+ * issue #298), the `migration_*` flags and the pairing state. Those must never
+ * leave the server through `app_settings_get`, and a client must not be able to
+ * write them through `app_settings_save`: rewriting `env_overrides` would change
+ * what `env()` returns (provider, shopping mode, `API_TOKEN`), and clearing a
+ * `migration_*` flag re-runs a data migration on the next boot.
+ *
+ * One list, read by both directions, so a new internal row cannot leak by default.
+ * Every key the frontend writes must be listed here, or the two sides drift.
+ */
+function evershelfClientSettingsKeys(): array
+{
+    return [
+        // Settings page state
+        'review_confirmed',
+        'meal_plan',
+        'tts_voice',
+        'user_prefs',
+        // User data that used to live in localStorage (one-time migration + sync)
+        'scan_history',
+        'shopping_tags',
+        'pinned_bring',
+        'pref_use_loc',
+        'pref_move_loc',
+        'auto_added_bring',
+        'bring_blocklist',
+        'no_expiry_dismissed',
+        'opened_check_snoozed',
+        'family_sibling_confirmed',
+        'shopping_plan_days',
+        // Guided setup ledger (issue #301): answered once per instance, not per browser
+        'setup_done',
+        'setup_seen',
+        // EverShelf Med (opt-in): the switch, the medical locations and the disclaimer
+        // acceptance are instance-level on purpose — a new phone must not re-ask, and the
+        // server needs the switch to keep medicines out of the food domains.
+        'med_enabled',
+        'medical_locations',
+        'med_disclaimer_accepted',
+        'med_setup_done',
+        'med_country',
+    ];
 }
 
 function evershelfSendCorsHeaders(): void {
@@ -254,27 +483,37 @@ function evershelfSendCorsHeaders(): void {
 /** Read-only actions allowed in DEMO_MODE. */
 function evershelfDemoReadOnlyActions(): array {
     return [
+        // Public telemetry a visitor's browser sends while looking at the demo: the log
+        // is how a broken demo is diagnosed from the server side.
+        'client_log', 'report_error',
         'ping', 'check_update', 'health_check', 'get_settings', 'gemini_usage',
         'search_barcode', 'lookup_barcode', 'resolve_barcode', 'barcode_catalog_sync', 'stock_for_name',
         'product_get', 'products_list', 'products_search', 'inventory_search', 'ai_product_suggest',
         'inventory_list', 'inventory_summary', 'inventory_finished_items',
-        'transactions_list', 'stats', 'monthly_stats', 'macro_stats',
+        'transactions_list', 'stats', 'monthly_stats', 'macro_stats', 'spend_stats',
+        // Reads the screens issue themselves (not only the ones a payload mentions):
+        // a read missing here is answered with the demo's no-op and the screen goes
+        // quietly blank — `med_status` did, and it is the boot's medicine switch.
+        'med_status', 'med_lookup', 'med_symptom_search',
+        'shopping_dismissed', 'audit_state', 'tags_list', 'pao_get',
+        'families_list', 'family_sibling_suggest', 'free_apis', 'get_ics_settings',
         'consumption_predictions', 'inventory_anomalies', 'inventory_duplicate_loss_checks',
         'recent_popular_products', 'expiry_history', 'food_facts', 'opened_shelf_life',
         'bring_list', 'bring_suggest', 'shopping_list', 'shopping_suggest', 'smart_shopping',
         'seasonal_shopping_review', 'stale_inventory_items',
         'templates_list',
         'ai_test',
-        'recipes_list', 'chat_list', 'app_settings_get', 'health_status',
-        'ha_sensor', 'ha_info', 'ha_shopping_items', 'ha_test', 'ha_calendar',
-        'ha_refresh_prices',
+        'recipes_list', 'chat_list', 'app_settings_get',
+        // NOT here on purpose: `backup_list` / `export_inventory` (the household's files),
+        // `health_status` (the health profile), `ha_*` (its Home Assistant) and
+        // `weather_get` / `weather_geocode` (where the kitchen is). A demo carries none of
+        // that, and `get_settings` blanks what it would otherwise reveal.
         'guess_category', 'get_shopping_price', 'get_all_shopping_prices',
-        'backup_list', 'export_inventory', 'weather_get', 'weather_geocode',
     ];
 }
 
 function evershelfDemoBlocksAction(string $action, string $method): bool {
-    if (env('DEMO_MODE') !== 'true') {
+    if (!evershelfDemoRequested()) {
         return false;
     }
     if (in_array($action, evershelfDemoReadOnlyActions(), true)) {

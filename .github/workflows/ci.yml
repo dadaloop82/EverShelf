@@ -4,7 +4,9 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main]
+    # A pull request against either long-lived branch runs the same gates, so a
+    # contribution is tested *before* the auto-merge, not after it.
+    branches: [main, develop]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -34,7 +36,62 @@ jobs:
 
       - name: Check JS syntax
         run: |
-          node -c assets/js/app.js
+          set -e
+          # Plain scripts — a syntax error here ships a broken app (and the service
+          # worker would pin the broken shell).
+          for f in assets/js/*.js assets/js/core/*.js sw.js; do
+            echo "checking $f"
+            node -c "$f"
+          done
+          # ES modules (mcp-server declares "type": "module")
+          for f in mcp-server/src/*.js; do
+            echo "checking $f"
+            node --check "$f"
+          done
+
+  # ── Shell scripts ────────────────────────────────────────────────────────
+  # backup.sh and the container cron are only exercised when something breaks.
+  shellcheck:
+    name: Shell Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check shell scripts
+        run: |
+          set -e
+          shopt -s nullglob
+          # Only real shell scripts: docker/evershelf-cron is a crontab FILE
+          # (shellcheck would read `*/5` as a glob command).
+          shellcheck -S warning backup.sh scripts/*.sh
+
+  # ── Generated artefacts ──────────────────────────────────────────────────
+  # docs/INDEX-*.md, the settings registry and vocab.generated.js are committed on
+  # purpose (offline-safe, cheap for agents). Committed artefacts drift; this job
+  # regenerates them and fails when the tree changes.
+  generated-files:
+    name: Generated Files Are Current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, mbstring
+
+      - name: Settings schema
+        run: php scripts/gen-settings-schema.php --check
+
+      - name: Code indexes
+        run: |
+          set -e
+          bash scripts/gen-code-index.sh
+          if ! git diff --exit-code -- docs/INDEX-*.md; then
+            echo "::error::docs/INDEX-*.md are stale — run bash scripts/gen-code-index.sh"
+            exit 1
+          fi
 
   docker-build:
     name: Docker Build Test
@@ -77,36 +134,19 @@ jobs:
           done
           echo "All translation files valid."
 
-      - name: Check translation completeness
-        run: |
-          python3 -c "
-          import json, sys
-          base = json.load(open('translations/it.json'))
-          base_keys = set(base.keys())
-          ok = True
-          import glob
-          for f in glob.glob('translations/*.json'):
-              if 'it.json' in f:
-                  continue
-              lang = json.load(open(f))
-              lang_keys = set(lang.keys())
-              missing = base_keys - lang_keys
-              if missing:
-                  print(f'{f}: {len(missing)} missing keys')
-                  for k in sorted(missing)[:10]:
-                      print(f'  - {k}')
-                  if len(missing) > 10:
-                      print(f'  ... and {len(missing)-10} more')
-              else:
-                  print(f'{f}: complete ✓')
-          "
+      - name: Check translation completeness (every used key, every locale)
+        # The previous inline snippet compared the *top-level* keys of the nested
+        # trees, i.e. section names — it reported "complete ✓" no matter what was
+        # missing inside. scripts/i18n-audit.py flattens the trees and also checks
+        # the keys the code actually uses.
+        run: python3 scripts/i18n-audit.py
 
   # ── Auto-merge develop → main ────────────────────────────────────────────
   # Runs automatically after ALL checks pass on develop.
   # You never need to merge manually again — just push to develop.
   auto-merge-to-main:
     name: Auto-merge develop → main
-    needs: [lint-php, lint-js, docker-build, validate-translations]
+    needs: [lint-php, lint-js, shellcheck, generated-files, docker-build, validate-translations]
     if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     permissions:

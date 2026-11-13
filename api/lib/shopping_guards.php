@@ -26,6 +26,40 @@ const SHOPPING_GUARD_MAX_ML_PER_DAY = 2000.0;
 const SHOPPING_GUARD_MIN_HISTORY_DAYS = 7.0;
 
 /**
+ * Urgency scale thresholds (uses per month).
+ *
+ * `ESSENTIAL` is the only thing that can wear the red badge when the shelf is empty
+ * (twice a week or more): the salt, the oil, the milk. `HIGH` is a regular of the
+ * kitchen, which goes orange. Below both a finished product is just "A breve" — a
+ * badge that says everything is urgent says nothing.
+ */
+const SHOPPING_ESSENTIAL_USES_PER_MONTH = 8.0;
+const SHOPPING_HIGH_USES_PER_MONTH = 4.0;
+
+/**
+ * "Rarely bought": one purchase ever (or none) below half a use a month.
+ * Those rows move out of the list into the `suggested` strip.
+ */
+const SHOPPING_RARE_BUY_COUNT = 1;
+const SHOPPING_RARE_USES_PER_MONTH = 0.5;
+
+/**
+ * "About to finish": a shelf this empty (a quarter of the usual purchase left) or a run-out
+ * date inside the planning window. Those rows can never be *suggestions* — the household
+ * needs them now, and Burro at 1% was living in the footnote.
+ */
+const SHOPPING_ABOUT_TO_FINISH_PCT = 25.0;
+
+/**
+ * Planning window (days) when the household never chose one AND no cycle can be measured.
+ *
+ * 30 is the neutral default the household expects; the moment there are enough real
+ * shopping sessions to average, the inferred cycle wins (smartInferShoppingCycleDays).
+ * Fresh produce is unaffected either way: sale_units.json caps it at a week.
+ */
+const SHOPPING_DEFAULT_PLAN_DAYS = 30;
+
+/**
  * SQL fragment: transaction is real consumption/purchase — not a location move
  * or an undo restoration ([Undone]/[Annullato]), which must not count as buys/uses.
  */
@@ -51,6 +85,23 @@ function shoppingFallbackDailyRate(float $usage, float $daysSinceFirst): float
 }
 
 /**
+ * Unit words that count PACKS or PIECES, not a mass and not a volume.
+ *
+ * ONE vocabulary for a fact three places need: the daily-rate guard, the "a pack covers a
+ * purchase" coverage rule and the typical-purchase cap. `conf` was missing from the rate guard,
+ * and a gram log written as `conf` (597 "conf" of panna consumed, 86 "conf" per purchase) gave a
+ * pack row a daily rate of tens of packs — «Panna da cucina» with SIX packs in the pantry read
+ * «near_empty:6 · ends_in:0» and went back on the shopping list at every cron run.
+ */
+function shoppingUnitIsPack(string $unit): bool
+{
+    return in_array(mb_strtolower(trim($unit)), [
+        'conf', 'pz', 'busta', 'buste', 'pacco', 'pacchi',
+        'barattolo', 'barattoli', 'confezione', 'confezioni', 'pezzo', 'pezzi',
+    ], true);
+}
+
+/**
  * Hard cap on daily consumption rate (g/ml/pz already sanitized elsewhere).
  */
 function shoppingSanitizeDailyRate(
@@ -69,7 +120,10 @@ function shoppingSanitizeDailyRate(
 
     $u = strtolower(trim($unit));
 
-    if ($u === 'pz') {
+    if (shoppingUnitIsPack($u)) {
+        // A pack a day is already generous, and the usage frequency is the ceiling that matters:
+        // without this branch a `conf` row had NO guard at all (the `pz` one skipped it), so one
+        // gram-logged consumption made days_left read 0 and the row "urgent" forever.
         if ($useCount > 0 && $usesPerMonth > 0) {
             $cap = ($usesPerMonth / 30.0) * 1.2;
             $dailyRate = min($dailyRate, max(0.2, $cap));

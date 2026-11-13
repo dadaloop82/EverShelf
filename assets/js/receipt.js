@@ -114,12 +114,13 @@ function _receiptRemove(index) {
 function _receiptCancel() {
     _receipt = null;
     _receiptOverlay('');
+}
 
 /** Draw the review table. */
 function _receiptRender() {
     const rows = _receipt.items.map((it, i) => `
         <tr>
-            <td><input type="text" class="form-input receipt-name" value="${escapeHtml(it.name)}"
+            <td><input type="text" class="form-input receipt-name" value="${escapeAttr(it.name)}"
                        oninput="_receiptEdit(${i}, 'name', this.value)"></td>
             <td><input type="number" class="form-input receipt-qty" min="0.01" step="0.01" value="${it.qty}"
                        oninput="_receiptEdit(${i}, 'qty', this.value)"></td>
@@ -128,13 +129,13 @@ function _receiptRender() {
             </select></td>
             <td><input type="number" class="form-input receipt-price" min="0" step="0.01" value="${it.price}"
                        oninput="_receiptEdit(${i}, 'price', this.value)"></td>
-            <td><button type="button" class="audit-close" aria-label="${escapeHtml(t('receipt.remove'))}"
+            <td><button type="button" class="audit-close" aria-label="${escapeAttr(t('receipt.remove'))}"
                         onclick="_receiptRemove(${i})">✕</button></td>
         </tr>`).join('');
     _receiptOverlay(`<div class="audit-panel" role="dialog" aria-modal="true">
         <div class="audit-head">
             <h3>${escapeHtml(t('receipt.review_title'))}</h3>
-            <button type="button" class="audit-close" onclick="_receiptCancel()" aria-label="${escapeHtml(t('receipt.cancel'))}">✕</button>
+            <button type="button" class="audit-close" onclick="_receiptCancel()" aria-label="${escapeAttr(t('receipt.cancel'))}">✕</button>
         </div>
         <p class="audit-hint">${escapeHtml(t('receipt.hint'))}</p>
         <div class="receipt-table-wrap">
@@ -201,6 +202,4 @@ async function _receiptConfirm() {
     _receiptCancel();
     showToast(t('receipt.done').replace('{ok}', ok).replace('{ko}', failed), failed ? 'info' : 'success');
     if (ok) loadInventory();
-}
-
 }

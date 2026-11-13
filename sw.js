@@ -6,7 +6,7 @@
  * pin a stale app.js indefinitely. The cache below is only a safety net when the
  * server cannot be reached.
  */
-const CACHE = 'evershelf-v1.16.16a';
+const CACHE = 'evershelf-v2.1.0g';
 const BASE = (() => {
     const p = self.location.pathname || '/';
     return p.endsWith('sw.js') ? p.slice(0, -'sw.js'.length) : '/';
@@ -16,20 +16,52 @@ const SHELL = [
     BASE,
     BASE + 'index.html',
     BASE + 'manifest.json',
+    // The credits of the free services: the splash paints them before any fetch, so they
+    // must be in the shell (and they are tiny).
+    BASE + 'assets/img/apis/open-food-facts.svg',
+    BASE + 'assets/img/apis/open-prices.png',
+    BASE + 'assets/img/apis/open-meteo.png',
+    BASE + 'assets/img/apis/open-products-facts.svg',
+    BASE + 'assets/img/apis/open-beauty-facts.svg',
+    BASE + 'assets/img/apis/open-pet-food-facts.svg',
+    // The medicine mark (EverShelf Med): the row thumbnails, the cabinet pill and the pantry
+    // tab draw it, so a medicine never reads as a broken image when the server is unreachable.
+    BASE + 'assets/img/icons/medicine.svg',
+    // The GitHub mark on the splash: it says who makes the app and where its source lives,
+    // and that line has to survive an offline boot like the rest of the splash.
+    BASE + 'assets/img/icons/github.svg',
+    // The two badges of the same line: the licence (SPDX `MIT`) and "no ads".
+    BASE + 'assets/img/icons/license.svg',
+    BASE + 'assets/img/icons/no-ads.svg',
+    // SHELFY's face: the centre of the bottom nav, its sheet and its 10 s confirmation card
+    // all paint it, and the assistant must still have a face offline.
+    BASE + 'assets/img/shelfy/shelfy-avatar-96.png',
+    BASE + 'assets/img/shelfy/shelfy-avatar-192.png',
     BASE + 'assets/css/style.css',
     BASE + 'assets/css/corporate.css',
     BASE + 'assets/css/elegant.css',
+    BASE + 'assets/css/surfaces.css',
+    BASE + 'assets/css/tablet.css',
     BASE + 'assets/css/mobile.css',
     BASE + 'assets/js/app.js',
     BASE + 'assets/js/audit.js',
     BASE + 'assets/js/receipt.js',
     BASE + 'assets/js/settings.schema.generated.js',
     BASE + 'assets/js/settings_search.js',
+    BASE + 'assets/js/screensaver.js',
     BASE + 'assets/js/vocab.generated.js',
+    BASE + 'assets/js/food_facts.generated.js',
+    BASE + 'assets/js/free_apis.generated.js',
+    BASE + 'assets/js/storage_actions.generated.js',
+    BASE + 'assets/js/off_categories.generated.js',
     BASE + 'assets/js/core/vocab.js',
     BASE + 'assets/js/core/auth.js',
     BASE + 'assets/js/core/dom.js',
     BASE + 'assets/js/core/support.js',
+    // The medicine scanner: a country-neutral core + one module per country (Italy prints its
+    // AIC, so its rules live in assets/js/med/italy.js, never in the core).
+    BASE + 'assets/js/core/med.js',
+    BASE + 'assets/js/med/italy.js',
     // Barcode decoding must work offline too.
     BASE + 'assets/vendor/quagga/quagga.min.js',
     BASE + 'assets/vendor/zbar/index.js',
@@ -39,7 +71,14 @@ const SHELL = [
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE).then((cache) => cache.addAll(SHELL).catch(() => {}))
+        // `cache: 'reload'` on purpose: the shell is fetched from the NETWORK, never
+        // revalidated. `.htaccess` keeps JS/CSS/index on `no-cache`, so a conditional
+        // request answers `304 Not Modified` — which `cache.addAll()` cannot store (it accepts
+        // 200s only), and the offline shell would silently come out half empty after a
+        // release, exactly when somebody is offline and needs it.
+        caches.open(CACHE).then((cache) => cache.addAll(
+            SHELL.map((url) => new Request(url, { cache: 'reload' }))
+        ).catch(() => {}))
     );
     self.skipWaiting();
 });
@@ -47,11 +86,46 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) =>
-            Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+            // `IMG_CACHE` survives a shell update: it holds product photos, not code.
+            Promise.all(keys.filter((k) => k !== CACHE && k !== IMG_CACHE).map((k) => caches.delete(k)))
         )
     );
     self.clients.claim();
 });
+
+/* ── Product photos: their own runtime cache ──────────────────────────────────
+ * `products.image_url` is a REMOTE Open Food Facts URL, and the fetch handler below
+ * deliberately ignores other origins — so every row asked the network again, and offline
+ * the photo simply never arrived. A package picture is immutable content: cache-first,
+ * in its own cache (`IMG_CACHE`), pruned by count so a pantry of 2 000 rows cannot fill
+ * the disk. The image host sends no CORS headers, so the response is opaque (status 0):
+ * `cache.put()` still stores it and an `<img>` renders it fine.
+ */
+const IMG_CACHE = 'evershelf-images-v1';
+// IMAGE hosts only, never the API host: cache-first on `world.openfoodfacts.org` would
+// serve a stale search for ever.
+const IMG_HOST_RE = /^(images|static)\.(openfoodfacts|openbeautyfacts|openproductsfacts|openpetfoodfacts)\.org$/;
+const IMG_MAX = 400;
+
+async function pruneImageCache() {
+    const cache = await caches.open(IMG_CACHE);
+    const keys = await cache.keys();
+    if (keys.length <= IMG_MAX) return;
+    // `keys()` is in insertion order: the oldest leaves first.
+    await Promise.all(keys.slice(0, keys.length - IMG_MAX).map((k) => cache.delete(k)));
+}
+
+async function imageCacheFirst(request) {
+    const cache = await caches.open(IMG_CACHE);
+    const hit = await cache.match(request, { ignoreVary: true });
+    if (hit) return hit;
+    const res = await fetch(request);
+    if (res && (res.ok || res.type === 'opaque')) {
+        const clone = res.clone();
+        cache.put(request, clone).then(pruneImageCache).catch(() => {});
+    }
+    return res;
+}
 
 async function networkFirst(request) {
     try {
@@ -76,6 +150,13 @@ async function networkFirst(request) {
 
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
+    // Product photos first: they are remote and immutable, and the branch below would
+    // ignore them (another origin). Cached here, a row paints instantly the second time
+    // and still paints with the network down.
+    if (event.request.method === 'GET' && IMG_HOST_RE.test(url.hostname)) {
+        event.respondWith(imageCacheFirst(event.request));
+        return;
+    }
     if (url.origin !== self.location.origin) return;
     if (url.pathname.includes('/api/')) return;
     if (event.request.method !== 'GET') return;

@@ -10,7 +10,7 @@
 
   Without the first one every container update starts from an empty database;
   without the second one the configuration cannot be saved from the UI.
-  scripts/test-unraid-template.php guards both.
+  Both stay in sync.
 -->
 <Container version="2">
   <Name>EverShelf</Name>

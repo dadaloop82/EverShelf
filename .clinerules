@@ -16,8 +16,8 @@ read `docs/wiki/Support-and-ads.md` before touching `SUPPORT_*` / `ADS_*`.
 
 | File | Size | How to navigate |
 |---|---|---|
-| `assets/js/app.js` | ~29 200 lines | `docs/INDEX-app-js.md` (function → line), then a ranged read |
-| `api/index.php` | ~20 600 lines | `docs/INDEX-api-index.md` |
+| `assets/js/app.js` | ~46 000 lines | `docs/INDEX-app-js.md` (function → line), then a ranged read |
+| `api/index.php` | ~25 100 lines | `docs/INDEX-api-index.md` |
 | `index.html` | ~2 770 lines | `grep -n` for the id you need |
 | `CHANGELOG.md` | ~2 280 lines | never read whole; `head` it or anchor an edit on the top heading |
 | `translations/*.json` | ~130 KB each | `python3 -c` + `grep` on the key, not the whole file |
@@ -33,20 +33,563 @@ runtime/binary files — if a task truly needs one, ask first.
   added to **all six** locales (it, en, de, fr, es, zh). Optional UI text coming
   from PHP returns a `hint_key` (+ `hint_args`) / `tip_key` / `reasons[]`, never a
   literal string.
+- **The state of the HOUSE lives on the SERVER, never in `localStorage`.** A phone, a
+  tablet in the kitchen and a kiosk on the wall are one household: the stocktake you left
+  half-done at the fridge, the setup ledger (`setup_done` / `setup_seen`), the deleted
+  places (`app_settings.deleted_locations`), a dismissed shopping row — all of it is read
+  from the server, or the second device starts from scratch and the user is asked to do
+  again what he already did (`evershelf_audit_resume` was the last one: a run of 195 rows
+  began on the phone and a fresh browser answered «Riprendi l'inventario (195 rimasti)»
+  only after the blob moved into `app_settings.audit_state`, with `GET audit_state` /
+  `POST audit_state_save` / `audit_state_clear` and the TTL owned by the server).
+  `localStorage` is allowed as an **offline mirror** (and for what is genuinely of that
+  device: the chosen mode, a UI preference) — never as the truth.
+- **A demo answers by DATA, and never asks.** `DEMO_MODE=true`, `?demo=1` or a `/demo`
+  mount (`api/lib/demo.php`) serve `data/demo/evershelf-demo-<lang>.db`, seeded from
+  `api/lib/demo_seed.json` and rebuilt once a day; `data/evershelf.db` is never opened.
+  The demo's `app_settings` carry every answer the first run would ask for
+  (`setup_done`, `setup_seen` at the current `askVersion` of each assistant question,
+  `med_setup_done`), because a showcase interrupted by the wizard or by «💊 Farmaci in
+  casa?» is a broken showcase; outside the demo the assistant keeps asking the
+  undecided options at startup. `get_settings` **blanks** what the host `.env` would
+  reveal (rooms, coordinates, e-mail, TTS/AI endpoints, HA, Mealie, personal prefs),
+  the spend ledger is `data/demo/shopping_spend-<lang>.json`, shopping is always the
+  internal list (`isShoppingBringMode()` refuses Bring!) and every GET the screens
+  call must be in `evershelfDemoReadOnlyActions()`, or the demo answers it with the
+  write no-op and the screen goes blank (that is how `med_status` broke the medicine
+  switch).
 - **Backend**: every HTTP action is one `case` in `switch ($action)` in
   `api/index.php` (+ its handler function below). Errors → `{"success":false,
   "error":"..."}` inside the existing global try/catch; never print HTML before
   JSON. Log with `EverLog::info/warn/error/debug/exception` and a
   `['event' => 'snake_case_key']` context — never `error_log`/`var_dump`.
+  **Client lines: three levels, two rivers.** `remoteLog()/scanLog()/_kioskTrace()` →
+  `[ts] [INFO |WARN |ERROR] [device] tag text` in `data/logs/<source>-YYYY-MM-DD.log`,
+  the source declared by the client (`app` | `kiosk`, WebView lines **and** native reports
+  together), because an Android WebView claims to be a phone in its User-Agent.
+  `LOG_LEVEL` filters, `EVERSHELF_LOG_KEEP_DAYS` (14) rotates, `?log=debug` raises one device.
 - **Security**: new action → add it to the right allow-list in
   `api/lib/security.php` only when intended. Never trust client headers
   (`Origin`, `Referer`, `Sec-Fetch-Site`).
+  **A public action authenticates itself, or it does not exist.** `gemini_usage` answered
+  before the router and forgot the token (`evershelfRequireAuthForSensitive`) — check a
+  pre-router branch the moment you add one. The Telegram webhook verifies the
+  `X-Telegram-Bot-Api-Secret-Token` Telegram echoes back (`TELEGRAM_WEBHOOK_SECRET`) and
+  **refuses to answer with no secret and no allowlist**; the Drive callback requires the
+  OAuth `state` we issued (`api/lib/gdrive_state.php`: 32 random bytes, only the SHA-256 on
+  disk, 10 min, single use, one flow at a time) *before* it talks to Google; `ALLOWED_HOSTS`
+  is the DNS-rebinding guard (opt-in) and an install with no `API_TOKEN` now *mints* one on
+  its first request (`evershelfEnsureApiToken`, `ALLOW_OPEN_LAN=true` opts out) — never let
+  a token point at a URL matched by prefix (`evershelfSameOrigin`), and never hand one to a
+  third party (the pairing QR is drawn by `api/lib/qr.php`, not by a public service).
 - **Frontend**: plain JS, `escapeHtml()` before any `innerHTML`; no inline
   `onclick` with unescaped data; use the `api(action, payload)` wrapper (app.js
   ~line 5384).
-- **Product titles** (`products.name`/`kind`) go exclusively through
+- **UI grammar**: one emerald (`--brand-primary`) per action strip for the action
+  that writes the outcome, neutral secondaries for the rest, no pastel per-button
+  colours; every banner action stays inline (never behind a ⋮). A product row opens
+  with `_productThumbHtml()` — whose 44×44 frame (category emoji under the picture, never
+  a broken image, never an empty square) becomes the **left quarter of the card**: full
+  height, clipped by the card (so the card's corners are the photo's), the picture scaled
+  150% and pulled 50% left so its **centre** lands in the opaque zone (`margin-left = width
+  − 100%`) and a long `mask-image` dissolving it before the first letter. The strip and the
+  text gutter read **one** custom property (`--row-photo-w`), so they can never drift: shrinking
+  only the padding is how the first letter ended up printed 62 px INSIDE the picture on a phone.
+  Every text line reads that same gutter (`calc(--row-photo-w + 1%)`), the strip walks a
+  **ladder** as the card narrows (18% → 14% → 10% → **5%**, its floor) and the kiosk band's
+  40 px tile is the same variable — the sheet keeps its own 74 px (its 64 px photo is the
+  lightbox target); **no photo → the category emoji takes the same strip**, same size and
+  dissolve, so a list never changes shape; all cards
+  are the same height (name clamped to two lines, meta to one, 62 px floor on the top
+  block — skipped on the touch-tablet/kiosk band, where the action strip stays on the right
+  at full width **as long as the card has room**: the band's text block carries a floor
+  (`.inv-card-top` 15rem, `.alert-item-info` 11rem) and both containers `flex-wrap: wrap`, so a
+  narrow card drops the strip to a second line instead of squeezing the name into «A u r e .»
+  one letter per line — and below 640 px a touch window is a PHONE, not a tablet: `mobile.css`
+  stacks the row like the phone card. Never a row whose article name is unreadable). The rules
+  live in `assets/css/surfaces.css` next to `.product-thumb`, and
+  Home and pantry share **one list grammar**: `.urgency-hub` / `.alert-section` are plain
+  sections, every `.alert-item` is a card with the pantry's chrome — and the chrome is
+  **tokens**: `--es-radius-card` / `--es-shadow-card` (18 px, what `elegant.css` gives
+  `.inventory-item`), never `--radius` / `--shadow` (24 px); title `0.95rem` and meta
+  `0.84rem` in both, and **the two facts a row is read for are the biggest things in it**:
+  the stock chip `0.95rem/800` (mint pill), the date `0.9rem/800`, the same in the Home's
+  badges — a 34 px action line absorbs both, so every row stays 132 px (measured 320 → 1200);
+  `.alert-item-badges` has a **34 px floor**; `.alert-item + .alert-item`
+  must not zero `border-top` (1 px shorter every row); the brand lives **inside** the name
+  (`_alertItemHead()`), never as a flex sibling (a third line, +18 px). Every one of these
+  was wrong once: the Home lists measured 149.86 / 131 / 132.86 / 120.8 / 190.8 px against
+  the pantry's 132, now 132.00 × 5. **When the card is too narrow it sheds, never wraps**:
+  the long labels are compact **by construction** (not by a media query) — "🕓 4gg" for the
+  opened age, "⏰ Scade fra 12gg" / "⚠️ 12 gg fa" / "📅 ~3 mesi" / "✅ Stabile" for the expiry
+  (the full sentence in the `title`, the exact date in the tooltip) and "📦 2 pz" for the
+  stock, unit abbreviated per language
+  (`dashboard.days_short`, `expiry.badge_expiring_short`) — the strip walks its ladder and
+  only below 480 px does the brand go: the product name is never sacrificed. That is a
+  **media query** on purpose: `container-type: inline-size` on the row collapsed the pantry rows
+  in the touch-tablet band (296 px instead of 600) because that band sizes its columns by
+  content.
+  A **medicine** opens
+  with its own drawn
+  mark (`_medIconMarkup()`, `assets/img/icons/medicine.svg`), never a food emoji:
+  same for the plain emoji slots (`_productCatIconHtml()`), the `badge-medical`
+  badge and the place icons (`_locIconMarkup()`), where the cabinet is the pill.
+- **A row opens on a tap, never on a scroll.** `_initInventoryRowSwipe()` is the one touch
+  grammar of the pantry: 10 px of vertical travel means "scroll" (`INV_TAP_SLOP_Y`), a
+  `pointercancel` is never a tap, and the gesture must not have moved `.inv-scroll`
+  (`scrollTop`). `touch-action: pan-y` stays on the list. Only the **right** swipe exists and
+  it opens the same product sheet the tap opens — no left swipe, no "Cosa vuoi fare?" chooser.
+- **In the shopping list two gestures, two meanings.** Left (`≤ −52 px`) is **comprato**
+  (`_shopRowBought`, it writes the stock), right (`≥ 52 px`) is **non lo compro**
+  (`removeBringItem`, the dated dismiss). No third zone: a long right swipe used to open the
+  scanner, which is why the gesture felt doubled (`markShoppingItemBought` is gone).
+- **A Home row is ONE card, whichever tab it is in.** «In scadenza», «Scaduti», «Aperti» e
+  «Dimenticati» are tabs of the same block: `[photo] [name + brand / place · 📦 stock · extra]
+  [state badge] [✓ Usa] [⋮]`, 132 px in every list (text block 62, action line 34 — measured at
+  360 / 393 / 800 px). ONE builder for the pill — `_alertStateBadge(days, { date, vacuum, cls })`,
+  the compact relative verdict of «In scadenza» with `today/expiring/expiring-soon/expiring-later/
+  expired` and the exact date in the tooltip — and ONE for the actions, `_rowMenuButtons(item)`
+  (it also accepts the `inventory_id` shape of the forgotten endpoint). A list's own extra fact
+  goes in the TEXT line via `_alertItemMeta(item, extra, { qtyText, extraTitle })`, never as a
+  fourth chip: «Aperti» shows `🕓 18gg` there, «Dimenticati» its unused age.
+- **Each banner reason wears its own soft tint.** The notice strip at the top was neutral for every
+  kind, so an open yoghurt, a loss check and a prediction were the same card with different words.
+  Every reason sets ONE variable (`--banner-hue`) on the banner class — `banner-opened` +
+  `is-warn`/`is-critical`/`is-cook`, `banner-expired-danger/-warning/-ok`, `banner-review`,
+  `banner-prediction`, `banner-anomaly`, `banner-finished`, `banner-dup-loss`, `banner-no-expiry`,
+  `is-medical` — and `surfaces.css` paints one soft wash of it (12 % → 4 % over `--surface-bg`,
+  24 % → 8 % in dark). The theme still owns the paper and the left rail keeps the urgency. New
+  reason → a class on `#alert-banner` + one hue line; never a gradient in the theme.
+- **The Home lists wait with the SHELFY skeleton, like the shopping list.** `#stock-hub` starts
+  `hidden` and `_syncStockHub()` sizes it from the rows it finds — zero while the request is in
+  flight — so the skeleton used to animate inside a hidden panel. `_stockHubLoading()` shows the
+  block and paints `_listSkeletonHtml()` into **all three** lists, ONE panel on screen, tab counts
+  blank (a «0» is a lie); `_stockHubSettled('expiring'|'opened'|'stale')` gives it back to
+  `_syncStockHub()` when the last list answers (empty → hidden, error → skeleton removed,
+  `_stockHubSelect()` counts `.list-loading` as content). The boot's first-paint wait is bounded by
+  `_SPLASH_DATA_WAIT_MS` (2.5 s), or a slow answer hides the animation behind the splash entirely.
+- **A medicine's active ingredient wraps, it is never cut.** Asked for: «capita che il principio
+  attivo va fuori dallo schermo in larghezza non va bene, mettilo accapo!». A medical row
+  (`.inventory-item.is-medical-row`) wraps its meta line (`white-space: normal; overflow-wrap:
+  anywhere`) instead of the pantry's single ellipsised line; the sheet's `.item-detail-med-facts`
+  is a wrapping flex row whose pills wrap inside themselves (`mobile.css` used to make it one
+  horizontally scrollable line with a hidden scrollbar). Food rows keep their one line.
+- **The shopping list wears the SAME row as the Home.** `[photo strip] [name + brand / 📦 stock ·
+  🛒 qty · 🍃 waste · 💶 price] [state] [✓] [✕]`, 132 px like the pantry: `_shopThumbHtml()` →
+  `_productThumbHtml()` (same `--row-photo-w` ladder, same dissolve), `_shopRowMetaHtml()` for the
+  text line (the qty stays a tap target for `_shopQtyPopover`, the price for `showPriceDetail`),
+  `_shopRowStateBadge()` for the ONE pill (`.alert-item-badge` metrics, every row has one) and the
+  Home's `✓` + `✕`. No coloured rail: the pill is the urgency. The padding lives on
+  `.shop-row-main`, so the strip fills the card's corner. Swipe untouched (left = bought, right =
+  not buying it); `_initShopRowActions` listens for `[data-act]`.
+- **A medicine in the shopping list is not a tomato.** It has its own shelf (`SHOPPING_SECTIONS`
+  → **💊 Medicinali**, before «Altro», chosen by `getItemSection()` through `_shopRowIsMedical()`)
+  and the notice strip's indigo tint (`.shop-row.is-medical` / `.smart-item.is-medical`, gradient
+  ONLY: `.shop-row` is `--bg-card`, `.smart-item` is `--es-surface-tint`, the theme owns the paper),
+  while the urgency rail stays the authority on HOW urgent it is. `smartShopping()` returns
+  `is_medical` and `smartShoppingCached()` refuses a payload without the `medical_sections` marker;
+  a row typed by hand is matched against the pantry («Tachipirina» → «Tachipirina 1000 mg
+  compresse»), never on a two-letter stub.
+- **A peripheral that cannot work says why, in small red.** `_techReason()` puts the engine's own
+  words (`diag.*`, six locales + the raw detail the log carries) under the sentence that already
+  exists: `#capture-tech` (mic), `#scan-nocamera-tech` (camera, from `_cameraDiag` via
+  `_syncScanNoCameraChrome()`) and the cooking voice card (`diag.speaker_tts`). The reasons are
+  real — `SpeechRecognition` absent, kiosk WebView, permission denied, **`audio-capture`** (no
+  microphone: `capture.mic_missing`), missing `getUserMedia` with `secure_context=no` (the plain-HTTP
+  LAN install), no device, driver error — and `_captureSyncMicAvailability()` logs the mic state
+  once per change (`[SHELFY] mic unavailable: …`), so «il tablet dice che non ha il microfono» has
+  an answer in the log.
+- **No camera, medicine panel: the typed AIC is the door.** `_setScanModeInner()` opens the hand
+  entry at once (`medical.code_no_camera` replaces «inquadra l'etichetta») and the medicine action
+  bar keeps its place, because the rescue card needs a stream that is not there. The lookup is the
+  scan's own (`_medSubmitCode` → `_medConfirmRead`): same catalogue verification, same near-match
+  picker, same name fallback.
+- **A purchase is always dated, and its quantity must not be waste.** Every write into
+  `inventory` infers the best-before date when none was typed (`inventoryInferExpiryDate()`,
+  stored as an estimate, `expiry_user_set = 0`; never for a medicine) — `migrateDB` dated the
+  rows already stored without one. And when the suggested quantity would outlive the food,
+  `smartShopping()` attaches `waste` and the row prints the smaller amount beside it
+  (`🍃 (2 pz)` + `shopping.waste_hint`), emerald and never red: nothing is lost yet.
+- **The shopping list must not fight itself.** Three things add or drop a row —
+  `internalShoppingAutoAddCritical()` (cron), `internalShoppingPruneCovered()` (every
+  `shopping_list` READ) and `bringQuickSyncProduct()` (every inventory WRITE) — and they must
+  answer with ONE predicate, `evershelfShoppingRowStillNeeded()` (+ the family stock), never with
+  a second copy. **No cache = no knowledge**: `shopping_remove` unlinks
+  `data/smart_shopping_cache.json`, and while it was gone the read-path prune and the quick sync
+  read "no cache" as "nothing is needed", deleted every app-managed row whose family was stocked
+  and let the next cron put them back — «mette e toglie», 14 → 2 rows while the cron logged
+  `added: 8` twice. Both now return early on an empty smart index (test the ITEMS:
+  `evershelfSmartItemsIndex([])` is `['exact'=>[], 'token'=>[]]`, never `[]`), and the two events
+  log `shopping_prune_covered` / `shopping_quick_sync_no_cache`. **A pack row counts PACKS**:
+  `shoppingUnitIsPack()` (`conf`, `pz`, `busta`, `pacco`, `barattolo`, `confezione`, `pezzo`) is the
+  one vocabulary for the daily-rate guard, the coverage rule and `SMART_PACK_REF_QTY_MAX` — without
+  the `conf` branch a gram log written as `conf` (597 consumed, 86 per purchase) made «Panna da
+  cucina» read `near_empty:6 · ends_in:0` with SIX packs on the shelf.
+- **The plan says HOW MUCH, the trip says WHEN.** `plan_days` (`shopping_plan_days`, the
+  «quantità calcolate per 30 giorni» number) is a QUANTITY horizon. It was also used as the
+  urgency window, so a pantry planned for a month was told «🟠 Presto» about everything that
+  would be finished within a month: 5 apples, 6 tomatoes, 6 packs of cornstarch, 500 g of
+  honey, a 30-day muesli. `smartShopping()` now flags at `$signalDays` — the household's own
+  trip cycle (`smartDefaultPlanDays()`, the inferred spesa rhythm), floored at 7, capped by
+  the plan, 14 with no evidence — in the high-use rule, the predictive block, the buy-cycle
+  block and (now one block instead of the 28/21-day staple radar) the "on the radar" one.
+  A row also answers for the ARTICLE: `days_left` is `familyUsableQty / dailyRate` when the
+  family holds more than the row (two tomato rows are six tomatoes, not «ends_in:5»), while
+  what EXPIRES keeps the row's own number (`$daysLeftOwn`). Measured on a real pantry:
+  31 → 18 suggested rows, and the six reported (avocado, tomatoes, apples, cornstarch,
+  honey, muesli) are gone.
+- **A family is measured AND counted.** `evershelfFamilyUsableStockQty()` (and the
+  `smartShopping()` map it reads) answers twice and keeps the larger: MEASURED (packages
+  expanded with `evershelfBaseQty()`: 4.5 avocados × 160 g = 720 g) and COUNTED
+  (`shoppingUnitIsPack()`: packs and pieces as such). `default_quantity` on a `pz` row is
+  often what ONE piece weighs, so the expanded grams left «Avocado Hass» at 0 of every unit
+  while 4.5 avocados sat in the fridge, and 2 mozzarellas could not cover a 1 kg pack. The
+  family is still the stored `shopping_name` and nothing wider — a title word is not proof
+  (a «Muesli … e miele» box must not answer for the honey), and `productMatchesShoppingFamily()`
+  accepts a generic and its own truncation («Pan» / «Pane»), because an exact comparison
+  threw 23 slices of bread out of the «Pane» family.
+- **«🛒 Esaurito» is a decision, and a refilled shelf ends it.** `bringAddDepletedProduct()`
+  always adds when the household says "I finished it", and `evershelfSpecIsDeliberate()`
+  keeps that row from every prediction. It was kept even after the same article came BACK
+  into the pantry, so «Banane · 🛒 Esaurito» sat next to three bananas and «Burro · 🛒 Esaurito»
+  next to a pack of butter. Both prune paths (`internalShoppingPruneCovered()` on every read,
+  `internalShoppingCleanupObsolete()` in the cron) now ask `evershelfFamilyBackInStock()` —
+  the family's own scale, one whole pack (or half a package for g/ml), fresh and above the
+  trace threshold — and clear the row on that evidence, logging
+  `shopping_finished_row_cleared`. A prediction never removes it; a shelf does.
+- **A write that dies in flight is queued, never dropped.** `api()` hands a failed write to the
+  offline queue (`_queueWriteAfterNetworkFail`), so a purchase marked while the phone was
+  offline survives; `_syncOfflineQueue()` replays it at boot, on `online` and when offline
+  mode is left. One list (`_OFFLINE_QUEUEABLE_ACTIONS`) for both paths.
+- **A strip that says «Sincronizzato!» carries no «Riprova».** `_paintOfflineStrip()` paints
+  the orange «sei offline» state and the green «sincronizzato» one; the retry button asks the
+  server again, so it belongs to the ORANGE strip only. It used to come back exactly on the
+  green one: `_exitOfflineMode()` removes `body.offline-mode` (whose CSS was the only thing
+  hiding it) *before* the green state is painted. `_paintOfflineStrip()` now sets
+  `hidden` on `.offline-banner-retry` for `synced` (and `_renderOfflineBanner()` restores it
+  for `down`), with `.offline-banner.is-synced .offline-banner-retry` as the CSS twin.
+- **The stocktake asks each ARTICLE once per SHELF, not once per pack.** 17 groups of the same product in the same place exist in a real pantry (Amido ×3, Limone ×3, il tonno, i dadi…), and one card per ROW asked the same name twice («poi mi richiede le stesse cose che ho già confermato»). `_auditAnswer()` stamps every pack of that article in that place (`entry.siblings`), queues ONE write per pack for «Finito»/«Andato a male» (`inventory_use` empties one row per call), counts ONE answer, advances past the packs it covered (`_auditAdvancePastAnswered`) and `_auditUndo()` reverts the whole answer (`entry.rows`). Another SHELF stays another question.
+- **A card of a row already answered says so, and is not a question.** A barcode read twice, a pack line of «Anche in» (`_auditOpenPack`) or a name picked again (`_auditSearchPick`) opens the card of a row that IS in the ledger; it used to look identical to an open one — emerald «Confermo …» and all — and pressing it counted nothing and closed the sheet, which the household reads as "the app ignored my tap". `_auditRender()` now paints `_auditAnsweredHtml(kind, at)` (mint line: the ANSWER KIND + the hour from `entry.at`) and gives the card two doors only: «↩ Cambia risposta» → `_auditReopen(id)` (reverts that answer through `_auditRevertEntry()` — shared with `_auditUndo()`, so queued/sent writes, siblings, ledger and tally are undone the same way — then puts the question back) and «Avanti →» → `_auditNext()` (the step a real answer takes, counting nothing). «Salta» and «Indietro» are hidden there: they would duplicate the forward door or undo a DIFFERENT row. `_auditOtherPacksHtml()` marks the answered packs with a mint ✓, because «Amido di mais ×3» opens three cards.
+- **A barcode points at an ARTICLE, not at a package.** A product standing in several packs must never show only the one on screen: the product sheet's «Anche in» block (`_itemDetailOtherPlacesHtml`) reads the WHOLE pantry (`_allInventoryCache`, never the place the list is filtered to), one line per ROW with place, stock and expiry, the line itself opens that pack's sheet (`_itemDetailSwitchPack`) and the ✏️ edits that row; the head adds the total across the packs (`_itemDetailTotalPacksHtml`). The stocktake card lists them too (`_auditOtherPacksHtml` → `_auditOpenPack`, mode `pack`) and `_auditFinish` returns to the run instead of closing it. «6 pz» on a shelf that also holds a 30-pack is half the answer (report: i dadi di brodo).
+- **One discard sheet.** `openWasteSheet()` → `_showWasteRecordModal()` (quantity + the four
+  reasons) is every "Butta": row, banner, swipe, action page. A medicine keeps its short
+  confirm. Never re-add `showThrowForm()` / `throwAll` / `throwPartial`.
+- **The shelf wins over the guess.** The anomaly banner's primary is `confirmBannerAnomaly`
+  (`✓ Confermo {inv_qty}`: it writes nothing, the ledger figure is a guess), and dry staples
+  (`evershelfIsDurableStaple`, ≥ 180 days sealed) raise no predictive notice at all.
+- **A drink past its drinking window is an ingredient.** When the PAO table declares
+  `cook_after` (the wine family, 10 days) the summary carries `cook_only` + `cook_hint_key`:
+  the opened strip leads with the emerald **🍳 Usa per cucinare**, **🗑️ Butta** stays inline
+  as a neutral secondary, the drinking window is not printed and the row drops below a really
+  spoiled one (`_bannerPriority` 1400+). Recommending the bin on 126 ml of white wine is the
+  opposite of what a pantry is for. The same table carries each family's `icon` (🍷/🍺/🥃) →
+  `pao.icon` / the pantry's `family_icon` / `_productFamilyIcon()`: a wine is never 🥤.
+- **A medicine may stand in the alert strip, and it is never a food surface.** Its clock is the
+  PAO printed on the pack (`med_pao_days`, which `_openedPao()` asks FIRST — the food table
+  would lend a vial 20-45 days; `0` on tablets raises no clock at all), the card wears
+  `is-medical` (an indigo tint over `var(--surface-bg)`, light + dark) while the rail and the
+  title keep saying how urgent it is, the limit is ONE number (`medical.banner_opened_limit`,
+  «da usare entro 1 gg dall'apertura», never the «1-1 gg» of a monodose vial), and the strip has
+  no 🍳 and the ⋮ no «✓ Segna come ancora buono»: you do not cook a drug, and how long an open
+  pack stays usable is printed on the box. **A single-dose form has no period after opening**
+  (`data/medical_pao.json` → 0 for `fiala` / `monodose` / `flaconcino` / `siringa preriempita`):
+  the container is used in one go and the pantry's row is the BOX, so a 6-dose pack of glycerol
+  («6 CONTENITORI MONODOSE», 4 pz left, printed date 2028) read «da usare entro 1 gg
+  dall'apertura» and a sealed box was declared expired; `migration_med_pao_single_dose_v1`
+  re-derives the stored `1` (only that exact value, and only where the form now says 0).
+- **A genre is never a CLASS.** The title prefix comes from the dictionary and, only when that
+  misses, from one AI word — and an AI word must be a genre: «Integratore alimentare»,
+  «Parafarmaco», «Dispositivo medico» are **classes** and live in the vocab's
+  `umbrella_labels` (data), which `productKindIsPlausibleGenre()` refuses (exact and as the head
+  of a longer phrase) and `productKindStripUmbrellaCategoryPrefix()` strips. The AI's answer is
+  validated **before** it is cached: it used to be stored, so the signature cache replayed
+  «Integratore alimentare» for every supplement and titled a box of glycerol «Integratore
+  alimentare glicerolo CARLO ERBA» (`products.kind` = the class).
+  `migration_strip_kind_class_prefix_v1` healed the titles already written (3 on the field
+  install), and `data/product_kind_cache.json` had the poisoned entries removed.
+- **A medicine is not a second app.** Its edit sheet wears the food sheet's shell
+  (`edit-inventory-modal`: same header with the photo, `.edit-section-label` sections, the
+  stepper + unit select, `.edit-form-actions` Annulla/Salva) — the `is-medical-edit` compaction
+  went with the old markup — and its stocktake card («uno alla volta») carries the **bold AIC
+  and then the CATEGORY** (`_auditMedCategoryOrIngredientHtml`: «🔖 A002039055 · Primo
+  soccorso»), never the AIFA active ingredient («CLORTETRACICLINA CLORIDRATO»): at the shelf the
+  household reads what the box is FOR, and a hand-added box with no category falls back to the
+  ingredient. **The unit is editable** (pz / g / ml; `conf` is not offered — the pack is
+  `#edit-med-pack`) and sits right under «Confezione», beside the stepper; g and ml carry the
+  same **`~`** the row badge shows («~g» / «~ml»), because a medicine is not weighed to the
+  gram. **The PAO table is multilingual by DATA** (`data/medical_pao.json` v3): every rule's
+  `match` is a `lang => [words]` map and `medicalPaoRules()` flattens **all six languages
+  together**, because the NAME comes from the catalogue (AIFA is Italian, openFDA is English)
+  while the UI language may be another one; matching is **whole-word and accent-folded**
+  (`medicalPaoWordMatches()` / `medicalPaoFoldText()`: «comprime» finds «comprimé», «gel» no
+  longer fires on «Angelini») and a `*` marks a compound (`*saft` → «Hustensaft», `*salbe`,
+  `*tabletten`), which is how German writes its forms. **«Aperta da» answers
+  with what was chosen**: `medical.opened_expiry_days` / `opened_no_pao_days` («Aperto da 14 gg:
+  scade il …»), because the toast said «Aperto oggi» whatever the answer was.
+- **A medicine row gives up its images and symbols before its name.** Below 768 px the cabinet's
+  rows drop the drawn form mark (the row's «image»), the badge glyphs (🕓/🛡️/⚠️ — the words stay:
+  «8gg», «Scade fra 12gg») and the *empty* ☆, and `--row-photo-w: 0` hands the strip's width back
+  to the text: the name goes from 260 to 311 px at 393 (measured), the actions (✓ Usa, ⋮) stay,
+  and a favourite medicine keeps its ★ (state, not decoration). The favourite control then lives
+  in the medicine edit sheet's header (`_medToggleFavFromSheet`), so a phone never loses it.
+  Food rows are untouched: it is `@media (max-width: 767px)` + `.is-medical-row`, in
+  `mobile.css`.
+  Food keeps its two thresholds, printed once when a
+  table declares the same day twice (`dashboard.banner_opened_limit_flat`).
+- **The opening window is editable, and it learns from the household.** The pantry edit sheet
+  carries «consigliato entro \_[warn] → [critical] gg\_» (`pao_get` / `pao_save` / `pao_reset`,
+  `api/lib/pao_overrides.php`, table `pao_observations`): one row per product × family × place,
+  and the value the pantry then uses is the **AVERAGE** of the corrections for that family in
+  that place (`paoAverageMap()` → `openedShelfLifeThresholds()`), never the last tap — a single
+  correction nudges the category instead of rewriting it. No observation → the data table
+  (`data/opened_shelf_life.json`) answers exactly as before; «↺ Riporta ai valori consigliati»
+  clears the family. The hint says where the number came from («suggerito dall'app» vs «media
+  delle tue N correzioni»), because a value nobody can explain is a value nobody trusts.
+- **A `conf` row has two units.** A pack sold in g/ml (`_packMeasure()` from
+  `default_quantity` + `package_unit`) is consumed by the pack **and** by its own
+  measure: the product sheet carries the `Confezioni | ml` switch
+  (`_itemDetailPackSwitchHtml` / `_itemDetailSetEntryUnit`), the scale applies to it
+  (`_scaleApplyToItemDetail` writes the fraction of the pack), and a number typed in
+  the wrong unit is understood, never clamped (`250` in a 1 l "Confezioni" field is
+  250 ml, not "ho finito tutte e 12"). `_captureQtyFor` converts a dictated amount
+  through the same pack.
+- **An opened pack has a place.** A partial use creates a pack of its own, so the sheet (and
+  the legacy USE page, and the recipe flow) **always asks** where it went (`_showMovePrompt`):
+  the presumed answer is the product's habit and then its **genre**
+  (`_preferredMoveChoice`, product key `id|from`, genre key `kind:cat|from`), and the control
+  carrying it drains with the seconds printed — **the clock IS the confidence**
+  (`_moveHistoryConfidence` from the last five choices × the source: the product's own habit, the
+  genre at 0.55, nothing at 0 → `_movePromptSeconds` maps it linearly to **2…20 s**: 4× the same
+  place = 2 s, one sample ≈ 9 s, a genre ≈ 10-13 s, no history = 20 s and the pack stays where it
+  was) — and any touch cancels the clock. Never apply a move in
+  silence: `showMoveAfterUseModal(..., { stayPut: true })` from the product sheet keeps the
+  household on the pantry instead of jumping to the dashboard.
+  **"Se è finito è finito":** the question belongs to a portion that really stays on the
+  shelf, so `_movePromptHasPortion(remaining, unit)` refuses it when nothing is left (`0`),
+  when the leftover is a trace the pantry itself already calls finished
+  (`isInventoryDepleted`), and when a `pz` row still holds whole pieces — no pack was opened,
+  and "la confezione aperta" about three eggs is a lie (a half piece still asks). A skipped
+  question never strands the caller: `landing` is honoured and both move contexts are cleared.
+- **A `pz` row is judged by the FRACTION of a piece, never by `default_quantity`**: on a `pz` row
+  that number is often the pack's WEIGHT (Pan Bauletto `pz` with 400 made **20 pieces** read as
+  «0.05 of a pack → opened» and **5 pieces** as «sealed», the two answers the wrong way round).
+  «Opened» is `opened_at`, or half a piece / half a package; only `g`/`kg`/`ml`/`l` compare
+  against `default_quantity`. And using PART of a perishable `pz` row stamps `opened_at` in
+  `useFromInventoryCore` (the bag of sliced bread really is open) — the 9999 sentinel (salt,
+  sugar, a detergent) never is.
+- **The product sheet leads with the package.** Its head is a 64×64 thumbnail (12 px radius)
+  that opens the photo **full screen** (`openProductImageLightbox` → `#image-lightbox`, Esc or a
+  tap outside closes it), then the title, then the **brand on its own line** (`.item-detail-brand`)
+  — never `Pan Bauletto (Mulino Bianco)` flattened into one grey sentence. The edit sheet shares
+  the grammar: `.modal-content` body at `85vh` that scrolls, 20 px padding, 14 px between groups
+  and 6 px under a label.
+- **A voice turn has a clock.** `CAPTURE_TIMEOUT_MS` (15 s) with a status line that says what it
+  is doing (`capture.thinking_step_2` / `_3`), then the fallback card: the transcript quoted back,
+  the emerald **💬 Continua nella Chat** (`_shelfyHandOverToChat()` writes it into `#chat-input`
+  and sends it) and a neutral **🔄 Riprova a voce**. A late answer is dropped by `_captureTurnId`,
+  so no sheet ever opens behind the card, and "non ho capito" shows the same two ways forward.
+- **In cooking mode the microphone starts OFF.** `startCookingMode()` never arms the recogniser
+  (`_cookingVoiceAuto = false`): the 5 s auto-start was a chime over the recipe for a mic nobody
+  asked for. A card on the 🎤 says, at every open, what it does and that it is off, and it fades
+  after **5 s**; only the tap turns listening on (`_cookingVoiceCommand`, `aria-pressed`), a
+  second tap mutes, and closing the recipe resets it. After a command it re-arms once the step's
+  TTS is done.
+- **The pantry filter has ONE place control.** The macro pills (Food | pharmacy) + the room menu
+  (`_locFoodMenuToggle`) — a **fixed** layer placed by `_locFoodMenuPlace()`: inside the
+  horizontally scrolling `.location-tabs` an absolute panel is clipped and the tap reads as "il
+  dropdown non si apre". No second row of place chips. Grouping is a separate, quiet switch
+  (`Categoria | Posizione`, `_inventoryGroupBy` → `renderGroupedByLocation()`): it **reorders** the
+  rows, it never filters, and it hides itself while one place is open.
+- **No swipe in the Home.** The dashboard rows open on tap/hold (`_bindRowHoldOpen`); the
+  horizontal swipe lives only in the pantry list (`_initInventoryRowSwipe`), where nothing scrolls
+  sideways. A card that already carries `✓ Usa` does not need a gesture.
+- **The settings page is a control panel, and it has NO Save button.** Six sections
+  (`SETTINGS_GROUPS`: general, cooking, ai, medical, alerts, system) in a rail — a sticky 212 px
+  sidebar on a monitor, a swipeable pill strip on a phone — with the open section's topics as
+  chips; `_syncSettingsTabsVisibility(group)` is the ONE visibility rule (the section switch and
+  `_syncSettingsGroupForTab()` both call it: skipping it on a fresh boot is what left all 18
+  chips of 18 tabs on screen). Above the rail, never behind a tab, the **four essentials**
+  (`_renderSettingsEssentials()`: masked token + reveal/copy, pairing code, last backup +
+  «Backup adesso», version). **Every control writes itself**: `_initSettingsAutosave()` is a
+  delegated listener on `#page-settings` (checkbox/select at once, a field 700 ms after the last
+  keystroke) and the saver is the nearest `data-autosave="fn"` on the card or panel
+  (`saveNotifySettings`, `saveHaSettings`, `saveCalendarSettings`, `saveTelegramSettings`,
+  `saveWebPushSettings`, `saveHealthProfileFromSettings`), `data-autosave="none"` for a module
+  that already persists itself (EverShelf Med), else `saveSettings()` — which is ONE write at a
+  time and returns whether the server accepted it. `#settings-savebar` is the receipt
+  (pending/saving/saved/error), never a button, and it must never say «Salvato» on a refusal.
+  Long guides belong in a dialog (`#ca-help-overlay`), not in a panel; the search registry is
+  generated by `scripts/gen-settings-schema.php`, so every panel keeps `class="settings-panel"`
+  + `id="tab-…"`.
+- **A procedure is not a setting.** The quick stocktake has no global switch: the banner sits in
+  the pantry on the place you opened (`_auditStartFromBanner()` starts the wizard on those rows)
+  and Settings keep only its pace (`AUDIT_MODE_BATCH_SIZE`). A settings row with a stepper is ONE
+  line — label + hint left, `[−] N [+]` right (`.settings-stepper-row`), never a control alone on
+  a half-empty row. In the whole-house view the stocktake button does not exist: there is no shelf.
+  Its card is ONE primary — the whole question: `Confermi {qty} in {place} che scade il {date}?`
+  (`_auditFitConfirm()` measures it and falls back to `Confermi {qty}?`) — + a neutral 2×2 +
+  «Salta», and the progress
+  bar fills on the card you are LOOKING at: no sentence repeated, no purple, no alarm colours.
+  **Three ways, one card, one ledger.** `_auditMode` (persisted under `evershelf_audit_mode`) switches
+  between «Uno alla volta» (the app proposes, `_auditScopesBodyHtml` + `_auditBegin`), «Ti dico io»
+  (`_auditSearchBodyHtml`: a name in, `_auditSearchMatches` over the pantry ROWS — `here` first,
+  `elsewhere` after) and «Scansiona» (`_auditScanStart` opens the stocktake's OWN camera INSIDE the panel
+  (`_auditScanLiveHtml`, a framed box in the sheet's body — never a full-screen takeover: the tabs
+  and the tally stay on screen, and the ✕ on the picture turns the camera off), independent of the
+  shopping scanner, sharing only the decoder and the catalogue lookup). **The three ways are TABS, drawn in EVERY view** (`_auditModeSwitchHtml`: the sheets, the card of the run, a card opened by name or by barcode, the picker of an unreadable code), labelled «Uno per uno» / «Ti dico io» / «Codice a barre». **On a narrow phone the tabs are three ICONS**: below 480 px
+  the CSS drops `.audit-mode-label`, the glyph grows to 25.6 px inside a 52 px tap target and the
+  three labels survive in `title`/`aria-label` — «Uno alla volta» / «Ti dico io» / «Scansiona»
+  (and the longer German) cannot share one line three ways, and a switch whose words wrap pushes
+  the card down. **ONE progress bar, and it never comes and goes** (`_auditProgress` →
+  `_auditProgressHtml`): `total` is the rows the run is ABOUT and `done` the ones the session
+  answered (the same ledger the scope list counts), and it is painted by the three mode sheets, by
+  EVERY card — a card opened by name or by barcode is a run of ONE for the wizard, and its own
+  counter read «1 di 1» on every box and never moved — by the panel of an unreadable code and by
+  the camera (`#audit-scan-progress`), with the breakdown beside the count («40 di 206 · ✓ 33»).
+  The scope is **pinned** (`_auditScopePinned`, released by `_auditStop`): reading the pantry's own
+  filter mid-run moved the ledger to another shelf and a session for a new scope starts at zero
+  («✓ 4» became «✓ 1» and never moved again), and `_auditAdoptRunCounts` never replaces a session
+  that has answers. The three answer the SAME question about the same shelf, so they
+  share `_auditSession` (counts + answered + the propose run's `order`/`index`): a card opened by
+  name (`_auditSearchPick`) or by barcode (`_auditScanCard`) counts in the same tally, «Riepilogo»
+  (`_auditShowSummary` → `_auditRenderSummary`) reads that ledger from any sheet, «↩ Torna alla card»
+  (`_auditResumeCard` → `_auditSessionView`) resumes the run exactly where it stopped, and «Fatto»
+  ends it (`_auditEndSession`). `_auditFinish` returns to the sheet of the way the answer came in.
+  The camera hands over through `_auditScanHit(code)` → `_resolveBarcodeLookup()` and it takes ONLY
+  a product with usable stock (that row is the stocktake's question, preferring the row of the place
+  being inventoried, `_auditScanCard`) — looked up by `product_id` and then by the article's NAME
+  (`_auditRowForProduct`), because one article can live in two `products` rows and the scan of a tin
+  standing in the pantry answered «Tonno ai semi di girasole non c'è nell'inventario». Anything the
+  app cannot place — an unknown code OR a known one with no stock — does NOT stop on a toast: the
+  camera closes and the picker of «Ti dico io» opens (`_auditAssignView`, the name already in the
+  field when it is known), and a pick whose `product_barcode_set` is refused
+  (`barcode_already_used`) still opens the card of the row that was picked. The ✕ or Esc close it and
+  `visibilitychange` releases the stream, so it never outlives the sheet. The second mode is
+  about what is really on a
+  shelf: a depleted row and a product the app knows with no stock anywhere are **never listed**,
+  and the place the stocktake is about (`_auditScopeKey`: the run's scope → the pantry's open place
+  → the last one, kept in `evershelf_audit_scope`) comes FIRST under its own heading. Each hit
+  opens with the place mark — ✓ `audit.mark_here` / ✕ `audit.mark_elsewhere` — carries the CARD's
+  own two facts on two lines (`_auditHitFactsHtml`, the same helper the barcode picker uses: the
+  place + the stock, then the date with its own mark, both bold at `0.95rem/800` against the
+  `0.82rem` of the line around them, expired in red) and the action on
+  the right answers the same question: the emerald **✓ C'è** (`_auditSearchQuickThere`, the "there"
+  answer with no card) for a row that belongs here, a neutral **Sposta qui**
+  (`_auditSearchMoveHere` → `inventory_update { location }`, then the live caches + `loadInventory`)
+  for one that does not. **Below 520 px the action is one icon** («✓ C'è», «↪ Sposta qui»,
+  «🔗 È questo», the words in `title` + `aria-label`, a 44 px tap target): with the label the pill
+  ate ~110 px and the text column fell to 123 px on a 393 px phone, where the place printed UNDER
+  the pill. The place and the stock are two nowrap groups (`.audit-hit-seg`, ellipsis) that may
+  wrap between each other, so a long place name never slides under the action. **A scan never walks
+  into another shelf**: a row the ledger puts in ANOTHER place is a QUESTION (`_auditElsewhereView`
+  — «Sposta qui» / «No, lascia dov'è», eyebrow = the place being inventoried, the session/pin
+  untouched), never a silent jump to that shelf's card; the same guard covers the ✕ rows of the
+  search list (`_auditSearchPick`), and only an explicit pick on a line that prints its place (the
+  barcode picker) opens that row's card. The BRAND sits on
+  the line under the product name (`_auditHitTitleHtml`, one line, tail ellipsised; a product with
+  no brand omits it). An unknown name
+  still offers `audit.search_create`
+  (`_auditSearchCreate`). A one-question card is never a resumable run of its own — its answer
+  lands in the session, and what resumes is the propose run it belongs to — and the three TABS at the top of
+  every view are the only switch (they keep the run), so the card carries no duplicate way in.
+- **A place is deletable only when empty — and the server decides.** `POST location_delete`
+  (`locationDeleteAction`) removes a built-in too (`app_settings.deleted_locations`, subtracted by
+  `validInventoryLocations()`), refuses a place with usable stock (`in_use`) and refuses to leave
+  zero places (`last_place`). Never trust the client's cache here.
   `mergeIncomingProductFields()` in `api/index.php` + `api/lib/product_kind.php`.
   Never add a second dictionary or write a title elsewhere.
+- **A title carries no HTML entities.** `productTitleDecodeEntities()` (inside
+  `productTitleCapitalize()`, the one title choke point) decodes *repeatedly*
+  (`&amp;quot;` → `&quot;` → `"`), the client's `decodeHtmlEntities()` does the same,
+  and `migrateDB` repairs rows already stored escaped
+  (`migration_decode_title_entities_v1`) — so neither the pantry, the history nor a
+  toast can print `&quot;`.
+- **Red is only for losing stock.** `_showDestructiveConfirm(title, msg, fn, label,
+  { tone: 'positive' })` paints an emerald confirm and **no countdown** when the
+  action puts stock back (undoing a consumption); red + countdown stays for
+  throw / finish / take-stock-away.
+- **SHELFY acts where the user stands.** A captured sentence never navigates to the
+  legacy `#page-use`: `_shelfyRunConsume()` closes the sheet and shows the floating
+  `.shelfy-confirm` card (avatar, “Registro {qty} di {name}”, a 10 s emerald bar
+  draining right→left, Modifica / ✕ Annulla). The empty bar writes `inventory_use`;
+  Modifica opens the compact product sheet (`showItemDetail(invId, productId, qty)`);
+  “ho finito …” opens that same sheet with its slide-to-confirm. `_shelfyArmButton()`
+  prints the remaining seconds in `.shelfy-arm-count`, so every countdown is visible.
+  One voice turn is a visible state machine (`_capturePhase()`): listening (levels + bars)
+  → «Sto elaborando…» with the ring turned into a spinner the instant the sentence closes
+  (silence deadline 1,4 s, so the screen is never still for seconds), and the `[Esegui]`
+  field lives behind a neutral «Preferisco scrivere» link, never in the voice view.
+- **In the chat the «Usa» buttons belong to the RECIPE, not to the prose.** `formatChatReply()` appends `_chatUseActionsHtml(text)`, and it must read only the reply's ingredient sections (`_chatIngredientBlocks()`: every `### Ingredienti:` / `**Ingredienti:**` label up to the next label, in the six languages) — matching the whole answer put a «Usa» on every product the INTRODUCTION named («i prodotti che scadono prima: yoghurt, farina, kiwi, zucchine…»), so a recipe ended up offering ingredients it never uses. With no ingredient section (a plain answer) the whole text stays the scope.
+- **Two versions in the header, one rule for space.** `.header-version` stays a **bare semver**
+  (`reportError()` reads it as the app version); the kiosk APK version lives in
+  `#header-kiosk-version` ("kiosk 1.7.26"), from `_kioskBridge.getAppVersion()`. `_paintKioskVersion()`
+  shows both only when the row fits, then drops the kiosk label, then `#header-branch` (a work-in-progress
+  build only: `bump-version.sh` fills it on a feature branch and clears it on `main`/`develop`, and
+  `:empty` hides it), then **the
+  name ENTIRELY** (`is-name-hidden`: logo + app version — never a clipped "E…", which is what a
+  phone showed while `.header-title` could not shrink for want of `min-width: 0`). At least the app
+  version is always readable. Re-measured on resize and after the translations; never append anything
+  to `.header-version`.
+- **A reload names its author.** Self-reloads go through `_reloadPage('why')` (logs `[RELOAD] …`
+  first); a `pagehide` handler posts `[PAGEHIDE] reload:<why>` or `[PAGEHIDE] unload` with
+  `fetch(…, {keepalive:true})`. `unload` with no `reload:` line means something OUTSIDE the page
+  reloaded it (kiosk ↻, watchdog, new Activity).
+- **The camera stream shows only the barcode box.** `#scanner-viewport` carries **one** overlay,
+  `.scan-lock-box`, placed where a code was really read and holding still; the moving line, the
+  particle cloud (its 180 ms pixel scout is a no-op now), the pulse, the dots, the lookup
+  spinner, the live digits, the ✓ flash, the corner brackets and the `2×` badge are gone. The
+  status text and the torch/flip/shopping controls live **under** the picture
+  (`.scan-below-bar`), never on top of the feed.
+- **An AI identification is never interrupted.** A barcode read during a turn used to call
+  `onBarcodeDetected()` → `_resetAiFallbackForNewScan()`, bump `_aiVisualGen` and make the answer
+  "stale". Now both AI paths `pauseScanner()` for the whole turn, `onBarcodeDetected()` drops a
+  read while `_numOcrRunning || _aiBarcodeVisualRunning`, and the scanner resumes when the turn
+  ends without opening anything.
+- **A kiosk update is downloaded by the APP, never by `DownloadManager`.** `DownloadManager`
+  validates HTTPS against the **system** trust store (a LAN install is self-signed) and waits for a
+  network Android calls "internet" — a LAN-only tablet has none: the request sat `PENDING` and the
+  banner said «scaricamento in corso» forever, with not one byte in the server log. `triggerApkDownload()`
+  now uses `openTrustedConnection()`, writes into the app's own folder, puts the progress on the
+  same banner and reports a failure (`install_download_failed`) instead of hanging.
+- **A kiosk never opens a keyboard from SHELFY.** The Android WebView has no Web Speech, so the
+  text field was the only fallback — and focusing it opened the soft keyboard, which relayouts an
+  immersive page; Android answers that configuration change by recreating the Activity, i.e. a new
+  WebView loads the URL again and the app "restarts". `_isKioskDevice()` (`_kioskBridge` or
+  `html.is-kiosk`) makes `_captureShowType()` refuse, hides the «Preferisco scrivere» link and keeps
+  `_openCaptureSheetInner()` from focusing; the sheet says `capture.kiosk_no_voice` and the example
+  phrases stay one tap away. The kiosk manifest declares **every** `configChanges` and
+  `KioskActivity.onConfigurationChanged()` re-applies immersive mode, so nothing can recreate it.
+- **SHELFY has a face**: `assets/img/shelfy/shelfy-avatar{,-192,-96}.png` (transparent
+  PNG, in the `sw.js` shell) — the centre of the bottom nav, the capture sheet head,
+  the intro hero, the confirm card and the foot of the splash (under the open-data
+  line). Never swap it for a food emoji.
+- **The sheet is cheap to paint, and opening it can never take the app down.** The sonar
+  ring is a `transform`/`opacity` animation on `.capture-mic-wrap::before/::after` — never an
+  animated `box-shadow` (that repaints a blurred shadow every frame and is what a low-end
+  kiosk WebView kills, which reads as "the app restarted"). The level loop
+  (`_captureMeterPulseStart`) stops when the sheet is off screen or the page is hidden, and
+  `_openCaptureSheet()` is a guard around `_openCaptureSheetInner()`: a throw closes the sheet,
+  logs `shelfy-open-failed` and says `capture.open_failed` instead of leaving a half-built
+  overlay. A kiosk never auto-focuses the typing field (no system keyboard over a wall tablet).
+- **The idle screen is a dashboard, not a clock with a fact.** Its views live in
+  `assets/js/screensaver.js` (`meal`/`alerts`/`nutrition`/`fact`), each read from the
+  household's data and each returning `null` when it has nothing to say — a card is never
+  painted empty, the rotation walks to the next. A **tap flips the card** (it must not close
+  the screen: a brush on the wall would take the clock away), swipe left/right does the same,
+  a **swipe up** or **«Sblocca»** unlocks, and `initInactivityWatcher` **returns early** while
+  the screen is up instead of dismissing it. **It starts ALWAYS after the timeout, on any page and with any sheet open — the ONE exception is cooking mode** (`_screensaverBlockedPage`), which clears the pending clock on entry and re-arms it when the recipe closes; the cameras are stopped while it is up. Settings under Aspetto: `SCREENSAVER_VIEWS` +
+  `SCREENSAVER_INTERVAL`. `_ssNextFrame()` keeps a `setTimeout` fallback: a hidden wall never
+  calls `requestAnimationFrame`, and a card stuck at opacity 0 is a blank screen.
+  **Portrait has its own scale** (`@media (orientation: portrait)` in `style.css`): the sizes are tuned on the
+  width of a landscape screen, so upright the clock, the type, the rows and the rings step up and the card
+  becomes a full-width panel with a `min-height` — never a slip of paper in a black field.
+  **A phone is not a small tablet** (below 460 px): one scale smaller and `justify-content: flex-start` on the card — a
+  flex column centred on content TALLER than its box pushes the first block above the top edge, where no scroll reaches it.
+  The meal card proposes a recipe the household ALREADY cooked («fatta N giorni fa · ti era piaciuta?», thumbs →
+  `recipes_rate`), never the slot of the day.
+- **Tablet/kiosk CSS is opt-in**: `assets/css/tablet.css` activates on `html.is-kiosk`
+  / `html.is-touch-tablet` (set by `_markDeviceChrome()`), never on `min-width` alone —
+  a desktop monitor keeps the base styles.
 - **DB schema/migrations**: `api/database.php` (`initializeDB`, `migrateDB`).
 - **Style**: follow the surrounding code, 4-space indent, docblock + comment
   style already in use; keep comments explanatory, not decorative.
@@ -71,34 +614,16 @@ find api -name '*.php' -exec php -l {} \;
 node -c assets/js/app.js && node -c sw.js
 for f in mcp-server/src/*.js; do node --check "$f"; done
 
+# upgrade safety (before merging into main): old DB → new code, row by row
+php scripts/check-upgrade-migration.php
+
 # i18n
 python3 -c "import json,glob; [json.load(open(f)) for f in glob.glob('translations/*.json')]"
 python3 scripts/i18n-audit.py
 
-# regression tests (run the ones the change touches)
-php scripts/test-shopping-guards.php
-php scripts/test-shopping-restock.php
-php scripts/test-expiry-and-plan-days.php
-php scripts/test-tap-open.php
-php scripts/test-locale-dates.php
-php scripts/test-mobile-layout.php
-php scripts/test-shopping-dismiss.php
-php scripts/test-product-kind-prefix.php
-php scripts/test-product-number.php
-php scripts/test-preloader-stages.php
-php scripts/test-dashboard-panels.php
-php scripts/test-settings-nav.php
-php scripts/test-i18n-icons.php
-php scripts/test-html-in-text.php
-php scripts/test-auto-favorite.php
-php scripts/test-recipe-archive.php
-php scripts/test-env-overrides.php
-php scripts/test-docker-cron.php
-php scripts/test-backup-i18n.php
-php scripts/test-i18n-boot.php
-php scripts/test-vocabulary.php
-php scripts/test-seasonal-match.php
-# full list: ls scripts/test-*.php
+# settings coverage: every writable key has a control, or a documented reason
+php scripts/gen-settings-schema.php --check
+php scripts/check-settings-coverage.php
 
 # after big edits, regenerate the navigation indexes
 bash scripts/gen-code-index.sh

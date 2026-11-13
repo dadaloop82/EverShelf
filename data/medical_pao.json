@@ -1,0 +1,91 @@
+{
+  "version": 3,
+  "note": "Period after opening (PAO) suggested for a medicine, taken from the FORM its name declares. 0 means opening changes nothing (tablets, capsules, suppositories, single-dose containers: the pack date rules). MULTILINGUAL BY DATA: every rule carries its words for the six shipped languages and the reader matches ALL of them, because the NAME comes from the catalogue (AIFA is Italian, openFDA is English) and the UI language may be another one — a German box must work on an Italian phone. Matching is per WHOLE WORD and accent-insensitive («comprime» finds «comprimé»), so «gel» cannot fire on «Angelini». Sources: the PAO symbol printed on the pack (an open jar with the number of months) and standard pharmacy practice for the forms that carry one. A SUGGESTION the household can always edit; the app never gives therapies.",
+  "rules": [
+    {
+      "form": "eye_drops",
+      "days": 28,
+      "match": {
+        "it": ["collirio", "colliri", "gocce oftalmiche", "oculare", "oculari", "unguento oftalmico", "pomata oftalmica", "crema oftalmica"],
+        "en": ["eye drop", "eye drops", "eyedrops", "ophthalmic", "eye ointment"],
+        "de": ["augentropfen", "augensalbe", "augencreme", "augenbad"],
+        "fr": ["collyre", "collyres", "gouttes oculaires", "pommade ophtalmique", "collyre ophtalmique"],
+        "es": ["colirio", "colirios", "gotas oftalmicas", "pomada oftalmica"],
+        "zh": ["眼药水", "滴眼液", "眼膏", "滴眼剂"]
+      }
+    },
+    {
+      "form": "syrup",
+      "days": 30,
+      "match": {
+        "it": ["sciroppo", "sciroppi", "sospensione orale", "sospensione", "soluzione orale", "gocce orali"],
+        "en": ["syrup", "syrups", "oral suspension", "suspension", "oral solution", "oral drops"],
+        "de": ["saft", "säfte", "suspension", "suspension zum einnehmen", "lösung zum einnehmen", "*saft", "*tropfen", "*suspension"],
+        "fr": ["sirop", "sirops", "suspension buvable", "solution buvable", "gouttes buccales"],
+        "es": ["jarabe", "jarabes", "suspension oral", "solucion oral", "gotas orales"],
+        "zh": ["糖浆", "口服液", "混悬液", "口服滴剂"]
+      }
+    },
+    {
+      "form": "nasal_or_balm",
+      "days": 90,
+      "match": {
+        "it": ["spray nasale", "gocce nasali", "balsamo"],
+        "en": ["nasal spray", "nasal drops", "balm"],
+        "de": ["nasenspray", "nasentropfen", "balsam", "*spray"],
+        "fr": ["spray nasal", "gouttes nasales", "baume"],
+        "es": ["spray nasal", "gotas nasales", "balsamo"],
+        "zh": ["鼻腔喷雾", "滴鼻液", "香膏"]
+      }
+    },
+    {
+      "form": "cream_gel",
+      "days": 90,
+      "match": {
+        "it": ["crema", "gel", "unguento", "pomata", "emulsione", "lozione", "spray"],
+        "en": ["cream", "gel", "ointment", "emulsion", "lotion", "spray"],
+        "de": ["creme", "salbe", "gel", "lotion", "emulsion", "spray", "*salbe", "*creme", "*gel"],
+        "fr": ["creme", "gel", "pommade", "emulsion", "lotion", "spray"],
+        "es": ["crema", "gel", "pomada", "emulsion", "locion", "spray"],
+        "zh": ["乳膏", "凝胶", "软膏", "乳液", "洗剂", "喷雾"]
+      }
+    },
+    {
+      "form": "suppository",
+      "days": 30,
+      "match": {
+        "it": ["supposta", "supposte", "ovulo", "ovuli", "gocce"],
+        "en": ["suppository", "suppositories", "ovule", "ovules", "pessary", "drops"],
+        "de": ["zäpfchen", "ovula", "scheidenzäpfchen", "tropfen", "*zäpfchen"],
+        "fr": ["suppositoire", "suppositoires", "ovule", "ovules", "gouttes"],
+        "es": ["supositorio", "supositorios", "ovulo", "ovulos", "gotas"],
+        "zh": ["栓剂", "阴道栓", "滴剂"]
+      }
+    },
+    {
+      "form": "single_dose",
+      "days": 0,
+      "note": "A SINGLE-DOSE container is used in one go: nothing stays in it, so opening it starts no clock — and the box is what the pantry stores, where «apri la scatola» says nothing about the four sealed containers left inside. This rule said 1 day, and a box of 6 glycerol monodose containers (notes: «6 CONTENITORI MONODOSE», 4 pz left, printed date 2028) read «da usare entro 1 gg dall'apertura» — a sealed box declared expired two weeks ago. A form that is really prepared and then kept (a powder to reconstitute) is the exception and belongs in the product's own `med_pao_days`, which the household edits in the medicine sheet.",
+      "match": {
+        "it": ["fiala", "fiale", "monodose", "flaconcino", "flaconcini", "siringa preriempita"],
+        "en": ["vial", "vials", "ampoule", "ampoules", "single dose", "single-dose", "prefilled syringe"],
+        "de": ["ampulle", "ampullen", "einzeldosis", "fertigspritze", "*ampullen"],
+        "fr": ["ampoule", "ampoules", "unidose", "seringue preremplie"],
+        "es": ["ampolla", "ampollas", "monodosis", "jeringa precargada"],
+        "zh": ["安瓿", "单剂量", "预充式注射器"]
+      }
+    },
+    {
+      "form": "tablets",
+      "days": 0,
+      "match": {
+        "it": ["compresse", "compressa", "capsule", "capsula", "pastiglie", "pastiglia", "bustine", "granulato"],
+        "en": ["tablet", "tablets", "capsule", "capsules", "pill", "pills", "sachet", "sachets", "granules"],
+        "de": ["tablette", "tabletten", "kapsel", "kapseln", "pulver", "*tabletten", "*kapseln", "*dragees"],
+        "fr": ["comprime", "comprimes", "gelule", "gelules", "sachet", "granules"],
+        "es": ["comprimido", "comprimidos", "capsula", "capsulas", "sobre", "granulados"],
+        "zh": ["片剂", "胶囊", "药片", "颗粒剂"]
+      }
+    }
+  ]
+}

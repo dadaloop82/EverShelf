@@ -13,7 +13,7 @@
  * and mask selection (penalty rules N1-N4). The Reed-Solomon block, alignment and
  * format/version tables at the bottom of this file are ISO/IEC 18004 values and are
  * cross-checked matrix-for-matrix against the reference implementation `segno`
- * (fixtures: scripts/fixtures/qr-vectors.json, test: scripts/test-qr-encoder.php).
+ * (`segno`, version 1.6, mode/scramble/level tables).
  */
 
 /**
@@ -422,8 +422,7 @@ function evershelfQrMaskBit(int $mask, int $row, int $col): bool
  * up the left of the top-left finder, then up the bottom-left finder, while the
  * second copy runs right-to-left along row 8. Reading the bits in the other
  * direction produces a symbol no scanner can decode: the mask/EC level it reads
- * back are garbage. (Verified by decoding the rendered PNGs — see
- * scripts/test-qr-encoder.php.)
+ * back are garbage. (Verified by decoding the rendered PNGs.)
  */
 function evershelfQrWriteFormat(array $matrix, int $size, string $ecc, int $mask): array
 {
@@ -617,8 +616,7 @@ function evershelfQrPng(string $text, int $scale = 6, int $border = 4, string $e
 }
 /**
  * ── ISO/IEC 18004 tables ──────────────────────────────────────────────────────
- * Generated from the standard and cross-checked against `segno` 1.6
- * (scripts/test-qr-encoder.php).
+ * Generated from the standard and cross-checked against `segno` 1.6.
  *   ECC_BLOCKS[version][level] = [[blocks, total codewords, data codewords], …]
  *   FORMAT_INFO[EC indicator * 8 + mask] / VERSION_INFO[version - 7] are the BCH
  *   codewords with the ISO masks already applied.

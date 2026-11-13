@@ -26,6 +26,16 @@
         min-width: 0;
     }
 
+    /* ── Page header: the pantry names the OPEN PLACE ────────────────────── */
+    /* `_syncInventoryTitle()` writes "🧊 Frigo" (or a custom name up to 40 chars) in the
+       header: one line, so the import/export buttons keep their place on the row. */
+    .page-header h2 {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     /* ── Dashboard: expiring / expired / opened / unused-for-too-long ────── */
     .alert-item {
         flex-wrap: wrap;
@@ -67,12 +77,37 @@
     }
 
     /* ── Inventory rows (pantry list + dashboard tiles) ──────────────────── */
-    .inv-name {
+    /* The name owns ONE line. It used to wrap freely (`overflow-wrap: anywhere`), so
+       «Connettivin a plus» took two lines and «Destrometorfano bromidrato della» four, and the
+       row grew until its badges were pushed under the text — the "disordine" a phone showed.
+       The whole name is in the product sheet, one tap away. */
+    /* ONE line, then an ellipsis — and never one letter per line: `nowrap` on a
+       `display: -webkit-box` element made the row explode (the ingredient under the name was
+       squeezed to ~1 character and printed vertically, the card grew to half the screen).
+       Keeping the box + clamping to one line is the same model as before, one line shorter. */
+    .inventory-item .inv-name-row .inv-name {
         white-space: normal;
-        overflow: visible;
-        text-overflow: clip;
-        overflow-wrap: anywhere;
+        overflow-wrap: normal;
+        word-break: normal;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 1;
+        overflow: hidden;
         line-height: 1.3;
+    }
+    /* The medicine subtitle (ingredient · company) is a single ellipsised line: with
+       `overflow-wrap: anywhere` and a narrow column it printed one letter per row. */
+    .inv-med-sub {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        overflow-wrap: normal;
+    }
+    /* The medicine filter chips above the cabinet list are a desktop convenience: on a phone
+       they take a row of the little height there is (the macro pills and the room menu already
+       do that job). */
+    .inv-med-chips {
+        display: none;
     }
     .inv-qty-right {
         max-width: 45%;
@@ -124,6 +159,7 @@
     }
     .shop-row-subtitle,
     .shop-row-reason,
+    .shop-row-waste-hint,
     .shop-row-sub {
         overflow-wrap: anywhere;
     }
@@ -180,6 +216,13 @@
     .alert-item {
         padding: 9px;
     }
+    /* The banner strip is compact and right-aligned: a long answer ("Non è finito, ne ho
+       ancora 200 g") may wrap onto two lines instead of overflowing the notice. */
+    .alert-banner-actions .btn-banner {
+        white-space: normal;
+        flex: 0 1 auto;
+        max-width: 100%;
+    }
     .shop-row-visual {
         display: none;           /* decorative tile, 44 px the title needs */
     }
@@ -192,5 +235,96 @@
     }
     .inv-qty-right {
         max-width: 40%;
+    }
+
+    /* ── The medicine edit sheet, compact ─────────────────────────────────
+       Nine rows of form on a phone is a scroll even after the header was condensed: the groups
+       breathe 5 px instead of 8, and the controls lose the padding a desktop mouse needs. The
+       categories and «da quanti giorni» are native <select>s already. */
+    /* The read-only facts WRAP on a phone. This block used to be one horizontally scrollable
+       line (`flex-wrap: nowrap; overflow-x: auto`, scrollbar hidden): the active ingredient
+       («ACIDO IALURONICO/SULFADIAZINA ARGENTICA») ran off the right edge and was cut — «capita
+       che il principio attivo va fuori dallo schermo in larghezza non va bene, mettilo accapo!».
+       Two short pills are the same height as the scroll line, and nothing is hidden. */
+    .item-detail-med-facts {
+        flex-wrap: wrap;
+        overflow-x: visible;
+        padding-bottom: 0;
+    }
+    .med-fact { flex: 0 1 auto; min-width: 0; }
+
+    /* The medicine sheet IS the food sheet: same fields, same density (the old
+       `#modal-content .form.is-medical-edit { … }` compaction made it a second, tighter form —
+       removed so the two panels measure the same). Only the medical extras keep a rule. */
+    .med-pao-hint { margin: 0 0 8px; font-size: 0.78rem; }
+
+    /* «Scade» + «Aperto da» on ONE row: the same `.edit-expiry-vacuum` row the food sheet uses
+       for date + vacuum (the old `.med-edit-pair` rules went with the old markup). */
+}
+
+/* ── A medicine row where there is no room: no images, no symbols ─────────────
+   The cabinet is read by NAME. Below 768 px the drawn form mark (the row's «image»), the
+   glyphs of the fact badges (🕓 / 🛡️ / ⚠️) and the empty favourite star cost the article its
+   room, so they go and the text takes the strip's width back — `--row-photo-w: 0` is the ONE
+   variable every line reads, so no letter can land on a picture that is not there any more.
+   The facts keep their words («8gg», «Scade fra 12gg»), the actions stay (✓ Usa and ⋮ are the
+   row's controls, not symbols), and a favourite medicine keeps its ★: a filled star is state,
+   an empty one is decoration. */
+@media (max-width: 767px) {
+    html.is-kiosk .inventory-item.is-medical-row,
+    html.is-touch-tablet .inventory-item.is-medical-row,
+    .inventory-item.is-medical-row { --row-photo-w: 0; }
+    .inventory-item.is-medical-row .inv-image { display: none; }
+    .inventory-item.is-medical-row .inv-time-ico { display: none; }
+    .inventory-item.is-medical-row .btn-inv-fav:not(.active) { display: none; }
+}
+
+/* ── A touch device whose window is as narrow as a phone is a PHONE ──────────
+   `html.is-touch-tablet` is decided by the DEVICE (`max(innerWidth, screen.width) >= 600`),
+   so narrowing the window to 393 px kept the tablet band — photo, then a text column with
+   `min-width: 0`, then a strip that cannot shrink — and the article's name was left ~10 px
+   wide, printed one letter per line («A u r e.»). That must never happen: the name is what
+   the row is for. Below 640 px the row goes back to the stacked card and the action strip
+   wraps under the text, exactly like the phone grammar it is standing in. This block is in
+   `mobile.css` (loaded last) on purpose: it has to win over the band without a specificity
+   war, and it is geometry only — the colours stay in `surfaces.css`. */
+@media (max-width: 640px) {
+    html.is-kiosk .inv-row-content.inv-card,
+    html.is-touch-tablet .inv-row-content.inv-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px;
+    }
+    html.is-kiosk .inv-card-top,
+    html.is-touch-tablet .inv-card-top {
+        min-width: 0;          /* the floor was for the one-line band; the card stacks here */
+        align-items: flex-start;
+    }
+    html.is-kiosk .inv-row-content .inv-card-top,
+    html.is-touch-tablet .inv-row-content .inv-card-top { min-height: 0; }
+    html.is-kiosk .inventory-item,
+    html.is-touch-tablet .inventory-item { --row-photo-w: 5%; }
+    html.is-kiosk .inventory-item .inv-row-content .inv-card-bottom,
+    html.is-touch-tablet .inventory-item .inv-row-content .inv-card-bottom {
+        flex: 0 1 auto;
+        margin-left: 0;
+        justify-content: flex-start;
+        /* The strip lines up under the name (the base grammar), not at the card's edge. */
+        padding-left: calc(var(--row-photo-w, 5%) + 1%);
+    }
+    /* The Home's notice rows follow the same rule: the badges go back under the text. */
+    html.is-kiosk .alert-item,
+    html.is-touch-tablet .alert-item {
+        flex-wrap: wrap;
+        align-items: flex-start;
+        padding: 12px;
+    }
+    html.is-kiosk .alert-item .alert-item-info,
+    html.is-touch-tablet .alert-item .alert-item-info { min-width: 0; }
+    html.is-kiosk .alert-item .alert-item-badges,
+    html.is-touch-tablet .alert-item .alert-item-badges {
+        margin-left: 0;
+        justify-content: flex-start;
     }
 }

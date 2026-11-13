@@ -31,6 +31,11 @@ dispensa/
 │   │   ├── mealie.php / mealie_setup.php # Mealie recipe integration + wizard
 │   │   ├── github.php          # Encrypted GitHub Issues token
 │   │   ├── i18n.php            # Server-side translations
+│   │   ├── medical.php / medicines.php / med/italy.php # medicine codes + the local catalogue
+│   │   ├── pao_overrides.php   # the household's opening windows (learned, averaged)
+│   │   ├── product_kind.php / vocabulary.php           # titles + the vocab engine (data-driven)
+│   │   ├── auto_favorite.php   # automatic favourites, always reversible
+│   │   ├── support.php / qr.php # the support dialog and a self-hosted QR encoder
 │   │   └── cron_log.php        # data/cron.log rotation
 │   └── scale_*.php             # Scale gateway helpers (auth + SSRF guards)
 ├── assets/
@@ -40,8 +45,13 @@ dispensa/
 │   │   ├── elegant.css         # Layer 3 — elegant refinements (drop the <link> to revert)
 │   │   └── mobile.css          # Layer 4 — phone geometry, loaded last (no colours)
 │   ├── js/
-│   │   ├── core/               # auth.js, dom.js (loaded before app.js)
-│   │   └── app.js              # SPA logic (domain modules: future split)
+│   │   ├── core/               # auth.js, dom.js, med.js, vocab.js, support.js (before app.js)
+│   │   ├── med/                # country modules (italy.js) — registered by data/medical_code_schemas.json
+│   │   ├── audit.js            # the quick stocktake (three ways, one ledger)
+│   │   ├── screensaver.js      # the idle screen: four cards, gestures, timers
+│   │   ├── settings_search.js  # settings search over the generated registry
+│   │   ├── receipt.js          # paper-receipt OCR (parked, opt-in)
+│   │   └── app.js              # the rest of the SPA (the remaining split is in "Planned refactors")
 │   └── vendor/                 # Offline CDN fallbacks (quagga, tesseract, transformers, zbar)
 ├── translations/               # it, en, de, fr, es, zh (+ _SUPPORTED_LANGS in app.js)
 ├── data/                       # Runtime data (.htaccess: deny all)
@@ -54,8 +64,8 @@ dispensa/
 ├── package.json                # Optional minify build (`npm run build`)
 ├── backup.sh                   # SQLite + .env backup helper
 ├── releases/                   # Release artifacts (kiosk/health-bridge APKs)
-├── docs/                       # Architecture, wiki, generated code indexes, openapi.yaml
-└── scripts/                    # bump-version, gen-code-index, i18n audits, test-*.php
+├── docs/                       # Architecture, codebase map, wiki, generated code indexes
+└── scripts/                    # bump-version, gen-code-index, i18n audits, check-*.php, gen-*.php
 ```
 
 ## Security model

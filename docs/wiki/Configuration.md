@@ -47,7 +47,24 @@ TTS_ENABLED=false
 # `?api_token=` for Home Assistant. The web UI gets it once per browser through
 # the pairing code (Settings → Security on a paired device, or server log — see below).
 # Compared with hash_equals() to prevent timing attacks.
+#
+# LEAVE IT EMPTY and EverShelf generates one for you on the first request: the value is
+# written here (or to the app_settings fallback when .env is read-only), enforced from
+# that same request, and the pairing code that lets a device in is printed in the log
+# right after it. The marker data/api_token_autogen.json makes sure a token is never
+# minted twice — a rotating token would lock every device out.
 API_TOKEN=
+
+# true = keep the old behaviour and do NOT generate a token (a fully trusted LAN, or a
+# reverse proxy that authenticates for you). Everyone who can reach the port then reads
+# and writes the pantry.
+ALLOW_OPEN_LAN=false
+
+# The names this server answers to — the DNS-rebinding guard. Comma list, *.example.lan
+# allowed, empty = off. A browser cannot protect a LAN install here: a page on evil.example
+# can point its own DNS at your address and CORS / Sec-Fetch-Site are then satisfied.
+# ALLOWED_HOSTS=evershelf.local,192.168.1.10
+ALLOWED_HOSTS=
 
 # Legacy alias, still honoured when API_TOKEN is empty. Use API_TOKEN for new installs.
 SETTINGS_TOKEN=
@@ -94,6 +111,26 @@ GH_ISSUE_TOKEN_KEY=
 REPORT_ENABLED=false
 
 # ─────────────────────────────────────────────
+# Idle screen (kiosk / wall tablet)
+# ─────────────────────────────────────────────
+
+# Show the ambient dashboard after a period of inactivity.
+SCREENSAVER_ENABLED=false
+
+# MINUTES of inactivity before it appears (1-60, default 5). Older installations
+# wrote this in SECONDS (300 = five minutes): a value above 60 is still read as
+# seconds and converted, so an existing .env keeps working unchanged.
+SCREENSAVER_TIMEOUT=5
+
+# Which cards it shows, in a comma list: meal, alerts, nutrition, fact.
+# Empty = all of them. A card with nothing to say is skipped by itself.
+SCREENSAVER_VIEWS=meal,alerts,nutrition,fact
+
+# Seconds between two cards (10-300, default 30). The old card dissolves upward
+# and the next one comes down from the top.
+SCREENSAVER_INTERVAL=30
+
+# ─────────────────────────────────────────────
 # Calendar feed (ICS / WebCal)
 # ─────────────────────────────────────────────
 
@@ -138,6 +175,7 @@ Most settings can also be configured from the browser via **Settings → ⚙️*
 | ntfy topic | `NTFY_TOPIC` | Secret: anyone who knows it can read and publish |
 | ntfy / webhook tokens | `NTFY_TOKEN`, `NOTIFY_WEBHOOK_TOKEN` | Write-only; the field shows `••••••••` when a token is stored |
 | Generic webhook URL | `NOTIFY_WEBHOOK_URL` | n8n, Node-RED, Gotify, Discord/Slack bridge… |
+| Idle screen on/off, timeout, cards, pace | `SCREENSAVER_ENABLED`, `SCREENSAVER_TIMEOUT`, `SCREENSAVER_VIEWS`, `SCREENSAVER_INTERVAL` | Settings → 🏠 General → Appearance; the timeout is in **minutes** |
 
 ### Where to find what
 
@@ -163,7 +201,7 @@ provider opens the credential card of that provider.
 The Kiosk download banner, the Kiosk update panel and the About card (version,
 bug report, changelog) live inside **Info**. They used to sit outside the panels,
 so they were painted below every single tab.
-`scripts/test-settings-nav.php` fails if a tab declares a section the JS does not
+ fails if a tab declares a section the JS does not
 know, if a panel has no tab (or two), if the page opens on a tab of a section
 that is not highlighted, if the sub-section list starts scrolling sideways again, or
 if those blocks move back out of *Info*.
@@ -199,11 +237,11 @@ The **first-run wizard** only offers what the server has not already decided: th
 step — `GDRIVE_ENABLED=false` hides it, because switching the feature off is a decision,
 while the `.env` default (key absent) still offers it as a discovery step.
 
-`scripts/test-setup-assistant.php` fails if a row points at a tab that does not exist,
+ fails if a row points at a tab that does not exist,
 if an `ask` item names a wizard step outside `_setupSteps()`, if a label is missing in
 any of the six locales, if the card starts listing configured options again, or if the
 wizard goes back to a hardcoded closing step.
-`scripts/test-setup-wizard-config.php` runs the shipped `_getMissingSetupSteps()` in node
+ runs the shipped `_getMissingSetupSteps` in node
 and fails if a new device is asked again on a configured instance, if an explicit
 `GDRIVE_ENABLED=false` keeps the Drive step, or if the instance ledger stops being read
 and written.
@@ -288,7 +326,10 @@ never put into an error message.
 
 ## Protecting the API with a token
 
-If your EverShelf instance is reachable from an untrusted network, set `API_TOKEN` to a strong random string:
+`API_TOKEN` is what stands between your pantry and anyone else on the network, so
+EverShelf no longer relies on you remembering to set it: **an install with no token mints
+one on the first request it answers.** You can also set it yourself, which is the better
+answer when you already have a secret store:
 
 ```bash
 # Generate a strong token
@@ -299,7 +340,11 @@ openssl rand -hex 32
 API_TOKEN=a3f9b2c1d4e5...
 ```
 
-From then on every API action requires it — the web UI sends `X-API-Token`, Home Assistant can use `?api_token=`. A missing or wrong token is rejected with HTTP 403.
+From then on every API action requires it — the web UI sends `X-API-Token`, Home Assistant can use `?api_token=`. A missing or wrong token is rejected with HTTP 401.
+
+`ALLOW_OPEN_LAN=true` keeps an unauthenticated install on purpose (a fully trusted LAN, or
+a reverse proxy that authenticates for you). `ALLOWED_HOSTS` is the companion guard for the
+other direction — DNS rebinding, which no browser check can see (see `SECURITY.md`).
 
 ### First run: the pairing code
 
@@ -358,17 +403,53 @@ location.reload();
 
 ## Demo Mode
 
-Two ways to enable demo mode:
+A demo is a **showcase**, not an installation: it answers from its own seeded
+database, never from the household's pantry, and it is the one mode a marketing site
+is meant to embed.
 
-1. **Permanent:** Set `DEMO_MODE=true` in `.env`
-2. **Per-session:** Append `?demo=1` to any URL (e.g. `https://evershelf.site/demo`)
+Three ways in — any one of them is enough:
 
-In demo mode:
-- All POST/write API calls return success without touching the database
-- A "DEMO" badge appears in the header
-- Gemini AI is treated as available (mock responses)
-- Bring! write operations are silently no-op'd
-- A mock pantry with sample data is loaded
+| How | Scope |
+| --- | --- |
+| `DEMO_MODE=true` in `.env` | the whole deployment |
+| `?demo=1` on any URL | that URL and its API calls (the client repeats the flag; leave the URL and the demo ends) |
+| serving the app under `DEMO_BASE_PATH` (default `/demo`) | every request under that path, e.g. `https://evershelf.site/demo` |
+
+What it does:
+
+- **Its own database.** `data/demo/evershelf-demo-<lang>.db`, created on the first
+  request from `api/lib/demo_seed.json` (30 products, a month of history, a shopping
+  list) and rebuilt once a day so the expiry dates are always relative to today. The
+  household's `data/evershelf.db` is never opened in demo mode.
+- **Language.** English by default; `?lang=it|en|de|fr|es|zh` opens the demo in that
+  language, and the demo database of that language is used — product names included.
+  The marketing site passes it on the iframe URL.
+- **Read-only.** Every write answers `{"success":true,"demo_mode":true}` without
+  touching the data; AI generation (`gemini_*`, recipe generation) answers
+  `403 demo_mode`.
+- **No pairing, no token.** `API_TOKEN` is neither required nor ever generated by a
+  demo request, so the showcase opens without a code.
+- **No questions.** The demo database carries every answer the first run would ask for
+  (`setup_done`, `setup_seen` at the current version of every assistant question,
+  `med_setup_done`): the setup wizard and «💊 Farmaci in casa?» never open over a demo.
+- **It describes itself.** `get_settings` blanks the household's rooms, coordinates,
+  Bring! e-mail, TTS/AI endpoints, HA, Mealie and personal preferences, the spend ledger
+  is `data/demo/shopping_spend-<lang>.json`, and shopping always uses the internal list.
+- **Embeddable.** `Content-Security-Policy: frame-ancestors` replaces
+  `X-Frame-Options` (`.htaccess` does the same for the static `index.html`, keyed on
+  `?demo=1` and on the `/demo` mount), so a site can put the demo in an iframe:
+
+  ```html
+  <iframe src="https://evershelf.example/?demo=1&lang=en"
+          allow="camera; microphone; fullscreen"
+          style="width:100%;height:100vh;border:0"></iframe>
+  ```
+
+  `?demo=1&lang=…` works on **any** install (nothing to deploy); a dedicated mount is
+  `https://evershelf.example/demo/?lang=en` (`DEMO_BASE_PATH`). `allow="camera;
+  microphone"` is what lets the demo use the scanner inside the frame; narrow the origin
+  list with `DEMO_FRAME_ANCESTORS` (e.g. `https://www.socly.it`).
+- A translated **DEMO** badge appears in the header and the settings page is hidden.
 
 ---
 
@@ -422,3 +503,14 @@ WAL checkpoint when the `sqlite3` CLI is not installed):
 ```bash
 ./backup.sh
 ```
+
+### Maintenance helpers in `scripts/`
+
+| Script | What it does |
+|---|---|
+| `php scripts/check-upgrade-migration.php` | Builds a database with the previous release and opens it with this one: 48 checks that nothing is lost. Run it before updating a long-lived install. |
+| `php scripts/fix-expiry-anchors.php` | Dry run by default. Repairs the best-before dates of an older install that were counted from the wrong day (the first pass anchored on *today* instead of the day the row entered the pantry, and a non-perishable became the year 2054). `--apply` writes, after a `VACUUM INTO` backup. |
+| `php scripts/consolidate-duplicate-products.php` | `--dry-run` first. Merges the product rows created before the brand-is-a-variant rule (skips any group whose stocked rows disagree on the unit). |
+| `php scripts/import-medicines.php <file>` | Imports the national medicine catalogue (AIFA CSV/XML for Italy, openFDA JSON for the US). |
+| `./scripts/fix-permissions.sh` | Re-applies ownership/permissions to `data/`, `logs/` and `.env` after a manual install (`WEB_USER=…` to change the owner). |
+| `./scripts/install-transformers-model.sh` | Vendors the optional MiniLM weights under `assets/vendor/transformers/` (the embedding classifier; without them the app falls back to the name heuristics). |

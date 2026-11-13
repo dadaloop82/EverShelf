@@ -321,12 +321,20 @@ async function supportChoose(mode) {
     if (_supportModeDisabled(mode)) return;
     const modal = document.getElementById('support-modal');
     const fromCard = !(modal && modal.style.display === 'flex');
-    const saved = await _saveSettingToServer({ support_mode: mode, support_decided: true });
+    // The clock of the answer travels with it: the question stays away for a month
+    // (and comes back on a random boot after that, never on a schedule).
+    const answeredAt = Math.floor(Date.now() / 1000);
+    const saved = await _saveSettingToServer({
+        support_mode: mode,
+        support_decided: true,
+        support_answered_at: String(answeredAt),
+    });
     const payload = _supportPayload();
     _serverSettings = _serverSettings || {};
     _serverSettings.support = Object.assign({}, payload, {
         mode: mode,
         answered: true,
+        answered_at: answeredAt,
         // Banner slots are parked: nothing to switch on, whatever was picked.
         ads_enabled: false,
     });
@@ -341,18 +349,45 @@ async function supportChoose(mode) {
     if (!fromCard) closeSupportModal();
 }
 
+/** «Later» keeps the question away for this long… */
+const SUPPORT_REMINDER_DAYS = 45;
+/** …and past it, one start in four brings it back: ~ every other month, never a schedule. */
+const SUPPORT_REMINDER_CHANCE = 0.25;
+
 /**
  * Called once per startup (after the settings are known and after the first-run
  * wizard) — and again when the wizard finishes, so a fresh install still gets the
  * question without two dialogs stacked on each other.
  *
- * The question is asked while nothing was decided and never comes back on its own:
- * closing it with ✕ is not an answer, so it returns at the next start, but any of
- * the four answers — "later" included — is final until it is changed in Settings.
+ * The question is asked while nothing was decided. Closing it with ✕ is not an answer,
+ * so it returns at the next start. After that:
+ *   * **donate** — never asked again, on any start: the household has already seen the
+ *     QR and done its part. It only changes if somebody opens it in Settings;
+ *   * **later** — quiet for a month and a half, then back on a random start (one boot
+ *     in four): about one reminder every other month, and never on a date the family
+ *     can predict («a random un mese sì e uno no»).
  */
 function _maybeShowSupportPrompt() {
     if (_demoMode) return;
-    if (_supportAnswered()) return;
+    if (_supportAnswered()) {
+        if (_supportEffectiveMode() === 'donate') return;
+        const payload = _supportPayload();
+        const answeredAt = Number(payload.answered_at || 0);
+        if (!answeredAt) {
+            // An answer stored before this clock existed (SUPPORT_ANSWERED_AT): start it
+            // now, once, so the reminder has a date to count from. Written through the
+            // normal save path, so a read-only `.env` keeps it in app_settings.
+            try {
+                const ts = Math.floor(Date.now() / 1000);
+                if (_serverSettings && _serverSettings.support) _serverSettings.support.answered_at = ts;
+                _saveSettingToServer({ support_answered_at: String(ts) }).catch(() => {});
+            } catch (_) { /* the dialog simply stays away */ }
+            return;
+        }
+        const days = (Date.now() / 1000 - answeredAt) / 86400;
+        if (days < SUPPORT_REMINDER_DAYS) return;
+        if (Math.random() > SUPPORT_REMINDER_CHANCE) return;
+    }
     const wizard = document.getElementById('setup-wizard');
     if (wizard && wizard.style.display !== 'none') return;
     // A modal already open (an alert, the item chooser) wins: asking later is fine,
@@ -516,8 +551,8 @@ function _renderAdSlots() {
  *             return;
  *         }
  *         _loadAdsenseScript(client);
- *         el.innerHTML = `<ins class="adsbygoogle" style="display:block" data-ad-client="${escapeHtml(client)}"`
- *             + ` data-ad-slot="${escapeHtml(slot)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+ *         el.innerHTML = `<ins class="adsbygoogle" style="display:block" data-ad-client="${escapeAttr(client)}"`
+ *             + ` data-ad-slot="${escapeAttr(slot)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
  *         el.style.display = 'block';
  *         try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) { /* an ad blocker is not an error *\/ }
  *         return;

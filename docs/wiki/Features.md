@@ -341,25 +341,23 @@ See [Translations](Translations) to add a new language.
 
 ## ⚙️ Settings
 
-The settings page is organised in **two levels**, so a panel with ten cards no longer
-buries the option you came for:
+The settings page is a **control panel**, and it has no Save button:
 
-- **Four sections** across the top (App & AI · Cucina · Avvisi e servizi · Sistema); only
-  the **sub-sections** of the active one are listed, wrapped instead of scrolling
-  sideways. The section you used last reopens next time.
-- **Every card is collapsed** to its heading and first hint line: click to open the
-  fields, toggles and test buttons, and **only one card is open at a time**. Jumping
-  from the checklist opens the card it points at, and picking an AI provider opens the
-  card holding that provider's credentials.
-- The **checklist card** at the top lists only what needs a decision — the options that
-  are still unconfigured, plus a *Novità* group when an option gained a new question
-  since you last saw it. It stays one compact line when there is nothing to decide.
-- **▶️ Review the options** re-runs the guided assistant over the open options; ntfy
-  notifications and the cron watchdog can be tested *inside* the wizard, before saving.
+- **Six sections** in a rail — 🏠 General · 🍳 Cooking · 🤖 AI & voice · 💊 Medicines ·
+  🔔 Alerts & integrations · 🔒 System — a sticky sidebar on a monitor, a swipeable strip of
+  pills on a phone. The topics of the open section are quiet chips underneath, so one level
+  is visible at a time.
+- **The essentials are above the rail, never behind a tab**: the access token (masked, with
+  reveal and copy), the pairing code, the last backup with **Backup now**, and the version.
+- **Every control writes itself**: a checkbox or a select is saved at once, a text field
+  700 ms after the last keystroke. The bar at the bottom is a *receipt* — pending, saving,
+  saved — and it never says “saved” when the server refused.
+- **Long guides live in a dialog** (the CA certificate instructions, for instance), not in a
+  panel that pushes the next card off the screen.
+- **The idle screen is configured here too** (General → Appearance): on/off, the timeout in
+  minutes, which of the four cards to keep and how often they change.
 
 Full detail: [Configuration](Configuration).
-
----
 
 ## 🔒 Security Features
 

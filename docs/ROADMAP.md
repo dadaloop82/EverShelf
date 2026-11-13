@@ -41,6 +41,8 @@ far), `feature` / `enhancement` / `bug` / `i18n` / `docs`.
 | A scanned tomato is never the pantry's jar of passata (duplicates, AI name→category, AI unit/quantity, pantry floor) | — | 1.13.0 |
 | The vocabulary is **data** (`api/vocab/<lang>.json`) — genres, brands, plurals; no product names in the code | — | 1.13.0 |
 | Optional support layer — **donations only**, no advertising | — | 1.12.0 |
+| SHELFY acts on the page you are on (floating 10 s confirmation, compact sheet, avatar) + “…alla spesa” intent | — | 1.29.5 |
+| Editable PAO — the opening window («consigliato entro 3-6 gg») is corrected in the edit sheet and the app keeps the **average** per family + place | — | branch (`pao_overrides`, `pao_save`) |
 
 ## 🔜 Next (agreed, waiting for hands)
 
@@ -153,8 +155,8 @@ Instead of only estimating a replacement cost: know what *you* paid, where.
 
 ## 🧊 Parked (feature built, deliberately switched off)
 
-* **Ad banner slots** (dashboard + screensaver) and the *keep the banners* / *both*
-  answers. The code is in the tree, commented, with a re-enabling checklist in the
+* **Ad banner slot** (the dashboard one; the idle screen has no slot since its 2.0.0
+  redesign) and the *keep the banners* / *both* answers. The code is in the tree, commented, with a re-enabling checklist in the
   wiki: [Support and ads](wiki/Support-and-ads.md#banner-slots-parked). EverShelf
   ships without advertising; the support dialog offers a donation or nothing.
 

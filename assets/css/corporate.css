@@ -209,6 +209,10 @@ select.form-input {
     border: 1.5px solid var(--es-border-subtle);
     background: var(--bg-card);
     font-size: var(--es-text-body);
+    /* Forms stay denser than primary CTAs (48px): 40px still hits the touch floor. */
+    min-height: 40px;
+}
+.search-bar input {
     min-height: var(--es-btn-height);
 }
 
@@ -237,7 +241,7 @@ select.form-input:focus {
 
 .loc-btn {
     border-radius: var(--es-radius-card);
-    min-height: var(--es-btn-height);
+    min-height: 40px;
     font-weight: 600;
     border: 1.5px solid color-mix(in srgb, var(--border) 45%, var(--text-muted) 55%);
     background: color-mix(in srgb, var(--bg) 55%, var(--bg-card) 45%);
@@ -355,11 +359,6 @@ select.form-input:focus {
     font-weight: 700;
 }
 
-.inv-swipe-bg-left {
-    background: color-mix(in srgb, var(--es-action-use) 22%, transparent);
-    color: #92400e;
-}
-
 .inv-swipe-bg-right {
     background: color-mix(in srgb, var(--primary-light) 22%, transparent);
     color: var(--primary-dark);
@@ -402,10 +401,11 @@ select.form-input:focus {
 
 /* ── Modals ──────────────────────────────────────────────────── */
 .modal-overlay,
-#recipe-overlay {
+#recipe-overlay,
+#chat-overlay {
     background: color-mix(in srgb, #0f172a 58%, transparent);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 
 .modal-content,
@@ -537,8 +537,8 @@ select.form-input:focus {
 
 /* ── Toast & loading ─────────────────────────────────────────── */
 .toast {
-    border-radius: var(--es-radius-card);
-    box-shadow: var(--es-shadow-elevated);
+    border-radius: 9999px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.35);
     font-weight: 600;
     font-size: var(--es-text-small);
 }

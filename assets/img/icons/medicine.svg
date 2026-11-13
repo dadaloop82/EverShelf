@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+  <!-- EverShelf Med — the medicine mark.
+       A capsule lying flat: one half solid, a small cross in the other. It reads as a medicine
+       at 18 px (location pill, pantry tab) and at 26-34 px (row thumbnail, detail sheet) and it
+       cannot be mistaken for a food emoji. No white plate behind it, so the frame's own
+       background shows through in both themes; the colour is the module's medical tint
+       (#6366f1), the same one the cabinet pill, the chips and the tab already use.
+       Drawn with plain shapes (rect + paths, no transform attribute) so every renderer — the
+       browser, the Android WebView, a PNG preview — draws the same capsule. -->
+  <rect x="3.5" y="8.25" width="17" height="7.5" rx="3.75" stroke="#6366f1" stroke-width="1.7"/>
+  <path d="M7.25 8.25h5v7.5h-5a3.75 3.75 0 0 1 0-7.5Z" fill="#6366f1"/>
+  <path d="M16 10.4v3.2M14.4 12h3.2" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

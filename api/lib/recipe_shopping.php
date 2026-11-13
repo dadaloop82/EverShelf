@@ -20,8 +20,7 @@
  * purchase blocklist, the generic-name normalisation and the HA webhook keep
  * working exactly as they do for a manual add.
  *
- * Everything above the HTTP handler is pure (PDO + arrays in, arrays out) and is
- * covered by scripts/test-recipe-shopping.php.
+ * Everything above the HTTP handler is pure: PDO + arrays in, arrays out.
  *
  * Action: recipe_shopping_add (POST, CSRF-protected, blocked in demo mode).
  * `dry_run: true` computes the same plan and writes nothing, which is what the

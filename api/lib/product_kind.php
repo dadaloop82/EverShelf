@@ -20,8 +20,7 @@
  *   4. the localized app category as a last resort.
  *
  * The dictionaries live here (and not inline in api/index.php) because both
- * computeShoppingName() and the kind resolver must read the *same* vocabulary:
- * scripts/test-product-kind-prefix.php locks that down.
+ * computeShoppingName() and the kind resolver must read the *same* vocabulary.
  */
 
 /** Stop words / filler adjectives dropped before looking a token up. */
@@ -203,6 +202,45 @@ function productKindSingularForm(string $kind): string {
 function productKindPluralForm(string $kind): string {
     $forms = productKindNumberFormsFor($kind);
     return $forms['plural'] === $forms['singular'] ? '' : $forms['plural'];
+}
+
+/**
+ * The buyable word at the number a SHOPPING LIST uses: the plural.
+ *
+ * You write "Peperoni" on a list, never "Peperone" — and a list that carried both was
+ * carrying two families of the same vegetable. The plural comes from the language data
+ * (`api/vocab/<lang>.json` → `number_forms`), which is where the pairs live; a word the
+ * language does not declare (latte, pane, pasta, tonno: mass nouns) is left exactly as
+ * it is, because "Latti" and "Pasti" are not words this app may invent.
+ */
+function productKindShoppingPlural(string $generic): string {
+    $generic = trim($generic);
+    if ($generic === '') {
+        return $generic;
+    }
+    $plural = productKindPluralForm($generic);
+    if ($plural !== '') {
+        return $plural;
+    }
+    // A generic that is a phrase ("Marmellata di limone", "Succo di pera"): the HEAD
+    // takes the number, the complement stays put. Only a real connector opens that
+    // door — "Formaggio fresco" must never become "Formaggi fresco", because there the
+    // second word is an adjective that would have to agree too.
+    $words = preg_split('/\s+/u', $generic) ?: [];
+    if (count($words) >= 3) {
+        $connectors = array_map(
+            static fn($w) => mb_strtolower(trim((string)$w)),
+            (array)(evershelfVocab()['phrase_connectors'] ?? [])
+        );
+        if (in_array(mb_strtolower($words[1]), $connectors, true)) {
+            $headPlural = productKindPluralForm($words[0]);
+            if ($headPlural !== '') {
+                $words[0] = $headPlural;
+                return implode(' ', $words);
+            }
+        }
+    }
+    return $generic;
 }
 
 /** Gender of a genre word from its ending ('m'/'f'); '' when the ending does not tell. */
@@ -578,6 +616,170 @@ function productKindFromAi(string $name, string $brand, string $category): strin
 }
 
 /**
+ * Words that may lead a title but can never BE the shopping generic.
+ *
+ * "Verdura peperone" is a fine pantry title (the genre leads, as the title rule
+ * wants) but a terrible shopping line: you write "Peperoni" on the list, not
+ * "Verdura". The list lives in `api/vocab/<lang>.json` → `shopping_container_heads`,
+ * so the words stay DATA (AGENTS.md §4b) and the code only compares strings.
+ *
+ * @return list<string>
+ */
+function productKindContainerHeads(): array
+{
+    return array_values(array_map(
+        static fn($w) => mb_strtolower(trim((string)$w)),
+        (array)(evershelfVocab()['shopping_container_heads'] ?? [])
+    ));
+}
+
+/** True when this word is a container head (a shelf genre, not a buyable article). */
+function productKindIsContainerHead(string $word): bool
+{
+    $w = mb_strtolower(trim($word));
+    if ($w === '') {
+        return false;
+    }
+    return in_array($w, productKindContainerHeads(), true);
+}
+
+/**
+ * The buyable generic for a title whose genre is only a container.
+ *
+ * The title choke point makes every product lead with its genre
+ * (`"Verdura peperone"`), and the shopping-name extractor then took the FIRST word
+ * — so the list was titled "Verdura", "Frutta", "Carne". Here the rest of the name is
+ * asked to the same dictionary; when it knows nothing, the empty string says "keep
+ * what you had" rather than inventing a word (a brand is not a generic).
+ */
+function productKindShoppingGeneric(string $name, string $brand = ''): string
+{
+    $tokens = evershelfSignificantTokens($name);
+    if (count($tokens) < 2) {
+        return '';
+    }
+    $lead = mb_strtolower((string)$tokens[0]);
+    if (!productKindIsContainerHead($lead)) {
+        return '';
+    }
+    $rest = array_slice($tokens, 1);
+    if ($rest === []) {
+        return '';
+    }
+    $alt = productKindFromDictionary(implode(' ', $rest));
+    $kind = trim((string)($alt['kind'] ?? ''));
+    if ($kind !== '' && mb_strtolower($kind) !== $lead && productKindIsPlausibleGenre($kind)) {
+        return productTitleCapitalize($kind);
+    }
+    // No dictionary answer: only a word the pantry already knows as piece produce
+    // ("limoni", "peperone", "patata") may title the row. A brand ("Milbona") or a
+    // qualifier ("impanata") must not, or the repair would invent new nonsense.
+    if (vocabIsPieceProduce((string)$rest[0])) {
+        return productTitleCapitalize((string)$rest[0]);
+    }
+    // Last resort: the words right after the container ("Cereali muesli croccante…"),
+    // one or two of them, short enough to read on a card — and never the brand, which
+    // is the one word that says nothing about what to buy. The first word must be food
+    // the vocabulary can place in a category: "impanata" (altro) and "milbona" (altro)
+    // are not generics, "muesli" (cereali) and "dolci" (snack) are.
+    if (vocabCategoryOfName((string)$rest[0]) === 'altro') {
+        return '';
+    }
+    $cand = [(string)$rest[0]];
+    if (isset($rest[1]) && mb_strlen($cand[0]) <= 9) {
+        $cand[] = (string)$rest[1];
+    }
+    $candidate = implode(' ', $cand);
+    if (mb_strlen($candidate) > 24) {
+        $candidate = (string)$rest[0];
+    }
+    $brandL = mb_strtolower(trim($brand));
+    $candidateL = mb_strtolower($candidate);
+    if ($brandL !== '' && ($candidateL === $brandL || str_contains($brandL, $candidateL))) {
+        return '';
+    }
+    if (mb_strlen($candidate) < 3 || preg_match('/\d/u', $candidate)) {
+        return '';
+    }
+    return productTitleCapitalize($candidate);
+}
+
+/**
+ * The buyable phrase a truncated generic is hiding.
+ *
+ * "Petto" is what the list wrote for "Petto di pollo a fette": the extractor took the
+ * first word and the complement that makes it a product ("di pollo") was dropped. When
+ * the name is <head> <connector> <noun>, the head plus its complement is the generic.
+ * The connectors are DATA (`api/vocab/<lang>.json` → `phrase_connectors`) for the same
+ * reason every other word is.
+ */
+function productKindShoppingPhrase(string $name): string
+{
+    // Raw words, not significant tokens: the connector IS a stop word, and the
+    // tokenizer drops exactly the word this rule is looking for.
+    $words = preg_split('/\s+/u', trim(preg_replace('/[^\p{L}\p{N}\s\']+/u', ' ', $name)) ?: '') ?: [];
+    $words = array_values(array_filter($words, static fn($w) => trim((string)$w) !== ''));
+    if (count($words) < 3) {
+        return '';
+    }
+    $connectors = array_map(
+        static fn($w) => mb_strtolower(trim((string)$w)),
+        (array)(evershelfVocab()['phrase_connectors'] ?? [])
+    );
+    $second = mb_strtolower($words[1]);
+    if (!in_array($second, $connectors, true)) {
+        return '';
+    }
+    // The head may already BE the generic ("Latte di Montagna": the dictionary knows
+    // "latte"). Turning that into a phrase split the milk into one family per brand —
+    // and the shopping list then asked for milk the pantry already had.
+    $headKind = trim((string)(productKindFromDictionary($words[0])['kind'] ?? ''));
+    if ($headKind !== '' && productKindIsPlausibleGenre($headKind)) {
+        return '';
+    }
+    // A connector attached to the word ("d'oliva") or its own word ("di pollo").
+    $third = trim($words[2]);
+    if ($third === '' || mb_strlen($third) < 3 || productKindIsContainerHead($third)) {
+        return '';
+    }
+    return productTitleCapitalize($words[0] . ' ' . $second . ' ' . $third);
+}
+
+/**
+ * The canonical shopping generic of a product name — the whole pipeline, no AI.
+ *
+ * `computeShoppingName()` (api/index.php) does the same and adds the Bring back-translation
+ * and the cached AI word; a migration that runs at boot cannot call it, and re-deriving the
+ * word one rule at a time is how "Latte di Montagna" became its own milk family. Order:
+ * dictionary genre → the specific generic → the phrase → the first significant token,
+ * always through the plural of the language data.
+ */
+function computeShoppingNameCanonical(string $name, string $brand = ''): string
+{
+    $name = trim($name);
+    if ($name === '') {
+        return '';
+    }
+    $curated = productKindFromDictionary($name, $brand);
+    $generic = trim((string)($curated['kind'] ?? ''));
+    $specific = productKindShoppingGeneric($name, $brand);
+    if ($generic !== '' && productKindIsPlausibleGenre($generic)) {
+        return productKindShoppingPlural($specific !== '' ? $specific : $generic);
+    }
+    if ($specific !== '') {
+        return productKindShoppingPlural($specific);
+    }
+    $phrase = productKindShoppingPhrase($name);
+    if ($phrase !== '') {
+        return productKindShoppingPlural($phrase);
+    }
+    // Nothing recognised: return '' — the caller KEEPS the generic it already has. The
+    // first token of "Yogurt Armonia" is a brand, and the old fallback renamed the row to
+    // "Armonia" (one family per brand, milk asked for while the fridge was full).
+    return '';
+}
+
+/**
  * Leading UI-tab / OFF labels that poisoned titles when used as genres
  * ("Snacks & sweets frollini…", "Vegetables basilico", "Dairy trentingrana…").
  * Stripped on apply so a maintenance pass can heal the pantry.
@@ -619,6 +821,33 @@ function productKindIsPlausibleGenre(string $kind): bool {
     $compact = str_replace(' ', '', $norm);
     if (isset($englishTabs[$norm]) || isset($englishTabs[$compact])) {
         return false;
+    }
+    // Umbrella / domain labels ("Farmaco", "Dairy", "Snacks & sweets") are filters, not
+    // article genres — the AI once prefixed every medicine with "Farmaco".
+    static $umbrellaTabs = null;
+    if ($umbrellaTabs === null) {
+        $umbrellaTabs = [];
+        foreach (productKindUmbrellaCategoryLabels() as $tabWord) {
+            $u = mb_strtolower(trim((string)preg_replace('/[^\p{L}\s]+/u', ' ', (string)$tabWord)));
+            $u = trim(preg_replace('/\s+/u', ' ', $u) ?? $u);
+            if ($u === '') {
+                continue;
+            }
+            $umbrellaTabs[$u] = true;
+            $umbrellaTabs[str_replace(' ', '', $u)] = true;
+        }
+    }
+    if (isset($umbrellaTabs[$norm]) || isset($umbrellaTabs[$compact])) {
+        return false;
+    }
+    // A CLASS with a tail is still a class: «Integratore alimentare a base di erbe» opens with an
+    // umbrella label and is not the genre of an article — the AI answered exactly that once and
+    // prefixed every supplement with it. Only the multi-word labels are matched by prefix
+    // (a single word like «fruit» would also swallow a real genre such as «Fruit salad»).
+    foreach ($umbrellaTabs as $label => $_) {
+        if (is_string($label) && str_contains($label, ' ') && str_starts_with($norm, $label . ' ')) {
+            return false;
+        }
     }
     // More than three words is a phrase dump, not a genre ("Sponge cake roll")
     if (count(preg_split('/\s+/u', $norm, -1, PREG_SPLIT_NO_EMPTY) ?: []) > 3) {
@@ -700,9 +929,19 @@ function resolveProductKind(string $name, string $brand = '', string $category =
     // 3. One-word AI classification (cached per name+brand, daily capped).
     if ($allowAi) {
         $ai = productKindFromAi($name, $brand, $category);
-        if ($ai !== '') {
+        // The AI's word is a GENRE or nothing: a class («Integratore alimentare», «Farmaco») is
+        // never prefixed to a title and is never written to the cache, or the answer would be
+        // replayed for every supplement that looks like this one.
+        if ($ai !== '' && productKindIsPlausibleGenre($ai)) {
             productKindCacheSave(productKindCacheStore($cache, $signature, $ai, 'ai'));
             return ['kind' => $ai, 'source' => 'ai'];
+        }
+        if ($ai !== '' && class_exists('EverLog')) {
+            EverLog::warn('Product kind: the AI answered a class, not a genre', [
+                'event' => 'product_kind_ai_implausible',
+                'kind'  => $ai,
+                'name'  => $name,
+            ]);
         }
     }
 
@@ -1019,8 +1258,32 @@ function productTitleRestoreAcronyms(string $original, string $lowered): string 
  * *copy* of the name to compare two products: the stored title keeps the case this
  * function gives it.
  */
+/**
+ * Catalog / OCR / import sometimes hand us titles with HTML entities already in
+ * them ("Marmellata di &quot;Limone…&quot;"). Those must become real quotes before
+ * we store or capitalise — otherwise every escapeHtml() on the client prints the
+ * literal `&quot;` on screen, and the history log shows the raw entity.
+ *
+ * Decoding repeats while the string still changes: an old import escaped a title
+ * that was already escaped ("&amp;quot;"), and one pass then leaves a visible
+ * `&quot;`. Bounded to 4 passes so a pathological value can never loop here.
+ */
+function productTitleDecodeEntities(string $name): string {
+    if ($name === '' || strpos($name, '&') === false) {
+        return $name;
+    }
+    for ($i = 0; $i < 4 && strpos($name, '&') !== false; $i++) {
+        $decoded = html_entity_decode($name, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($decoded === $name) {
+            break;
+        }
+        $name = $decoded;
+    }
+    return $name;
+}
+
 function productTitleCapitalize(string $name): string {
-    $name = trim($name);
+    $name = productTitleDecodeEntities(trim($name));
     if ($name === '') {
         return '';
     }

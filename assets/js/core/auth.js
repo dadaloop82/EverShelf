@@ -34,6 +34,23 @@ function apiAuthHeaders() {
     return { 'X-API-Token': token };
 }
 
+/**
+ * `&demo=1&lang=xx` when this page is the demo.
+ *
+ * `app_bootstrap` is a RAW fetch — it runs before any `api()` call — so without this the
+ * demo would be answered by the household's install instead of its own database. The
+ * flag lives in the URL (`_demoQuery()` lives in app.js, which is this script's caller).
+ */
+function _authDemoQuery() {
+    try {
+        if (typeof _demoMode === 'undefined' || !_demoMode) return '';
+        const lang = (typeof _currentLang === 'string' && _currentLang) ? _currentLang : 'en';
+        return '&demo=1&lang=' + encodeURIComponent(lang);
+    } catch (_) {
+        return '';
+    }
+}
+
 /** Fetch API token from server when loading the UI from the same origin. */
 async function ensureApiToken() {
     if (getApiToken()) return true;
@@ -49,7 +66,7 @@ async function ensureApiToken() {
         }
     } catch (_) { /* bridge unavailable */ }
     try {
-        const res = await fetch('api/index.php?action=app_bootstrap', { cache: 'no-store' });
+        const res = await fetch('api/index.php?action=app_bootstrap' + _authDemoQuery(), { cache: 'no-store' });
         if (!res.ok) return false;
         const data = await res.json();
         window._apiTokenRequired = !!data.api_token_required;
@@ -104,12 +121,12 @@ function _promptPairingCode() {
         const code  = (input?.value || '').trim();
         if (!code) return;
         try {
-            const res = await fetch('api/index.php?action=app_bootstrap&pairing_code=' + encodeURIComponent(code), { cache: 'no-store' });
+            const res = await fetch('api/index.php?action=app_bootstrap' + _authDemoQuery() + '&pairing_code=' + encodeURIComponent(code), { cache: 'no-store' });
             const data = await res.json();
             if (data.api_token) {
                 setApiToken(data.api_token);
                 overlay.remove();
-                location.reload();
+                if (typeof _reloadPage === 'function') _reloadPage('pairing'); else location.reload();
                 return;
             }
         } catch (_) { /* fall through to the error below */ }
@@ -150,7 +167,7 @@ function _promptApiTokenIfNeeded() {
         if (v) {
             setApiToken(v);
             overlay.remove();
-            location.reload();
+            if (typeof _reloadPage === 'function') _reloadPage('api_token'); else location.reload();
         }
     };
 }

@@ -43,7 +43,7 @@ gradlew.bat
 # `data/**` (not `data/`) is what keeps the re-inclusion below possible, and it
 # also covers nested folders such as data/mealie/ (cleartext credentials).
 # data/seasonal_produce_it.json is SHIPPED SOURCE DATA used by the seasonal
-# feature and by scripts/test-seasonal-match.php, so it must stay readable.
+# feature, so it must stay readable.
 data/**
 !data/seasonal_produce_it.json
 *.db
@@ -114,3 +114,5 @@ todo/screenshots/
 **/package-lock.json
 **/yarn.lock
 **/pnpm-lock.yaml
+
+# TEMPORARY medicine-read diagnostic (frames + events of the OCR reader)

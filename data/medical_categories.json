@@ -1,0 +1,584 @@
+{
+    "version": 1,
+    "note": "EverShelf Med Phase 1 — the CLOSED taxonomy of 8 household categories. Never user-typed tags: the offline search must stay predictable. Each category carries the words a household actually says (six shipped locales) and the ATC prefixes it resolves to when the AIFA import lands (Phase 2). DATA ONLY: no logic, no product name, no dosage, no advice.",
+    "categories": [
+        {
+            "slug": "pain",
+            "label_key": "medical.cat_pain",
+            "atc": [
+                "N02B",
+                "M01A",
+                "M02A"
+            ],
+            "symptoms": {
+                "it": [
+                    "mal di testa",
+                    "emicrania",
+                    "febbre",
+                    "dolore",
+                    "dolori",
+                    "mal di schiena",
+                    "dolore muscolare",
+                    "infiammazione",
+                    "mal di denti"
+                ],
+                "en": [
+                    "headache",
+                    "migraine",
+                    "fever",
+                    "pain",
+                    "ache",
+                    "back pain",
+                    "muscle pain",
+                    "inflammation",
+                    "toothache"
+                ],
+                "de": [
+                    "kopfschmerzen",
+                    "migräne",
+                    "fieber",
+                    "schmerzen",
+                    "rückenschmerzen",
+                    "muskelschmerzen",
+                    "entzündung",
+                    "zahnschmerzen"
+                ],
+                "fr": [
+                    "mal de tête",
+                    "migraine",
+                    "fièvre",
+                    "douleur",
+                    "mal de dos",
+                    "douleur musculaire",
+                    "inflammation",
+                    "mal de dents"
+                ],
+                "es": [
+                    "dolor de cabeza",
+                    "migraña",
+                    "fiebre",
+                    "dolor",
+                    "dolor de espalda",
+                    "dolor muscular",
+                    "inflamación",
+                    "dolor de muelas"
+                ],
+                "zh": [
+                    "头痛",
+                    "偏头痛",
+                    "发烧",
+                    "疼痛",
+                    "背痛",
+                    "肌肉痛",
+                    "炎症",
+                    "牙痛"
+                ]
+            }
+        },
+        {
+            "slug": "stomach",
+            "label_key": "medical.cat_stomach",
+            "atc": [
+                "A02B",
+                "A02A",
+                "A03",
+                "A06",
+                "A07F"
+            ],
+            "symptoms": {
+                "it": [
+                    "stomaco",
+                    "reflusso",
+                    "bruciore di stomaco",
+                    "acidità",
+                    "digestione",
+                    "dissenteria",
+                    "fermenti",
+                    "gonfiore",
+                    "nausea"
+                ],
+                "en": [
+                    "stomach",
+                    "reflux",
+                    "heartburn",
+                    "acidity",
+                    "indigestion",
+                    "diarrhoea",
+                    "probiotics",
+                    "bloating",
+                    "nausea"
+                ],
+                "de": [
+                    "magen",
+                    "reflux",
+                    "sodbrennen",
+                    "übersäuerung",
+                    "verdauung",
+                    "durchfall",
+                    "blähungen",
+                    "übelkeit"
+                ],
+                "fr": [
+                    "estomac",
+                    "reflux",
+                    "brûlures d'estomac",
+                    "acidité",
+                    "digestion",
+                    "diarrhée",
+                    "ballonnement",
+                    "nausée"
+                ],
+                "es": [
+                    "estómago",
+                    "reflujo",
+                    "acidez",
+                    "ardor",
+                    "digestión",
+                    "diarrea",
+                    "hinchazón",
+                    "náuseas"
+                ],
+                "zh": [
+                    "胃",
+                    "反流",
+                    "烧心",
+                    "胃酸",
+                    "消化不良",
+                    "腹泻",
+                    "腹胀",
+                    "恶心"
+                ]
+            }
+        },
+        {
+            "slug": "cold",
+            "label_key": "medical.cat_cold",
+            "atc": [
+                "R05",
+                "R01A",
+                "R02A"
+            ],
+            "symptoms": {
+                "it": [
+                    "raffreddore",
+                    "tosse",
+                    "catarro",
+                    "muco",
+                    "mal di gola",
+                    "gola",
+                    "naso chiuso",
+                    "congestione",
+                    "influenza"
+                ],
+                "en": [
+                    "cold",
+                    "cough",
+                    "phlegm",
+                    "mucus",
+                    "sore throat",
+                    "throat",
+                    "blocked nose",
+                    "congestion",
+                    "flu"
+                ],
+                "de": [
+                    "erkältung",
+                    "husten",
+                    "schleim",
+                    "halsschmerzen",
+                    "verstopfte nase",
+                    "grippe"
+                ],
+                "fr": [
+                    "rhume",
+                    "toux",
+                    "glaires",
+                    "mal de gorge",
+                    "nez bouché",
+                    "grippe"
+                ],
+                "es": [
+                    "resfriado",
+                    "tos",
+                    "flemas",
+                    "dolor de garganta",
+                    "nariz tapada",
+                    "gripe"
+                ],
+                "zh": [
+                    "感冒",
+                    "咳嗽",
+                    "痰",
+                    "喉咙痛",
+                    "鼻塞",
+                    "流感"
+                ]
+            }
+        },
+        {
+            "slug": "allergy",
+            "label_key": "medical.cat_allergy",
+            "atc": [
+                "R06",
+                "D04A"
+            ],
+            "symptoms": {
+                "it": [
+                    "allergia",
+                    "prurito",
+                    "starnuti",
+                    "orticaria",
+                    "raffreddore da fieno",
+                    "puntura",
+                    "zanzare"
+                ],
+                "en": [
+                    "allergy",
+                    "itching",
+                    "sneezing",
+                    "hives",
+                    "hay fever",
+                    "bite",
+                    "mosquito"
+                ],
+                "de": [
+                    "allergie",
+                    "juckreiz",
+                    "niesen",
+                    "nesselsucht",
+                    "heuschnupfen",
+                    "mückenstich"
+                ],
+                "fr": [
+                    "allergie",
+                    "démangeaison",
+                    "éternuements",
+                    "urticaire",
+                    "rhume des foins",
+                    "piqûre"
+                ],
+                "es": [
+                    "alergia",
+                    "picor",
+                    "estornudos",
+                    "urticaria",
+                    "rinitis",
+                    "picadura"
+                ],
+                "zh": [
+                    "过敏",
+                    "瘙痒",
+                    "打喷嚏",
+                    "荨麻疹",
+                    "花粉症",
+                    "蚊虫叮咬"
+                ]
+            }
+        },
+        {
+            "slug": "firstaid",
+            "label_key": "medical.cat_firstaid",
+            "atc": [
+                "D08",
+                "D07",
+                "D03",
+                "D06",
+                "D09",
+                "D01"
+            ],
+            "symptoms": {
+                "it": [
+                    "ferita",
+                    "ferite",
+                    "taglio",
+                    "disinfettante",
+                    "cerotto",
+                    "cerotti",
+                    "garza",
+                    "ustione",
+                    "contusione",
+                    "livido",
+                    "sangue",
+                    "dermatite",
+                    "eritema",
+                    "eczema",
+                    "rossore",
+                    "micosi",
+                    "crema pelle"
+                ],
+                "en": [
+                    "wound",
+                    "wounds",
+                    "cut",
+                    "disinfectant",
+                    "plaster",
+                    "plasters",
+                    "bandage",
+                    "burn",
+                    "bruise",
+                    "blood",
+                    "dermatitis",
+                    "erythema",
+                    "eczema",
+                    "rash",
+                    "fungus",
+                    "skin cream"
+                ],
+                "de": [
+                    "wunde",
+                    "wunden",
+                    "schnitt",
+                    "desinfektion",
+                    "pflaster",
+                    "verband",
+                    "verbrennung",
+                    "prellung",
+                    "blut",
+                    "dermatitis",
+                    "ekzem",
+                    "rötung",
+                    "pilz",
+                    "hautcreme"
+                ],
+                "fr": [
+                    "blessure",
+                    "blessures",
+                    "coupure",
+                    "désinfectant",
+                    "pansement",
+                    "gaze",
+                    "brûlure",
+                    "bleu",
+                    "sang",
+                    "dermatite",
+                    "érythème",
+                    "eczéma",
+                    "rougeur",
+                    "mycose",
+                    "crème peau"
+                ],
+                "es": [
+                    "herida",
+                    "heridas",
+                    "corte",
+                    "desinfectante",
+                    "tirita",
+                    "gasa",
+                    "quemadura",
+                    "golpe",
+                    "sangre",
+                    "dermatitis",
+                    "eritema",
+                    "eccema",
+                    "enrojecimiento",
+                    "hongos",
+                    "crema piel"
+                ],
+                "zh": [
+                    "伤口",
+                    "割伤",
+                    "消毒",
+                    "创可贴",
+                    "纱布",
+                    "烧伤",
+                    "瘀伤",
+                    "出血",
+                    "皮炎",
+                    "红斑",
+                    "湿疹",
+                    "皮疹",
+                    "真菌",
+                    "皮肤霜"
+                ]
+            }
+        },
+        {
+            "slug": "eyes",
+            "label_key": "medical.cat_eyes",
+            "atc": [
+                "S01"
+            ],
+            "symptoms": {
+                "it": [
+                    "occhio",
+                    "occhi",
+                    "occhio secco",
+                    "congiuntivite",
+                    "irritazione occhio",
+                    "lacrime"
+                ],
+                "en": [
+                    "eye",
+                    "eyes",
+                    "dry eye",
+                    "conjunctivitis",
+                    "eye irritation",
+                    "tears"
+                ],
+                "de": [
+                    "auge",
+                    "augen",
+                    "trockene augen",
+                    "bindehautentzündung",
+                    "tränen"
+                ],
+                "fr": [
+                    "œil",
+                    "yeux",
+                    "œil sec",
+                    "conjonctivite",
+                    "larmes"
+                ],
+                "es": [
+                    "ojo",
+                    "ojos",
+                    "ojo seco",
+                    "conjuntivitis",
+                    "lágrimas"
+                ],
+                "zh": [
+                    "眼睛",
+                    "干眼",
+                    "结膜炎",
+                    "眼痒",
+                    "流泪"
+                ]
+            }
+        },
+        {
+            "slug": "muscles",
+            "label_key": "medical.cat_muscles",
+            "atc": [
+                "M03",
+                "A12C"
+            ],
+            "symptoms": {
+                "it": [
+                    "crampi",
+                    "crampo",
+                    "muscoli",
+                    "contrattura",
+                    "strappo",
+                    "magnesio",
+                    "potassio",
+                    "gambe"
+                ],
+                "en": [
+                    "cramp",
+                    "cramps",
+                    "muscles",
+                    "strain",
+                    "magnesium",
+                    "potassium",
+                    "legs"
+                ],
+                "de": [
+                    "krämpfe",
+                    "krampf",
+                    "muskeln",
+                    "muskelzerrung",
+                    "magnesium",
+                    "kalium",
+                    "beine"
+                ],
+                "fr": [
+                    "crampes",
+                    "crampe",
+                    "muscles",
+                    "contracture",
+                    "magnésium",
+                    "potassium",
+                    "jambes"
+                ],
+                "es": [
+                    "calambres",
+                    "calambre",
+                    "músculos",
+                    "contractura",
+                    "magnesio",
+                    "potasio",
+                    "piernas"
+                ],
+                "zh": [
+                    "抽筋",
+                    "肌肉",
+                    "拉伤",
+                    "镁",
+                    "钾",
+                    "腿"
+                ]
+            }
+        },
+        {
+            "slug": "supplements",
+            "label_key": "medical.cat_supplements",
+            "atc": [
+                "A11",
+                "B03",
+                "A12"
+            ],
+            "symptoms": {
+                "it": [
+                    "integratore",
+                    "integratori",
+                    "vitamine",
+                    "vitamina",
+                    "vitamina c",
+                    "vitamina d",
+                    "ferro",
+                    "omega 3",
+                    "stanchezza"
+                ],
+                "en": [
+                    "supplement",
+                    "supplements",
+                    "vitamins",
+                    "vitamin",
+                    "vitamin c",
+                    "vitamin d",
+                    "iron",
+                    "omega 3",
+                    "tiredness"
+                ],
+                "de": [
+                    "nahrungsergänzung",
+                    "vitamine",
+                    "vitamin c",
+                    "vitamin d",
+                    "eisen",
+                    "omega 3",
+                    "müdigkeit"
+                ],
+                "fr": [
+                    "complément",
+                    "compléments",
+                    "vitamines",
+                    "vitamine c",
+                    "vitamine d",
+                    "fer",
+                    "omega 3",
+                    "fatigue"
+                ],
+                "es": [
+                    "complemento",
+                    "complementos",
+                    "vitaminas",
+                    "vitamina c",
+                    "vitamina d",
+                    "hierro",
+                    "omega 3",
+                    "cansancio"
+                ],
+                "zh": [
+                    "补充剂",
+                    "维生素",
+                    "维生素C",
+                    "维生素D",
+                    "铁",
+                    "欧米伽3",
+                    "疲劳"
+                ]
+            }
+        }
+    ]
+}
