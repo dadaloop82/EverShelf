@@ -4268,6 +4268,12 @@ function searchBarcode(PDO $db): void {
         echo json_encode(['found' => true, 'source' => 'local', 'product' => $product]);
         return;
     }
+    // In-store range (200…): the local database is the only source that can answer.
+    if (barcodeIsInStoreRange($barcode)) {
+        EverLog::info('searchBarcode in-store range, external lookup skipped', ['event' => 'barcode_in_store_range']);
+        echo json_encode(['found' => false]);
+        return;
+    }
     if (barcodeOfflineEnabled()) {
         $offline = barcodeCatalogGet($db, $barcode);
         if ($offline && !empty($offline['product'])) {
@@ -4286,6 +4292,20 @@ function searchBarcode(PDO $db): void {
 /** Strip non-digits; used for lookup keys. */
 function barcodeNormalizeDigits(string $barcode): string {
     return preg_replace('/\D/', '', trim($barcode));
+}
+
+/**
+ * GS1 in-store range: EAN-13 starting with `2` (200000…299999).
+ *
+ * Shops print these for their own packaging and for homemade items, and the number
+ * means nothing outside that shop. The public catalogues answer anyway — Open Food
+ * Facts and UPCitemdb return an arbitrary match — and that match was then stored as
+ * a real product, so the same code named two different things on two devices. These
+ * codes are resolved against the LOCAL database only. (Reported by @fabian1512.)
+ */
+function barcodeIsInStoreRange(string $barcode): bool {
+    $b = barcodeNormalizeDigits($barcode);
+    return strlen($b) === 13 && $b[0] === '2';
 }
 
 /** EAN-13 / UPC-A / GTIN-14 / EAN-8 variant barcodes to try against local DB and external APIs. */
@@ -4631,7 +4651,8 @@ function _parseUpcItemDbJson(?string $json): ?array {
  */
 function barcodeResolveExternal(PDO $db, string $barcode, bool $forceRefresh = false): ?array {
     $barcode = barcodeNormalizeDigits($barcode);
-    if ($barcode === '') {
+    // In-store codes (200…) have no external meaning: see barcodeIsInStoreRange().
+    if ($barcode === '' || barcodeIsInStoreRange($barcode)) {
         return null;
     }
 

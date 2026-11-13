@@ -70,6 +70,15 @@ lived-in pantry.
 
 ### Fixed
 
+- **An in-store barcode is not a product code.** EAN-13 codes starting with `2` are the
+  shop's own numbering (and what a homemade label gets): sending them to Open Food Facts
+  or UPCitemdb returns an arbitrary match, which was then stored as a real product — two
+  devices named the same code differently. They are resolved against the local database
+  only, and never cached from outside. *(Reported and fixed upstream by
+  [@fabian1512](https://github.com/fabian1512) — thank you.)*
+- **The low-stock prompt no longer appears when shopping is switched off**
+  (`SHOPPING_ENABLED=false`): its list writes are no-ops there, so it promised something
+  the app could not do. The caller's flow simply continues. *(Same source.)*
 - **An answered support question came back at every start** (reported: «perché esce sempre
   nonostante abbia scelto "Later"?»). Two bugs, one symptom: `database.php` decided the
   demo database by asking `env()` while `DB_PATH` was still being defined, and the

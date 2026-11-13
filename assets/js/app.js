@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261113g'; // bump when translations change
+const _I18N_VERSION = '20261113h'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -21880,7 +21880,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261113g';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261113h';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21890,7 +21890,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261113g';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261113h';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -24836,17 +24836,24 @@ function _barcodeRememberProduct(barcode, product) {
 
 async function _resolveBarcodeLookup(barcode) {
     const key = _barcodeCacheKey(barcode);
-    if (_barcodeSessionCache.has(key)) {
+    // GS1 in-store range (EAN-13 starting with `2`): the shop's own numbering, with no
+    // external meaning — a cached/persisted hit for such a code is a wrong product, so
+    // only the local database is trusted and neither cache is consulted or filled.
+    // (Reported by @fabian1512.)
+    const isInStore = /^2\d{12}$/.test(key);
+    if (!isInStore && _barcodeSessionCache.has(key)) {
         return _barcodeSessionCache.get(key);
     }
-    const persisted = _barcodePersistGet(key);
-    if (persisted) {
-        _barcodeSessionCache.set(key, persisted);
-        return persisted;
+    if (!isInStore) {
+        const persisted = _barcodePersistGet(key);
+        if (persisted) {
+            _barcodeSessionCache.set(key, persisted);
+            return persisted;
+        }
     }
     const result = await api('resolve_barcode', { barcode: key });
     _barcodeSessionCache.set(key, result);
-    if (result?.found) _barcodePersistSet(key, result);
+    if (!isInStore && result?.found) _barcodePersistSet(key, result);
     return result;
 }
 
@@ -29303,6 +29310,15 @@ function _showVacuumPrompt(openedId, wasVacuumSealed) {
 }
 
 function showLowStockBringPrompt(result, afterCallback) {
+    // Shopping switched off on the server (SHOPPING_ENABLED=false): the list writes are
+    // no-ops, so asking "shall I add it to the list?" would promise something the app
+    // cannot do. Continue the caller's flow instead. (Reported by @fabian1512.)
+    const shoppingOff = (_serverSettings && _serverSettings.shopping_enabled === false)
+        || getSettings().shopping_enabled === false;
+    if (shoppingOff) {
+        if (typeof afterCallback === 'function') afterCallback();
+        return;
+    }
     const name = result.product_name || currentProduct?.name || '';
     // Generic shopping name (e.g. "Affettato" for "Mortadella IGP"). Falls back to
     // the specific name when shopping_name is not set (older API call), so behaviour
