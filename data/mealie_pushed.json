@@ -127,6 +127,30 @@
             "archive_id": "1931",
             "patched": true,
             "created": true
+        },
+        "spaghetti integrali (o fusilli) con verdure e stelvio": {
+            "slug": "spaghetti-integrali-o-fusilli-con-verdure-e-stelvio",
+            "name": "Spaghetti integrali (o Fusilli) con verdure e Stelvio",
+            "at": 1794562803,
+            "archive_id": "1944",
+            "patched": true,
+            "created": false
+        },
+        "frittatina calda alle zucchine, peperoni e formaggio stelvio": {
+            "slug": "frittatina-calda-alle-zucchine-peperoni-e-formaggio-stelvio",
+            "name": "Frittatina Calda alle Zucchine, Peperoni e Formaggio Stelvio",
+            "at": 1794562803,
+            "archive_id": "1942",
+            "patched": false,
+            "created": false
+        },
+        "vellutata calda di finocchio e zucchina al limone con crumble integrale": {
+            "slug": "vellutata-calda-di-finocchio-e-zucchina-al-limone-con-crumble-integrale",
+            "name": "Vellutata Calda di Finocchio e Zucchina al Limone con Crumble Integrale",
+            "at": 1794562803,
+            "archive_id": "1941",
+            "patched": false,
+            "created": false
         }
     }
 }
