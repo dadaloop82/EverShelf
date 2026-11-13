@@ -20,12 +20,122 @@ Everything runs on your own hardware, and nothing about your pantry leaves it.
 
 ---
 
-## 🚧 2.0 is a large refactor
+## 🎉 EverShelf 2.x — the biggest update this project has ever had
 
-This release rewrites the parts the household actually touches — the settings page, the idle
-screen, every list, the medicine cabinet and the stocktake. The database migrates itself on the
-first request (verified row by row, see [§8](#8-upgrade-safety-is-a-test-not-a-promise)) and no
-setting is lost: updating is a pull and a restart. What changed, and why:
+This is not a patch release. EverShelf 2.x is the release where the app the household
+actually touches was rebuilt from the inside: **every screen, every list, the settings
+page, the idle screen, the medicine cabinet, the stocktake, the API and the upgrade
+path** — and a demo with a real pantry in it, so you can see all of it before you
+install anything.
+
+The pantry you already have is safe: the database repairs and verifies itself on the
+first request, and a second boot changes nothing. Everything you *look at* is new.
+
+<img src="screenshots/hero.gif" alt="EverShelf 2.x — Home, Pantry, Opened items, Shopping list and the product sheet" width="620">
+
+> **Before:** eighteen settings tabs and a Save button, a clock with a canned sentence on
+the wall, three different list layouts, and a demo that answered with an empty pantry.
+>
+> **After:** six settings sections that save themselves, a dashboard that reads your own
+> data, one 132 px row in every list, a medicine cabinet that reads the pack instead of
+> guessing — and a demo that opens on a real, seeded household.
+
+| | EverShelf 1.x | EverShelf 2.x |
+|---|---|---|
+| **Settings** | 18 tabs in two strips, one *Save* | six sections, four essentials always visible, **no Save button** — every control writes itself |
+| **Idle screen** | a big clock + a sentence from a list | four cards from your own data (a recipe you already cooked, what to eat first, charts, an idea of the day) |
+| **Lists** | three different row designs | **one** 132 px row: photo strip, name + brand, stock, date, one pill, two actions |
+| **Medicines** | — | opt-in cabinet, national catalogues imported locally, PAO on the pack, **no model in the loop** |
+| **Stocktake** | one row at a time, one device | three ways, **one ledger**, resumable from any device |
+| **AI** | Gemini only | Gemini · OpenAI · Llama, one provider switch |
+| **Demo** | a “mock pantry” that did not exist | its own seeded database, English first, six languages, embeddable in a page |
+| **Security** | token optional | token **minted on first boot**, pairing code, single-use OAuth state, webhook secret |
+
+---
+
+## 📸 A look at it
+
+| | | |
+|---|---|---|
+| <img src="screenshots/dashboard.webp" width="230" alt="Home dashboard"> | <img src="screenshots/pantry.webp" width="230" alt="Pantry list"> | <img src="screenshots/opened-items.webp" width="230" alt="Opened items"> |
+| **Home** — the dashboard: what to eat first, what is opened, one strip for the month | **Pantry** — one row grammar, photo strip, state pill, stock and date | **Opened** — the PAO clock, with *Use it in a recipe* inline |
+| <img src="screenshots/shopping-list.webp" width="230" alt="Shopping list"> | <img src="screenshots/product-sheet.webp" width="230" alt="Product sheet"> | <img src="screenshots/use-item.webp" width="230" alt="Use an item"> |
+| **Shopping list** — suggestions with anti-waste quantities, swipe to buy | **Product sheet** — photo, brand, packs, places, opened clock | **Use** — fractions, packs and *where it goes* after opening |
+| <img src="screenshots/recipes.webp" width="230" alt="Recipes"> | <img src="screenshots/recipe-detail.webp" width="230" alt="Recipe detail"> | <img src="screenshots/cooking-mode.webp" width="230" alt="Cooking mode"> |
+| **Recipes** — generated from what is really in the pantry | **Recipe** — ingredients checked against the shelves | **Cooking mode** — steps, TTS, timers, hands-free (mic off until you ask) |
+| <img src="screenshots/scanning.webp" width="230" alt="Barcode scanner"> | <img src="screenshots/shelfy-chat.webp" width="230" alt="SHELFY assistant"> | |
+| **Scanner** — one lock box, the controls under the picture | **SHELFY** — voice or text, and it acts where you stand | |
+
+---
+
+## 🔄 Before → After, on the same screens
+
+<details open>
+<summary><b>Home / Dashboard</b> — counters and a list became a dashboard that tells you what to do</summary>
+
+<img src="screenshots/compare-dashboard.webp" alt="Dashboard: before (1.x) and after (2.x)" width="900">
+
+</details>
+
+<details>
+<summary><b>Pantry list</b> — 88 tiles in a grid became one readable row grammar</summary>
+
+<img src="screenshots/compare-pantry.webp" alt="Pantry list: before (1.x) and after (2.x)" width="900">
+
+</details>
+
+<details>
+<summary><b>Shopping list</b> — its own design became the same row as the Home</summary>
+
+<img src="screenshots/compare-shopping-list.webp" alt="Shopping list: before (1.x) and after (2.x)" width="900">
+
+</details>
+
+<details>
+<summary><b>Product sheet and editing</b> — one hierarchy, photo and brand in the head, no wall of fields</summary>
+
+<img src="screenshots/compare-product-sheet.webp" alt="Product sheet: before (1.x) and after (2.x)" width="900">
+
+</details>
+
+<details>
+<summary><b>Use an item</b> — fractions, packs and the place the rest went</summary>
+
+<img src="screenshots/compare-use-item.webp" alt="Use an item: before (1.x) and after (2.x)" width="900">
+
+</details>
+
+<details>
+<summary><b>Opened items</b> — a yellow card became the PAO clock with the two actions inline</summary>
+
+<img src="screenshots/compare-opened-items.webp" alt="Opened items: before (1.x) and after (2.x)" width="900">
+
+</details>
+
+<details>
+<summary><b>Recipes and recipe detail</b> — generated from the shelves, with the pantry checked</summary>
+
+<img src="screenshots/compare-recipes.webp" alt="Recipes: before (1.x) and after (2.x)" width="900">
+
+<img src="screenshots/compare-recipe-detail.webp" alt="Recipe detail: before (1.x) and after (2.x)" width="900">
+
+</details>
+
+<details>
+<summary><b>Cooking mode, scanner and SHELFY</b> — the kitchen surfaces</summary>
+
+<img src="screenshots/compare-cooking-mode.webp" alt="Cooking mode: before (1.x) and after (2.x)" width="900">
+
+<img src="screenshots/compare-scanning.webp" alt="Scanner: before (1.x) and after (2.x)" width="900">
+
+<img src="screenshots/compare-shelfy-chat.webp" alt="SHELFY: before (1.x) and after (2.x)" width="900">
+
+</details>
+
+---
+
+<details>
+<summary><b>📖 The full story — the eight changes behind 2.x</b> (click)</summary>
 
 ### 1. Settings is a control panel, not a wall of fields
 
@@ -61,7 +171,6 @@ for the state pill, one for the actions, and the two facts a row is read for (st
 are the biggest things in it. A medicine is never a food surface: it has its own drawn mark,
 its own shelf in the shopping list, its own tint — and its active ingredient wraps instead of
 running off the screen.
-
 
 ### 4. EverShelf Med — an opt-in medicine cabinet that reads, never guesses
 
@@ -102,6 +211,8 @@ promoting them, scheduled by the container's cron.
 with realistic content and opens it with the **new** one: 48 checks prove that nothing is
 lost, that the repairs are the intended ones, and that a second boot changes nothing. It is
 the gate this release was developed against.
+
+</details>
 
 ---
 
