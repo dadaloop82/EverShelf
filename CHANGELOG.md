@@ -5,6 +5,35 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2026-11-13
+
+### Fixed
+
+- **SHELFY can listen on the wall again** (reported: «sul tablet con il kiosk non riesco ad
+  accedere al microfono… `SpeechRecognition=yes secure_context=yes kiosk=yes`»). Those three
+  facts were the whole story: the recogniser existed, the page was secure, and the device was
+  a kiosk — where the microphone had been switched off on purpose since v1.31.1, because
+  Android's WebView `webkitSpeechRecognition` opens the microphone through the
+  WebChromeClient and a permission surface cannot come to the front over a locked-task
+  Activity: the Activity was recreated and the wall read it as "tapping SHELFY restarts the
+  app". The APK now carries a **native `SpeechRecognizer`** (the kiosk 1.7.39 below): it runs
+  in the app process, shows no dialog, and feeds the page the same events the browser would,
+  so the whole turn — silence deadline, hand-over, retry — works unchanged. An older APK
+  keeps the current, honest message (`capture.kiosk_no_voice`), and the diagnostic line now
+  also says `native_voice=yes|no`.
+
+## [Kiosk 1.7.39] - 2026-11-13
+
+Kiosk APK only.
+
+### The microphone comes from the app, not from the WebView
+`KioskActivity` exposes `speechSupported()`, `startVoice(lang)`, `stopVoice()` and
+`cancelVoice()` on the bridge and drives an in-process `SpeechRecognizer` (partial results
+included), delivering `{phase,text,code}` to `window._kioskVoiceEvent`. `RECORD_AUDIO` was
+already requested at launch and granted to the page's `onPermissionRequest`; what was
+missing was a recogniser that does not need a system dialog to exist. `app.js` 2.1.2 speaks
+to it through a shim shaped like the Web Speech API, so nothing else in SHELFY had to change.
+
 ## [2.1.1] - 2026-11-13
 
 Two reports from the forks, ported upstream the same day 2.1.0 shipped.

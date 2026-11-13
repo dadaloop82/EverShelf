@@ -551,14 +551,21 @@ runtime/binary files — if a task truly needs one, ask first.
   banner said «scaricamento in corso» forever, with not one byte in the server log. `triggerApkDownload()`
   now uses `openTrustedConnection()`, writes into the app's own folder, puts the progress on the
   same banner and reports a failure (`install_download_failed`) instead of hanging.
-- **A kiosk never opens a keyboard from SHELFY.** The Android WebView has no Web Speech, so the
-  text field was the only fallback — and focusing it opened the soft keyboard, which relayouts an
-  immersive page; Android answers that configuration change by recreating the Activity, i.e. a new
-  WebView loads the URL again and the app "restarts". `_isKioskDevice()` (`_kioskBridge` or
-  `html.is-kiosk`) makes `_captureShowType()` refuse, hides the «Preferisco scrivere» link and keeps
-  `_openCaptureSheetInner()` from focusing; the sheet says `capture.kiosk_no_voice` and the example
-  phrases stay one tap away. The kiosk manifest declares **every** `configChanges` and
-  `KioskActivity.onConfigurationChanged()` re-applies immersive mode, so nothing can recreate it.
+- **On a kiosk the microphone comes from the APP, never from the WebView.** `_isKioskDevice()`
+  (`_kioskBridge` or `html.is-kiosk`) used to disable SHELFY's voice there, because Android's
+  `webkitSpeechRecognition` opens the microphone through the WebChromeClient and needs a
+  permission surface — and a pinned (lock-task) Activity cannot bring one to the front: Android
+  recreated the Activity and the wall read it as "tapping SHELFY restarts the app" (v1.31.1). The
+  APK now carries a native `SpeechRecognizer` (kiosk 1.7.39, `startVoice`/`stopVoice`/
+  `cancelVoice`/`speechSupported` on the bridge → `window._kioskVoiceEvent`), and
+  `_captureRecognizerCtor()` returns a Web-Speech-shaped shim over it, so the turn is the same
+  code on a phone and on the wall; an APK without those methods keeps
+  `capture.kiosk_no_voice`. The **keyboard** stays closed on a kiosk: focusing a field opens the
+  soft keyboard, which relayouts an immersive page and ends in a recreated Activity —
+  `_captureShowType()` refuses, hides «Preferisco scrivere», `_openCaptureSheetInner()` never
+  focuses, and the example phrases stay one tap away. The kiosk manifest declares **every**
+  `configChanges` and `KioskActivity.onConfigurationChanged()` re-applies immersive mode, so
+  nothing can recreate it.
 - **SHELFY has a face**: `assets/img/shelfy/shelfy-avatar{,-192,-96}.png` (transparent
   PNG, in the `sw.js` shell) — the centre of the bottom nav, the capture sheet head,
   the intro hero, the confirm card and the foot of the splash (under the open-data

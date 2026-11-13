@@ -20,6 +20,9 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.media.AudioManager
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.view.View
@@ -65,6 +68,17 @@ class KioskActivity : AppCompatActivity() {
     // TTS
     private var tts: TextToSpeech? = null
     private var ttsReady = false
+
+    /**
+     * SHELFY's microphone on the wall.
+     *
+     * The WebView's own `webkitSpeechRecognition` cannot be used behind a locked task: it opens
+     * the microphone through the WebChromeClient and needs a permission surface, which a pinned
+     * Activity cannot bring to the front — Android recreated the Activity and the wall read it as
+     * "tapping SHELFY restarts the app" (v1.31.1). `SpeechRecognizer` runs inside this process,
+     * shows no dialog, and needs only RECORD_AUDIO, which the launch gate already asks for.
+     */
+    private var voiceRecognizer: SpeechRecognizer? = null
 
     // Views
     private lateinit var splashContainer: LinearLayout
@@ -304,6 +318,7 @@ class KioskActivity : AppCompatActivity() {
         // questions, and answering one with the other's results is how a kiosk ends up with a
         // granted camera it never uses (or a pending request nobody ever grants).
         private const val PERMISSIONS_REQUEST_LAUNCH = 1010
+        private const val PERMISSIONS_REQUEST_SPEECH = 1011
         private const val PREFS_NAME = "evershelf_kiosk"
         private const val KEY_URL = "evershelf_url"
         private const val KEY_CACHE_VERSION = "cache_version"
@@ -917,6 +932,42 @@ class KioskActivity : AppCompatActivity() {
                 runOnUiThread {
                     webView.clearCache(true)
                     webView.reload()
+                }
+            }
+
+            /** Is there a recognition service on this device at all? */
+            @JavascriptInterface
+            fun speechSupported(): Boolean = try {
+                SpeechRecognizer.isRecognitionAvailable(this@KioskActivity)
+            } catch (e: Exception) {
+                false
+            }
+
+            /**
+             * Start ONE native recognition session.
+             *
+             * The page speaks the Web Speech shape (`onstart`, `onresult`, `onerror`, `onend`) and
+             * receives the events through `window._kioskVoiceEvent({phase,text,code})`, so the whole
+             * turn in app.js — silence deadline, hand-over, retry — works unchanged.
+             */
+            @JavascriptInterface
+            fun startVoice(lang: String) {
+                runOnUiThread { startNativeVoice(lang) }
+            }
+
+            /** End the sentence: the recogniser still delivers its final result. */
+            @JavascriptInterface
+            fun stopVoice() {
+                runOnUiThread {
+                    try { voiceRecognizer?.stopListening() } catch (e: Exception) { /* already stopped */ }
+                }
+            }
+
+            /** Drop the session without a result (the sheet was closed, or a retry). */
+            @JavascriptInterface
+            fun cancelVoice() {
+                runOnUiThread {
+                    try { voiceRecognizer?.cancel() } catch (e: Exception) { /* already gone */ }
                 }
             }
 
@@ -1932,6 +1983,100 @@ class KioskActivity : AppCompatActivity() {
         enterImmersiveMode()
     }
 
+    /**
+     * Native speech for SHELFY — see the `voiceRecognizer` field and `speechSupported()`.
+     *
+     * One session at a time; the recogniser is created once and reused. The events are the Web
+     * Speech ones the page already handles, so nothing in the SHELFY turn has to know that the
+     * microphone came from the app instead of the WebView.
+     */
+    private fun startNativeVoice(lang: String) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            try {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), PERMISSIONS_REQUEST_SPEECH)
+            } catch (e: Exception) {
+                ErrorReporter.reportMessage(
+                    type    = "speech-permission-failed",
+                    message = e.message ?: "requestPermissions threw",
+                    forceReport = true,
+                    level   = "warn"
+                )
+            }
+            // The page shows "microphone not allowed" and offers typing; a second tap works once
+            // the household has answered the system dialog.
+            emitVoiceError("not-allowed")
+            return
+        }
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            emitVoiceError("service-not-allowed")
+            return
+        }
+        if (voiceRecognizer == null) {
+            voiceRecognizer = SpeechRecognizer.createSpeechRecognizer(this).also {
+                it.setRecognitionListener(voiceListener)
+            }
+        }
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+            if (lang.isNotBlank() && lang != "null") putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
+        }
+        try {
+            voiceRecognizer?.startListening(intent)
+        } catch (e: Exception) {
+            emitVoiceError("audio-capture")
+        }
+    }
+
+    /** One event to `window._kioskVoiceEvent`, on the page's own thread. */
+    private fun emitVoice(phase: String, text: String = "", code: String = "") {
+        val payload = JSONObject().put("phase", phase).put("text", text).put("code", code).toString()
+        try {
+            webView.post {
+                try {
+                    webView.evaluateJavascript("window._kioskVoiceEvent && window._kioskVoiceEvent($payload);", null)
+                } catch (e: Exception) { /* page gone */ }
+            }
+        } catch (e: Exception) { /* WebView not created yet */ }
+    }
+
+    private fun emitVoiceError(code: String) = emitVoice("error", code = code)
+
+    private val voiceListener = object : RecognitionListener {
+        override fun onReadyForSpeech(params: Bundle?) = emitVoice("ready")
+        override fun onBeginningOfSpeech() {}
+        override fun onRmsChanged(rmsdB: Float) {}
+        override fun onBufferReceived(buffer: ByteArray?) {}
+        override fun onEndOfSpeech() {}
+        override fun onEvent(eventType: Int, params: Bundle?) {}
+        override fun onPartialResults(partialResults: Bundle?) = emitBest(partialResults, final = false)
+        override fun onResults(results: Bundle?) = emitBest(results, final = true)
+
+        override fun onError(error: Int) {
+            val code = when (error) {
+                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "not-allowed"
+                SpeechRecognizer.ERROR_NO_MATCH,
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "no-speech"
+                SpeechRecognizer.ERROR_NETWORK,
+                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "network"
+                else -> "audio-capture"   // busy, client, server, audio: "no usable microphone"
+            }
+            emitVoiceError(code)
+        }
+
+        private fun emitBest(bundle: Bundle?, final: Boolean) {
+            val text = bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                ?.firstOrNull().orEmpty().trim()
+            if (text.isEmpty()) {
+                if (final) emitVoiceError("no-speech")
+                return
+            }
+            emitVoice(if (final) "result" else "partial", text)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         enterImmersiveMode()
@@ -2086,6 +2231,8 @@ class KioskActivity : AppCompatActivity() {
     override fun onDestroy() {
         ErrorReporter.markCleanStop()
         updateCheckHandler.removeCallbacks(updateCheckRunnable)
+        try { voiceRecognizer?.destroy() } catch (e: Exception) { /* already released */ }
+        voiceRecognizer = null
         tts?.stop()
         tts?.shutdown()
         tts = null

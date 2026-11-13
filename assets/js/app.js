@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261113i'; // bump when translations change
+const _I18N_VERSION = '20261113j'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11329,14 +11329,15 @@ function _openCaptureSheetInner() {
     // allows it, so asking for a second tap was pointless. Without the API (or with the
     // microphone denied) the text field takes over — and only then it gets focus,
     // because focusing it under voice would open the keyboard over the sheet.
-    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    // A KIOSK never arms a recogniser, even when its WebView exposes one. Android's
-    // `webkitSpeechRecognition` opens a MICROPHONE session through the WebChromeClient, and a
-    // permission/dialog surface cannot come to the front over a locked-task kiosk: the Activity is
-    // recreated and the wall reads it as "tapping SHELFY restarts the app" — which is exactly what
-    // it kept reporting after the keyboard path was closed in v1.31.1. The sheet says
-    // `capture.kiosk_no_voice` and the example sentences stay one tap away.
-    if (Ctor && !_isKioskDevice()) {
+    const Ctor = _captureRecognizerCtor();
+    // Phones and desktops arm the browser's recogniser here. A KIOSK arms the NATIVE one of the
+    // APK (`_captureRecognizerCtor()` → `_kioskVoiceShimClass`): Android's WebView
+    // `webkitSpeechRecognition` opens the microphone through the WebChromeClient and needs a
+    // permission surface, which a locked-task Activity cannot bring to the front — the Activity
+    // was recreated and the wall read it as "tapping SHELFY restarts the app" (v1.31.1). An older
+    // APK without the bridge has no recogniser at all, and the sheet says
+    // `capture.kiosk_no_voice` with the example sentences one tap away.
+    if (Ctor) {
         _captureStartVoice();
         // First run: the browser is showing (or about to show) the microphone prompt.
         // Say it, or "Ti ascolto…" looks stuck while the user has not answered yet.
@@ -11503,6 +11504,83 @@ function _isKioskDevice() {
     }
 }
 
+/**
+ * The recogniser this device can actually drive.
+ *
+ * Phones and desktops use the browser's own `SpeechRecognition`. A KIOSK uses the native one
+ * inside the APK: Android's WebView `webkitSpeechRecognition` opens the microphone through the
+ * WebChromeClient and needs a permission surface, which a locked-task Activity cannot bring to
+ * the front — the Activity was recreated and the wall read it as "tapping SHELFY restarts the
+ * app" (v1.31.1, which is why the microphone was switched off there). The native
+ * `SpeechRecognizer` runs in the app process, shows no dialog, and delivers the same events,
+ * so everything below — silence deadline, hand-over, retry — works unchanged.
+ */
+let _KioskVoiceShim = null;
+
+function _kioskVoiceShimClass() {
+    try {
+        if (typeof _kioskBridge === 'undefined' || !_kioskBridge) return null;
+        if (typeof _kioskBridge.startVoice !== 'function') return null;          // an older APK
+        if (typeof _kioskBridge.speechSupported === 'function' && !_kioskBridge.speechSupported()) return null;
+    } catch (e) {
+        return null;
+    }
+    if (_KioskVoiceShim) return _KioskVoiceShim;
+    _KioskVoiceShim = class {
+        constructor() {
+            this.lang = '';
+            this.interimResults = true;
+            this.continuous = true;
+            this.maxAlternatives = 1;
+            this.onresult = null;
+            this.onerror = null;
+            this.onend = null;
+            this.onstart = null;
+            this._closed = false;
+        }
+        start() {
+            window._kioskVoiceEvent = (ev) => this._onNative(ev);
+            try {
+                _kioskBridge.startVoice(String(this.lang || ''));
+            } catch (e) {
+                this._error('audio-capture');
+            }
+        }
+        stop() { try { _kioskBridge.stopVoice(); } catch (e) { /* already stopped */ } }
+        abort() { try { _kioskBridge.cancelVoice(); } catch (e) { /* already gone */ } }
+        _onNative(ev) {
+            if (!ev || this._closed) return;
+            const phase = String(ev.phase || '');
+            if (phase === 'ready') {
+                if (typeof this.onstart === 'function') { try { this.onstart({}); } catch (e) { /* turn gone */ } }
+                return;
+            }
+            if (phase === 'partial') return this._result(String(ev.text || ''), false);
+            if (phase === 'result') { this._result(String(ev.text || ''), true); return this._end(); }
+            if (phase === 'error') { this._error(String(ev.code || 'audio-capture')); return this._end(); }
+        }
+        _result(text, isFinal) {
+            if (!text || typeof this.onresult !== 'function') return;
+            const result = [{ transcript: text }];
+            result.isFinal = !!isFinal;
+            try { this.onresult({ results: [result], resultIndex: 0 }); } catch (e) { /* turn gone */ }
+        }
+        _error(code) {
+            if (typeof this.onerror === 'function') { try { this.onerror({ error: code }); } catch (e) { /* turn gone */ } }
+        }
+        _end() {
+            this._closed = true;
+            if (typeof this.onend === 'function') { try { this.onend({}); } catch (e) { /* turn gone */ } }
+        }
+    };
+    return _KioskVoiceShim;
+}
+
+function _captureRecognizerCtor() {
+    if (_isKioskDevice()) return _kioskVoiceShimClass();
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
 function _closeCaptureSheet() {
     // Hide first: closing is the one action that must never depend on the cleanup
     // succeeding, or a failure in there traps the user behind an overlay.
@@ -11576,7 +11654,10 @@ function _captureStatusText(text) {
 function _micDiagDetail(extra) {
     const api = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
     const secure = window.isSecureContext ? 'yes' : 'no';
-    return `SpeechRecognition=${api ? 'yes' : 'no'} secure_context=${secure} kiosk=${_isKioskDevice() ? 'yes' : 'no'}${extra ? ` ${extra}` : ''}`;
+    // On the wall the interesting fact is not the WebView API (it has one it cannot use) but
+    // whether the APK carries the native bridge: that is what decides if SHELFY can listen.
+    const native = _isKioskDevice() ? ` native_voice=${_kioskVoiceShimClass() ? 'yes' : 'no'}` : '';
+    return `SpeechRecognition=${api ? 'yes' : 'no'} secure_context=${secure} kiosk=${_isKioskDevice() ? 'yes' : 'no'}${native}${extra ? ` ${extra}` : ''}`;
 }
 
 /**
@@ -11646,11 +11727,11 @@ let _micDiagLast = '';
 function _captureSyncMicAvailability() {
     const mic = document.getElementById('capture-mic');
     if (!mic) return;
-    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    // A kiosk is "no recogniser" even when its WebView exposes one: see
-    // `_openCaptureSheetInner` — the mic session behind it is what a locked-task Activity
-    // cannot survive.
-    const canListen = !!Ctor && !_isKioskDevice();
+    const Ctor = _captureRecognizerCtor();
+    // A kiosk answers with the native recogniser inside the APK (see `_kioskVoiceShimClass`);
+    // an older APK has none, and then the sheet says so instead of offering a microphone it
+    // cannot open.
+    const canListen = !!Ctor;
     mic.hidden = !canListen;
     // The animated border lives on the wrapper: hiding only the button would leave a
     // ring spinning around nothing.
@@ -12638,23 +12719,16 @@ const _CAPTURE_SILENCE_RESTART_MS = 1000;
 const _CAPTURE_HANDOVER_GUARD_MS = 700;
 
 async function _captureStartVoice() {
-    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const Ctor = _captureRecognizerCtor();
     if (!Ctor) {
         _captureStatus('capture.unsupported', null, { key: 'diag.mic_no_api', detail: _micDiagDetail() });
         return;
     }
-    // A KIOSK NEVER ARMS THE RECOGNISER, whoever asks. `_captureRetryVoice()` (the fallback card's
-    // "🔄 Riprova a voce") used to call this without a guard: on the wall the session started, Android
-    // refused the microphone — the permission surface cannot come to the front over a locked-task
-    // Activity — and the sheet printed `capture.mic_denied`: *"Microfono non consentito: controlla i
-    // permessi del browser e apri l'app in HTTPS"*. The tablet HAS a microphone; it is SHELFY that
-    // cannot listen there, and the household was being sent to check permissions that are fine.
-    if (_isKioskDevice()) {
-        _kioskTrace('SHELFY', 'startVoice refused on kiosk');
-        _captureStatus('capture.kiosk_no_voice', null, { key: 'diag.mic_kiosk', detail: _micDiagDetail('start=refused') });
-        _captureSetState('idle');
-        return;
-    }
+    // The kiosk used to be refused here, whoever asked: `_captureRetryVoice()` (the fallback
+    // card's "🔄 Riprova a voce") called this without a guard and Android denied the microphone
+    // — the permission surface cannot come to the front over a locked-task Activity. The native
+    // bridge answers that (`_kioskVoiceShimClass`); when the APK is too old to have it, `Ctor`
+    // is null and the message above is the truth.
     _captureVoiceStop();          // a tap restarts the sentence, it does not stack sessions
     _captureShowChoices(null);
     const tr = document.getElementById('capture-transcript');
@@ -21880,7 +21954,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261113i';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261113j';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21890,7 +21964,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261113i';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261113j';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
