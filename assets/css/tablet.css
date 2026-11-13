@@ -390,7 +390,7 @@ html.is-kiosk .cooking-voice-hint {
  * consentito: controlla i permessi del browser"* — sending the household to check permissions that
  * are perfectly fine. The tablet HAS a microphone; it is SHELFY that cannot listen there. The card
  * keeps the chat (its other way forward, which always works) and the example phrases, one per tap.
- * `_captureRetryVoice()` and `_captureStartVoice()` refuse on a kiosk as well, so the button being
- * hidden is a courtesy and not the only defence.
+ * Since kiosk 1.7.39 the wall HAS a recogniser (the native bridge), so the retry button is no
+ * longer hidden by the device: `_captureShowFallback()` hides it — and the chat door with no AI
+ * provider — only when the door cannot be honoured, on any screen.
  * ========================================================================= */
-html.is-kiosk #capture-fallback .capture-fallback-retry { display: none; }

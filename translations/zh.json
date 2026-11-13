@@ -3207,6 +3207,8 @@
     "thinking_step_3": "响应时间比预期更长…",
     "timeout": "请求耗时过长：没有记录任何操作。",
     "fallback_lead": "我听到的是：“{text}” —— 但命令没有执行成功。",
+    "fallback_ai": "我没能理解这个请求：可以把你的消息转给 AI 助手吗？",
+    "fallback_no_ai": "抱歉，我无法理解你的请求。",
     "continue_chat": "继续在聊天中处理",
     "retry_voice": "再说一次"
   },

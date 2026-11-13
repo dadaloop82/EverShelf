@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261113k'; // bump when translations change
+const _I18N_VERSION = '20261113l'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11723,7 +11723,7 @@ function _captureNotUnderstood(messageKey, params) {
     // A sentence SHELFY cannot turn into an action is not a closed door: the card repeats
     // what was heard and offers the chat (transcript already in it) and a new attempt. The
     // specific reason stays on the status line (keepStatus).
-    _captureShowFallback('not_understood', { keepStatus: true });
+    _captureShowFallback('not_understood', { keepStatus: true, reason: messageKey });
     // EverShelf Med: "ho un forte mal di testa" is not a product, but it is a question the
     // household asked. With the module on, the sentence is handed to the LOCAL symptom map
     // (no AI, no dosage) and the answer opens in its own sheet with the disclaimer on top.
@@ -11905,11 +11905,29 @@ function _captureHideFallback() {
 }
 
 /**
+ * Is there an AI agent to hand a sentence to?
+ *
+ * The failure card's chat button promises "I pass your message to an agent": an install with
+ * no provider configured (or a read-only demo) must not promise it — there the card says
+ * only that SHELFY did not understand, and offers a new voice attempt.
+ */
+function _chatAgentAvailable() {
+    return !!_geminiAvailable && !_demoMode;
+}
+
+/**
  * "Non ce l'ho fatta" — said with the sentence the household actually spoke.
  *
  * A bare error would throw away the only thing the user produced (the sentence), so the card
  * repeats it and offers the chat and a new attempt. The "Ho capito" chips of the half-finished
  * turn are removed: naming a product above a failure is the contradiction the audit found.
+ *
+ * Two different failures live here, and they must not share one sentence: a sentence SHELFY
+ * could NOT map is not something it "capì" — it asks `capture.fallback_ai` («non riesco a
+ * capire la richiesta, posso passare il tuo messaggio ad un agente AI?», with the chat button)
+ * or, with no provider, `capture.fallback_no_ai` («mi dispiace, ma non riesco a capire la tua
+ * richiesta»). A command it DID understand but could not complete keeps the quote
+ * (`capture.fallback_lead`), and a timeout keeps its own line.
  */
 function _captureShowFallback(kind, opts = {}) {
     const understood = document.getElementById('capture-understood');
@@ -11917,11 +11935,25 @@ function _captureShowFallback(kind, opts = {}) {
     _captureShowChoices(null);
     const tr = document.getElementById('capture-transcript');
     const text = String((tr && tr.textContent) || '').trim();
+    // A chat button nobody can honour is not a door: hide it with no agent behind it — and the
+    // same for "Riprova a voce" on a device with no recogniser at all.
+    const agent = _chatAgentAvailable();
+    const chatBtn = document.querySelector('#capture-fallback .capture-fallback-chat');
+    if (chatBtn) chatBtn.hidden = !agent;
+    const retryBtn = document.querySelector('#capture-fallback .capture-fallback-retry');
+    if (retryBtn) retryBtn.hidden = !_captureRecognizerCtor();
+    // `not_understood` with no specific reason is the "I simply didn't get it" case;
+    // `capture.no_product` and friends were understood and keep the quoted sentence.
+    const notUnderstood = !opts.reason || opts.reason === 'capture.not_understood';
     const lead = document.getElementById('capture-fallback-lead');
     if (lead) {
-        lead.textContent = text
-            ? t('capture.fallback_lead', { text })
-            : _captureFailureText(kind);
+        if (kind === 'not_understood' && notUnderstood) {
+            lead.textContent = agent ? t('capture.fallback_ai') : t('capture.fallback_no_ai');
+        } else {
+            lead.textContent = text
+                ? t('capture.fallback_lead', { text })
+                : _captureFailureText(kind);
+        }
     }
     const box = document.getElementById('capture-fallback');
     if (box) box.hidden = false;
@@ -11963,9 +11995,10 @@ function _captureRetryVoice() {
     _captureShowTranscript('', false);
     _captureShowChoices(null);
     _captureSetState('idle');
-    // On a kiosk "riprova a voce" has nothing to retry with: say the honest line and leave the
-    // example phrases (one tap each) and the chat as the two ways forward.
-    if (_isKioskDevice()) {
+    // "Riprova a voce" is refused only when there is no recogniser at all (no Web Speech and
+    // no native bridge — e.g. a kiosk APK older than 1.7.39): say the honest line and leave
+    // the example phrases (one tap each) and the chat as the two ways forward.
+    if (!_captureRecognizerCtor()) {
         _captureStatus('capture.kiosk_no_voice', null, { key: 'diag.mic_kiosk', detail: _micDiagDetail('retry=refused') });
         return;
     }
@@ -21974,7 +22007,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261113k';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261113l';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21984,7 +22017,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261113k';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261113l';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

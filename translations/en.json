@@ -3207,6 +3207,8 @@
     "thinking_step_3": "This is taking longer than expected…",
     "timeout": "The request took too long: nothing was recorded.",
     "fallback_lead": "I heard: “{text}” — but the command did not go through.",
+    "fallback_ai": "I can't understand the request: may I pass your message to an AI agent?",
+    "fallback_no_ai": "Sorry, but I can't understand your request.",
     "continue_chat": "Continue in the chat",
     "retry_voice": "Try again by voice"
   },

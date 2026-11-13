@@ -5,6 +5,26 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.4] - 2026-11-13
+
+### SHELFY says the truth when it does not understand
+
+A sentence SHELFY cannot map opened the fallback card with «Ho capito: «…» — ma il comando non è
+andato a buon fine»: "I understood" printed over a message that says it did not. The card now asks
+the one question that is true — «Non riesco a capire la richiesta: posso passare il tuo messaggio a
+un agente AI?» (`capture.fallback_ai`) with the chat door — or, on an install with no AI provider
+configured, «Mi dispiace, ma non riesco a capire la tua richiesta» (`capture.fallback_no_ai`) and
+**no chat button**: a door nobody can open is not offered. A command it *did* understand but could
+not complete (`capture.no_product` and friends) keeps the quote, so the two failures no longer
+share one sentence. All six locales.
+
+### The doors of the fallback card match the device
+
+`🔄 Riprova a voce` was hidden on every kiosk by CSS, from the years the wall had no recogniser:
+since kiosk 1.7.39 it has one (the native bridge), so the button is back there and it disappears
+only where `_captureRecognizerCtor()` answers nothing — the check is JS, not a device class. The
+same pass lets the diagnostic say **why** the wall cannot listen (`native_voice=yes|old-apk|no-service|error`).
+
 ## [2.1.3] - 2026-11-13
 
 ### The wall's diagnostic names the reason

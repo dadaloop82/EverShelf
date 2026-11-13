@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.1.3-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.1.4-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -226,6 +226,13 @@ the gate this release was developed against.
 
 <details open>
 <summary><b>Last five releases</b></summary>
+
+**v2.1.4 — SHELFY stops saying "I understood" when it didn't.** The fallback card opened with
+«Ho capito: «…» — ma il comando non è andato a buon fine» over a message that said the sentence
+was not understood. It now asks the honest question — «Non riesco a capire la richiesta: posso
+passare il tuo messaggio a un agente AI?» with the chat, or «Mi dispiace, ma non riesco a capire
+la tua richiesta» with **no** chat button when no AI provider is configured — and «Riprova a
+voce» is back on the wall now that the kiosk has a native recogniser.
 
 **v2.1.2 — SHELFY listens on the wall again.** The kiosk microphone was switched off in
 v1.31.1 because Android's WebView recogniser needs a permission dialog, and a dialog cannot

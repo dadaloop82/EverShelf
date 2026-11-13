@@ -3207,6 +3207,8 @@
     "thinking_step_3": "Die Antwort dauert länger als erwartet…",
     "timeout": "Die Anfrage hat zu lange gedauert: nichts wurde gespeichert.",
     "fallback_lead": "Verstanden: „{text}“ — aber der Befehl ist nicht durchgelaufen.",
+    "fallback_ai": "Ich verstehe die Anfrage nicht: darf ich deine Nachricht an einen KI-Agenten weitergeben?",
+    "fallback_no_ai": "Es tut mir leid, aber ich verstehe deine Anfrage nicht.",
     "continue_chat": "Weiter im Chat",
     "retry_voice": "Noch einmal sprechen"
   },

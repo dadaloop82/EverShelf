@@ -3207,6 +3207,8 @@
     "thinking_step_3": "La risposta sta impiegando più del previsto…",
     "timeout": "La richiesta ha impiegato troppo tempo: non ho registrato nessuna azione.",
     "fallback_lead": "Ho capito: «{text}» — ma il comando non è andato a buon fine.",
+    "fallback_ai": "Non riesco a capire la richiesta: posso passare il tuo messaggio a un agente AI?",
+    "fallback_no_ai": "Mi dispiace, ma non riesco a capire la tua richiesta.",
     "continue_chat": "Continua nella Chat",
     "retry_voice": "Riprova a voce"
   },

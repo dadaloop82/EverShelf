@@ -3207,6 +3207,8 @@
     "thinking_step_3": "La respuesta está tardando más de lo previsto…",
     "timeout": "La petición ha tardado demasiado: no se registró nada.",
     "fallback_lead": "He entendido: «{text}» — pero el comando no se completó.",
+    "fallback_ai": "No entiendo la petición: ¿puedo pasar tu mensaje a un agente de IA?",
+    "fallback_no_ai": "Lo siento, pero no entiendo tu petición.",
     "continue_chat": "Continuar en el chat",
     "retry_voice": "Reintentar por voz"
   },

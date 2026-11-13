@@ -1864,6 +1864,9 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     color: var(--text-muted);
 }
 .capture-fallback-retry:active { background: var(--bg-app); }
+/* The two doors are hidden from JS when they cannot be honoured (no AI provider → no chat,
+   no recogniser → no retry): an author rule on the button must never out-rank that. */
+.capture-fallback-actions button[hidden] { display: none; }
 .cu-label {
     width: 100%;
     font-size: 12px;

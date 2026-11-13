@@ -388,6 +388,17 @@ runtime/binary files — if a task truly needs one, ask first.
   the emerald **💬 Continua nella Chat** (`_shelfyHandOverToChat()` writes it into `#chat-input`
   and sends it) and a neutral **🔄 Riprova a voce**. A late answer is dropped by `_captureTurnId`,
   so no sheet ever opens behind the card, and "non ho capito" shows the same two ways forward.
+- **A sentence SHELFY did not map is not one it "understood".** The card used to open with
+  «Ho capito: «{text}» — ma il comando non è andato a buon fine» over a message saying it did
+  not: it now asks the ONE question that is true — `capture.fallback_ai` («Non riesco a capire
+  la richiesta: posso passare il tuo messaggio a un agente AI?») with the emerald chat door, or,
+  with no provider (`_chatAgentAvailable()`: `_geminiAvailable` and not a demo),
+  `capture.fallback_no_ai` («Mi dispiace, ma non riesco a capire la tua richiesta») and **no chat
+  button**. A command it DID understand but could not complete (`capture.no_product`) keeps the
+  quote (`capture.fallback_lead`): `_captureNotUnderstood()` passes its reason and the card tests
+  it. **A door nobody can open is hidden** — the retry appears only where
+  `_captureRecognizerCtor()` answers (no kiosk `display: none` any more: the wall has a native
+  recogniser since kiosk 1.7.39), and `.capture-fallback-actions button[hidden]` keeps it.
 - **In cooking mode the microphone starts OFF.** `startCookingMode()` never arms the recogniser
   (`_cookingVoiceAuto = false`): the 5 s auto-start was a chime over the recipe for a mic nobody
   asked for. A card on the 🎤 says, at every open, what it does and that it is off, and it fades
