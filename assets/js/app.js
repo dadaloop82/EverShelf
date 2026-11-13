@@ -8,6 +8,80 @@
  */
 
 /**
+ * A browser that BLOCKS storage must not take the app down.
+ *
+ * A third-party iframe (exactly how the marketing site embeds the demo) has
+ * `localStorage` throw on every access, and the UI reads it unguarded in dozens of
+ * places: one SecurityError at boot and nothing renders. When storage is denied it is
+ * replaced with an in-memory mirror, so the demo runs, it simply forgets on reload.
+ */
+(function _storageFallback() {
+    try {
+        localStorage.setItem('__es_probe', '1');
+        localStorage.removeItem('__es_probe');
+        return;
+    } catch (_) { /* blocked by the browser: shim it */ }
+    const mem = new Map();
+    const shim = {
+        getItem: (k) => (mem.has(String(k)) ? mem.get(String(k)) : null),
+        setItem: (k, v) => { mem.set(String(k), String(v)); },
+        removeItem: (k) => { mem.delete(String(k)); },
+        clear: () => { mem.clear(); },
+        key: (i) => Array.from(mem.keys())[i] ?? null,
+        get length() { return mem.size; },
+    };
+    try { Object.defineProperty(window, 'localStorage', { value: shim, configurable: true }); } catch (_) {}
+    try { Object.defineProperty(window, 'sessionStorage', { value: shim, configurable: true }); } catch (_) {}
+})();
+
+/**
+ * Demo mode, known BEFORE the first fetch.
+ *
+ * The marketing site opens the demo with `?demo=1&lang=…`, and a demo deployment also
+ * lives under `/demo` (`DEMO_BASE_PATH`): both mean "this page is a showcase, not my
+ * pantry". It has to be decided this early because the SERVER picks the demo database
+ * from it, and because the language of a demo defaults to English instead of the
+ * visitor's browser.
+ */
+function _demoRequestedByUrl() {
+    try {
+        const raw = (new URLSearchParams(location.search).get('demo') || '').trim().toLowerCase();
+        if (['1', 'true', 'yes', 'on', 'demo'].includes(raw)) return true;
+        if (['0', 'false', 'no', 'off'].includes(raw)) return false;
+        return /\/demo(\/|$)/.test(location.pathname.replace(/\/index\.html$/, ''));
+    } catch (_) {
+        return false;
+    }
+}
+
+/**
+ * The first version of this flag also mirrored `?demo=1` into a `path=/` cookie, so the
+ * whole origin stayed in demo for the rest of the browser session: leaving the demo and
+ * opening the pantry still answered demo. Nothing writes that cookie any more (the flag
+ * lives in the URL and the client repeats `demo=1` on every API call); this deletes the
+ * one those browsers still carry.
+ */
+function _demoClearLegacyCookie() {
+    try {
+        document.cookie = 'evershelf_demo=; path=/; max-age=0; SameSite=Lax';
+        document.cookie = 'evershelf_demo_lang=; path=/; max-age=0; SameSite=Lax';
+    } catch (_) { /* cookies blocked: nothing to clean */ }
+}
+
+const _DEMO_URL = _demoRequestedByUrl();
+_demoClearLegacyCookie();
+
+/**
+ * `&demo=1&lang=xx` for the few raw `fetch()`es that do not go through `api()`
+ * (`app_bootstrap`, `health_check`, the offline warm-up): they must land on the demo
+ * database too, or a demo would warm its cache with the household's pantry.
+ */
+function _demoQuery() {
+    if (!_demoMode) return '';
+    return `&demo=1&lang=${encodeURIComponent(_currentLang || 'en')}`;
+}
+
+/**
  * Mark the document for tablet.css (kiosk / real touch tablets).
  * Desktop mouse must NOT get these classes — that is what made PC lists bold
  * and truncated while the kiosk (narrow CSS width) saw no change at all.
@@ -529,6 +603,9 @@ function _bannerIconSet(el, data, emoji) {
 
 function _shouldRegisterServiceWorker() {
     if (!('serviceWorker' in navigator)) return false;
+    // A demo is a showcase, not an install: a cached shell would keep serving the old
+    // demo (and a `/demo` mount must never claim the visitor's origin).
+    if (_demoRequestedByUrl()) return false;
     if (window.location.pathname.includes('/demo')) return false;
     const h = window.location.hostname;
     // Chrome often fails SW on LAN IP + self-signed cert (IP not in certificate SAN)
@@ -541,7 +618,12 @@ function _shouldRegisterServiceWorker() {
 // All AI entry points call _requireGemini() before opening camera / API calls.
 let _geminiAvailable = false;
 let _mealieAvailable = false;
-let _demoMode = false;
+/**
+ * `true` while this page is the demo: the URL says so (`?demo=1`, `/demo`), or the
+ * server does (`get_settings.demo_mode`, for a `DEMO_MODE=true` deployment). Known
+ * from the first line — see `_demoRequestedByUrl()`.
+ */
+let _demoMode = _DEMO_URL;
 // Last `get_settings` payload: the single source of truth for the Settings
 // checklist ("is this option configured?") and for the guided assistant.
 let _serverSettings = {};
@@ -619,15 +701,32 @@ function _applyDemoModeUI() {
     // Prevent the setup wizard from showing
     const wizard = document.getElementById('setup-wizard');
     if (wizard) wizard.style.display = 'none';
-    // Show a small demo badge in the header
+    // Show a small demo badge in the header. The words are translated (six locales):
+    // "DEMO" is the same everywhere, the hint is not. The colours are a CLASS in
+    // style.css (`.header-demo-badge`): the old inline style was cream-on-amber for the
+    // dark header and became invisible — an empty chip — on the white one.
     const headerLeft = document.getElementById('header-left');
     if (headerLeft && !document.getElementById('_demo_badge')) {
         const badge = document.createElement('span');
         badge.id = '_demo_badge';
-        badge.textContent = 'DEMO';
-        badge.style.cssText = 'font-size:0.6rem;font-weight:800;letter-spacing:0.08em;background:rgba(251,191,36,0.35);color:#fef3c7;border:1px solid rgba(251,191,36,0.5);border-radius:4px;padding:2px 5px;white-space:nowrap;';
+        badge.className = 'header-demo-badge';
+        badge.textContent = t('demo.badge');
+        badge.title = t('demo.hint');
         headerLeft.appendChild(badge);
     }
+}
+
+/**
+ * A demo has no first run.
+ *
+ * Every preference the app would ask about is already answered in the demo database
+ * (`setup_done`, `setup_seen` with every `ask` item at its current version,
+ * `med_setup_done`), so the assistant stays quiet by data. This is the client-side
+ * belt to that server-side brace: a showcase interrupted by the setup wizard, by
+ * "Farmaci in casa?" or by a resume of a half-done wizard is not a showcase.
+ */
+function _demoSuppressOnboarding() {
+    return !!_demoMode;
 }
 
 function _semverGt(a, b) {
@@ -2168,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261113a'; // bump when translations change
+const _I18N_VERSION = '20261113g'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2196,11 +2295,25 @@ function _urlLangOverride(search) {
 }
 
 const _URL_LANG = _urlLangOverride(location.search);
-let _currentLang = _URL_LANG || localStorage.getItem('evershelf_lang') || navigator.language?.slice(0, 2) || 'en';
+/**
+ * Where this page keeps its language choice.
+ *
+ * The demo and the household can share one origin, and a `?lang=en` demo used to write
+ * `evershelf_lang=en` into the SHARED key: coming back to `/dispensa/` the pantry then
+ * spoke English, because the household's own choice had been overwritten. Two keys, two
+ * worlds — and the demo one is never written by, nor read for, the real app.
+ */
+const _LANG_KEY = _DEMO_URL ? 'evershelf_lang:demo' : 'evershelf_lang';
+// A demo is not the visitor's pantry: its default language is English — the marketing
+// site passes `?lang=…` when it wants the showcase in another language — and never the
+// browser's own guess.
+let _currentLang = _URL_LANG
+    || localStorage.getItem(_LANG_KEY)
+    || (_DEMO_URL ? 'en' : (navigator.language?.slice(0, 2) || 'en'));
 if (!_SUPPORTED_LANGS[_currentLang]) _currentLang = 'en';
 // The deep link wins over the stored preference for this boot, and is stored: a
 // reload (or the picker) must not silently fall back to the previous language.
-if (_URL_LANG) localStorage.setItem('evershelf_lang', _URL_LANG);
+if (_URL_LANG) localStorage.setItem(_LANG_KEY, _URL_LANG);
 
 /** Collation locale for the UI language (sorting must follow it, never a fixed 'it'). */
 function _collationLocale() {
@@ -2267,7 +2380,7 @@ async function loadTranslations(lang) {
             else _i18nStrings = _i18nFallback;
         }
         _currentLang = lang;
-        localStorage.setItem('evershelf_lang', lang);
+        localStorage.setItem(_LANG_KEY, lang);
         _applyI18nToLabels();
         translatePage();
     } catch (e) {
@@ -2361,7 +2474,7 @@ function _populateLanguageSelector() {
 // Change language and reload the page
 function changeLanguage(lang) {
     if (lang === _currentLang) return;
-    localStorage.setItem('evershelf_lang', lang);
+    localStorage.setItem(_LANG_KEY, lang);
     // A `?lang=` deep link beats localStorage on the next boot: keep the URL in step
     // with the picker, or the reload would undo the choice it has just saved.
     if (_URL_LANG) {
@@ -9278,25 +9391,6 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
 }
 
 async function _apiFetchJson(action, params = {}, method = 'GET', body = null, extraHeaders = {}, timeoutMs = 0) {
-    // In demo mode, all shopping write operations are no-ops
-    if (_demoMode) {
-        const BRING_WRITE_ACTIONS = ['bring_add', 'bring_remove', 'bring_migrate_names', 'bring_set_spec',
-                                      'shopping_add', 'shopping_remove'];
-        if (BRING_WRITE_ACTIONS.includes(action)) {
-            return { success: true, added: 0, removed: 0, skipped: 0, _demo: true };
-        }
-        if (action === 'spend_add') {
-            return { success: true, ignored: true, _demo: true };
-        }
-        if (action === 'spend_stats') {
-            const month = new Date().toISOString().slice(0, 7);
-            return { success: true, currency_symbol: '€', month, current_amount: 0, prev_amount: 0, totals: [], _demo: true };
-        }
-        // shopping_list / bring_list return the in-memory demo list
-        if (action === 'shopping_list' || action === 'bring_list') {
-            return { success: true, purchase: shoppingItems, listUUID: 'demo-list', _demo: true };
-        }
-    }
     // In offline mode, serve from cache / queue writes
     if (_offlineMode) {
         return _handleOfflineApi(action, params, body);
@@ -9306,6 +9400,13 @@ async function _apiFetchJson(action, params = {}, method = 'GET', body = null, e
         Object.entries(params).forEach(([k, v]) => {
             url += `&${encodeURIComponent(k)}=${encodeURIComponent(v)}`;
         });
+    }
+    // The demo flag and the language travel with EVERY call, GET and POST alike: the
+    // server picks the demo database and the language of its seed from them, so a call
+    // that omitted them would answer from another database. (The cookie set at boot
+    // already covers the raw `fetch()`es; this keeps the query explicit.)
+    if (_demoMode) {
+        url += `&demo=1&lang=${encodeURIComponent(_currentLang || 'en')}`;
     }
     const opts = { method, cache: 'no-store' };
     const authHdrs = typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {};
@@ -19901,6 +20002,9 @@ function _medSetupBody(step) {
  * "Non ora" is a real answer (module off, remembered); "Attiva" moves to the notice.
  */
 function _medMaybeAskSetup() {
+    // A demo has no first run: the demo database answers `med_setup_done` already, and
+    // this guard covers a demo whose database was seeded before that key existed.
+    if (_demoSuppressOnboarding()) return false;
     // The SERVER is the source of truth: `med_setup_done` is asked once per INSTANCE. A
     // localStorage copy would pin the question to this browser (and would keep it hidden
     // after a reset), so it is only written for older cached clients, never read here.
@@ -21776,7 +21880,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261113a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261113g';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -21786,7 +21890,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261113a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261113g';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -27495,7 +27599,7 @@ async function _fetchExpiryHistoryAndUpdate(productId) {
     window._learnedAlertSooner = 0;
     window._learnedAlertSoonerForId = productId;
     try {
-        const res = await fetch(`api/index.php?action=expiry_history&product_id=${encodeURIComponent(productId)}`, {
+        const res = await fetch(`api/index.php?action=expiry_history&product_id=${encodeURIComponent(productId)}${typeof _demoQuery === 'function' ? _demoQuery() : ''}`, {
             headers: { ...(typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {}) },
         });
         const data = await res.json();
@@ -33530,27 +33634,9 @@ async function loadShoppingList() {
         _showShoppingSkeleton();
     }
 
-    // ── Demo mode: show placeholder list, skip all Bring! API calls ──────────
-    if (_demoMode) {
-        statusEl.style.display = 'none';
-        shoppingListUUID = 'demo-list';
-        shoppingItems = [
-            { name: 'Latte', specification: '🟠 presto · 1L', rawName: 'Latte' },
-            { name: 'Pane', specification: '', rawName: 'Pane' },
-            { name: 'Uova', specification: '⚡ urgente', rawName: 'Uova' },
-            { name: 'Pasta', specification: '500g', rawName: 'Pasta' },
-            { name: 'Pomodori', specification: '1kg', rawName: 'Pomodori' },
-        ];
-        renderShoppingItems();
-        currentEl.style.display = 'block';
-        loadSmartShopping().then(() => {
-            _syncOnBringFlags();
-            renderSmartShopping();
-            updateShoppingTabCounts();
-            renderShoppingItems();
-        });
-        return;
-    }
+    // The demo has a REAL list: `shopping_list` answers from the seeded demo database
+    // (`api/lib/demo.php`), in the visitor's language. A hardcoded mock here would be
+    // Italian on every locale and would ignore the rows the seed put on the list.
     
     try {
         const data = await api('shopping_list');
@@ -38254,7 +38340,8 @@ async function loadRecipeShoppingPlan(autoAdd) {
     const box = document.getElementById('recipe-shopping-plan');
     const recipe = _recipeShoppingRecipeScaled(_recipeShoppingRecipe);
     if (!box || !recipe) return;
-    // Demo mode keeps a fixed in-memory list and blocks every write: no pantry to plan against.
+    // A demo cannot plan against the shelf: `recipe_shopping_add` is a POST and the demo
+    // answers every write with a no-op, so the panel would stay empty. Hide it instead.
     if (_demoMode) { box.remove(); return; }
     try {
         const data = await api('recipe_shopping_add', {}, 'POST', {
@@ -42714,12 +42801,22 @@ let _offlineBannerTimer   = null;  // auto-enter offline mode after delay
 let _continueBtnTimer     = null;  // show "Continue offline" button after 3 s
 const _NETWORK_FAIL_THRESHOLD  = 3;
 const _OFFLINE_MODE_DELAY_MS   = 8000; // auto-enter offline mode after 8 s of overlay
-const _OFFLINE_CACHE_KEY       = '_evershelf_inv_cache';
-const _OFFLINE_SETTINGS_KEY    = '_evershelf_settings_cache';
-const _OFFLINE_PRODUCTS_KEY    = '_evershelf_products_cache';
-const _OFFLINE_QUEUE_KEY       = '_evershelf_op_queue';
-const _OFFLINE_SHOPPING_KEY    = '_evershelf_shopping_cache';
-const _OFFLINE_SMART_KEY       = '_evershelf_smart_shopping_cache';
+/**
+ * The offline mirror is per MODE, because the demo and the household can share one
+ * origin. A `?demo=1` visit used to write the demo inventory into
+ * `_evershelf_inv_cache`, and the next normal boot (which answers from the cache when it
+ * cannot authenticate) then painted demo products on the real install. Two namespaces,
+ * two worlds: the demo never warms the household's mirror, and the household never reads
+ * the demo's. The `:v2` stamp drops the mirrors written before the split — a browser that
+ * saw the demo would otherwise keep its products in the household's cache.
+ */
+const _OFFLINE_NS             = (typeof _DEMO_URL !== 'undefined' && _DEMO_URL) ? ':demo' : '';
+const _OFFLINE_CACHE_KEY       = '_evershelf_inv_cache:v2' + _OFFLINE_NS;
+const _OFFLINE_SETTINGS_KEY    = '_evershelf_settings_cache:v2' + _OFFLINE_NS;
+const _OFFLINE_PRODUCTS_KEY    = '_evershelf_products_cache:v2' + _OFFLINE_NS;
+const _OFFLINE_QUEUE_KEY       = '_evershelf_op_queue' + _OFFLINE_NS;
+const _OFFLINE_SHOPPING_KEY    = '_evershelf_shopping_cache:v2' + _OFFLINE_NS;
+const _OFFLINE_SMART_KEY       = '_evershelf_smart_shopping_cache:v2' + _OFFLINE_NS;
 const _SHOPPING_SECTIONS_KEY   = '_shop_sec_collapsed';
 
 // ─── Local cache helpers ────────────────────────────────────────────────────
@@ -44712,7 +44809,7 @@ function _getMissingSetupSteps(serverSettings) {
 
     // Step 0 — language: missing only if never set at all (fresh install) and the
     // operator did not decide the instance language (APP_LANG).
-    if (!localStorage.getItem('evershelf_lang') && !srv.app_lang && !setupDone) {
+    if (!localStorage.getItem(_LANG_KEY) && !srv.app_lang && !setupDone) {
         missing.push(0);
     }
     // Steps 1..3 only show on first run (before setup is completed/skipped)
@@ -45181,7 +45278,7 @@ function setupWizardNav(dir) {
 
     // If language changed, apply it
     if (realIndex === 0 && dir === 1 && _setupData.lang !== _currentLang) {
-        localStorage.setItem('evershelf_lang', _setupData.lang);
+        localStorage.setItem(_LANG_KEY, _setupData.lang);
         localStorage.setItem('evershelf_setup_step', String(_setupStep + 1));
         localStorage.setItem('evershelf_setup_pending', JSON.stringify(_setupPendingSteps));
         localStorage.setItem('evershelf_setup_data', JSON.stringify(_setupData));
@@ -45550,7 +45647,7 @@ async function _runStartupCheck() {
             const ctrl = new AbortController();
             const tid  = setTimeout(() => ctrl.abort(), 12000);
             try {
-                const resp = await fetch('api/index.php?action=health_check', {
+                const resp = await fetch('api/index.php?action=health_check' + (typeof _demoQuery === 'function' ? _demoQuery() : ''), {
                     signal: ctrl.signal,
                     headers: { ...(typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {}) },
                 });
@@ -45608,7 +45705,7 @@ async function _runStartupCheck() {
             return false;
         }
         if (result.public && result.api_token_required && typeof getApiToken === 'function' && getApiToken()) {
-            const resp2 = await fetch('api/index.php?action=health_check', { headers: apiAuthHeaders() });
+            const resp2 = await fetch('api/index.php?action=health_check' + (typeof _demoQuery === 'function' ? _demoQuery() : ''), { headers: apiAuthHeaders() });
             result = await resp2.json();
         }
         // Stay on "system" until pantry checks begin (dwell keeps the label readable).
@@ -45794,10 +45891,14 @@ async function _runStartupCheck() {
     try {
         if (_bootDebug) setProgress(100, tl('syncing_local', 'Syncing local data...'), 'ok');
         const authH = typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {};
+        // In a demo these three MUST carry the flag: without it the warm-up would copy the
+        // household's pantry into the visitor's offline cache (and the demo would then show
+        // it while offline).
+        const demoQ = typeof _demoQuery === 'function' ? _demoQuery() : '';
         const [invData, settingsData, productsData] = await Promise.all([
-            fetch('api/index.php?action=inventory_list', { headers: authH }).then(r => r.json()).catch(() => null),
-            fetch('api/index.php?action=get_settings', { headers: authH }).then(r => r.json()).catch(() => null),
-            fetch('api/index.php?action=products_list', { headers: authH }).then(r => r.json()).catch(() => null),
+            fetch('api/index.php?action=inventory_list' + demoQ, { headers: authH }).then(r => r.json()).catch(() => null),
+            fetch('api/index.php?action=get_settings' + demoQ, { headers: authH }).then(r => r.json()).catch(() => null),
+            fetch('api/index.php?action=products_list' + demoQ, { headers: authH }).then(r => r.json()).catch(() => null),
         ]);
         if (invData && Array.isArray(invData.inventory)) _offlineCacheSet(invData.inventory);
         if (settingsData && settingsData.success !== false) _offlineCacheSetSettings(settingsData);
@@ -45900,7 +46001,7 @@ async function _initApp() {
     const resumeStep = localStorage.getItem('evershelf_setup_step');
     const resumeData = localStorage.getItem('evershelf_setup_data');
     const resumePending = localStorage.getItem('evershelf_setup_pending');
-    if (resumeStep && resumePending) {
+    if (resumeStep && resumePending && !_demoSuppressOnboarding()) {
         try { Object.assign(_setupData, JSON.parse(resumeData)); } catch(e) {}
         try { _setupPendingSteps = JSON.parse(resumePending); } catch(e) {}
         _setupStep = parseInt(resumeStep) || 0;
@@ -45941,13 +46042,13 @@ async function _initApp() {
         _serverSettings = serverSettings || {};
         _geminiAvailable = !!(_serverSettings.ai_configured);
         _mealieAvailable = !!(_serverSettings.mealie_usable);
-        _demoMode = !!_serverSettings.demo_mode;
+        _demoMode = _demoMode || !!_serverSettings.demo_mode;
 
         _updateGeminiButtonState();
         _applyDemoModeUI();
         if (settingsFetchOk) {
             const missing = _getMissingSetupSteps(_serverSettings);
-            if (missing.length > 0 && !_demoMode) {
+            if (missing.length > 0 && !_demoSuppressOnboarding()) {
                 showSetupWizard(missing);
             }
             // Reuse the already-fetched serverSettings to avoid a second get_settings request

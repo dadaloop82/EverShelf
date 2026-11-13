@@ -906,6 +906,32 @@ body.is-booting.is-revealing .bottom-nav {
     letter-spacing: 0.03em;
 }
 
+/*
+ * The demo marker, beside the logo. It used to carry its own inline style with cream text on
+ * a translucent amber, written for the old dark header: on the white header the text was
+ * invisible and the chip looked EMPTY. One class, theme-aware, like every other chip — the
+ * amber says "sample data", the contrast says what it says.
+ */
+.header-demo-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    line-height: 1.5;
+    white-space: nowrap;
+    background: #FEF3C7;
+    color: #92400E;
+    border: 1px solid #F59E0B;
+}
+[data-theme="dark"] .header-demo-badge {
+    background: rgba(251, 191, 36, 0.18);
+    color: #FCD34D;
+    border-color: rgba(251, 191, 36, 0.45);
+}
+
 /* The kiosk APK version, beside the app version and only when the row has room for it
    (`_paintKioskVersion()` hides it first, then the branch, never the app version).
    A dot separates the two so "v1.31.5" and "kiosk 1.7.26" are never read as one thing. */

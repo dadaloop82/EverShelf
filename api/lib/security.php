@@ -4,6 +4,7 @@
  */
 
 require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/demo.php';
 
 /** Effective API token: API_TOKEN takes precedence over legacy SETTINGS_TOKEN. */
 function evershelfEffectiveApiToken(): string {
@@ -101,6 +102,11 @@ function evershelfHostAllowed(string $host, string $rawList): bool {
 function evershelfEnsureApiToken(): void {
     if (PHP_SAPI === 'cli') {
         return; // cron and the CLI scripts have no HTTP surface to protect
+    }
+    // A public demo is not an install: minting a token there would lock every visitor
+    // behind a pairing code, and the demo's writes are blocked at the router anyway.
+    if (evershelfDemoRequested()) {
+        return;
     }
     if (evershelfEffectiveApiToken() !== '') {
         return;
@@ -260,6 +266,12 @@ function evershelfCsrfGuardAllows(string $action, string $header, string $conten
 }
 
 function evershelfActionNeedsAuth(string $action, string $method): bool {
+    // Demo mode is a public, read-only showcase: `evershelfDemoBlocksAction()` is the
+    // guard that protects it (no write ever reaches a handler), and asking a visitor
+    // to pair before looking at the demo would defeat the point.
+    if (evershelfDemoRequested()) {
+        return false;
+    }
     if (!evershelfApiTokenRequired()) {
         return false;
     }
@@ -353,6 +365,9 @@ function evershelfSameOrigin(string $a, string $b): bool {
 }
 
 function evershelfRequireAuthForSensitive(string $action): void {
+    if (evershelfDemoRequested()) {
+        return; // public demo: no token to present, nothing behind it but sample data
+    }
     if (!evershelfApiTokenRequired()) {
         return;
     }
@@ -377,7 +392,15 @@ function evershelfSendSecurityHeaders(): void {
         return;
     }
     header('X-Content-Type-Options: nosniff');
-    header('X-Frame-Options: SAMEORIGIN');
+    if (evershelfDemoRequested()) {
+        // A demo exists to be EMBEDDED by the marketing site (an iframe on socly.it and
+        // friends). `X-Frame-Options` has no "allow that other origin" value, so the demo
+        // speaks `frame-ancestors` instead — `DEMO_FRAME_ANCESTORS`, default `*`, because a
+        // public demo carries nothing but sample data.
+        header('Content-Security-Policy: frame-ancestors ' . evershelfDemoFrameAncestors());
+    } else {
+        header('X-Frame-Options: SAMEORIGIN');
+    }
     header('Referrer-Policy: same-origin');
     header('Permissions-Policy: camera=(self), microphone=(self), geolocation=()');
     header('Cross-Origin-Opener-Policy: same-origin');
@@ -460,27 +483,37 @@ function evershelfSendCorsHeaders(): void {
 /** Read-only actions allowed in DEMO_MODE. */
 function evershelfDemoReadOnlyActions(): array {
     return [
+        // Public telemetry a visitor's browser sends while looking at the demo: the log
+        // is how a broken demo is diagnosed from the server side.
+        'client_log', 'report_error',
         'ping', 'check_update', 'health_check', 'get_settings', 'gemini_usage',
         'search_barcode', 'lookup_barcode', 'resolve_barcode', 'barcode_catalog_sync', 'stock_for_name',
         'product_get', 'products_list', 'products_search', 'inventory_search', 'ai_product_suggest',
         'inventory_list', 'inventory_summary', 'inventory_finished_items',
-        'transactions_list', 'stats', 'monthly_stats', 'macro_stats',
+        'transactions_list', 'stats', 'monthly_stats', 'macro_stats', 'spend_stats',
+        // Reads the screens issue themselves (not only the ones a payload mentions):
+        // a read missing here is answered with the demo's no-op and the screen goes
+        // quietly blank — `med_status` did, and it is the boot's medicine switch.
+        'med_status', 'med_lookup', 'med_symptom_search',
+        'shopping_dismissed', 'audit_state', 'tags_list', 'pao_get',
+        'families_list', 'family_sibling_suggest', 'free_apis', 'get_ics_settings',
         'consumption_predictions', 'inventory_anomalies', 'inventory_duplicate_loss_checks',
         'recent_popular_products', 'expiry_history', 'food_facts', 'opened_shelf_life',
         'bring_list', 'bring_suggest', 'shopping_list', 'shopping_suggest', 'smart_shopping',
         'seasonal_shopping_review', 'stale_inventory_items',
         'templates_list',
         'ai_test',
-        'recipes_list', 'chat_list', 'app_settings_get', 'health_status',
-        'ha_sensor', 'ha_info', 'ha_shopping_items', 'ha_test', 'ha_calendar',
-        'ha_refresh_prices',
+        'recipes_list', 'chat_list', 'app_settings_get',
+        // NOT here on purpose: `backup_list` / `export_inventory` (the household's files),
+        // `health_status` (the health profile), `ha_*` (its Home Assistant) and
+        // `weather_get` / `weather_geocode` (where the kitchen is). A demo carries none of
+        // that, and `get_settings` blanks what it would otherwise reveal.
         'guess_category', 'get_shopping_price', 'get_all_shopping_prices',
-        'backup_list', 'export_inventory', 'weather_get', 'weather_geocode',
     ];
 }
 
 function evershelfDemoBlocksAction(string $action, string $method): bool {
-    if (env('DEMO_MODE') !== 'true') {
+    if (!evershelfDemoRequested()) {
         return false;
     }
     if (in_array($action, evershelfDemoReadOnlyActions(), true)) {

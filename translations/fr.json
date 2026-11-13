@@ -1,4 +1,8 @@
 {
+  "demo": {
+    "badge": "DEMO",
+    "hint": "Mode démo : données d'exemple, aucune modification n'est enregistrée."
+  },
   "settings_search": {
     "placeholder": "Rechercher un réglage… (ex. étiquettes, ticket, GEMINI_API_KEY)",
     "hint": "Recherche par nom, description ou clé .env. Entrée ouvre l’entrée.",

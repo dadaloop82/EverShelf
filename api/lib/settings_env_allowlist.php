@@ -56,6 +56,9 @@ function evershelfSettingsEnvAllowlist(): array
         // PARKED on purpose: the banner slots are commented out in the markup and must
         // stay that way (docs/wiki/Support-and-ads.md). Never a settings control.
         'SUPPORT_BANNERS_AVAILABLE' => 'support',
+        // The clock of the support answer (unix seconds): written by the dialog, read by
+        // the payload. Not a preference, so it has no control.
+        'SUPPORT_ANSWERED_AT'       => 'support',
         'ADS_PROVIDER'              => 'support',
         'ADSENSE_CLIENT'            => 'support',
         'ADSENSE_SLOT_APP'          => 'support',
@@ -75,6 +78,10 @@ function evershelfSettingsEnvAllowlist(): array
         'CRON_LOG_MAX_BYTES'        => 'logging',
         'DISPLAY_ERRORS'            => 'logging',
         'DEMO_MODE'                 => 'logging',
+        // How the demo is mounted and who may embed it (a deployment decision, not a
+        // preference: `?demo=1`, the `/demo` path, and the iframe policy).
+        'DEMO_BASE_PATH'            => 'logging',
+        'DEMO_FRAME_ANCESTORS'      => 'logging',
         // How many days of client logs the server keeps (rotation, not a preference).
         'EVERSHELF_LOG_KEEP_DAYS'   => 'logging',
         // advanced tuning

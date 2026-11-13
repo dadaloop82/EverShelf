@@ -1,4 +1,8 @@
 {
+  "demo": {
+    "badge": "DEMO",
+    "hint": "Demo mode: sample data, nothing you change is saved."
+  },
   "settings_search": {
     "placeholder": "Search a setting… (e.g. tags, receipt, GEMINI_API_KEY)",
     "hint": "Search by name, description or .env key. Enter opens the entry.",

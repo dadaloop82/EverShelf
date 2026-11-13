@@ -1585,6 +1585,10 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "reason": "support"
         },
         {
+            "env": "SUPPORT_ANSWERED_AT",
+            "reason": "support"
+        },
+        {
             "env": "SUPPORT_PAYPAL_URL",
             "reason": "support"
         },
@@ -1742,6 +1746,14 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "env": "DEMO_MODE",
+            "reason": "logging"
+        },
+        {
+            "env": "DEMO_BASE_PATH",
+            "reason": "logging"
+        },
+        {
+            "env": "DEMO_FRAME_ANCESTORS",
             "reason": "logging"
         },
         {

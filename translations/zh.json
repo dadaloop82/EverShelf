@@ -1,4 +1,8 @@
 {
+  "demo": {
+    "badge": "DEMO",
+    "hint": "演示模式：示例数据，所做的修改不会被保存。"
+  },
   "settings_search": {
     "placeholder": "搜索设置…（例如 标签、小票、GEMINI_API_KEY）",
     "hint": "按名称、说明或 .env 键搜索。回车打开该项。",

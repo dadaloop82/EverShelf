@@ -1,4 +1,8 @@
 {
+  "demo": {
+    "badge": "DEMO",
+    "hint": "Demo-Modus: Beispieldaten, Änderungen werden nicht gespeichert."
+  },
   "settings_search": {
     "placeholder": "Einstellung suchen… (z. B. Tags, Bon, GEMINI_API_KEY)",
     "hint": "Suche nach Name, Beschreibung oder .env-Schlüssel. Enter öffnet den Eintrag.",

@@ -4,12 +4,16 @@
 # Data directory (user-specific runtime data)
 data/evershelf.db
 data/dispensa.db
+# Demo databases, one per language (api/lib/demo.php): seeded runtime state, rebuilt daily.
+data/demo/
 data/*.db-wal
 data/*.db-shm
 data/backups/
 data/cron.log
 data/cron.log.*
 data/smart_shopping_cache.json
+# The demo's per-language smart-shopping cache (api/lib/demo.php).
+data/smart_shopping_cache-??.json
 data/bring_token.json
 data/api_pairing.json
 data/bring_catalog.json

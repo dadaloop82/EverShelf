@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.0.0-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.1.0-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -109,6 +109,15 @@ the gate this release was developed against.
 
 <details open>
 <summary><b>Last five releases</b></summary>
+
+**v2.1.0 — demo mode that actually shows a pantry.** `DEMO_MODE=true` (or `?demo=1`,
+or serving the app under `/demo`) now opens the app on a **seeded demo database** — thirty
+products across pantry, fridge and freezer, a month of history and a real shopping list —
+instead of an empty screen. English by default and translated by `?lang=` (products
+included: each language has its own seed), no pairing, read-only with quiet no-ops, and
+embeddable in an iframe (`frame-ancestors` instead of `X-Frame-Options`). The household's
+database is never opened in demo mode. A fresh install also boots again: `initializeDB()`
+was missing `products.kind`, which the migrations read.
 
 **v2.0.0 — the big one.** The settings page became a control panel (six sections, four
 essentials always visible, no Save button: every control writes itself) and the idle screen

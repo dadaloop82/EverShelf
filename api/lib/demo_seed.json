@@ -1,0 +1,992 @@
+{
+    "version": 3,
+    "app_settings": {
+        "setup_done": "1",
+        "setup_seen": "{\"shopping_remove_on_buy\":1,\"notify\":2,\"healthcheck\":1,\"telegram\":1,\"webpush\":1,\"zerowaste\":1,\"price\":1}",
+        "med_setup_done": "1",
+        "med_enabled": "0"
+    },
+    "products": [
+        {
+            "key": "milk",
+            "name": {
+                "it": "Latte intero",
+                "en": "Whole milk",
+                "de": "Vollmilch",
+                "fr": "Lait entier",
+                "es": "Leche entera",
+                "zh": "全脂牛奶"
+            },
+            "brand": "Granarolo",
+            "category": "latticini",
+            "unit": "l",
+            "location": "frigo",
+            "quantity": 1,
+            "expiry_days": 4,
+            "added_days_ago": 3
+        },
+        {
+            "key": "yogurt",
+            "name": {
+                "it": "Yogurt bianco",
+                "en": "Plain yogurt",
+                "de": "Naturjoghurt",
+                "fr": "Yaourt nature",
+                "es": "Yogur natural",
+                "zh": "原味酸奶"
+            },
+            "brand": "Müller",
+            "category": "latticini",
+            "unit": "pz",
+            "location": "frigo",
+            "quantity": 4,
+            "expiry_days": 12,
+            "opened_days_ago": 2,
+            "added_days_ago": 2
+        },
+        {
+            "key": "yogurt_strawberry",
+            "name": {
+                "it": "Yogurt alla fragola",
+                "en": "Strawberry yogurt",
+                "de": "Erdbeerjoghurt",
+                "fr": "Yaourt à la fraise",
+                "es": "Yogur de fresa",
+                "zh": "草莓酸奶"
+            },
+            "brand": "Müller",
+            "category": "latticini",
+            "unit": "pz",
+            "location": "frigo",
+            "quantity": 2,
+            "expiry_days": -2,
+            "added_days_ago": 12
+        },
+        {
+            "key": "eggs",
+            "name": {
+                "it": "Uova",
+                "en": "Eggs",
+                "de": "Eier",
+                "fr": "Œufs",
+                "es": "Huevos",
+                "zh": "鸡蛋"
+            },
+            "brand": "",
+            "category": "latticini",
+            "unit": "pz",
+            "location": "frigo",
+            "quantity": 8,
+            "expiry_days": 16,
+            "added_days_ago": 6
+        },
+        {
+            "key": "butter",
+            "name": {
+                "it": "Burro",
+                "en": "Butter",
+                "de": "Butter",
+                "fr": "Beurre",
+                "es": "Mantequilla",
+                "zh": "黄油"
+            },
+            "brand": "Kerrygold",
+            "category": "latticini",
+            "unit": "pz",
+            "location": "frigo",
+            "quantity": 1,
+            "expiry_days": 45,
+            "opened_days_ago": 20,
+            "added_days_ago": 30
+        },
+        {
+            "key": "parmesan",
+            "name": {
+                "it": "Parmigiano Reggiano",
+                "en": "Parmesan",
+                "de": "Parmesan",
+                "fr": "Parmesan",
+                "es": "Parmesano",
+                "zh": "帕尔马干酪"
+            },
+            "brand": "Consorzio",
+            "category": "latticini",
+            "unit": "g",
+            "location": "frigo",
+            "quantity": 180,
+            "expiry_days": 70,
+            "opened_days_ago": 5,
+            "added_days_ago": 40
+        },
+        {
+            "key": "apples",
+            "name": {
+                "it": "Mele",
+                "en": "Apples",
+                "de": "Äpfel",
+                "fr": "Pommes",
+                "es": "Manzanas",
+                "zh": "苹果"
+            },
+            "brand": "",
+            "category": "frutta",
+            "unit": "pz",
+            "location": "frigo",
+            "quantity": 6,
+            "expiry_days": 12,
+            "added_days_ago": 4
+        },
+        {
+            "key": "bananas",
+            "name": {
+                "it": "Banane",
+                "en": "Bananas",
+                "de": "Bananen",
+                "fr": "Bananes",
+                "es": "Plátanos",
+                "zh": "香蕉"
+            },
+            "brand": "Chiquita",
+            "category": "frutta",
+            "unit": "pz",
+            "location": "dispensa",
+            "quantity": 5,
+            "expiry_days": 4,
+            "added_days_ago": 2
+        },
+        {
+            "key": "tomatoes",
+            "name": {
+                "it": "Pomodori",
+                "en": "Tomatoes",
+                "de": "Tomaten",
+                "fr": "Tomates",
+                "es": "Tomates",
+                "zh": "番茄"
+            },
+            "brand": "",
+            "category": "verdura",
+            "unit": "pz",
+            "location": "frigo",
+            "quantity": 6,
+            "expiry_days": 5,
+            "added_days_ago": 2
+        },
+        {
+            "key": "salad",
+            "name": {
+                "it": "Insalata mista",
+                "en": "Mixed salad",
+                "de": "Blattsalat",
+                "fr": "Salade mélangée",
+                "es": "Ensalada mixta",
+                "zh": "混合沙拉"
+            },
+            "brand": "Bonduelle",
+            "category": "verdura",
+            "unit": "pz",
+            "location": "frigo",
+            "quantity": 1,
+            "expiry_days": 2,
+            "added_days_ago": 1
+        },
+        {
+            "key": "bread",
+            "name": {
+                "it": "Pane integrale",
+                "en": "Wholemeal bread",
+                "de": "Vollkornbrot",
+                "fr": "Pain complet",
+                "es": "Pan integral",
+                "zh": "全麦面包"
+            },
+            "brand": "Mulino Bianco",
+            "category": "pane",
+            "unit": "pz",
+            "location": "dispensa",
+            "quantity": 1,
+            "expiry_days": 2,
+            "added_days_ago": 1
+        },
+        {
+            "key": "pasta",
+            "name": {
+                "it": "Spaghetti",
+                "en": "Spaghetti",
+                "de": "Spaghetti",
+                "fr": "Spaghetti",
+                "es": "Espaguetis",
+                "zh": "意大利面条"
+            },
+            "brand": "Barilla",
+            "category": "pasta",
+            "unit": "g",
+            "location": "dispensa",
+            "quantity": 1000,
+            "expiry_days": 400,
+            "added_days_ago": 60
+        },
+        {
+            "key": "rice",
+            "name": {
+                "it": "Riso basmati",
+                "en": "Basmati rice",
+                "de": "Basmatireis",
+                "fr": "Riz basmati",
+                "es": "Arroz basmati",
+                "zh": "巴斯马蒂大米"
+            },
+            "brand": "Curtiriso",
+            "category": "cereali",
+            "unit": "g",
+            "location": "dispensa",
+            "quantity": 900,
+            "expiry_days": 330,
+            "added_days_ago": 90
+        },
+        {
+            "key": "flour",
+            "name": {
+                "it": "Farina di grano tenero",
+                "en": "Wheat flour",
+                "de": "Weizenmehl",
+                "fr": "Farine de blé",
+                "es": "Harina de trigo",
+                "zh": "小麦面粉"
+            },
+            "brand": "Farina del Sacchetto",
+            "category": "cereali",
+            "unit": "g",
+            "location": "dispensa",
+            "quantity": 700,
+            "expiry_days": 180,
+            "added_days_ago": 120
+        },
+        {
+            "key": "olive_oil",
+            "name": {
+                "it": "Olio extravergine d'oliva",
+                "en": "Extra virgin olive oil",
+                "de": "Natives Olivenöl extra",
+                "fr": "Huile d'olive vierge extra",
+                "es": "Aceite de oliva virgen extra",
+                "zh": "特级初榨橄榄油"
+            },
+            "brand": "Monini",
+            "category": "condimenti",
+            "unit": "ml",
+            "location": "dispensa",
+            "quantity": 750,
+            "expiry_days": 400,
+            "opened_days_ago": 25,
+            "added_days_ago": 60
+        },
+        {
+            "key": "coffee",
+            "name": {
+                "it": "Caffè macinato",
+                "en": "Ground coffee",
+                "de": "Gemahlener Kaffee",
+                "fr": "Café moulu",
+                "es": "Café molido",
+                "zh": "研磨咖啡"
+            },
+            "brand": "Lavazza",
+            "category": "bevande",
+            "unit": "g",
+            "location": "dispensa",
+            "quantity": 250,
+            "expiry_days": 240,
+            "opened_days_ago": 12,
+            "added_days_ago": 20
+        },
+        {
+            "key": "honey",
+            "name": {
+                "it": "Miele d'acacia",
+                "en": "Acacia honey",
+                "de": "Akazienhonig",
+                "fr": "Miel d'acacia",
+                "es": "Miel de acacia",
+                "zh": "洋槐蜂蜜"
+            },
+            "brand": "Ambrosoli",
+            "category": "condimenti",
+            "unit": "g",
+            "location": "dispensa",
+            "quantity": 450,
+            "expiry_days": 600,
+            "added_days_ago": 150
+        },
+        {
+            "key": "chicken",
+            "name": {
+                "it": "Petto di pollo",
+                "en": "Chicken breast",
+                "de": "Hähnchenbrust",
+                "fr": "Blanc de poulet",
+                "es": "Pechuga de pollo",
+                "zh": "鸡胸肉"
+            },
+            "brand": "AIA",
+            "category": "carne",
+            "unit": "g",
+            "location": "freezer",
+            "quantity": 600,
+            "expiry_days": 120,
+            "added_days_ago": 20
+        },
+        {
+            "key": "salmon",
+            "name": {
+                "it": "Filetto di salmone",
+                "en": "Salmon fillet",
+                "de": "Lachsfilet",
+                "fr": "Filet de saumon",
+                "es": "Filete de salmón",
+                "zh": "三文鱼柳"
+            },
+            "brand": "Findus",
+            "category": "pesce",
+            "unit": "g",
+            "location": "freezer",
+            "quantity": 400,
+            "expiry_days": 90,
+            "added_days_ago": 25
+        },
+        {
+            "key": "peas",
+            "name": {
+                "it": "Piselli surgelati",
+                "en": "Frozen peas",
+                "de": "Erbsen (TK)",
+                "fr": "Petits pois surgelés",
+                "es": "Guisantes congelados",
+                "zh": "冷冻豌豆"
+            },
+            "brand": "Findus",
+            "category": "surgelati",
+            "unit": "g",
+            "location": "freezer",
+            "quantity": 750,
+            "expiry_days": 200,
+            "added_days_ago": 45
+        },
+        {
+            "key": "orange_juice",
+            "name": {
+                "it": "Succo d'arancia",
+                "en": "Orange juice",
+                "de": "Orangensaft",
+                "fr": "Jus d'orange",
+                "es": "Zumo de naranja",
+                "zh": "橙汁"
+            },
+            "brand": "Yoga",
+            "category": "bevande",
+            "unit": "l",
+            "location": "frigo",
+            "quantity": 1,
+            "expiry_days": 6,
+            "opened_days_ago": 1,
+            "added_days_ago": 2
+        },
+        {
+            "key": "white_wine",
+            "name": {
+                "it": "Vino bianco",
+                "en": "White wine",
+                "de": "Weißwein",
+                "fr": "Vin blanc",
+                "es": "Vino blanco",
+                "zh": "白葡萄酒"
+            },
+            "brand": "Pinot Grigio",
+            "category": "bevande",
+            "unit": "ml",
+            "location": "dispensa",
+            "quantity": 750,
+            "expiry_days": 900,
+            "opened_days_ago": 15,
+            "added_days_ago": 30
+        },
+        {
+            "key": "chocolate",
+            "name": {
+                "it": "Cioccolato fondente",
+                "en": "Dark chocolate",
+                "de": "Zartbitterschokolade",
+                "fr": "Chocolat noir",
+                "es": "Chocolate negro",
+                "zh": "黑巧克力"
+            },
+            "brand": "Lindt",
+            "category": "snack",
+            "unit": "g",
+            "location": "dispensa",
+            "quantity": 200,
+            "expiry_days": 300,
+            "added_days_ago": 40
+        },
+        {
+            "key": "water",
+            "name": {
+                "it": "Acqua frizzante",
+                "en": "Sparkling water",
+                "de": "Mineralwasser",
+                "fr": "Eau gazeuse",
+                "es": "Agua con gas",
+                "zh": "气泡水"
+            },
+            "brand": "San Pellegrino",
+            "category": "bevande",
+            "unit": "l",
+            "location": "dispensa",
+            "quantity": 6,
+            "expiry_days": 365,
+            "added_days_ago": 10
+        },
+        {
+            "key": "tuna",
+            "name": {
+                "it": "Tonno in scatola",
+                "en": "Canned tuna",
+                "de": "Thunfisch (Dose)",
+                "fr": "Thon en conserve",
+                "es": "Atún en lata",
+                "zh": "金枪鱼罐头"
+            },
+            "brand": "Rio Mare",
+            "category": "conserve",
+            "unit": "pz",
+            "location": "dispensa",
+            "quantity": 4,
+            "expiry_days": 500,
+            "added_days_ago": 70
+        },
+        {
+            "key": "passata",
+            "name": {
+                "it": "Passata di pomodoro",
+                "en": "Tomato passata",
+                "de": "Passierte Tomaten",
+                "fr": "Coulis de tomate",
+                "es": "Tomate triturado",
+                "zh": "番茄酱"
+            },
+            "brand": "Mutti",
+            "category": "conserve",
+            "unit": "pz",
+            "location": "dispensa",
+            "quantity": 3,
+            "expiry_days": 320,
+            "added_days_ago": 50
+        },
+        {
+            "key": "biscuits",
+            "name": {
+                "it": "Biscotti",
+                "en": "Biscuits",
+                "de": "Kekse",
+                "fr": "Biscuits",
+                "es": "Galletas",
+                "zh": "饼干"
+            },
+            "brand": "Mulino Bianco",
+            "category": "snack",
+            "unit": "pz",
+            "location": "dispensa",
+            "quantity": 2,
+            "expiry_days": 120,
+            "added_days_ago": 15
+        },
+        {
+            "key": "jam",
+            "name": {
+                "it": "Confettura di albicocche",
+                "en": "Apricot jam",
+                "de": "Aprikosenkonfitüre",
+                "fr": "Confiture d'abricots",
+                "es": "Mermelada de albaricoque",
+                "zh": "杏子果酱"
+            },
+            "brand": "Santa Rosa",
+            "category": "conserve",
+            "unit": "pz",
+            "location": "dispensa",
+            "quantity": 2,
+            "expiry_days": 200,
+            "added_days_ago": 200
+        },
+        {
+            "key": "dish_soap",
+            "name": {
+                "it": "Detersivo per piatti",
+                "en": "Dish soap",
+                "de": "Spülmittel",
+                "fr": "Liquide vaisselle",
+                "es": "Lavavajillas",
+                "zh": "洗洁精"
+            },
+            "brand": "Fairy",
+            "category": "pulizia",
+            "unit": "ml",
+            "location": "dispensa",
+            "quantity": 500,
+            "expiry_days": 730,
+            "added_days_ago": 35
+        },
+        {
+            "key": "shampoo",
+            "name": {
+                "it": "Shampoo",
+                "en": "Shampoo",
+                "de": "Shampoo",
+                "fr": "Shampooing",
+                "es": "Champú",
+                "zh": "洗发水"
+            },
+            "brand": "Nivea",
+            "category": "igiene",
+            "unit": "ml",
+            "location": "dispensa",
+            "quantity": 400,
+            "expiry_days": 900,
+            "added_days_ago": 60
+        }
+    ],
+    "history": [
+        {
+            "product": "milk",
+            "type": "in",
+            "quantity": 1,
+            "days_ago": 3
+        },
+        {
+            "product": "milk",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 1
+        },
+        {
+            "product": "milk",
+            "type": "in",
+            "quantity": 1,
+            "days_ago": 9
+        },
+        {
+            "product": "milk",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 7
+        },
+        {
+            "product": "milk",
+            "type": "in",
+            "quantity": 1,
+            "days_ago": 12
+        },
+        {
+            "product": "milk",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 11
+        },
+        {
+            "product": "milk",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 9
+        },
+        {
+            "product": "milk",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 5
+        },
+        {
+            "product": "milk",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 3
+        },
+        {
+            "product": "bread",
+            "type": "in",
+            "quantity": 1,
+            "days_ago": 1
+        },
+        {
+            "product": "bread",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 1
+        },
+        {
+            "product": "bread",
+            "type": "waste",
+            "quantity": 0.5,
+            "days_ago": 8
+        },
+        {
+            "product": "bread",
+            "type": "in",
+            "quantity": 1,
+            "days_ago": 4
+        },
+        {
+            "product": "bread",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 4
+        },
+        {
+            "product": "bread",
+            "type": "in",
+            "quantity": 1,
+            "days_ago": 7
+        },
+        {
+            "product": "bread",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 7
+        },
+        {
+            "product": "bread",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 6
+        },
+        {
+            "product": "eggs",
+            "type": "in",
+            "quantity": 8,
+            "days_ago": 6
+        },
+        {
+            "product": "eggs",
+            "type": "out",
+            "quantity": 2,
+            "days_ago": 2
+        },
+        {
+            "product": "eggs",
+            "type": "out",
+            "quantity": 2,
+            "days_ago": 5
+        },
+        {
+            "product": "yogurt",
+            "type": "in",
+            "quantity": 4,
+            "days_ago": 2
+        },
+        {
+            "product": "yogurt",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 1
+        },
+        {
+            "product": "yogurt_strawberry",
+            "type": "in",
+            "quantity": 2,
+            "days_ago": 12
+        },
+        {
+            "product": "yogurt_strawberry",
+            "type": "waste",
+            "quantity": 1,
+            "days_ago": 5
+        },
+        {
+            "product": "apples",
+            "type": "in",
+            "quantity": 6,
+            "days_ago": 4
+        },
+        {
+            "product": "apples",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 1
+        },
+        {
+            "product": "apples",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 3
+        },
+        {
+            "product": "bananas",
+            "type": "in",
+            "quantity": 5,
+            "days_ago": 2
+        },
+        {
+            "product": "bananas",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 1
+        },
+        {
+            "product": "tomatoes",
+            "type": "in",
+            "quantity": 6,
+            "days_ago": 2
+        },
+        {
+            "product": "tomatoes",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 1
+        },
+        {
+            "product": "pasta",
+            "type": "in",
+            "quantity": 1000,
+            "days_ago": 60
+        },
+        {
+            "product": "pasta",
+            "type": "out",
+            "quantity": 250,
+            "days_ago": 10
+        },
+        {
+            "product": "pasta",
+            "type": "out",
+            "quantity": 250,
+            "days_ago": 20
+        },
+        {
+            "product": "pasta",
+            "type": "out",
+            "quantity": 250,
+            "days_ago": 35
+        },
+        {
+            "product": "rice",
+            "type": "in",
+            "quantity": 900,
+            "days_ago": 90
+        },
+        {
+            "product": "rice",
+            "type": "out",
+            "quantity": 150,
+            "days_ago": 15
+        },
+        {
+            "product": "rice",
+            "type": "out",
+            "quantity": 150,
+            "days_ago": 40
+        },
+        {
+            "product": "coffee",
+            "type": "in",
+            "quantity": 250,
+            "days_ago": 20
+        },
+        {
+            "product": "coffee",
+            "type": "out",
+            "quantity": 30,
+            "days_ago": 3
+        },
+        {
+            "product": "coffee",
+            "type": "out",
+            "quantity": 30,
+            "days_ago": 9
+        },
+        {
+            "product": "coffee",
+            "type": "out",
+            "quantity": 30,
+            "days_ago": 15
+        },
+        {
+            "product": "olive_oil",
+            "type": "in",
+            "quantity": 750,
+            "days_ago": 60
+        },
+        {
+            "product": "olive_oil",
+            "type": "out",
+            "quantity": 100,
+            "days_ago": 25
+        },
+        {
+            "product": "chicken",
+            "type": "in",
+            "quantity": 600,
+            "days_ago": 20
+        },
+        {
+            "product": "chicken",
+            "type": "out",
+            "quantity": 300,
+            "days_ago": 8
+        },
+        {
+            "product": "salmon",
+            "type": "in",
+            "quantity": 400,
+            "days_ago": 25
+        },
+        {
+            "product": "salmon",
+            "type": "out",
+            "quantity": 200,
+            "days_ago": 12
+        },
+        {
+            "product": "peas",
+            "type": "in",
+            "quantity": 750,
+            "days_ago": 45
+        },
+        {
+            "product": "peas",
+            "type": "out",
+            "quantity": 150,
+            "days_ago": 18
+        },
+        {
+            "product": "water",
+            "type": "in",
+            "quantity": 6,
+            "days_ago": 10
+        },
+        {
+            "product": "water",
+            "type": "out",
+            "quantity": 2,
+            "days_ago": 2
+        },
+        {
+            "product": "water",
+            "type": "out",
+            "quantity": 2,
+            "days_ago": 5
+        },
+        {
+            "product": "biscuits",
+            "type": "in",
+            "quantity": 2,
+            "days_ago": 15
+        },
+        {
+            "product": "biscuits",
+            "type": "out",
+            "quantity": 1,
+            "days_ago": 4
+        }
+    ],
+    "shopping": [
+        {
+            "name": {
+                "it": "Latte",
+                "en": "Milk",
+                "de": "Milch",
+                "fr": "Lait",
+                "es": "Leche",
+                "zh": "牛奶"
+            },
+            "qty": 2,
+            "unit": "l",
+            "spec": {
+                "it": "2 l",
+                "en": "2 l",
+                "de": "2 l",
+                "fr": "2 l",
+                "es": "2 l",
+                "zh": "2 升"
+            }
+        },
+        {
+            "name": {
+                "it": "Pane",
+                "en": "Bread",
+                "de": "Brot",
+                "fr": "Pain",
+                "es": "Pan",
+                "zh": "面包"
+            },
+            "qty": 1,
+            "unit": "pz",
+            "spec": {
+                "it": "1 pz",
+                "en": "1 pc",
+                "de": "1 Stk",
+                "fr": "1 pièce",
+                "es": "1 ud",
+                "zh": "1 个"
+            }
+        },
+        {
+            "name": {
+                "it": "Uova",
+                "en": "Eggs",
+                "de": "Eier",
+                "fr": "Œufs",
+                "es": "Huevos",
+                "zh": "鸡蛋"
+            },
+            "qty": 6,
+            "unit": "pz",
+            "spec": {
+                "it": "6 pz",
+                "en": "6 pcs",
+                "de": "6 Stk",
+                "fr": "6 pièces",
+                "es": "6 uds",
+                "zh": "6 个"
+            }
+        },
+        {
+            "name": {
+                "it": "Pomodori",
+                "en": "Tomatoes",
+                "de": "Tomaten",
+                "fr": "Tomates",
+                "es": "Tomates",
+                "zh": "番茄"
+            },
+            "qty": 1,
+            "unit": "kg",
+            "spec": {
+                "it": "1 kg",
+                "en": "1 kg",
+                "de": "1 kg",
+                "fr": "1 kg",
+                "es": "1 kg",
+                "zh": "1 公斤"
+            }
+        },
+        {
+            "name": {
+                "it": "Detersivo per piatti",
+                "en": "Dish soap",
+                "de": "Spülmittel",
+                "fr": "Liquide vaisselle",
+                "es": "Lavavajillas",
+                "zh": "洗洁精"
+            },
+            "qty": 1,
+            "unit": "pz",
+            "spec": {
+                "it": "1 pz",
+                "en": "1 pc",
+                "de": "1 Stk",
+                "fr": "1 pièce",
+                "es": "1 ud",
+                "zh": "1 个"
+            }
+        }
+    ]
+}

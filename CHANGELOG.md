@@ -5,6 +5,108 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-11-13
+
+### Demo mode is a real flag, and it has a pantry
+
+The demo was documented (`DEMO_MODE=true`, `?demo=1`, "a mock pantry with sample
+data is loaded") and it did not work: the mock pantry did not exist — the flag only
+blocked the writes, so a visitor saw an empty app — an install with no `API_TOKEN`
+minted one and asked the visitor to pair, `X-Frame-Options: SAMEORIGIN` refused the
+iframe of the marketing site, and every write answered `403 demo_mode`, which the UI
+printed as an error toast. A demo can now be opened by the site and looks like a
+lived-in pantry.
+
+- **A flag, three ways in.** `DEMO_MODE=true` (a demo deployment), `?demo=1` (that URL:
+  the flag is never written into the browser, so the pantry is normal again as soon as
+  the URL is) and `DEMO_BASE_PATH` (default `/demo`, the address the marketing site
+  embeds).
+  `evershelfDemoRequested()` is the one place that answers, and it is decided before
+  the database is opened.
+- **The demo has its own database.** `data/demo/evershelf-demo-<lang>.db`, created
+  from `api/lib/demo_seed.json` (30 products across the pantry, the fridge and the
+  freezer, a month of `in`/`out`/`waste` history, five shopping rows) and rebuilt once
+  a day so the expiry dates stay relative to today. The household's
+  `data/evershelf.db` is never opened in demo mode, so flipping the flag on a real
+  install cannot expose the pantry. Every screen reads real queries: nothing is
+  mocked, so the demo cannot drift from the app.
+- **Language follows the visitor.** The seed carries every product name in the six
+  shipped languages; `?lang=de` opens the German demo database (interface *and*
+  products), and with no `?lang=` a demo starts in **English** — not in the browser's
+  language, because a showcase is not the visitor's pantry.
+- **Nothing asks a visitor anything.** The demo database ships every answer already:
+  `setup_done`, `setup_seen` at the current `askVersion` of every assistant question
+  (`notify`, `price`, `zerowaste`, `telegram`, `webpush`, `healthcheck`,
+  `shopping_remove_on_buy`) and `med_setup_done`, so neither the setup wizard nor
+  «💊 Farmaci in casa?» opens over the showcase (`_demoSuppressOnboarding()` is the
+  client-side belt, for a demo database seeded before those keys existed). Outside the
+  demo the assistant keeps asking the undecided options at startup, one card at a
+  time, with its explanation and a choice.
+- **The demo describes itself, not the host.** `get_settings` blanks what `.env` and
+  the household's files would reveal (rooms, coordinates, Bring! e-mail, TTS/AI
+  endpoints, Home Assistant, Mealie, personal prefs), the spend ledger is the demo's
+  own (`data/demo/shopping_spend-<lang>.json`) and shopping always uses the internal
+  list — `isShoppingBringMode()` refuses Bring! in demo, or the visitor would read the
+  family's real list. `backup_list`, `health_status`, `ha_*`, `weather_*` are refused,
+  and the read allow-list now carries the actions the screens really call (`med_status`
+  was answered with the write no-op, leaving the boot's medicine switch blank).
+- **It opens without pairing.** `evershelfEnsureApiToken()` does not mint a token on
+  a demo request, `evershelfActionNeedsAuth()` and `evershelfRequireAuthForSensitive()`
+  step aside, `app_bootstrap` answers `api_token_required:false` and `health_check`
+  stops hiding the diagnostics behind the public probe.
+- **Writes are an honest no-op.** A blocked write answers
+  `{"success":true,"demo_mode":true}` instead of `403`, so a demo does not fill up
+  with error toasts; AI generation keeps its `403 demo_mode` (it costs money and
+  would answer nothing).
+- **It can be embedded.** In demo mode the API sends
+  `Content-Security-Policy: frame-ancestors` (`DEMO_FRAME_ANCESTORS`, default `*`)
+  instead of `X-Frame-Options`; `.htaccess` does the same for the static
+  `index.html`, keyed on `/demo/…` or a vhost that sets `EVERSHELF_DEMO=1`.
+  `<iframe src="https://…/demo/?lang=en">` now works.
+- A browser that blocks storage (a third-party iframe) no longer takes the app down:
+  `localStorage`/`sessionStorage` are shimmed with an in-memory mirror when they throw.
+- The header badge is translated (`demo.badge` / `demo.hint`) and the shopping list is
+  the seeded one, in the visitor's language, instead of the Italian hardcoded mock.
+
+### Fixed
+
+- **An answered support question came back at every start** (reported: «perché esce sempre
+  nonostante abbia scelto "Later"?»). Two bugs, one symptom: `database.php` decided the
+  demo database by asking `env()` while `DB_PATH` was still being defined, and the
+  settings-override loader answered "no overrides" *and cached it* — so on an install with
+  a read-only `.env` (this one) every saved setting was ignored, `SUPPORT_DECIDED`
+  included. The loader now answers without caching until `DB_PATH` exists, and the
+  inventory of overrides loads again (85 entries on the field install). The answer also
+  carries a clock now (`SUPPORT_ANSWERED_AT`): a **donation is never asked again** (the QR
+  has been shown and used — only Settings can change it), while «Later» keeps the dialog
+  away for about six weeks and then lets it return on a random start (one boot in four,
+  i.e. roughly one reminder every other month, never on a schedule). An answer stored
+  before the clock existed starts it on the next boot.
+- **The demo stole the household's language.** A `?demo=1&lang=en` visit wrote
+  `evershelf_lang=en` into the SHARED key, so the pantry came back in English after the
+  showcase (the choice is now namespaced like the offline mirror: `evershelf_lang` for
+  the household, `evershelf_lang:demo` for the demo).
+- **The DEMO badge was invisible.** Its inline style was cream text on a translucent amber,
+  written for the old dark header: on the white header the chip read as EMPTY (the word was
+  there, at about 1:1 contrast). It is `.header-demo-badge` in `style.css` now — amber with
+  dark brown text in the light theme (6.4:1) and a soft amber with light text in the dark one.
+- **A demo must not follow the visitor home.** The first cut of the flag mirrored
+  `?demo=1` into a `path=/` cookie, so after a demo visit the WHOLE origin answered
+  demo — `https://<host>/dispensa/` included — until the browser session ended. No
+  cookie is written any more: the flag travels in the URL and the client repeats
+  `demo=1&lang=…` on every API call (including the raw `app_bootstrap`, `health_check`
+  and offline warm-up fetches), and every boot deletes the cookie left behind. The
+  **offline mirror is namespaced by mode** (`…:v2` / `…:v2:demo`), so a demo visit can
+  no longer seed the household's cached inventory — which is what kept printing demo
+  products on the normal app before it could authenticate.
+- **A fresh database could not boot.** `initializeDB()` created `products` without
+  `kind`, and the migrations read that column before the `ALTER` that adds it, so the
+  first request of a brand-new installation (and of every demo database, created from
+  scratch) died with `no such column: kind`. `initializeDB()` now writes the current
+  schema and the pass is guarded for databases that predate it.
+- `health_check` looked at a hardcoded `data/evershelf.db`: in demo mode it now checks
+  `DB_PATH`, i.e. the database the app is really answering from.
+
 ## [2.0.0] - 2026-11-12
 
 ### A major release — the refactor the household feels

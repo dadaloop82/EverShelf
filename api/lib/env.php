@@ -218,6 +218,15 @@ function loadEnvOverrides(bool $reload = false): array {
         // (issue #261).
         return [];
     }
+    if (!defined('DB_PATH')) {
+        // `database.php` defines DB_PATH and, to know WHICH file it is, asks whether this
+        // request is a demo — which reads `env()` before the constant exists. The
+        // overrides live inside that database, so they cannot be answered yet: answer
+        // "none" WITHOUT caching, or every setting saved through the read-only-.env
+        // fallback is ignored for the whole request (the symptom: the app forgot that
+        // the support question had been answered, that custom rooms exist, etc.).
+        return [];
+    }
     $cache = [];
     try {
         $stmt = getDB()->query("SELECT value, updated_at FROM app_settings WHERE key = 'env_overrides'");

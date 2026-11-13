@@ -1732,290 +1732,305 @@ function evershelfSettingsSchema(): array
     ),
     17 => 
     array (
-      'env' => 'SUPPORT_PAYPAL_URL',
+      'env' => 'SUPPORT_ANSWERED_AT',
       'reason' => 'support',
     ),
     18 => 
     array (
-      'env' => 'SUPPORT_PAYPAL_CURRENCY',
+      'env' => 'SUPPORT_PAYPAL_URL',
       'reason' => 'support',
     ),
     19 => 
     array (
-      'env' => 'SUPPORT_PAYPAL_AMOUNTS',
+      'env' => 'SUPPORT_PAYPAL_CURRENCY',
       'reason' => 'support',
     ),
     20 => 
     array (
-      'env' => 'SUPPORT_COST_CURRENCY',
+      'env' => 'SUPPORT_PAYPAL_AMOUNTS',
       'reason' => 'support',
     ),
     21 => 
     array (
-      'env' => 'SUPPORT_COST_HOSTING',
+      'env' => 'SUPPORT_COST_CURRENCY',
       'reason' => 'support',
     ),
     22 => 
     array (
-      'env' => 'SUPPORT_COST_DOMAIN',
+      'env' => 'SUPPORT_COST_HOSTING',
       'reason' => 'support',
     ),
     23 => 
     array (
-      'env' => 'SUPPORT_COST_DEVACCOUNT',
+      'env' => 'SUPPORT_COST_DOMAIN',
       'reason' => 'support',
     ),
     24 => 
     array (
-      'env' => 'SUPPORT_COST_API',
+      'env' => 'SUPPORT_COST_DEVACCOUNT',
       'reason' => 'support',
     ),
     25 => 
     array (
-      'env' => 'SUPPORT_BANNERS_AVAILABLE',
+      'env' => 'SUPPORT_COST_API',
       'reason' => 'support',
     ),
     26 => 
     array (
-      'env' => 'ADS_PROVIDER',
+      'env' => 'SUPPORT_BANNERS_AVAILABLE',
       'reason' => 'support',
     ),
     27 => 
     array (
-      'env' => 'ADSENSE_CLIENT',
+      'env' => 'ADS_PROVIDER',
       'reason' => 'support',
     ),
     28 => 
     array (
-      'env' => 'ADSENSE_SLOT_APP',
+      'env' => 'ADSENSE_CLIENT',
       'reason' => 'support',
     ),
     29 => 
     array (
-      'env' => 'ADSENSE_SLOT_SCREENSAVER',
+      'env' => 'ADSENSE_SLOT_APP',
       'reason' => 'support',
     ),
     30 => 
     array (
-      'env' => 'ADS_CUSTOM_APP_HTML',
+      'env' => 'ADSENSE_SLOT_SCREENSAVER',
       'reason' => 'support',
     ),
     31 => 
     array (
-      'env' => 'ADS_CUSTOM_SCREENSAVER_HTML',
+      'env' => 'ADS_CUSTOM_APP_HTML',
       'reason' => 'support',
     ),
     32 => 
     array (
-      'env' => 'VAPID_PUBLIC_KEY',
-      'reason' => 'security',
+      'env' => 'ADS_CUSTOM_SCREENSAVER_HTML',
+      'reason' => 'support',
     ),
     33 => 
     array (
-      'env' => 'VAPID_PRIVATE_PEM',
+      'env' => 'VAPID_PUBLIC_KEY',
       'reason' => 'security',
     ),
     34 => 
     array (
-      'env' => 'GDRIVE_SERVICE_ACCOUNT_JSON',
-      'reason' => 'storage',
+      'env' => 'VAPID_PRIVATE_PEM',
+      'reason' => 'security',
     ),
     35 => 
     array (
-      'env' => 'GDRIVE_SERVICE_ACCOUNT_FILE',
+      'env' => 'GDRIVE_SERVICE_ACCOUNT_JSON',
       'reason' => 'storage',
     ),
     36 => 
     array (
-      'env' => 'API_TOKEN',
-      'reason' => 'security',
+      'env' => 'GDRIVE_SERVICE_ACCOUNT_FILE',
+      'reason' => 'storage',
     ),
     37 => 
     array (
-      'env' => 'ALLOW_OPEN_LAN',
+      'env' => 'API_TOKEN',
       'reason' => 'security',
     ),
     38 => 
     array (
-      'env' => 'ALLOWED_HOSTS',
+      'env' => 'ALLOW_OPEN_LAN',
       'reason' => 'security',
     ),
     39 => 
     array (
-      'env' => 'CORS_ORIGIN',
+      'env' => 'ALLOWED_HOSTS',
       'reason' => 'security',
     ),
     40 => 
     array (
-      'env' => 'TRUSTED_PROXIES',
+      'env' => 'CORS_ORIGIN',
       'reason' => 'security',
     ),
     41 => 
     array (
-      'env' => 'API_BOOTSTRAP_OPEN',
+      'env' => 'TRUSTED_PROXIES',
       'reason' => 'security',
     ),
     42 => 
     array (
-      'env' => 'GH_ISSUE_TOKEN',
+      'env' => 'API_BOOTSTRAP_OPEN',
       'reason' => 'security',
     ),
     43 => 
     array (
-      'env' => 'GH_ISSUE_TOKEN_ENC',
+      'env' => 'GH_ISSUE_TOKEN',
       'reason' => 'security',
     ),
     44 => 
     array (
-      'env' => 'GH_ISSUE_TOKEN_KEY',
+      'env' => 'GH_ISSUE_TOKEN_ENC',
       'reason' => 'security',
     ),
     45 => 
     array (
-      'env' => 'REPORT_ENABLED',
+      'env' => 'GH_ISSUE_TOKEN_KEY',
       'reason' => 'security',
     ),
     46 => 
     array (
-      'env' => 'INSTANCE_NAME',
-      'reason' => 'advanced',
+      'env' => 'REPORT_ENABLED',
+      'reason' => 'security',
     ),
     47 => 
     array (
-      'env' => 'HA_WEBHOOK_EVENTS',
+      'env' => 'INSTANCE_NAME',
       'reason' => 'advanced',
     ),
     48 => 
     array (
-      'env' => 'NOTIFY_CHANNELS',
+      'env' => 'HA_WEBHOOK_EVENTS',
       'reason' => 'advanced',
     ),
     49 => 
     array (
-      'env' => 'NOTIFY_EVENTS',
+      'env' => 'NOTIFY_CHANNELS',
       'reason' => 'advanced',
     ),
     50 => 
     array (
-      'env' => 'TELEGRAM_WEBHOOK_SECRET',
-      'reason' => 'security',
+      'env' => 'NOTIFY_EVENTS',
+      'reason' => 'advanced',
     ),
     51 => 
     array (
-      'env' => 'ICS_TOKEN',
+      'env' => 'TELEGRAM_WEBHOOK_SECRET',
       'reason' => 'security',
     ),
     52 => 
     array (
-      'env' => 'BARCODE_AI_FALLBACK',
-      'reason' => 'advanced',
+      'env' => 'ICS_TOKEN',
+      'reason' => 'security',
     ),
     53 => 
     array (
-      'env' => 'BARCODE_OFFLINE_ENABLED',
+      'env' => 'BARCODE_AI_FALLBACK',
       'reason' => 'advanced',
     ),
     54 => 
     array (
-      'env' => 'BARCODE_OFFLINE_SYNC_DAYS',
+      'env' => 'BARCODE_OFFLINE_ENABLED',
       'reason' => 'advanced',
     ),
     55 => 
     array (
-      'env' => 'BARCODE_LOOKUP_TIMEOUT',
+      'env' => 'BARCODE_OFFLINE_SYNC_DAYS',
       'reason' => 'advanced',
     ),
     56 => 
     array (
-      'env' => 'DEMO_MODE',
-      'reason' => 'logging',
+      'env' => 'BARCODE_LOOKUP_TIMEOUT',
+      'reason' => 'advanced',
     ),
     57 => 
     array (
-      'env' => 'DISPLAY_ERRORS',
+      'env' => 'DEMO_MODE',
       'reason' => 'logging',
     ),
     58 => 
     array (
-      'env' => 'LOG_LEVEL',
+      'env' => 'DEMO_BASE_PATH',
       'reason' => 'logging',
     ),
     59 => 
     array (
-      'env' => 'EVERSHELF_LOG_KEEP_DAYS',
+      'env' => 'DEMO_FRAME_ANCESTORS',
       'reason' => 'logging',
     ),
     60 => 
     array (
-      'env' => 'LOG_ROTATE_HOURS',
+      'env' => 'DISPLAY_ERRORS',
       'reason' => 'logging',
     ),
     61 => 
     array (
-      'env' => 'LOG_MAX_FILES',
+      'env' => 'LOG_LEVEL',
       'reason' => 'logging',
     ),
     62 => 
     array (
-      'env' => 'GEMINI_COST_25F_IN',
-      'reason' => 'advanced',
+      'env' => 'EVERSHELF_LOG_KEEP_DAYS',
+      'reason' => 'logging',
     ),
     63 => 
     array (
-      'env' => 'GEMINI_COST_25F_OUT',
-      'reason' => 'advanced',
+      'env' => 'LOG_ROTATE_HOURS',
+      'reason' => 'logging',
     ),
     64 => 
     array (
-      'env' => 'GEMINI_COST_20F_IN',
-      'reason' => 'advanced',
+      'env' => 'LOG_MAX_FILES',
+      'reason' => 'logging',
     ),
     65 => 
     array (
-      'env' => 'GEMINI_COST_20F_OUT',
+      'env' => 'GEMINI_COST_25F_IN',
       'reason' => 'advanced',
     ),
     66 => 
     array (
-      'env' => 'GEMINI_COST_35F_IN',
+      'env' => 'GEMINI_COST_25F_OUT',
       'reason' => 'advanced',
     ),
     67 => 
     array (
-      'env' => 'GEMINI_COST_35F_OUT',
+      'env' => 'GEMINI_COST_20F_IN',
       'reason' => 'advanced',
     ),
     68 => 
     array (
-      'env' => 'GEMINI_CLASSIFY_DAILY_MAX',
+      'env' => 'GEMINI_COST_20F_OUT',
       'reason' => 'advanced',
     ),
     69 => 
     array (
-      'env' => 'RECEIPT_OCR_MAX_ITEMS',
+      'env' => 'GEMINI_COST_35F_IN',
       'reason' => 'advanced',
     ),
     70 => 
     array (
-      'env' => 'AUTO_FAVORITE_TOP_N',
+      'env' => 'GEMINI_COST_35F_OUT',
       'reason' => 'advanced',
     ),
     71 => 
     array (
-      'env' => 'AUTO_FAVORITE_WINDOW_DAYS',
+      'env' => 'GEMINI_CLASSIFY_DAILY_MAX',
       'reason' => 'advanced',
     ),
     72 => 
     array (
+      'env' => 'RECEIPT_OCR_MAX_ITEMS',
+      'reason' => 'advanced',
+    ),
+    73 => 
+    array (
+      'env' => 'AUTO_FAVORITE_TOP_N',
+      'reason' => 'advanced',
+    ),
+    74 => 
+    array (
+      'env' => 'AUTO_FAVORITE_WINDOW_DAYS',
+      'reason' => 'advanced',
+    ),
+    75 => 
+    array (
       'env' => 'CRON_LOG_MAX_BYTES',
       'reason' => 'logging',
     ),
-    73 => 
+    76 => 
     array (
       'env' => 'MCP_HTTP_PORT',
       'reason' => 'security',
     ),
-    74 => 
+    77 => 
     array (
       'env' => 'MCP_HTTP_TOKEN',
       'reason' => 'security',

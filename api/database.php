@@ -7,7 +7,25 @@
  * @license MIT
  */
 
-define('DB_PATH', __DIR__ . '/../data/evershelf.db');
+require_once __DIR__ . '/lib/demo.php';
+
+/**
+ * The SQLite file this request answers from.
+ *
+ * Demo mode never opens the household's pantry: it answers from its own file
+ * (`api/lib/demo.php` → `data/demo/evershelf-demo-<lang>.db`), seeded with demo
+ * products. Everything downstream (`getDB()`, backups, health) reads this constant,
+ * so there is exactly ONE place that decides which database is "the database".
+ */
+function evershelfDbFilePath(): string
+{
+    if (function_exists('evershelfDemoRequested') && evershelfDemoRequested()) {
+        return evershelfDemoDbPath();
+    }
+    return __DIR__ . '/../data/evershelf.db';
+}
+
+define('DB_PATH', evershelfDbFilePath());
 
 /**
  * Ensure the data directory exists and is writable by the web-server user.
@@ -84,6 +102,13 @@ function getDB(): PDO {
     
     // Run migrations
     migrateDB($db);
+
+    // Demo mode answers from its own file (see evershelfDbFilePath()): make sure it
+    // holds today's seed. No-op on a household install.
+    if (function_exists('evershelfDemoSeedIfStale')) {
+        evershelfDemoSeedIfStale($db);
+    }
+
     
     return $db;
 }
@@ -156,9 +181,20 @@ function initializeDB(PDO $db): void {
             image_url TEXT DEFAULT '',
             unit TEXT DEFAULT 'pz',
             default_quantity REAL DEFAULT 1,
+            package_unit TEXT DEFAULT '',
             notes TEXT DEFAULT '',
             shopping_name TEXT DEFAULT '',
             parent_id INTEGER DEFAULT NULL,
+            nutriments_json TEXT DEFAULT NULL,
+            name_user_set INTEGER DEFAULT 0,
+            is_favorite INTEGER DEFAULT 0,
+            kind TEXT DEFAULT '',
+            favorite_user_override INTEGER DEFAULT 0,
+            is_medical INTEGER NOT NULL DEFAULT 0,
+            med_atc TEXT DEFAULT '',
+            med_ingredient TEXT DEFAULT '',
+            med_tags TEXT DEFAULT '',
+            med_pao_days INTEGER DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -169,6 +205,9 @@ function initializeDB(PDO $db): void {
             location TEXT NOT NULL DEFAULT 'dispensa',
             quantity REAL NOT NULL DEFAULT 1,
             expiry_date DATE,
+            vacuum_sealed INTEGER DEFAULT 0,
+            opened_at DATETIME DEFAULT NULL,
+            expiry_user_set INTEGER DEFAULT 0,
             added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
@@ -343,6 +382,16 @@ function migrateDB(PDO $db): void {
     // already wrote, with the same two functions the medical branch runs (`migrateDB` cannot
     // wait for somebody to press "apply auto rules"). A title that does not start with an
     // umbrella label is untouched.
+    //
+    // `kind` must exist BEFORE the pass reads it: `initializeDB()` now creates it, and this
+    // guard keeps a database written by an older schema safe. Without it a brand-new
+    // installation (and every demo database, created from scratch) died here on
+    // «no such column: kind» before the ALTER that lives further down could run.
+    $prodColsKind = array_column($db->query('PRAGMA table_info(products)')->fetchAll(), 'name');
+    if (!in_array('kind', $prodColsKind, true)) {
+        try { $db->exec("ALTER TABLE products ADD COLUMN kind TEXT DEFAULT ''"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
     $kindClassHealed = $db->query("SELECT value FROM app_settings WHERE key = 'migration_strip_kind_class_prefix_v1'")->fetchColumn();
     if (!$kindClassHealed) {
         require_once __DIR__ . '/lib/product_kind.php';

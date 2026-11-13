@@ -308,6 +308,15 @@ if (($_GET['action'] ?? '') === 'kiosk_update') {
 // ── App bootstrap — the API token is disclosed only after pairing ────────────
 if (($_GET['action'] ?? '') === 'app_bootstrap') {
     checkRateLimit('app_bootstrap');
+    // A demo has no secret to disclose and no pairing to ask for.
+    if (evershelfDemoRequested()) {
+        echo json_encode([
+            'api_token_required' => false,
+            'demo_mode'          => true,
+            'demo_lang'          => evershelfDemoLang(),
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     $required = evershelfApiTokenRequired();
     $out = ['api_token_required' => $required];
     if ($required) {
@@ -609,7 +618,9 @@ if (($_GET['action'] ?? '') === 'gemini_usage') {
 // ── Health check — minimal public probe; full diagnostics require API token ──
 if (($_GET['action'] ?? '') === 'health_check') {
     checkRateLimit('health_check');
-    if (evershelfApiTokenRequired() && !evershelfApiTokenValid()) {
+    // A demo has no token to present: the visitor must see the boot rail of the app,
+    // not a pairing dialog in front of a showcase.
+    if (!evershelfDemoRequested() && evershelfApiTokenRequired() && !evershelfApiTokenValid()) {
         header('Content-Type: application/json');
         echo json_encode([
             'ok'                 => true,
@@ -696,10 +707,14 @@ if (($_GET['action'] ?? '') === 'health_check') {
     ];
 
     // ── 8. SQLite database ────────────────────────────────────────────────────
-    // Correct DB name is evershelf.db; detect legacy dispensa.db and suggest migration
-    $dbPath    = $dataDir . '/evershelf.db';
+    // DB_PATH, not a hardcoded name: in demo mode the database is the seeded demo file
+    // (`api/lib/demo.php`), and a check that looked at `evershelf.db` would report a
+    // fresh install forever while the app was serving the demo.
+    $dbPath    = defined('DB_PATH') ? DB_PATH : ($dataDir . '/evershelf.db');
     $legacyDb  = $dataDir . '/dispensa.db';
-    $hasLegacy = file_exists($legacyDb);
+    // The legacy rename below must never run on a demo: it would move a household's old
+    // database around on behalf of a read-only showcase.
+    $hasLegacy = !evershelfDemoRequested() && file_exists($legacyDb);
     $isFresh   = !file_exists($dbPath) && $dataDirOk;
 
     // Auto-migrate: if evershelf.db missing but dispensa.db exists, rename it
@@ -950,11 +965,23 @@ evershelfRequireApiAuth($action, $method);
 
 if (!defined('CRON_MODE')):
 try {
-    // DEMO_MODE — block all writes and AI generation
+    // DEMO_MODE — block all writes and AI generation. A blocked write is answered with
+    // an honest no-op (`success:true, demo_mode:true`): the sample data is never touched,
+    // and a demo must not fill its screen with `demo_mode` error toasts. AI generation
+    // keeps its refusal: it costs money and would answer nothing anyway.
     if (evershelfDemoBlocksAction($action, $method)) {
-        EverLog::warn('demo_mode blocked (403)', ['action' => $action]);
-        http_response_code(403);
-        echo json_encode(['success' => false, 'error' => 'demo_mode']);
+        EverLog::warn('demo_mode blocked', ['event' => 'demo_blocked', 'action' => $action]);
+        header('Content-Type: application/json; charset=utf-8');
+        $isAi = str_starts_with($action, 'gemini_') || in_array($action, [
+            'generate_recipe', 'generate_recipe_stream', 'chat_to_recipe', 'recipe_from_ingredient',
+            'ha_suggest_recipe', 'ha_generate_recipe', 'parse_receipt',
+        ], true);
+        if ($isAi) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'demo_mode', 'demo_mode' => true]);
+            exit;
+        }
+        echo json_encode(['success' => true, 'demo_mode' => true, 'ignored' => true]);
         exit;
     }
 
@@ -9389,6 +9416,17 @@ function getMonthlyStats(PDO $db): void {
 
 // ===== SHOPPING SPEND TRACKING =====
 function _spendHistoryPath(): string {
+    // A demo reads and writes ITS OWN ledger: the household's file says what the family
+    // spent at the till, and a visitor of the marketing site must never read that.
+    if (evershelfDemoRequested()) {
+        // `__DIR__` is `api/`: the demo ledger lives next to the demo databases, in the
+        // app's own `data/demo/` (never one directory above the repo).
+        $dir = __DIR__ . '/../data/demo';
+        if (!is_dir($dir)) @mkdir($dir, 0775, true);
+        $lang = evershelfDemoLang();
+        return (is_dir($dir) && is_writable($dir) ? $dir : __DIR__ . '/../data')
+            . '/shopping_spend-' . $lang . '.json';
+    }
     return __DIR__ . '/../data/shopping_spend.json';
 }
 
@@ -9959,7 +9997,7 @@ function getServerSettings(?PDO $db = null): void {
     EverLog::debug('getServerSettings');
     $bringEmail = env('BRING_EMAIL');
     
-    echo json_encode([
+    $settings = [
         'gemini_key_set' => aiProvider() === 'gemini' && trim((string)env('GEMINI_API_KEY', '')) !== '',
         'ai_enabled' => aiIsEnabled(),
         'ai_provider' => aiProvider(),
@@ -9970,10 +10008,12 @@ function getServerSettings(?PDO $db = null): void {
         'llama_base_url' => env('LLAMA_BASE_URL', ''),
         'llama_model' => env('LLAMA_MODEL', ''),
         'llama_key_set' => trim((string)env('LLAMA_API_KEY', '')) !== '',
-        'api_token_required' => evershelfApiTokenRequired(),
+        // A demo needs no token: say so, or the Settings card would show a "missing token"
+        // state over a showcase that has nothing to protect.
+        'api_token_required' => !evershelfDemoRequested() && evershelfApiTokenRequired(),
         'bring_email' => $bringEmail,
-        'settings_token_set' => evershelfApiTokenRequired(),
-        'demo_mode' => env('DEMO_MODE') === 'true',
+        'settings_token_set' => !evershelfDemoRequested() && evershelfApiTokenRequired(),
+        'demo_mode' => evershelfDemoRequested(),
         'bring_password_set' => !empty(env('BRING_PASSWORD')),
         'tts_url' => env('TTS_URL'),
         'tts_token_set' => !empty(env('TTS_TOKEN')),
@@ -10165,7 +10205,54 @@ function getServerSettings(?PDO $db = null): void {
         // inside get_settings keeps the startup dialog to zero extra requests (see
         // api/lib/support.php). The banner slots are parked and reported as off.
         'support'                     => evershelfSupportPayload(),
-    ]);
+    ];
+
+    // A demo describes ITSELF, never the instance hosting it. The demo database already
+    // answers its own content, but these keys come from `.env` / the household's files:
+    // rooms, coordinates, e-mail, integrations, personal preferences. A visitor of the
+    // marketing site must not read where the family lives or what it owns.
+    if (evershelfDemoRequested()) {
+        $settings = array_merge($settings, [
+            'bring_email'                => '',
+            'shopping_mode'              => 'internal',
+            'shopping_enabled'           => true,
+            'openai_base_url'            => '',
+            'openai_model'               => '',
+            'llama_base_url'             => '',
+            'llama_model'                => '',
+            'tts_url'                    => '',
+            'tts_token_set'              => false,
+            'tts_engine'                 => '',
+            'tts_extra_fields'           => '',
+            'weather_enabled'            => false,
+            'weather_lat'                => '',
+            'weather_lon'                => '',
+            'weather_city'               => '',
+            'dietary'                    => '',
+            'appliances'                 => [],
+            'custom_locations'           => [],
+            'deleted_locations'          => [],
+            'ha_enabled'                 => false,
+            'ha_url'                     => '',
+            'ha_token_set'               => false,
+            'ha_tts_entity'              => '',
+            'ha_webhook_id'              => '',
+            'ha_notify_service'          => '',
+            'ntfy_topic'                 => '',
+            'ntfy_token_set'             => false,
+            'notify_webhook_url'         => '',
+            'notify_webhook_token_set'   => false,
+            'notify_webhook_header'      => '',
+            'mealie_url'                 => '',
+            'mealie_token_set'           => false,
+            'mealie_usable'              => false,
+            'mealie_cache_count'         => 0,
+            'mealie_cache_synced_at'     => null,
+            'recipe_source'              => 'internal',
+        ]);
+    }
+
+    echo json_encode($settings, JSON_UNESCAPED_UNICODE);
 }
 
 /** POST ai_test — ping active AI provider and return latency. */
@@ -11274,6 +11361,8 @@ function saveSettings(): void {
         //   'adsense_slot_app'         => 'ADSENSE_SLOT_APP',
         //   'adsense_slot_screensaver' => 'ADSENSE_SLOT_SCREENSAVER',
         'support_mode'          => 'SUPPORT_MODE',
+        // When the answer was recorded (unix seconds): the question stays away for a month.
+        'support_answered_at'   => 'SUPPORT_ANSWERED_AT',
         'support_paypal_url'    => 'SUPPORT_PAYPAL_URL',
         'support_paypal_currency' => 'SUPPORT_PAYPAL_CURRENCY',
         'support_paypal_amounts'  => 'SUPPORT_PAYPAL_AMOUNTS',
@@ -19660,7 +19749,11 @@ function smartShoppingCached(PDO $db): void {
 
     $planDays = smartResolvePlanDays($_GET['plan_days'] ?? null, $db);
     $force    = !empty($_GET['force']);
-    $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
+    // Demo mode answers from a per-language database, so its cache is per language too:
+    // one `smart_shopping_cache.json` would let a German visitor read the English list.
+    $cacheFile = evershelfDemoRequested()
+        ? __DIR__ . '/../data/smart_shopping_cache-' . evershelfDemoLang() . '.json'
+        : __DIR__ . '/../data/smart_shopping_cache.json';
     $maxAge    = 3 * 60;
 
     if (!$force && file_exists($cacheFile)) {
@@ -21749,6 +21842,12 @@ function bringSuggestItems(PDO $db): void {
 /** True only when the user opted into Bring! AND credentials are present.
  *  Default / recommended mode is EverShelf internal list (SHOPPING_MODE=internal). */
 function isShoppingBringMode(): bool {
+    // A demo always uses the INTERNAL list: it answers from its own demo database, while
+    // Bring! would hand over the household's real list — and needs a login the demo
+    // does not have.
+    if (evershelfDemoRequested()) {
+        return false;
+    }
     return env('SHOPPING_MODE', 'internal') === 'bring'
         && !empty(env('BRING_EMAIL'))
         && !empty(env('BRING_PASSWORD'));
@@ -22025,9 +22124,14 @@ function shoppingGetList(PDO $db): void {
         bringGetList();
         return;
     }
-    internalShoppingNormalizeNames($db);
-    internalShoppingPruneCovered($db);
-    internalShoppingDedupeGenerics($db);
+    // Demo mode serves the seeded list as it is: the normalise/prune/dedupe trio WRITES,
+    // and a showcase whose rows disappear because a prediction covered them is a broken
+    // demo. (The demo database is re-seeded every day anyway.)
+    if (!evershelfDemoRequested()) {
+        internalShoppingNormalizeNames($db);
+        internalShoppingPruneCovered($db);
+        internalShoppingDedupeGenerics($db);
+    }
     $items   = $db->query(
         "SELECT name, raw_name, specification FROM shopping_list ORDER BY sort_order ASC, added_at ASC"
     )->fetchAll();

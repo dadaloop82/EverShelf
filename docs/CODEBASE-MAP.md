@@ -114,6 +114,7 @@ reports). The web side paints `html` with `var(--bg)` so no frame is ever white.
 | File | Responsibility | Key entry points |
 |---|---|---|
 | `env.php` | `.env` loader + DB-stored overrides; bridges `.env` into `getenv()`/`$_ENV` | `env()`, `loadEnv()`, `evershelfWriteEnvFile()`, `saveEnvOverrides()` |
+| `demo.php` | **Demo mode**: the flag (`DEMO_MODE`, `?demo=1`, `DEMO_BASE_PATH`), the per-language demo database under `data/demo/` (seeded from `demo_seed.json`, rebuilt daily) and the iframe policy | `evershelfDemoRequested()`, `evershelfDemoLang()`, `evershelfDemoDbPath()`, `evershelfDemoSeedIfStale()`, `evershelfDemoFrameAncestors()` |
 | `constants.php` | Paths + **Gemini pricing** constants | `EVERSHELF_ROOT`, `*_CACHE_PATH`, `GEMINI_COST_*` |
 | `security.php` | Auth, CORS, security headers, demo mode, SSRF allowlists, client IP, **outbound report redaction** | `evershelfRequireApiAuth()`, `evershelfSendSecurityHeaders()`, `evershelfClientIp()`, `evershelfScaleHostAllowed()`, `evershelfRedactSecrets()`, `evershelfReportContextJson()` |
 | `pairing.php` | One-time pairing code for `app_bootstrap` token disclosure; live code also via authenticated `pairing_code` (Settings → Security) | `evershelfPairingEnsure()`, `evershelfPairingConsume()`, `pairingCodeStatus()` |

@@ -36,9 +36,25 @@ EnableMMAP off
 # ── Security headers ────────────────────────────────────────────────────────
 # A full CSP is not possible yet (inline handlers, shipped third-party bundles),
 # but these are free and close framing / MIME-sniffing / referrer leaks.
+#
+# The one exception is a DEMO instance: it exists to be embedded by the marketing
+# site (an iframe on socly.it and friends), and `index.html` is STATIC — PHP cannot
+# relax the header for it. The demo is recognised here by the `/demo/…` mount
+# (`DEMO_BASE_PATH`) or by the `?demo=1` flag in the URL (`Request_URI` carries the
+# query string); `frame-ancestors` replaces X-Frame-Options, which has no "allow that
+# other origin" value. Narrow the list with `EVERSHELF_DEMO_ANCESTORS` if the demo
+# should only be framed by specific sites.
+SetEnvIf Request_URI "^/demo(/|$)" evershelf_demo=1
+# `?demo=1` travels in the QUERY STRING: mod_setenvif only sees the path, so the flag
+# is raised by mod_rewrite (which reads `%{QUERY_STRING}` and exports an env var that
+# `Header ... env=` honours).
+RewriteCond %{QUERY_STRING} (^|&)demo=(1|true|yes|on)(&|$)
+RewriteRule ^ - [E=evershelf_demo:1]
 <IfModule mod_headers.c>
     Header always set X-Content-Type-Options "nosniff"
-    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Frame-Options "SAMEORIGIN" env=!evershelf_demo
+    Header always unset X-Frame-Options env=evershelf_demo
+    Header always set Content-Security-Policy "frame-ancestors *" env=evershelf_demo
     Header always set Referrer-Policy "same-origin"
     Header always set Permissions-Policy "camera=(self), microphone=(self), geolocation=()"
     Header always set Cross-Origin-Opener-Policy "same-origin"

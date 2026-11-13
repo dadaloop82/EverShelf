@@ -297,6 +297,9 @@ function evershelfSupportPayload(): array
     return [
         'mode'            => evershelfSupportMode(),
         'answered'        => evershelfSupportAnswered(),
+        // When the household last answered (unix seconds, 0 = an answer stored before the
+        // clock existed): the client uses it to decide whether a month has passed.
+        'answered_at'     => (int)env('SUPPORT_ANSWERED_AT', '0'),
         'ads_enabled'     => evershelfSupportAdsEnabled(),
         'default_mode'    => evershelfSupportDefaultMode(),
         'paypal_url'      => evershelfSupportPaypalUrl(),

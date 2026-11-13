@@ -44,6 +44,20 @@ runtime/binary files — if a task truly needs one, ask first.
   `POST audit_state_save` / `audit_state_clear` and the TTL owned by the server).
   `localStorage` is allowed as an **offline mirror** (and for what is genuinely of that
   device: the chosen mode, a UI preference) — never as the truth.
+- **A demo answers by DATA, and never asks.** `DEMO_MODE=true`, `?demo=1` or a `/demo`
+  mount (`api/lib/demo.php`) serve `data/demo/evershelf-demo-<lang>.db`, seeded from
+  `api/lib/demo_seed.json` and rebuilt once a day; `data/evershelf.db` is never opened.
+  The demo's `app_settings` carry every answer the first run would ask for
+  (`setup_done`, `setup_seen` at the current `askVersion` of each assistant question,
+  `med_setup_done`), because a showcase interrupted by the wizard or by «💊 Farmaci in
+  casa?» is a broken showcase; outside the demo the assistant keeps asking the
+  undecided options at startup. `get_settings` **blanks** what the host `.env` would
+  reveal (rooms, coordinates, e-mail, TTS/AI endpoints, HA, Mealie, personal prefs),
+  the spend ledger is `data/demo/shopping_spend-<lang>.json`, shopping is always the
+  internal list (`isShoppingBringMode()` refuses Bring!) and every GET the screens
+  call must be in `evershelfDemoReadOnlyActions()`, or the demo answers it with the
+  write no-op and the screen goes blank (that is how `med_status` broke the medicine
+  switch).
 - **Backend**: every HTTP action is one `case` in `switch ($action)` in
   `api/index.php` (+ its handler function below). Errors → `{"success":false,
   "error":"..."}` inside the existing global try/catch; never print HTML before
