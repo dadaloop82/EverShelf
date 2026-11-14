@@ -151,11 +151,38 @@ function mealieRequest(string $method, string $path, ?array $body = null): array
 }
 
 function mealieCacheKey(array $r): string {
-    $slug = trim((string)($r['slug'] ?? ''));
-    if ($slug !== '') {
-        return $slug;
+    // Two shapes reach this function: a RAW Mealie payload (`slug` / `id`) and the
+    // NORMALIZED recipe `mealieNormalizeRecipe()` builds (`mealie_slug` / `mealie_id`).
+    // Reading only the raw keys made the key always '' and `mealieStoreInCache()` return
+    // without storing anything, so `data/mealie_cache.json` stayed empty (sync reported
+    // the full count, `recipes` was []), every suggestion ran a full sync inside the web
+    // request and no Mealie recipe was ever proposed (issue #318).
+    foreach (['slug', 'mealie_slug', 'id', 'mealie_id'] as $field) {
+        $value = trim((string)($r[$field] ?? ''));
+        if ($value !== '') {
+            return $value;
+        }
     }
-    return trim((string)($r['id'] ?? ''));
+    return '';
+}
+
+/**
+ * The readable name of a Mealie value that may be a plain string or a linked object.
+ *
+ * `unit` is a plain string on a hand-written ingredient, but a LINKED unit (any
+ * ingredient Mealie parsed) is an object — `{id, name, plural_name, …}` — and casting
+ * that to string produced the literal `Array` plus one "Array to string conversion"
+ * warning per line (issue #319).
+ */
+function mealieLinkedName($value): string
+{
+    if (is_array($value)) {
+        $value = $value['name'] ?? $value['plural_name'] ?? $value['title'] ?? '';
+    }
+    if (is_array($value)) {
+        return '';
+    }
+    return trim((string)$value);
 }
 
 function mealieStoreInCache(array &$cache, array $normalized, ?array $raw = null): void {
@@ -366,7 +393,7 @@ function mealieNormalizeRecipe(array $r): array {
                 'raw'  => $ing['display'] ?? $ing['title'] ?? json_encode($ing),
                 'name' => $ing['title'] ?? $ing['name'] ?? ($ing['display'] ?? ''),
                 'qty'  => (string)($ing['quantity'] ?? $ing['amount'] ?? ''),
-                'unit' => (string)($ing['unit'] ?? ''),
+                'unit' => mealieLinkedName($ing['unit'] ?? ''),
             ];
         }
     }
