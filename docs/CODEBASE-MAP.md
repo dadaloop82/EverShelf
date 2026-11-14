@@ -132,7 +132,10 @@ reports). The web side paints `html` with `var(--bg)` so no frame is ever white.
 | `i18n.php` | Server-side `evershelfTr('key', $lang)` for responses PHP renders itself | used by the ICS feed, the notifier and seasonal tips |
 | `notify.php` | **Outbound notifications**: ntfy + generic webhook fan-out (legacy HA notify service kept), optional **Web Push** wake via `webpush.php`, i18n-aware event formatting | `evershelfNotifyEvent()`, `evershelfNotifySend()`, `evershelfNotifyConfigured()`, `notifyTestAction()` (in `index.php`) |
 | `open_prices.php` | **Free Open Prices** (Open Food Facts) barcode price lookup for shopping estimates | `evershelfOpenPricesLookup()`, `evershelfOpenPricesForProductName()`, `evershelfPriceSource()` |
-| `webpush.php` | **Browser Web Push** (opt-in): VAPID mint, empty-payload fan-out, inbox JSON | `evershelfWebPushNotify()`, `evershelfWebPushGenerateVapidKeys()`, subscribe/inbox actions in `index.php` |
+| `webpush.php` | **Browser Web Push** (opt-in): VAPID mint, empty-payload fan-out, inbox JSON, per-device inbox token (SHA-256 only) so the worker can read the inbox without the API token | `evershelfWebPushNotify()`, `evershelfWebPushGenerateVapidKeys()`, `evershelfWebPushMintInboxToken()`, `evershelfWebPushInboxTokenValid()`, subscribe/inbox actions in `index.php` |
+| `push_actions.php` | **Actionable notification buttons** (#122): the signed token a notification carries (`v1\|row\|action\|exp\|hmac`, 12 h, one row one action) and the 1–3 rows → one actionable notification each | `evershelfPushActionSign()`, `evershelfPushActionVerify()`, `evershelfPushActionsForRow()`, `evershelfPushInboxEntries()` |
+| `monthly_report.php` | **Printable monthly report** (#103): print-first HTML (browser → Save as PDF), same figures as `monthlyStatsData()` | `exportMonthlyReport()` (action), `evershelfMonthlyReportData()`, `evershelfMonthlyReportHtml()` |
+| `frozen_shelf_life.php` | **Freezer shelf life by category** (data in `data/frozen_shelf_life.json`), plus the 48 h thaw window constant | `frozenShelfLifeDays()`, `frozenShelfLifeTable()`, `EVERSHELF_THAW_DAYS` |
 | `healthcheck.php` | **Cron watchdog** (dead-man's switch): pings Healthchecks.io or an Uptime Kuma push URL at the end of every CLI job + records the last outcome per job | `evershelfHealthcheckPing()`, `evershelfHealthcheckSend()`, `evershelfHealthcheckConfigured()`, `evershelfHealthcheckStatus()`, `notifyHealthcheckTestAction()` (in `index.php`) |
 | `calendar_ics.php` | **ICS/WebCal expiry feed** (RFC 5545 emit + token gate) | `evershelfIcsBuild()`, `calendarIcsFeed()`, `getIcsSettings()`, `rotateIcsToken()` |
 | `recipe_shopping.php` | **Recipe → shopping list** with pantry deduction (recompute the gap on open) | `evershelfRecipeShoppingPlan()`, `recipeShoppingAdd()`, `evershelfBaseQty()` |
@@ -150,7 +153,8 @@ products(id PK, barcode UNIQUE, name, brand, category, image_url, unit,
          -- name_user_set, kind (genre), favorite_user_override, ...)
 inventory(id PK, product_id FK->products ON DELETE CASCADE, location,
           quantity REAL, expiry_date DATE, added_at, updated_at,
-          -- added by migrations: vacuum_sealed, opened_at, ...)
+          -- added by migrations: vacuum_sealed, opened_at,
+          -- frozen_at + pre_frozen_expiry (freezer lifecycle, #286), ...)
 transactions(id PK, product_id FK, type CHECK IN('in','out','waste'),
              quantity, location, notes, undone INT, created_at)
 barcode_cache, shopping_templates, shopping_list(id, name UNIQUE lower, raw_name,
@@ -208,11 +212,13 @@ Groups:
   (`lib/product_kind.php`) — and the promotion of the products the
   household keeps consuming to favourites (`lib/auto_favorite.php`).
 - **Inventory**: `inventory_list/add/use/update/delete`, `inventory_summary`,
+  `inventory_freeze` / `inventory_thaw` (the freezer lifecycle, #286),
   `family_sibling_suggest`, `inventory_finished_items`,
   `inventory_confirm_finished`, `inventory_restore_ghost`,
   `recent_popular_products`.
 - **Transactions / stats**: `transactions_list`, `transaction_undo`, `stats`,
-  `monthly_stats`, `spend_add`, `spend_stats`, `consumption_predictions`,
+  `monthly_stats`, `export_monthly_report` (printable month, #103), `spend_add`,
+  `spend_stats`, `consumption_predictions`,
   `inventory_anomalies`, `inventory_duplicate_loss_checks`, `dismiss_anomaly`,
   `macro_stats`, `expiry_history`, `food_facts`, `opened_shelf_life`.
 - **AI**: `gemini_identify`, `gemini_expiry`, `gemini_chat`, `generate_recipe`,

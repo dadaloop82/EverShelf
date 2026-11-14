@@ -90,6 +90,47 @@ function evershelfWebPushEnsureTable(PDO $db): void
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
+    // The per-device proof the service worker uses to read the inbox (#122): without
+    // it `webpush_inbox` answered 401 the moment an install had an API token, so the
+    // notification body never arrived (the worker fell back to a bare "EverShelf").
+    // A hash on disk, exactly like the pairing code and the Drive `state`.
+    $cols = $db->query("PRAGMA table_info(webpush_subscriptions)")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if (!in_array('inbox_hash', array_column($cols, 'name'), true)) {
+        $db->exec("ALTER TABLE webpush_subscriptions ADD COLUMN inbox_hash TEXT NOT NULL DEFAULT ''");
+    }
+}
+
+/**
+ * Mint a fresh inbox token for one subscription (32 random bytes, only the SHA-256
+ * is stored). Called by `webpush_subscribe`: an upsert returns the new value so a
+ * device that re-subscribes refreshes its worker.
+ */
+function evershelfWebPushMintInboxToken(PDO $db, string $endpoint): string
+{
+    if ($endpoint === '') {
+        return '';
+    }
+    $token = bin2hex(random_bytes(32));
+    $stmt = $db->prepare('UPDATE webpush_subscriptions SET inbox_hash = ? WHERE endpoint = ?');
+    $stmt->execute([hash('sha256', $token), $endpoint]);
+    return $token;
+}
+
+/** Is this token a live subscription of this instance? (hash lookup, constant time on the hash) */
+function evershelfWebPushInboxTokenValid(PDO $db, string $token): bool
+{
+    $token = trim($token);
+    if ($token === '' || !preg_match('/^[a-f0-9]{64}$/', $token)) {
+        return false;
+    }
+    try {
+        evershelfWebPushEnsureTable($db);
+        $stmt = $db->prepare('SELECT 1 FROM webpush_subscriptions WHERE inbox_hash = ? LIMIT 1');
+        $stmt->execute([hash('sha256', $token)]);
+        return (bool)$stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
 }
 
 function evershelfWebPushInboxPath(): string
@@ -125,15 +166,25 @@ function evershelfWebPushInboxSave(array $items): void
     file_put_contents($path, json_encode(array_values($items), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX);
 }
 
-function evershelfWebPushInboxPush(string $title, string $body, string $url = ''): void
+/**
+ * Append one entry to the inbox. `$actions` is the `actions` array of the system
+ * notification (#122): `[{action, title, token}]`, handled by the service worker.
+ *
+ * @param list<array<string,string>> $actions
+ */
+function evershelfWebPushInboxPush(string $title, string $body, string $url = '', array $actions = []): void
 {
     $items = evershelfWebPushInboxLoad();
-    $items[] = [
+    $entry = [
         'title' => $title,
         'body'  => $body,
         'ts'    => time(),
         'url'   => $url !== '' ? $url : './',
     ];
+    if ($actions !== []) {
+        $entry['actions'] = array_values($actions);
+    }
+    $items[] = $entry;
     evershelfWebPushInboxSave($items);
 }
 
@@ -246,11 +297,24 @@ function evershelfWebPushFanout(PDO $db): array
     return ['ok' => $ok, 'fail' => $fail, 'removed' => $removed];
 }
 
-function evershelfWebPushNotify(PDO $db, string $title, string $message, string $url = ''): array
+function evershelfWebPushNotify(PDO $db, string $title, string $message, string $url = '', array $data = []): array
 {
     if (!evershelfWebPushEnabled()) {
         return ['skipped' => true];
     }
-    evershelfWebPushInboxPush($title, $message, $url);
+    // #122: when the event names one to three rows, each gets its own notification with
+    // the two buttons (✓ Usato / 🔥 Buttato), built by api/lib/push_actions.php. A list
+    // longer than that keeps the aggregate line — a wall of pushes is not a feature.
+    $entries = function_exists('evershelfPushInboxEntries')
+        ? evershelfPushInboxEntries($title, $message, $url, $data)
+        : [['title' => $title, 'body' => $message, 'url' => $url, 'actions' => []]];
+    foreach ($entries as $entry) {
+        evershelfWebPushInboxPush(
+            (string)($entry['title'] ?? $title),
+            (string)($entry['body'] ?? $message),
+            (string)($entry['url'] ?? $url),
+            (array)($entry['actions'] ?? [])
+        );
+    }
     return ['skipped' => false] + evershelfWebPushFanout($db);
 }

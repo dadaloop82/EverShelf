@@ -1077,6 +1077,14 @@ try {
         case 'inventory_update':
             updateInventory($db);
             break;
+        // Freezer lifecycle (#286): the state is written by ONE action per direction, so
+        // the frozen date, the original date and the notification cannot drift apart.
+        case 'inventory_freeze':
+            inventoryFreezeAction($db);
+            break;
+        case 'inventory_thaw':
+            inventoryThawAction($db);
+            break;
         // The household's own PAO: the two numbers the notice strip prints («consigliato entro
         // 3-6 gg») are editable in the pantry edit sheet, and the value the app uses is the
         // average of the corrections for that family in that place (`api/lib/pao_overrides.php`).
@@ -1121,6 +1129,11 @@ try {
 
         case 'monthly_stats':
             getMonthlyStats($db);
+            break;
+
+        // #103 — the printable monthly report (HTML, browser → Save as PDF).
+        case 'export_monthly_report':
+            exportMonthlyReport($db);
             break;
 
         case 'spend_add':
@@ -1391,6 +1404,13 @@ try {
             break;
         case 'webpush_test':
             webpushTestAction($db);
+            break;
+
+        // #122 — the ✓ / 🔥 button of a system notification, posted by the service
+        // worker with the signed token the notification carries (public action that
+        // authenticates itself: no API token exists inside a worker).
+        case 'notification_action':
+            notificationAction($db);
             break;
 
         case 'client_log':
@@ -3039,6 +3059,190 @@ function _fireHaWebhook(string $event, array $data): void {
         EverLog::debug("_fireHaWebhook[$event]: HTTP $code");
     }
 }
+
+/**
+ * Freeze one row (#286): the pack gets a freezer best-before date and KEEPS the one it
+ * had, so thawing can give it back. The frozen state owns `expiry_date`, which is why
+ * the dashboard, the calendar feed, the cron and the PAO clock keep agreeing on it.
+ *
+ * @return array{ok:bool,error_key?:string,error?:string,row?:array<string,mixed>}
+ */
+function inventoryFreezeCore(PDO $db, int $inventoryId): array
+{
+    $stmt = $db->prepare(
+        "SELECT i.id, i.product_id, i.location, i.quantity, i.expiry_date, i.frozen_at,
+                p.name, p.category, COALESCE(p.is_medical, 0) AS is_medical
+           FROM inventory i JOIN products p ON p.id = i.product_id
+          WHERE i.id = ?"
+    );
+    $stmt->execute([$inventoryId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return ['ok' => false, 'error' => 'not_found', 'error_key' => 'error.not_in_inventory'];
+    }
+    if ((int)($row['is_medical'] ?? 0) === 1) {
+        return ['ok' => false, 'error' => 'medical_row', 'error_key' => 'freezer.error_medical'];
+    }
+    if (!empty($row['frozen_at'])) {
+        return ['ok' => false, 'error' => 'already_frozen', 'error_key' => 'freezer.error_already_frozen'];
+    }
+    $days = function_exists('frozenShelfLifeDays') ? frozenShelfLifeDays((string)($row['category'] ?? '')) : 90;
+    $frozenUntil = date('Y-m-d', strtotime('+' . $days . ' days'));
+    $db->prepare(
+        "UPDATE inventory
+            SET frozen_at = CURRENT_TIMESTAMP, pre_frozen_expiry = ?, expiry_date = ?,
+                expiry_user_set = 1, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?"
+    )->execute([$row['expiry_date'] ?: null, $frozenUntil, $inventoryId]);
+
+    return [
+        'ok' => true,
+        'row' => $row,
+        'days' => $days,
+        'expiry_date' => $frozenUntil,
+        'pre_frozen_expiry' => $row['expiry_date'] ?: null,
+        'frozen_at' => date('Y-m-d H:i:s'),
+    ];
+}
+
+/**
+ * Thaw one row (#286): the best-before date becomes the SOONER of the 48 h window and
+ * the original date (when that one is still in the future) — thawing never extends a
+ * date, and a pack whose printed date had already passed keeps the window, because the
+ * freezer date was the authority while it was frozen.
+ *
+ * @return array{ok:bool,error_key?:string,error?:string,row?:array<string,mixed>,expiry_date?:string}
+ */
+function inventoryThawCore(PDO $db, int $inventoryId): array
+{
+    $stmt = $db->prepare(
+        "SELECT i.id, i.product_id, i.location, i.quantity, i.expiry_date, i.frozen_at, i.pre_frozen_expiry,
+                p.name
+           FROM inventory i JOIN products p ON p.id = i.product_id
+          WHERE i.id = ?"
+    );
+    $stmt->execute([$inventoryId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return ['ok' => false, 'error' => 'not_found', 'error_key' => 'error.not_in_inventory'];
+    }
+    if (empty($row['frozen_at'])) {
+        return ['ok' => false, 'error' => 'not_frozen', 'error_key' => 'freezer.error_not_frozen'];
+    }
+    $window = date('Y-m-d', strtotime('+' . EVERSHELF_THAW_DAYS . ' days'));
+    $today  = date('Y-m-d');
+    $original = trim((string)($row['pre_frozen_expiry'] ?? ''));
+    $expiry = $window;
+    if ($original !== '' && $original >= $today && $original < $window) {
+        $expiry = $original;
+    }
+    $db->prepare(
+        "UPDATE inventory
+            SET frozen_at = NULL, pre_frozen_expiry = NULL, expiry_date = ?,
+                expiry_user_set = 1, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?"
+    )->execute([$expiry, $inventoryId]);
+
+    return ['ok' => true, 'row' => $row, 'expiry_date' => $expiry, 'window' => $window];
+}
+
+
+/** action=inventory_freeze — one row, sealed into the freezer with its own shelf life. */
+function inventoryFreezeAction(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true);
+    $id = is_array($input) ? (int)($input['id'] ?? 0) : 0;
+    if ($id <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'id required', 'error_key' => 'error.product_id_required']);
+        return;
+    }
+    $res = inventoryFreezeCore($db, $id);
+    if (empty($res['ok'])) {
+        http_response_code(409);
+        echo json_encode([
+            'success'   => false,
+            'error'     => (string)($res['error'] ?? 'freeze_failed'),
+            'error_key' => (string)($res['error_key'] ?? 'error.generic'),
+        ]);
+        return;
+    }
+    EverLog::info('Inventory row frozen', [
+        'event'        => 'inventory_freeze',
+        'inventory_id' => $id,
+        'product_id'   => (int)($res['row']['product_id'] ?? 0),
+        'category'     => (string)($res['row']['category'] ?? ''),
+        'days'         => (int)$res['days'],
+        'expiry_date'  => $res['expiry_date'],
+        'previous'     => $res['pre_frozen_expiry'],
+    ]);
+    echo json_encode([
+        'success'           => true,
+        'inventory_id'      => $id,
+        'expiry_date'       => $res['expiry_date'],
+        'pre_frozen_expiry' => $res['pre_frozen_expiry'],
+        'frozen_at'         => $res['frozen_at'],
+        'days'              => (int)$res['days'],
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/** action=inventory_thaw — the 48 h window, and the notification that says so. */
+function inventoryThawAction(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true);
+    $id = is_array($input) ? (int)($input['id'] ?? 0) : 0;
+    if ($id <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'id required', 'error_key' => 'error.product_id_required']);
+        return;
+    }
+    $res = inventoryThawCore($db, $id);
+    if (empty($res['ok'])) {
+        http_response_code(409);
+        echo json_encode([
+            'success'   => false,
+            'error'     => (string)($res['error'] ?? 'thaw_failed'),
+            'error_key' => (string)($res['error_key'] ?? 'error.generic'),
+        ]);
+        return;
+    }
+    $row = $res['row'];
+    EverLog::info('Inventory row thawed', [
+        'event'        => 'inventory_thaw',
+        'inventory_id' => $id,
+        'product_id'   => (int)($row['product_id'] ?? 0),
+        'expiry_date'  => $res['expiry_date'],
+        'window'       => $res['window'],
+    ]);
+    // One notification, in the household's language: the 48 h rule is the whole point of
+    // thawing, and it also feeds the actionable push of #122 (one row → ✓ / 🔥 buttons).
+    try {
+        _fireHaWebhook('expiry_alert', [
+            'count'        => 1,
+            'type'         => 'thawed',
+            'thawed_until' => $res['expiry_date'],
+            'summary'      => (string)($row['name'] ?? ''),
+            'items'        => [[
+                'product_id'     => (int)($row['product_id'] ?? 0),
+                'inventory_id'   => $id,
+                'name'           => (string)($row['name'] ?? ''),
+                'location'       => (string)($row['location'] ?? ''),
+                'quantity'       => (float)($row['quantity'] ?? 0),
+                'expiry_date'    => $res['expiry_date'],
+                'days_remaining' => EVERSHELF_THAW_DAYS,
+            ]],
+        ]);
+    } catch (Throwable $e) {
+        EverLog::warn('thaw notification failed', ['event' => 'inventory_thaw_notify_failed', 'msg' => $e->getMessage()]);
+    }
+    echo json_encode([
+        'success'      => true,
+        'inventory_id' => $id,
+        'expiry_date'  => $res['expiry_date'],
+        'window'       => $res['window'],
+    ], JSON_UNESCAPED_UNICODE);
+}
+
 
 /**
  * Normalise a DB inventory+product row into a full product info array
@@ -9326,26 +9530,36 @@ function _normalizeCat(string $raw): string {
     return ($mapped !== null && $mapped !== '') ? $mapped : 'altro';
 }
 
-function getMonthlyStats(PDO $db): void {
-    EverLog::debug('getMonthlyStats');
+/**
+ * The figures of one month, in ONE place: the dashboard panel (`monthly_stats`) and
+ * the printable monthly report (#103) must never disagree. `$month` is `YYYY-MM`
+ * (default: the current month).
+ *
+ * @return array<string,mixed>
+ */
+function monthlyStatsData(PDO $db, ?string $month = null, int $topProductsLimit = 3): array {
+    EverLog::debug('monthlyStatsData');
 
-    $thisMonthStart = date('Y-m-01');
-    $lastMonthStart = date('Y-m-01', strtotime('first day of last month'));
-    $lastMonthEnd   = date('Y-m-01'); // exclusive upper bound for prev month
+    $base           = ($month !== null && preg_match('/^\d{4}-\d{2}$/', $month)) ? $month . '-01' : date('Y-m-01');
+    $thisMonthStart = date('Y-m-01', strtotime($base));
+    $thisMonthEnd   = date('Y-m-01', strtotime($thisMonthStart . ' +1 month')); // exclusive
+    $lastMonthStart = date('Y-m-01', strtotime($thisMonthStart . ' -1 month'));
+    $lastMonthEnd   = $thisMonthStart; // exclusive upper bound for prev month
+    $topProdsLimit  = max(1, min(20, $topProductsLimit));
 
     // Totals: consumed + added + wasted this month vs previous calendar month
     $totals = $db->query("
         SELECT
-            SUM(CASE WHEN created_at >= '{$thisMonthStart}'
+            SUM(CASE WHEN created_at >= '{$thisMonthStart}' AND created_at < '{$thisMonthEnd}'
                       AND type IN ('out','waste') AND undone=0 THEN 1 ELSE 0 END) AS this_out,
             SUM(CASE WHEN created_at >= '{$lastMonthStart}' AND created_at < '{$lastMonthEnd}'
                       AND type IN ('out','waste') AND undone=0 THEN 1 ELSE 0 END) AS prev_out,
-            SUM(CASE WHEN created_at >= '{$thisMonthStart}'
+            SUM(CASE WHEN created_at >= '{$thisMonthStart}' AND created_at < '{$thisMonthEnd}'
                       AND type = 'in' AND undone=0 THEN 1 ELSE 0 END) AS this_in,
-            SUM(CASE WHEN created_at >= '{$thisMonthStart}'
+            SUM(CASE WHEN created_at >= '{$thisMonthStart}' AND created_at < '{$thisMonthEnd}'
                       AND type = 'waste' AND undone=0 THEN 1 ELSE 0 END) AS this_wasted
         FROM transactions
-        WHERE created_at >= '{$lastMonthStart}'
+        WHERE created_at >= '{$lastMonthStart}' AND created_at < '{$thisMonthEnd}'
     ")->fetch(PDO::FETCH_ASSOC);
 
     $thisOut   = (int)($totals['this_out']    ?? 0);
@@ -9359,7 +9573,7 @@ function getMonthlyStats(PDO $db): void {
         FROM transactions t
         JOIN products p ON t.product_id = p.id
         WHERE t.type IN ('out','waste') AND t.undone = 0
-          AND t.created_at >= '{$thisMonthStart}'
+          AND t.created_at >= '{$thisMonthStart}' AND t.created_at < '{$thisMonthEnd}'
         GROUP BY cat
         ORDER BY cnt DESC
         LIMIT 5
@@ -9388,10 +9602,10 @@ function getMonthlyStats(PDO $db): void {
         FROM transactions t
         JOIN products p ON t.product_id = p.id
         WHERE t.type IN ('out','waste') AND t.undone = 0
-          AND t.created_at >= '{$thisMonthStart}'
+          AND t.created_at >= '{$thisMonthStart}' AND t.created_at < '{$thisMonthEnd}'
         GROUP BY t.product_id
         ORDER BY cnt DESC
-        LIMIT 3
+        LIMIT {$topProdsLimit}
     ")->fetchAll(PDO::FETCH_ASSOC);
 
     // Estimated € value of wasted items this month (#117)
@@ -9404,7 +9618,7 @@ function getMonthlyStats(PDO $db): void {
             FROM transactions t
             JOIN products p ON t.product_id = p.id
             WHERE t.type = 'waste' AND t.undone = 0
-              AND t.created_at >= '{$thisMonthStart}'
+              AND t.created_at >= '{$thisMonthStart}' AND t.created_at < '{$thisMonthEnd}'
             GROUP BY t.product_id
         ")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($wastedProds as $wp) {
@@ -9419,9 +9633,9 @@ function getMonthlyStats(PDO $db): void {
         $wastedValueEur = round($wastedValueEur, 2);
     }
 
-    echo json_encode([
+    return [
         'success'             => true,
-        'month'               => date('Y-m'),
+        'month'               => date('Y-m', strtotime($thisMonthStart)),
         'items_consumed'      => $thisOut,
         'items_consumed_prev' => $prevOut,
         'items_added'         => $thisIn,
@@ -9432,7 +9646,12 @@ function getMonthlyStats(PDO $db): void {
             'name'  => $r['name'],
             'count' => (int)$r['cnt'],
         ], $topProds),
-    ]);
+    ];
+}
+
+/** action=monthly_stats — the dashboard panel: the same figures, as JSON. */
+function getMonthlyStats(PDO $db): void {
+    echo json_encode(monthlyStatsData($db));
 }
 
 // ===== SHOPPING SPEND TRACKING =====
@@ -10363,7 +10582,11 @@ function webpushSubscribeAction(PDO $db): void {
            user_agent=excluded.user_agent, updated_at=CURRENT_TIMESTAMP'
     );
     $stmt->execute([$endpoint, $p256dh, $auth, $ua]);
-    echo json_encode(['success' => true]);
+    // #122: the worker needs a proof of its own to read the inbox and to write from a
+    // notification button — it has no page and cannot present the API token. The token
+    // is returned once here and never again (only its SHA-256 is stored).
+    $inboxToken = evershelfWebPushMintInboxToken($db, $endpoint);
+    echo json_encode(['success' => true, 'inbox_token' => $inboxToken]);
 }
 
 function webpushUnsubscribeAction(PDO $db): void {
@@ -10381,10 +10604,117 @@ function webpushUnsubscribeAction(PDO $db): void {
 }
 
 function webpushInboxAction(): void {
+    // #122: this endpoint is reached by the SERVICE WORKER, which has no page and no
+    // API token. It authenticates with the per-device inbox token minted at
+    // subscription (only its SHA-256 is on disk): without it the worker answered 401
+    // and every push showed a bare "EverShelf" notification with no body.
+    $db = getDB();
+    $token = trim((string)($_GET['token'] ?? $_SERVER['HTTP_X_EVERSHELF_INBOX'] ?? ''));
+    if (!evershelfWebPushInboxTokenValid($db, $token)) {
+        EverLog::warn('Web Push inbox refused: no valid device token', [
+            'event'   => 'webpush_inbox_refused',
+            'token_ok' => $token !== '',
+        ]);
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'invalid_inbox_token']);
+        return;
+    }
     $items = evershelfWebPushInboxLoad();
     // Drain: clients get a snapshot then we clear so repeats do not re-alert.
     evershelfWebPushInboxSave([]);
     echo json_encode(['success' => true, 'items' => $items]);
+}
+
+/**
+ * action=notification_action (#122) — the ✓ / 🔥 button of a system notification.
+ *
+ * The service worker posts `{token}` here, with no API token and no page. The token is
+ * the authorisation: HMAC-signed, one row, one action, 12 h (`api/lib/push_actions.php`).
+ * The write goes through `useFromInventoryCore()`, the same path as the app, so stock,
+ * ledger, waste learning, favourites and the shopping sync all behave identically.
+ * The answer carries the words of the confirmation the worker shows next.
+ */
+function notificationAction(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $token = is_array($input) ? trim((string)($input['token'] ?? '')) : '';
+    $claim = function_exists('evershelfPushActionVerify') ? evershelfPushActionVerify($token) : null;
+    if ($claim === null) {
+        EverLog::warn('notification_action refused: bad or expired token', [
+            'event' => 'push_action_refused',
+        ]);
+        http_response_code(403);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'invalid_token',
+            'error_key' => 'push.invalid_token',
+        ]);
+        return;
+    }
+    $stmt = $db->prepare(
+        'SELECT i.id, i.product_id, i.quantity, i.location, p.name
+           FROM inventory i JOIN products p ON p.id = i.product_id
+          WHERE i.id = ?'
+    );
+    $stmt->execute([$claim['inventory_id']]);
+    $inv = $stmt->fetch(PDO::FETCH_ASSOC);
+    $lang = evershelfNotifyLanguage();
+    $isWaste = $claim['action'] === 'waste';
+    if (!$inv || (float)$inv['quantity'] <= 0) {
+        // The row is gone (eaten, thrown, deleted): the button did nothing, and a
+        // second notification saying so is the honest answer.
+        EverLog::info('notification_action: row already empty', [
+            'event'        => 'push_action_gone',
+            'inventory_id' => $claim['inventory_id'],
+        ]);
+        echo json_encode([
+            'success' => true,
+            'ok'      => false,
+            'gone'    => true,
+            'title'   => evershelfTr('notify.push_failed', $lang) ?: 'EverShelf',
+            'body'    => (string)($inv['name'] ?? ''),
+        ], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $productId = (int)$inv['product_id'];
+    $location  = (string)$inv['location'];
+    // The same note the app's discard sheet writes, so the waste learning sees one
+    // vocabulary: an expired item thrown from a notification is "spoiled".
+    $notes = $isWaste ? 'Buttato|spoiled' : '';
+    try {
+        // The core echoes its own JSON: keep it out of this endpoint's answer.
+        ob_start();
+        dbWithRetry(function () use ($db, $productId, $location, $notes): void {
+            useFromInventoryCore($db, $productId, 0, true, $location, $notes);
+        });
+        ob_end_clean();
+        maybeAutoFavorite($db, $productId);
+    } catch (Throwable $e) {
+        while (ob_get_level() > 0) { ob_end_clean(); }
+        EverLog::error('notification_action failed', [
+            'event'        => 'push_action_failed',
+            'inventory_id' => $claim['inventory_id'],
+            'msg'          => $e->getMessage(),
+        ]);
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'write_failed', 'error_key' => 'error.generic']);
+        return;
+    }
+    EverLog::info('Notification action applied', [
+        'event'        => 'push_action_applied',
+        'action'       => $claim['action'],
+        'inventory_id' => $claim['inventory_id'],
+        'product_id'   => $productId,
+        'location'     => $location,
+    ]);
+    echo json_encode([
+        'success' => true,
+        'ok'      => true,
+        'action'  => $claim['action'],
+        'title'   => $isWaste
+            ? (evershelfTr('notify.action_waste', $lang) ?: 'Thrown away')
+            : (evershelfTr('notify.action_use', $lang) ?: 'Consumed'),
+        'body'    => (string)$inv['name'],
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 function webpushTestAction(PDO $db): void {

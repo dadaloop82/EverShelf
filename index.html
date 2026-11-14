@@ -12,29 +12,29 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261114a">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261114a">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261114a">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261114b">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261114b">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261114b">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261114a">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261114b">
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
-    <link rel="stylesheet" href="assets/css/tablet.css?v=20261114a">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261114a">
+    <link rel="stylesheet" href="assets/css/tablet.css?v=20261114b">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261114b">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261114a"></script>
-    <script src="assets/js/core/auth.js?v=20261114a"></script>
-    <script src="assets/js/core/med.js?v=20261114a"></script>
+    <script src="assets/js/core/dom.js?v=20261114b"></script>
+    <script src="assets/js/core/auth.js?v=20261114b"></script>
+    <script src="assets/js/core/med.js?v=20261114b"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261114a"></script>
+    <script src="assets/js/med/italy.js?v=20261114b"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261114a"></script>
+    <script src="assets/js/core/support.js?v=20261114b"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -42,7 +42,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261114a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261114b';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -51,13 +51,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261114a';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261114b';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261114a"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261114b"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -122,7 +122,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v2.1.5</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v2.2.0</span>
                 <!-- Which line of work a work-in-progress build came from, in small. Empty on a
                      release: `scripts/bump-version.sh` fills it from git only for a feature branch. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch"></span>
@@ -223,7 +223,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span class="header-name" data-i18n="nav.title">EverShelf</span><span class="header-version">v2.1.5</span><span class="header-kiosk-version" id="header-kiosk-version" hidden></span><span class="header-branch" id="header-branch"></span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span class="header-name" data-i18n="nav.title">EverShelf</span><span class="header-version">v2.2.0</span><span class="header-kiosk-version" id="header-kiosk-version" hidden></span><span class="header-branch" id="header-branch"></span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -1690,6 +1690,14 @@
                             🖨️ <span data-i18n="export.btn_pdf">PDF / Stampa</span>
                         </button>
                     </div>
+                    <!-- #103: the month, not the shelf — a print-first page the browser
+                         turns into a PDF (“Salva come PDF” in the print dialog). -->
+                    <div class="settings-form-actions" style="margin-top:10px">
+                        <button class="btn btn-outline full-width" onclick="exportMonthlyReport()">
+                            🧾 <span data-i18n="report.button">Report mensile (PDF)</span>
+                        </button>
+                    </div>
+                    <p class="settings-hint" data-i18n="report.button_hint">Apre una pagina pronta da stampare: scegli «Salva come PDF» nella finestra di stampa. Contiene l'istantanea della dispensa, i consumi e gli sprechi del mese, con la spesa registrata.</p>
                 </div>
                 <div class="settings-card">
                     <h4 data-i18n="import.title">📥 Importa inventario</h4>
@@ -2870,6 +2878,7 @@
                 <div class="settings-card" id="settings-webpush-card" data-autosave="saveWebPushSettings">
                     <h4 data-i18n="settings.webpush.title">📱 Notifiche nel browser (PWA)</h4>
                     <p class="settings-hint" data-i18n="settings.webpush.hint">Gratis, senza ntfy: il browser riceve gli stessi avvisi quando la PWA è installata su HTTPS. Opzionale.</p>
+                    <p class="settings-hint" data-i18n="settings.webpush.actions_hint">Le notifiche di scadenza arrivano con due pulsanti — «✓ Usato» e «🔥 Buttato» — che registrano l'azione senza aprire l'app. Un telefono che non li mostra (iOS vecchio) apre semplicemente l'app.</p>
                     <div class="form-group">
                         <label class="toggle-row">
                             <span data-i18n="settings.webpush.enabled">Abilita Web Push</span>
@@ -3821,19 +3830,19 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261114a"></script>
-<script src="assets/js/food_facts.generated.js?v=20261114a"></script>
-<script src="assets/js/free_apis.generated.js?v=20261114a"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261114a"></script>
-<script src="assets/js/off_categories.generated.js?v=20261114a"></script>
-<script src="assets/js/core/vocab.js?v=20261114a"></script>
-<script src="assets/js/app.js?v=20261114a"></script>
-<script src="assets/js/audit.js?v=20261114a"></script>
-<script src="assets/js/receipt.js?v=20261114a"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261114a"></script>
-<script src="assets/js/settings_search.js?v=20261114a"></script>
+<script src="assets/js/vocab.generated.js?v=20261114b"></script>
+<script src="assets/js/food_facts.generated.js?v=20261114b"></script>
+<script src="assets/js/free_apis.generated.js?v=20261114b"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261114b"></script>
+<script src="assets/js/off_categories.generated.js?v=20261114b"></script>
+<script src="assets/js/core/vocab.js?v=20261114b"></script>
+<script src="assets/js/app.js?v=20261114b"></script>
+<script src="assets/js/audit.js?v=20261114b"></script>
+<script src="assets/js/receipt.js?v=20261114b"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261114b"></script>
+<script src="assets/js/settings_search.js?v=20261114b"></script>
     <!-- The idle screen: an ambient kitchen dashboard (its own file, like audit.js). -->
-    <script src="assets/js/screensaver.js?v=20261114a"></script>
+    <script src="assets/js/screensaver.js?v=20261114b"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

@@ -207,6 +207,8 @@ function initializeDB(PDO $db): void {
             expiry_date DATE,
             vacuum_sealed INTEGER DEFAULT 0,
             opened_at DATETIME DEFAULT NULL,
+            frozen_at DATETIME DEFAULT NULL,
+            pre_frozen_expiry DATE DEFAULT NULL,
             expiry_user_set INTEGER DEFAULT 0,
             added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -949,6 +951,18 @@ function migrateDB(PDO $db): void {
         // Backfill: detect already-opened fridge items and set opened_at.
         // Only frigo items — pantry/freezer fractional quantities don't imply opened.
         backfillOpenedItems($db);
+    }
+
+    // Freezer lifecycle (#286): the ISO timestamp of the freeze and the best-before date
+    // the pack had BEFORE it. The frozen state owns `expiry_date` (today + the category's
+    // freezer days), so every reader — dashboard, ICS feed, cron, PAO — keeps reading ONE
+    // column and cannot disagree; thawing gives the original date back, limited by the
+    // 48 h window. Both nullable: a row that was never frozen carries no state.
+    if (!in_array('frozen_at', $invColNames)) {
+        $db->exec("ALTER TABLE inventory ADD COLUMN frozen_at DATETIME DEFAULT NULL");
+    }
+    if (!in_array('pre_frozen_expiry', $invColNames)) {
+        $db->exec("ALTER TABLE inventory ADD COLUMN pre_frozen_expiry DATE DEFAULT NULL");
     }
 
     // Migration: undo incorrect backfill for non-frigo items.

@@ -50,8 +50,16 @@ require_once __DIR__ . '/lib/telegram.php';
 require_once __DIR__ . '/lib/healthcheck.php';
 require_once __DIR__ . '/lib/open_prices.php';
 require_once __DIR__ . '/lib/webpush.php';
+// Actionable push (#122): the signed token a notification carries. It reads the
+// base64url helpers of webpush.php, so it is loaded right after it.
+require_once __DIR__ . '/lib/push_actions.php';
 // Support layer: the optional donation/banner question (see api/lib/support.php).
 require_once __DIR__ . '/lib/support.php';
+// The printable monthly report (#103): reads monthlyStatsData(), the inventory rows and
+// the spend ledger, and renders a print-first HTML page (no PDF dependency).
+require_once __DIR__ . '/lib/monthly_report.php';
+// Freezer lifecycle (#286): the per-category freezer shelf life (data/frozen_shelf_life.json).
+require_once __DIR__ . '/lib/frozen_shelf_life.php';
 
 // ── HTTP-only hardening ───────────────────────────────────────────────────────
 // Neither of these means anything to a cron job or a script: they judge a REQUEST.

@@ -491,7 +491,8 @@
     "group_by_label": "分组方式",
     "group_category": "按类别",
     "group_location": "按位置",
-    "group_aria": "列表分组"
+    "group_aria": "列表分组",
+    "frozen_badge": "❄️ 已冷冻"
   },
   "scan": {
     "title": "扫描",
@@ -2183,7 +2184,8 @@
       "need_keys": "缺少 VAPID 密钥 — 启用后请再保存一次",
       "denied": "通知权限被拒绝",
       "subscribed": "设备已订阅",
-      "test_ok": "测试通知已发送"
+      "test_ok": "测试通知已发送",
+      "actions_hint": "到期提醒带有两个按钮——✓ 已食用 和 🔥 已丢弃——无需打开应用即可记录。无法显示按钮的手机（旧版 iOS）只会打开应用。"
     },
     "group_medical": "药品",
     "tab_medical": "药品",
@@ -3152,7 +3154,15 @@
     "shopping_remove_title": "🛒 已从购物清单移除",
     "trip_complete_title": "✅ 购物完成",
     "trip_complete_message": "清单已清空：{n} 项。",
-    "weekly_digest_title": "📊 EverShelf 每周摘要"
+    "weekly_digest_title": "📊 EverShelf 每周摘要",
+    "action_use": "✓ 已食用",
+    "action_waste": "🔥 已丢弃",
+    "push_expiring_body": "{days} 天后到期 · {date}",
+    "push_expires_today": "今天到期 · {date}",
+    "push_expired_body": "已过期 {days} 天 · {date}",
+    "push_failed": "已不存在",
+    "thawed_title": "❄️ 已解冻",
+    "thawed_message": "{items}：请在 {date} 前食用（48 小时）"
   },
   "capture": {
     "title": "SHELFY",
@@ -3589,5 +3599,47 @@
   "ai_cost": {
     "pill_title": "本月 AI 费用",
     "pill_title_detail": "本月 AI：{cost} · {tokens} token · {calls} 次调用。点按查看详情。"
+  },
+  "report": {
+    "title": "月度报告",
+    "period": "期间：{month}",
+    "snapshot": "储藏",
+    "snapshot_hint": "{date} 库存 · 在 {soon} 前到期",
+    "stock_total": "物品",
+    "expiring": "即将到期（7 天）",
+    "expired": "已过期",
+    "opened": "已开封",
+    "prev_month": "上月消耗",
+    "col_name": "物品",
+    "col_place": "位置",
+    "col_qty": "数量",
+    "col_expiry": "保质期",
+    "col_reason": "原因",
+    "col_date": "日期",
+    "added": "新增",
+    "consumed": "消耗",
+    "wasted_count": "丢弃",
+    "wasted_value": "估计价值（EUR）",
+    "consumption": "本月消耗",
+    "top_products": "最常使用",
+    "top_categories": "按类别",
+    "waste": "浪费",
+    "spend": "已记录支出",
+    "spend_trips": "已记录购物",
+    "spend_total": "合计",
+    "none": "本月没有数据。",
+    "generated": "由 EverShelf 于 {date} 生成",
+    "print": "打印 / 保存为 PDF",
+    "button": "月度报告（PDF）",
+    "button_hint": "打开可打印页面：在打印对话框中选择“另存为 PDF”。包含储藏快照、本月消耗与浪费，以及已记录的支出。"
+  },
+  "freezer": {
+    "frozen_since": "冷冻于 {date} · 保质至 {until}",
+    "thaw": "解冻",
+    "thaw_toast": "已解冻：请在 {date} 前食用",
+    "frozen_toast": "已冷冻：保质至 {date}",
+    "error_already_frozen": "已经冷冻",
+    "error_not_frozen": "未冷冻",
+    "error_medical": "药品不冷冻"
   }
 }

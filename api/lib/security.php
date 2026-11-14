@@ -203,6 +203,13 @@ function evershelfPublicActions(): array {
         // read-only ICS_TOKEN (?token=…, hash_equals) and returns 403/404 otherwise.
         'calendar_ics',
         'telegram_webhook',
+        // webpush_inbox + notification_action: both are reached by the SERVICE WORKER,
+        // which has no page and cannot present the API token (#122). Each one carries
+        // its own proof: the inbox a per-device token minted at subscription (SHA-256 on
+        // disk), the action an HMAC token signed into the notification itself
+        // (api/lib/push_actions.php, 12 h, one row, one action).
+        'webpush_inbox',
+        'notification_action',
         // support_qr: the donation link as a QR image. The native kiosk wizard
         // shows it *before* it can pair, so it can never present a token; the
         // rendered content comes from .env only (the amount must be one of the
@@ -504,8 +511,9 @@ function evershelfDemoReadOnlyActions(): array {
         'templates_list',
         'ai_test',
         'recipes_list', 'chat_list', 'app_settings_get',
-        // NOT here on purpose: `backup_list` / `export_inventory` (the household's files),
-        // `health_status` (the health profile), `ha_*` (its Home Assistant) and
+        // NOT here on purpose: `backup_list` / `export_inventory` / `export_monthly_report`
+        // (the household's files and its spend ledger), `health_status` (the health
+        // profile), `ha_*` (its Home Assistant) and
         // `weather_get` / `weather_geocode` (where the kitchen is). A demo carries none of
         // that, and `get_settings` blanks what it would otherwise reveal.
         'guess_category', 'get_shopping_price', 'get_all_shopping_prices',

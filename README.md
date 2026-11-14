@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.1.5-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.0-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -226,6 +226,16 @@ the gate this release was developed against.
 
 <details open>
 <summary><b>Last five releases</b></summary>
+
+**v2.2.0 — three features that close the loop.** Expiry notifications now arrive with
+**✓ Usato** and **🔥 Buttato** buttons that write the stock without opening the app (one to
+three products per alert; the button is a signed door, never the API token); a **monthly report**
+in Settings → Dati prints to PDF with the pantry snapshot, consumption, every discard and its
+reason, and the recorded spend — same numbers as the dashboard; and the **freezer became a
+state**: freeze a pack and its countdown becomes the category's freezer shelf life, thaw it and
+you get the original date back, limited by the 48-hour rule, with a notification. Along the way,
+Web Push itself was broken on any install with an API token (the worker's inbox request was
+answered 401): fixed.
 
 **v2.1.5 — five reports from other households, fixed.** The daily expiry alert now reaches
 ntfy/webhook without Home Assistant enabled (it was gated on `HA_ENABLED`, while the sender

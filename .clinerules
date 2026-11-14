@@ -274,6 +274,26 @@ runtime/binary files — if a task truly needs one, ask first.
 - **One discard sheet.** `openWasteSheet()` → `_showWasteRecordModal()` (quantity + the four
   reasons) is every "Butta": row, banner, swipe, action page. A medicine keeps its short
   confirm. Never re-add `showThrowForm()` / `throwAll` / `throwPartial`.
+- **A notification button is a door, and it writes like the app.** `notification_action` is a
+  public action (a service worker has no page and no API token) that authenticates itself with
+  the HMAC token the notification carries (`api/lib/push_actions.php`: one row, one action, 12 h)
+  and writes through `useFromInventoryCore()` — never a second ledger path. The inbox the worker
+  reads (`webpush_inbox`) is public too and authenticates with a per-device token minted at
+  subscription (`webpush_subscriptions.inbox_hash`, SHA-256 only). One to three rows → one
+  notification each with ✓ Usato / 🔥 Buttato; more → the aggregate line. Since the worker is
+  killed between events, the token lives in the Cache API (the page posts it after subscribe).
+- **The month has ONE set of numbers.** `monthlyStatsData()` feeds both `monthly_stats` and the
+  printable report (`export_monthly_report` → `api/lib/monthly_report.php`); never recompute
+  consumption/waste/€ for the PDF, or the two screens will disagree. The report is print-first
+  HTML (no PDF library), the `<title>` names the file, and every word comes from
+  `translations/*.json` through `evershelfTr()`.
+- **Freezing changes the DATE, not a reader's mind.** `inventory_freeze` writes the frozen
+  best-before into `expiry_date` (today + the category's days from
+  `data/frozen_shelf_life.json`) and keeps the old one in `pre_frozen_expiry`; `inventory_thaw`
+  gives back the sooner of now+48 h (`EVERSHELF_THAW_DAYS`) and a still-future original. Because
+  the date lives in the column everyone already reads, dashboard, ICS feed and cron cannot drift
+  — and a genre whose category table says `freeze: false` never shows the button. A medicine is
+  refused server-side.
 - **The shelf wins over the guess.** The anomaly banner's primary is `confirmBannerAnomaly`
   (`✓ Confermo {inv_qty}`: it writes nothing, the ledger figure is a guess), and dry staples
   (`evershelfIsDurableStaple`, ≥ 180 days sealed) raise no predictive notice at all.

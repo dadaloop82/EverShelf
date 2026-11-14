@@ -129,6 +129,23 @@ function evershelfNotifyFormatEvent(string $event, array $data, string $lang = '
 
     switch ($event) {
         case 'expiry_alert':
+            // A thawed pack is neither “expiring” nor “expired”: the freezer gave it back
+            // and it now has a 48 h window (#286). Its own words, so the notification
+            // cannot read like a six-month expiry list.
+            if (($data['type'] ?? '') === 'thawed') {
+                $title = evershelfTr('notify.thawed_title', $lang);
+                if ($title === 'notify.thawed_title') {
+                    $title = '❄️ Thawed';
+                }
+                $message = evershelfTr('notify.thawed_message', $lang, [
+                    'items' => $names,
+                    'date'  => (string)($data['thawed_until'] ?? ''),
+                ]);
+                if ($message === 'notify.thawed_message') {
+                    $message = $names . ': eat within 48 hours';
+                }
+                return [$title, $message];
+            }
             $expired = ($data['type'] ?? '') === 'expired';
             $title   = $expired
                 ? evershelfTr('notify.expired_title', $lang)
@@ -465,7 +482,9 @@ function evershelfNotifySend(string $event, string $title, string $message, arra
     if ($allowed && function_exists('evershelfWebPushNotify') && evershelfWebPushEnabled()) {
         try {
             $db = getDB();
-            $wp = evershelfWebPushNotify($db, $title, $message);
+            // `$data` carries the rows of the event: on an expiry alert the push builds
+            // one notification per product with its own ✓ / 🔥 buttons (#122).
+            $wp = evershelfWebPushNotify($db, $title, $message, '', $data);
             $result['channels']['webpush'] = [
                 'ok'    => empty($wp['skipped']) && (($wp['ok'] ?? 0) > 0 || ($wp['fail'] ?? 0) === 0),
                 'error' => '',

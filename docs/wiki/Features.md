@@ -49,6 +49,21 @@ When you partially use a product and mark it as "opened":
 
 Mark any product as vacuum-sealed to extend its estimated expiry date (typically 2–3× the normal shelf-life).
 
+### Freezer lifecycle (freeze / thaw)
+
+Freezing is a state, not just a room. **❄️ Congela** on a product (only for the genres the
+category table allows) moves the pack into the freezer **and** replaces the countdown with the
+freezer shelf life of its category (`data/frozen_shelf_life.json`: meat 180 days, fish 90,
+vegetables 240, dairy 60 …), storing the date the pack had before. The pantry row carries a
+`❄️` mark, the product sheet says «Congelato il … · buono fino al …», and the dashboard, the
+ICS feed and the cron all read that one date.
+
+**🔥 Scongela** gives the pack its original date back — limited by the **48-hour** rule: the
+new best-before is the sooner of *now + 48 h* and the original date (a pack whose printed date
+had already passed keeps the 48 h window, because while frozen the freezer date was the
+authority). Thawing also fires one notification in the household's language, and it comes with
+the two buttons of the actionable push below.
+
 ---
 
 ## 🤖 AI Features (Google Gemini)
@@ -295,6 +310,39 @@ Get the alerts on your phone **without Home Assistant** — set it up in
   are contacted, and stored tokens are write-only (the field shows `••••••••`).
 
 Full details: [Configuration](Configuration) → *Push Notifications*.
+
+### Actionable notifications (PWA)
+
+When the browser receives an expiry alert for **one to three products**, each notification
+arrives with two buttons — **✓ Usato** and **🔥 Buttato** — that record the action **without
+opening the app**. The button writes through the same path as the app (`inventory_use`), so
+stock, history, waste learning, favourites and the shopping list all behave identically, and a
+second notification confirms it («✓ Usato · Latte fresco»).
+
+How it stays safe: a notification carries a signed token (HMAC with the instance token, one
+row, one action, 12 hours) and the service worker presents only that — no API token exists
+inside a worker. The inbox the worker reads is authenticated by a per-device token minted at
+subscription (only its SHA-256 is stored). A browser without notification actions (older iOS)
+simply opens the app on tap.
+
+---
+
+## 🧾 Monthly report (printable PDF)
+
+**Settings → Sistema → Dati → 🧾 Report mensile (PDF)** opens a print-ready page and the
+browser's print dialog; «Save as PDF» produces `evershelf-report-YYYY-MM.pdf`. It contains:
+
+- the month's figures (added / consumed / thrown away / estimated value), built from the
+  **same** `monthlyStatsData()` the dashboard panel uses;
+- the **pantry snapshot**: one row per pack with place, quantity and expiry, plus the counts of
+  items expiring within 7 days, expired and opened, and the chips per place;
+- **consumption**: the ten most-used products and the breakdown by category;
+- **waste**: every discard of the month with its quantity, the reason the household picked and
+  the date, plus the estimated € value;
+- the **recorded spending** of the month (the «spesa» ledger: number of trips and total).
+
+The page follows the interface language and is built server-side — no PDF library, no external
+service. A past month can be reopened by hand: `?action=export_monthly_report&month=2026-10`.
 
 ---
 

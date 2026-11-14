@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "note": "How long a food keeps in the freezer, by category slug (the same slugs as products.category). Data, not code: the freeze action stores today + these days as the best-before date, and the original date comes back on thaw. Conservative values (USDA/EFSA freezer storage, quality not just safety). default_days is used for a category that is not listed.",
+  "default_days": 90,
+  "by_category": {
+    "carne": 180,
+    "pesce": 90,
+    "verdura": 240,
+    "frutta": 240,
+    "latticini": 60,
+    "pane": 90,
+    "pasta": 365,
+    "cereali": 180,
+    "conserve": 365,
+    "condimenti": 365,
+    "bevande": 120,
+    "snack": 120,
+    "dolci": 120,
+    "surgelati": 180,
+    "altro": 90
+  }
+}
