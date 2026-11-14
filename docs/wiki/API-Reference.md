@@ -2,7 +2,9 @@
 
 EverShelf exposes a single PHP endpoint: **`api/index.php`**. All actions are selected via the `action` query parameter.
 
-> **Full OpenAPI 3.1 spec:** [`docs/openapi.yaml`](https://github.com/dadaloop82/EverShelf/blob/main/docs/openapi.yaml)
+This page is the API document: every action, its parameters and its answer. There is no
+generated OpenAPI file any more — the old `docs/openapi.yaml` had drifted from the router and
+was removed in 2.0. `docs/INDEX-actions.md` maps every action to its handler in one line.
 
 ---
 

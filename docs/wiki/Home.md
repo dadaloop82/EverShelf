@@ -95,7 +95,7 @@ EverShelf/
 │   ├── js/app.js               # SPA logic (assets/js/core/ = auth, dom)
 │   └── img/
 ├── translations/               # i18n JSON files (it, en, de, fr, es, zh)
-├── docs/                       # openapi.yaml, code indexes, wiki sources
+├── docs/                       # API reference, code indexes, wiki sources
 ├── scripts/                    # CI test suite + maintenance CLIs
 ├── evershelf-kiosk/            # Android kiosk app (Kotlin)
 └── evershelf-health-bridge/    # Android Health Connect bridge app (Kotlin)

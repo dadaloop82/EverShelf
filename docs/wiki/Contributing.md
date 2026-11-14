@@ -180,8 +180,9 @@ Open an issue on GitHub. Include:
 
 1. Add a `case 'my_action':` to the router in `api/index.php`
 2. Implement `function myAction(PDO $db): void`
-3. Add the endpoint to `docs/openapi.yaml`
-4. Add translations for any new UI strings to all 3 language files
+3. Document the endpoint in `docs/wiki/API-Reference.md` (and regenerate
+   `docs/INDEX-actions.md` with `bash scripts/gen-code-index.sh`)
+4. Add translations for any new UI strings to **all six** locale files
 
 ---
 
