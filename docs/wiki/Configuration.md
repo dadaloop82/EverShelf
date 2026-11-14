@@ -259,6 +259,7 @@ keeps working unchanged.
 |-------|-----------|-------|
 | Enable notifications | `NOTIFY_ENABLED` | Master switch for the two channels below only |
 | Events | `NOTIFY_EVENTS` | `expiry_alert`, `shopping_add`, `stock_update` |
+| Daily expiry pass | `EXPIRY_ALERT_HOUR` | Hour (`0`–`23`, server local time) of the once-a-day expiry check; empty = first cron pass after midnight |
 | Message language | `NOTIFY_LANGUAGE` | `it`/`en`/`de`/`fr`/`es`/`zh`; empty → English |
 | ntfy server | `NTFY_URL` | `https://ntfy.sh` or your self-hosted instance |
 | ntfy topic | `NTFY_TOPIC` | Letters, digits, `-`, `_` (max 64); the 🎲 button generates one |
@@ -268,6 +269,11 @@ keeps working unchanged.
 | Webhook URL | `NOTIFY_WEBHOOK_URL` | Any endpoint that accepts a JSON `POST` |
 | Webhook token / header | `NOTIFY_WEBHOOK_TOKEN`, `NOTIFY_WEBHOOK_HEADER` | Default header: `Authorization` |
 | Accept self-signed TLS | `NOTIFY_INSECURE_SSL` | LAN servers with a self-signed certificate only |
+
+The **daily expiry check is not tied to Home Assistant**: it runs on the first cron pass of
+the day when *either* river is configured — the HA webhook, the HA notify service, or these
+channels with `expiry_alert` in `NOTIFY_EVENTS`. The delivery gates stay in the sender, so a
+hybrid setup does not receive the alert twice.
 
 **Quick start (ntfy)** — install the [ntfy app](https://ntfy.sh), then:
 
