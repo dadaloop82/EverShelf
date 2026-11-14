@@ -5,6 +5,131 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.5] - 2026-11-14
+
+### «Hai tutti gli ingredienti» was not a fact
+
+Report: the idle screen proposed recipes whose ingredients were finished and printed
+«✅ Hai tutti gli ingredienti» over them. The chip was printed on `missing === 0`, and `missing`
+was zero for two different reasons that nobody told apart: *everything is on a shelf* and *nothing
+was checked*.
+
+The check itself skipped ingredients: `_recipeArchiveMissingInfo()` required a `product_id` **and a
+numeric `qty_number`**, so every «q.b.» or «80-90 g» line was invisible to it («Italia Zuccheri
+100% Italiano» in the Maxi-Pancake, «limmi succo di limone» in the Piadina, «Pasta Spaghetti n.5»,
+«Trentingrana», «Spezie Origano»). Reproduced on the field archive: with the sugar finished, the
+old rule answered `missing 0` → «hai tutti», while the sugar's row was gone.
+
+The answer is now three-valued and honest:
+
+- `missing` — linked ingredients whose row is gone (the link alone is the evidence: the quantity
+  has nothing to do with being on a shelf);
+- `unknown` — no link and not a free staple (water/salt/pepper/oil): nobody can say;
+- `checked` — whether a shelf snapshot existed at all.
+
+The screensaver's meal card prints ✅ only on `allInPantry` (`checked && pantry > 0 && missing === 0
+&& unknown.length === 0`), ⚠️ «Manca: …» when something is gone, and a neutral «❔ Da verificare: …»
+otherwise; `_ssPickRecipe()` refuses a recipe nobody can verify, and prefers a fully-cookable one.
+The snapshot (`_recipeLiveProductIds`, 30 s) is dropped by `refreshAppDataAfterMutation()`, so a
+product finished a second ago can no longer be claimed as present. Same measurement after the fix:
+`missing 1` and the chip turns into «⚠️ Manca: Italia Zuccheri 100% Italiano».
+
+## [2.2.4] - 2026-11-14
+
+### A search that outlives the moment is cleared
+
+Asked for: «quando cerco un prodotto e non faccio nulla per un minuto, mi puoi cancellare la
+ricerca e riportarmi alla home in automatico?». The idle return to the Home already existed
+(`AUTO_HOME_MS`, 2 minutes, armed by the same listeners as the screensaver) but it left the pantry
+filtered: the search is remembered on purpose (`_inventorySearchQuery`, restored on every visit),
+so the household came back to a shelf that looked empty or wrong and had to find the ✕.
+
+While a word is narrowing the pantry the clock is now **1 minute** (`AUTO_HOME_SEARCH_MS`,
+`_autoHomeDelayMs()`), and `_triggerAutoHome()` drops the search *before* leaving — the field and
+the remembered query both cleared, the pantry re-rendered whole, no focus (a kiosk must never open
+a keyboard). Measured in a browser on a real pantry: search «latte» → 4 rows and a 60 s clock →
+after 60 s the Home is back with the search empty, and the next visit to the pantry shows all 150
+rows with the clock back at 2 minutes. Every guard stays: the idle screen, cooking mode, shopping,
+the in-store scan/add flows and any open overlay are the household using the app.
+
+## [2.2.3] - 2026-11-14
+
+### «Non mi chiede più dove metto il resto»
+
+Report: after using part of a pack, the app stopped asking where the rest went. Nothing was
+broken — the question was answering itself. The prompt's clock is the app's confidence (`2…20 s`),
+and it learned that confidence **from its own auto-answers**: the countdown expiring on the presumed
+place was recorded with `_recordMoveLocChoice()` as if the household had chosen it. One guess,
+repeated over a few weeks, became a "certain" habit, which shortened the next clock, which produced
+more guesses — a loop that ends at the floor. Measured on the field install: **361 learned places**,
+almost every product at 2 s, i.e. a modal that flashes between the toast and the sheet and answers
+itself before the first line is read.
+
+Two changes:
+
+- **A clock that runs out is not an answer.** `fromClock` travels to `confirmMoveAfterUse()`,
+  `confirmRecipeMove()` and `_saveVacuumAndStay()`, which now record a habit only when the household
+  really tapped. Silence is silence; the app stops teaching itself.
+- **The floor is 6 s, not 2.** Short enough for a confident presumption (one tap confirms it), long
+  enough to read «Dove la metto?» + the places. Measured after the fix: a product with a habit opens
+  the question at 10 s, stays on screen 10.9 s and then says «📦 La confezione aperta resta in
+  Frigo» — nobody is left guessing, and no `pref_move_loc` write is sent when nobody answers.
+
+## [2.2.2] - 2026-11-14
+
+### A recipe nobody can cook is not a recipe
+
+Two reports, one root cause. **«Non mi genera più la ricetta con l'AI: la trova in Mealie»** —
+with `RECIPE_SOURCE=auto` the ricettario was consulted *first* and answered every request, so an
+install with Mealie configured never got a generated recipe again. **«Mi propone ricette senza
+senso con ingredienti che non ho»** — the picker accepted a dish on a bare score (+10 for every
+ingredient whose word appeared in any pantry name, threshold 15), so nine ingredients of which two
+happened to be on a shelf were enough. Measured on the field pantry: **2 of 27 Mealie recipes were
+actually cookable**, and the other 25 were the nonsense.
+
+The generator now **asks which engine** (`#recipe-engine-choice`: «✨ Genera una ricetta nuova con
+l'AI» / «📚 Prendi una ricetta dal ricettario Mealie», only the engines that are configured), and
+the answer travels as `recipe_source` in the request: `recipeRequestedSource()` honours it per
+request over the household's setting, so «auto» can no longer answer in place of the AI that was
+pressed. No silent switch either way — a book with nothing to offer comes back with the question
+again instead of quietly generating.
+
+The ricettario may only propose a dish the shelves carry: `mealieRecipePantryCoverage()` counts
+every ingredient that is not a free staple (water, salt, pepper, oil), `mealiePickRecipe()` refuses
+one that leaves more than `MEALIE_RECIPE_MAX_MISSING` (default **0**) missing, needs at least two
+on the shelf and ranks by fewest missing. It logs `mealie_pick` / `mealie_pick_no_match` with the
+names it lacked, so «perché non mi propone niente?» has an answer in the log. The answer carries
+`pantry_coverage` and the sheet prints «✅ Tutti i {n} ingredienti sono in dispensa» — or what is
+missing, when the household raises that tolerance. On the AI side `recipeEnforcePantryOnly()`
+already drops invented ingredients; a result left with fewer than two real ones is now refused
+with `error_not_cookable` instead of being rendered as "sale e pepe".
+
+The sheet also says **where the dish came from** (`recipes.source_ai` / `recipes.source_mealie`):
+an invented dish for tonight and a recipe out of your own book are two different promises.
+
+## [2.2.1] - 2026-11-14
+
+### A row tap opens the sheet — and only the sheet
+
+Tapping a product in a list (the pantry and the Home's «In scadenza / Scaduti / Aperti /
+Dimenticati») opened the product sheet **and** registered a consumption of the default quantity:
+«appena premo parte di default un uso di 1 unità senza chiedermi nulla». The cause was the gesture,
+not the sheet — `pointerup` opens the sheet, and the `click` the browser synthesizes right after is
+hit-tested at the same coordinates, where the sheet now sits: a row tapped where the primary
+«✓ Usa {qty}» lands pressed it. Reproduced on a 393×860 phone (a tap at y=712 with the sheet's
+primary at 689–734 wrote `inventory_use { quantity: 25 }` by itself). Every gesture that opens a
+sheet now swallows that one synthetic click (`_guardTapClick()`, 450 ms), so the sheet always waits
+for the household's own tap; the deliberate press is untouched (verified: the same button still
+writes when really pressed).
+
+The other way «✓ Usa» left the sheet is closed too. With the pantry never loaded — the Home is the
+first page and does not load it — `_inventoryIdFor()` answered 0 for every row and `quickUse()`
+fell back to the legacy full-page «Usa / Consuma»: «mi va subito in usa». It now resolves the row
+from the server and opens the same sheet, and a product with no row anywhere gets the honest
+«esaurito» card instead of that page. `_openUsePage()` is gone (the guided page is still reached
+through `showUseForm()`, from the product action page and the scale), and a pantry row opens the
+pack that was tapped (`data-inv-id`) rather than the first pack of that product in that place.
+
 ## [2.2.0] - 2026-11-14
 
 ### Three features that close the loop

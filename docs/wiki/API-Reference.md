@@ -271,11 +271,19 @@ Chat with the AI kitchen assistant.
 Generate a recipe based on current inventory.
 
 ```json
-{ "persons": 2, "meal": "dinner", "preferences": {} }
+{ "persons": 2, "meal": "dinner", "preferences": {}, "recipe_source": "gemini" }
 ```
 
+`recipe_source` (`gemini` | `mealie` | `auto`, optional) picks the engine for **this request** and
+wins over the `RECIPE_SOURCE` setting. `mealie` answers only with a dish the pantry can cook
+completely (`mealie_no_match` otherwise); `gemini` never consults the ricettario. Answers an
+`error` when the pantry cannot carry a recipe at all (`recipe_not_cookable`), instead of returning a
+dish reduced to salt and pepper.
+
 ### `generate_recipe_stream` — POST
-Same as `generate_recipe` but streams output via Server-Sent Events.
+Same as `generate_recipe` but streams output via Server-Sent Events. The `recipe` event carries
+`recipe.pantry_coverage` for a ricettario answer (`{ total, matched, missing[], coverage }`), and
+`source` says `mealie` or `gemini`.
 
 ### `gemini_product_hint` — POST
 Get AI storage location + shelf-life hint for a new product.

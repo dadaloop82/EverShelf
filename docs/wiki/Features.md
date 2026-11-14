@@ -106,6 +106,21 @@ Tap **🍳 Recipes** → **Generate Recipe** to get a recipe using:
 
 Recipes stream live via Server-Sent Events so results appear as they are generated.
 
+**Two engines, and the app asks which one.** When both an AI provider and a Mealie ricettario are
+configured, pressing **Generate** asks: *✨ Generate a new recipe with the AI* or *📚 Take a recipe
+from your Mealie book*. The answer travels with the request (`recipe_source`), so the household's
+`RECIPE_SOURCE` setting can never make the book answer in place of the AI that was pressed. One
+engine configured → no question.
+
+**A recipe nobody can cook is not a recipe.** A dish coming from the ricettario is verified against
+the shelves before it is proposed: every ingredient that is not a free staple (water, salt, pepper,
+oil) must be on a shelf, and at most `MEALIE_RECIPE_MAX_MISSING` (default **0**) may be missing at
+all. The sheet says «✅ All N ingredients are in the pantry», and when nothing qualifies the answer
+is «no recipe in your book has every ingredient you have» — with the AI one tap away, never a silent
+switch. The AI side is held to the same rule: ingredients it invents are dropped, and a result left
+with fewer than two real ones is refused instead of rendered. Every sheet also says where the dish
+came from (✨ generated · 📚 from your book).
+
 Imported and generated recipes land in the **archive**. Free-slot (`libero`) recipes
 can coexist on the same day; each body has a content hash so re-importing from chat
 or marking ingredients used **updates** the same row instead of cloning it. Scheduled

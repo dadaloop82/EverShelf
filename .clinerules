@@ -139,6 +139,16 @@ runtime/binary files — if a task truly needs one, ask first.
   `pointercancel` is never a tap, and the gesture must not have moved `.inv-scroll`
   (`scrollTop`). `touch-action: pan-y` stays on the list. Only the **right** swipe exists and
   it opens the same product sheet the tap opens — no left swipe, no "Cosa vuoi fare?" chooser.
+  **The tap that opens the sheet must never press a button inside it.** `pointerup` runs before
+  the browser's synthetic `click`, and that click is hit-tested at the same coordinates — where
+  the sheet now is: a row tapped over the sheet's «✓ Usa {qty}» primary registered a
+  consumption of the default quantity all by itself («appena premo parte di default un uso di
+  1 unità senza chiedermi nulla», measured: a tap at y=712 vs a primary at 689–734 → a 25 g
+  `inventory_use`). Every gesture that opens a sheet arms `_guardTapClick()` (one shot, 450 ms),
+  in `_initInventoryRowSwipe()` and in `_bindRowHoldOpen()`; a later tap is always the user's.
+  **And a `✓ Usa` never leaves the sheet for the legacy page**: with the pantry not loaded (the
+  Home is the first page) `_inventoryIdFor()` answers 0 for every row, so `quickUse()` resolves
+  the row from the server and opens the SAME sheet («mi va subito in usa» was that fallback).
 - **In the shopping list two gestures, two meanings.** Left (`≤ −52 px`) is **comprato**
   (`_shopRowBought`, it writes the stock), right (`≥ 52 px`) is **non lo compro**
   (`removeBringItem`, the dated dismiss). No third zone: a long right swipe used to open the
@@ -327,6 +337,22 @@ runtime/binary files — if a task truly needs one, ask first.
   alimentare glicerolo CARLO ERBA» (`products.kind` = the class).
   `migration_strip_kind_class_prefix_v1` healed the titles already written (3 on the field
   install), and `data/product_kind_cache.json` had the poisoned entries removed.
+- **A recipe nobody can cook is not a recipe.** The generator asks WHICH engine the household
+  wants («✨ Genera con l'AI» / «📚 Prendi dal ricettario», `#recipe-engine-choice`), and the
+  choice travels as `recipe_source` in the payload (`recipeRequestedSource()` in
+  `api/lib/mealie.php`): with `RECIPE_SOURCE=auto` the ricettario answered every request before
+  the AI, so a household with Mealie configured stopped getting generated recipes altogether.
+  The ricettario may only propose a dish the shelves carry — `mealieRecipePantryCoverage()`
+  counts the ingredients that are not free staples (water/salt/pepper/oil) and
+  `mealiePickRecipe()` refuses one that leaves more than `MEALIE_RECIPE_MAX_MISSING` (default
+  **0**) in the shop, logging `mealie_pick` / `mealie_pick_no_match` with the names it lacked
+  (measured on the field pantry: 2 of 27 recipes cookable, 25 refused — «mi propone ricette senza
+  senso con ingredienti che non ho»). The AI side is scrubbed by `recipeEnforcePantryOnly()` anyway,
+  and a result that loses its ingredients — fewer than `RECIPE_MIN_PANTRY_INGREDIENTS` (2) left —
+  is refused with `error_not_cookable` instead of rendered. The sheet says where the dish came
+  from (`recipes.source_ai` / `recipes.source_mealie`) and, for the ricettario, that every
+  ingredient is on a shelf (`recipes.coverage_all`). Never a silent engine switch: no match in the
+  book comes back with the question again, not with an AI recipe.
 - **A medicine is not a second app.** Its edit sheet wears the food sheet's shell
   (`edit-inventory-modal`: same header with the photo, `.edit-section-label` sections, the
   stepper + unit select, `.edit-form-actions` Annulla/Salva) — the `is-medical-edit` compaction
@@ -379,11 +405,15 @@ runtime/binary files — if a task truly needs one, ask first.
   (`_preferredMoveChoice`, product key `id|from`, genre key `kind:cat|from`), and the control
   carrying it drains with the seconds printed — **the clock IS the confidence**
   (`_moveHistoryConfidence` from the last five choices × the source: the product's own habit, the
-  genre at 0.55, nothing at 0 → `_movePromptSeconds` maps it linearly to **2…20 s**: 4× the same
-  place = 2 s, one sample ≈ 9 s, a genre ≈ 10-13 s, no history = 20 s and the pack stays where it
-  was) — and any touch cancels the clock. Never apply a move in
-  silence: `showMoveAfterUseModal(..., { stayPut: true })` from the product sheet keeps the
-  household on the pantry instead of jumping to the dashboard.
+  genre at 0.55, nothing at 0 → `_movePromptSeconds` maps it linearly to **6…20 s**: 4× the same
+  place = 6 s, one sample ≈ 9 s, a genre ≈ 10-13 s, no history = 20 s and the pack stays where it
+  was) — and any touch cancels the clock. The floor was 2 s, and that is not a question but a
+  flash: with the habits the app had taught itself almost every product sat on it and the
+  household reported «non mi chiede più dove metto il resto». **A clock that runs out is not an
+  answer either**: `fromClock` keeps `_recordMoveLocChoice()` silent, or the app's own presumption
+  became the "habit" that shortens the next question (361 learned places on the field install).
+  Never apply a move in silence: `showMoveAfterUseModal(..., { stayPut: true })` from the product
+  sheet keeps the household on the pantry instead of jumping to the dashboard.
   **"Se è finito è finito":** the question belongs to a portion that really stays on the
   shelf, so `_movePromptHasPortion(remaining, unit)` refuses it when nothing is left (`0`),
   when the leftover is a trace the pantry itself already calls finished
@@ -609,6 +639,16 @@ runtime/binary files — if a task truly needs one, ask first.
   `_openCaptureSheet()` is a guard around `_openCaptureSheetInner()`: a throw closes the sheet,
   logs `shelfy-open-failed` and says `capture.open_failed` instead of leaving a half-built
   overlay. A kiosk never auto-focuses the typing field (no system keyboard over a wall tablet).
+- **The idle clocks bring the Home back, and a search never outlives the moment.** `_resetAutoHomeTimer()`
+  is armed by the same `pointerdown`/`pointermove`/`keydown`/`scroll`/`touchstart` listener as the
+  screensaver and returns to the dashboard after `AUTO_HOME_MS` (2 min) — except that while the pantry
+  is narrowed by a word it is `AUTO_HOME_SEARCH_MS` (**1 min**), and `_triggerAutoHome()` drops that
+  search first (`_clearInventorySearchSilently()`, no focus: a kiosk must never open a keyboard). A
+  word nobody remembers is a dead end — the shelf looks empty or wrong on the next visit — which is
+  why «quando cerco un prodotto e non faccio nulla per un minuto» must end on the Home with the whole
+  pantry. Never skip the guards: shopping, the in-store scan/add flows, cooking mode, the idle screen
+  and any open overlay (`_visibleOverlays()`) are the household USING the app, and `_noteVoiceActivity()`
+  re-arms the clock because talking never touches the screen.
 - **The idle screen is a dashboard, not a clock with a fact.** Its views live in
   `assets/js/screensaver.js` (`meal`/`alerts`/`nutrition`/`fact`), each read from the
   household's data and each returning `null` when it has nothing to say — a card is never
@@ -625,6 +665,17 @@ runtime/binary files — if a task truly needs one, ask first.
   flex column centred on content TALLER than its box pushes the first block above the top edge, where no scroll reaches it.
   The meal card proposes a recipe the household ALREADY cooked («fatta N giorni fa · ti era piaciuta?», thumbs →
   `recipes_rate`), never the slot of the day.
+- **«Hai tutti gli ingredienti» is a CLAIM, and it is printed only when it was verified.** The
+  archive is judged against a shelf snapshot (`_recipeLiveProductIds`, dropped by
+  `refreshAppDataAfterMutation()`), and `_recipeArchiveMissingInfo()` answers THREE things:
+  `missing` (linked ingredients whose row is gone), `unknown` (no link and not a free
+  staple — water/salt/pepper/oil) and `checked` (was there a snapshot at all). The screensaver's
+  meal card prints ✅ only on `allInPantry` (`checked && pantry > 0 && missing === 0 &&
+  unknown.length === 0`), ⚠️ «Manca: …» when something is gone and «❔ Da verificare: …»
+  otherwise — and `_ssPickRecipe()` refuses a recipe nobody can verify (`!checked || !pantry`).
+  The old check required a NUMERIC `qty_number` as well as the link, so every «q.b.» or
+  «80-90 g» ingredient was skipped in silence: with the sugar finished, «Maxi-Pancake al Forno»
+  still read «✅ Hai tutti gli ingredienti» (measured: old rule `missing 0`, new `missing 1`).
 - **Tablet/kiosk CSS is opt-in**: `assets/css/tablet.css` activates on `html.is-kiosk`
   / `html.is-touch-tablet` (set by `_markDeviceChrome()`), never on `min-width` alone —
   a desktop monitor keeps the base styles.

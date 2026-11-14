@@ -13250,6 +13250,7 @@ PROMPT;
                 'error_gemini_api' => 'Errore API Gemini',
                 'error_cannot_generate' => 'Impossibile generare la ricetta',
                 'error_empty_reply' => 'Risposta vuota da Gemini',
+                'error_not_cookable' => 'Con quello che hai in dispensa non riesco a comporre una ricetta completa: aggiungi qualcosa o prova un’altra idea.',
                 'prompt_lang_rule' => 'IMPORTANTE: scrivi tutti i campi testuali della ricetta in Italiano.',
                 'prompt_step_example' => 'Passo 1…',
                 'tools_title' => 'Strumenti necessari',
@@ -13295,6 +13296,7 @@ PROMPT;
                 'error_gemini_api' => 'Gemini API error',
                 'error_cannot_generate' => 'Unable to generate recipe',
                 'error_empty_reply' => 'Empty response from Gemini',
+                'error_not_cookable' => 'With what is in the pantry I cannot build a complete recipe: add something or try another idea.',
                 'prompt_lang_rule' => 'IMPORTANT: write all textual recipe fields in English only. Do not use Italian or German.',
                 'prompt_step_example' => 'Step 1…',
                 'tools_title' => 'Equipment needed',
@@ -13340,6 +13342,7 @@ PROMPT;
                 'error_gemini_api' => 'Gemini-API-Fehler',
                 'error_cannot_generate' => 'Rezept konnte nicht erstellt werden',
                 'error_empty_reply' => 'Leere Antwort von Gemini',
+                'error_not_cookable' => 'Mit dem, was im Vorrat ist, kann ich kein vollständiges Rezept bauen: füge etwas hinzu oder versuche eine andere Idee.',
                 'prompt_lang_rule' => 'WICHTIG: schreibe alle textuellen Rezeptfelder nur auf Deutsch. Verwende kein Italienisch oder Englisch.',
                 'prompt_step_example' => 'Schritt 1…',
                 'tools_title' => 'Benötigte Geräte',
@@ -13385,6 +13388,7 @@ PROMPT;
                 'error_gemini_api' => 'Erreur API Gemini',
                 'error_cannot_generate' => 'Impossible de générer la recette',
                 'error_empty_reply' => 'Réponse vide de Gemini',
+                'error_not_cookable' => 'Avec ce qu’il y a dans le garde-manger, je ne peux pas composer une recette complète : ajoutez quelque chose ou essayez une autre idée.',
                 'prompt_lang_rule' => 'IMPORTANT : écris tous les champs textuels de la recette uniquement en français.',
                 'prompt_step_example' => 'Étape 1…',
                 'tools_title' => 'Ustensiles nécessaires',
@@ -13430,6 +13434,7 @@ PROMPT;
                 'error_gemini_api' => 'Error de la API de Gemini',
                 'error_cannot_generate' => 'No se pudo generar la receta',
                 'error_empty_reply' => 'Respuesta vacía de Gemini',
+                'error_not_cookable' => 'Con lo que hay en la despensa no puedo componer una receta completa: añade algo o prueba otra idea.',
                 'prompt_lang_rule' => 'IMPORTANTE: escribe todos los campos de texto de la receta solo en español.',
                 'prompt_step_example' => 'Paso 1…',
                 'tools_title' => 'Utensilios necesarios',
@@ -13475,6 +13480,7 @@ PROMPT;
                 'error_gemini_api' => 'Gemini API 错误',
                 'error_cannot_generate' => '无法生成食谱',
                 'error_empty_reply' => 'Gemini 返回为空',
+                'error_not_cookable' => '用储物柜里现有的东西无法组成一道完整的菜谱：请补充食材或换个想法。',
                 'prompt_lang_rule' => '重要：所有食谱文本字段必须使用简体中文撰写。',
                 'prompt_step_example' => '步骤 1…',
                 'tools_title' => '所需工具',
@@ -13838,6 +13844,26 @@ function recipeEnforcePantryOnly(array &$recipe): array {
     }
     $recipe['ingredients'] = $kept;
     return $removed;
+}
+
+/** A recipe must be a DISH, not a leftover: at least this many real pantry ingredients. */
+const RECIPE_MIN_PANTRY_INGREDIENTS = 2;
+
+/**
+ * How many of a recipe's ingredients the pantry really holds (free staples excluded).
+ *
+ * `recipePostProcessGenerated()` drops every ingredient the shelves do not have, so a model that
+ * invented its way through the prompt leaves a recipe with one ingredient — "sale e pepe" — and
+ * that is not a recipe the household can cook. The stream refuses it instead of rendering it.
+ */
+function recipePantryIngredientCount(array $recipe): int {
+    $n = 0;
+    foreach ($recipe['ingredients'] ?? [] as $ing) {
+        if (!recipeIsUnavailableIngredient($ing)) {
+            $n++;
+        }
+    }
+    return $n;
 }
 
 /**
@@ -15263,7 +15289,7 @@ function recipeFromIngredient(PDO $db): void {
     $items = recipeFetchPantryItems($db);
     $ingredientName = recipeResolveIngredientQuery($ingredientName, $items);
 
-    $source = recipeEffectiveSource();
+    $source = recipeRequestedSource($input);
     if ($source !== 'gemini') {
         $mealieRecipe = mealieTryRecipeGeneration($db, $items, $persons, ['ingredient' => $ingredientName]);
         if ($mealieRecipe) {
@@ -15403,7 +15429,7 @@ function generateRecipeStream(PDO $db): void {
 
     if (empty($items)) { $send('error', ['error' => recipeText($lang, 'error_pantry_empty')]); return; }
 
-    $source = recipeEffectiveSource();
+    $source = recipeRequestedSource($input);
     if ($source !== 'gemini') {
         $send('status', ['step' => 1, 'message' => recipeText($lang, 'status_mealie_search') ?: 'Cerco ricette in Mealie…']);
         $mealieRecipe = mealieTryRecipeGeneration($db, $items, $persons, [
@@ -15746,6 +15772,17 @@ PROMPT;
                 'source' => 'Open-Meteo',
             ];
         }
+        // A dish the shelves cannot cook is not an answer: the post-processing above drops every
+        // ingredient the pantry does not have, so a model that invented its way through the prompt
+        // would leave "sale e pepe". Refuse it instead of rendering it.
+        if (recipePantryIngredientCount($recipe) < RECIPE_MIN_PANTRY_INGREDIENTS) {
+            EverLog::warn('AI recipe not cookable with the pantry', [
+                'event' => 'recipe_not_cookable',
+                'title' => (string)($recipe['title'] ?? ''),
+            ]);
+            $send('error', ['error' => recipeText($lang, 'error_not_cookable')]);
+            return;
+        }
         $send('status', ['step' => 4, 'message' => '✅ Ricetta pronta!']);
         $send('recipe', ['recipe' => $recipe]);
         return;
@@ -15872,6 +15909,15 @@ PROMPT;
             'bucket' => $weatherCtx['bucket'] ?? null,
             'source' => 'Open-Meteo',
         ];
+    }
+
+    if (recipePantryIngredientCount($recipe) < RECIPE_MIN_PANTRY_INGREDIENTS) {
+        EverLog::warn('AI recipe not cookable with the pantry', [
+            'event' => 'recipe_not_cookable',
+            'title' => (string)($recipe['title'] ?? ''),
+        ]);
+        $send('error', ['error' => recipeText($lang, 'error_not_cookable')]);
+        return;
     }
 
     $send('status', ['step' => 4, 'message' => '✅ Ricetta pronta!']);

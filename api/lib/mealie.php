@@ -82,6 +82,25 @@ function recipeEffectiveSource(): string {
     return $src;
 }
 
+/**
+ * The engine THIS request asked for, else the household's setting.
+ *
+ * The generator is opened by the household, and a Mealie answer is not the same dish as an AI
+ * one: the client asks which engine to use and sends it here, so «auto» (Mealie first) can never
+ * silently replace the AI the person pressed. An unusable Mealie still downgrades to the AI; the
+ * other way round is NOT silent — an AI without a key answers `no_api_key`.
+ */
+function recipeRequestedSource(array $input): string {
+    $asked = strtolower(trim((string)($input['recipe_source'] ?? '')));
+    if (!in_array($asked, ['gemini', 'mealie', 'auto'], true)) {
+        return recipeEffectiveSource();
+    }
+    if (($asked === 'mealie' || $asked === 'auto') && !mealieUsable()) {
+        return 'gemini';
+    }
+    return $asked;
+}
+
 function mealieShouldTryOnline(): bool {
     if (!mealieConfigured()) {
         return false;
@@ -476,6 +495,65 @@ function mealieScoreRecipeForPantry(array $recipe, array $pantryItems, string $m
     return $score;
 }
 
+/**
+ * How much of a Mealie recipe the pantry can really cook.
+ *
+ * The picker used to accept a dish on a bare score (+10 for every ingredient whose word appeared
+ * in ANY pantry name, threshold 15), so a recipe with nine ingredients of which two happened to be
+ * on a shelf was proposed as «cookable» — the household's report «mi propone ricette senza senso
+ * con ingredienti che non ho». A proposal has to CARRY the dish: every ingredient that is not a
+ * free staple (water, salt, pepper, oil) must be found on a shelf, and at most
+ * `mealieProposalMaxMissing()` of them may be missing at all.
+ *
+ * @return array{total:int,matched:int,missing:string[],coverage:float}
+ */
+function mealieRecipePantryCoverage(array $recipe, array $pantryItems): array {
+    $pantryNames = [];
+    foreach ($pantryItems as $it) {
+        $n = mb_strtolower(trim((string)($it['name'] ?? '')));
+        if ($n !== '') {
+            $pantryNames[] = $n;
+        }
+    }
+    $total = 0;
+    $matched = 0;
+    $missing = [];
+    foreach ($recipe['ingredients'] ?? [] as $ing) {
+        $name = trim((string)($ing['name'] ?? ($ing['raw'] ?? '')));
+        // Water/salt/pepper/oil live in every kitchen: the same rule the AI prompt states.
+        if ($name === '' || recipeIsFreeStaple($name)) {
+            continue;
+        }
+        $total++;
+        $tokens = mealieTokens($name);
+        $hit = false;
+        foreach ($pantryNames as $pName) {
+            foreach ($tokens as $tok) {
+                if ($tok !== '' && str_contains($pName, $tok)) {
+                    $hit = true;
+                    break 2;
+                }
+            }
+        }
+        if ($hit) {
+            $matched++;
+        } else {
+            $missing[] = $name;
+        }
+    }
+    return [
+        'total'    => $total,
+        'matched'  => $matched,
+        'missing'  => $missing,
+        'coverage' => $total > 0 ? round($matched / $total, 2) : 0.0,
+    ];
+}
+
+/** How many ingredients a Mealie proposal may lack (0 = all of them must be on a shelf). */
+function mealieProposalMaxMissing(): int {
+    return max(0, min(5, (int)env('MEALIE_RECIPE_MAX_MISSING', '0')));
+}
+
 function mealieRecipeToEverShelfFormat(array $mealieRecipe, int $persons): array {
     $servings = max(1, (int)($mealieRecipe['servings'] ?? 4));
     $scale = $persons / $servings;
@@ -524,8 +602,12 @@ function mealiePickRecipe(array $pantryItems, int $persons, string $mustInclude 
     }
 
     $exclude = array_map(static fn($t) => mb_strtolower(trim($t)), $excludeTitles);
+    $maxMissing = mealieProposalMaxMissing();
     $best = null;
     $bestScore = 0.0;
+    $bestMissing = PHP_INT_MAX;
+    $bestCoverage = null;
+    $skipped = 0;   // candidates thrown away because the pantry cannot cook them
 
     foreach ($cache['recipes'] as $entry) {
         $recipe = $entry['recipe'] ?? null;
@@ -536,18 +618,55 @@ function mealiePickRecipe(array $pantryItems, int $persons, string $mustInclude 
         if ($title !== '' && in_array($title, $exclude, true)) {
             continue;
         }
+        $coverage = mealieRecipePantryCoverage($recipe, $pantryItems);
+        // A dish needs at least two real ingredients on the shelf, and it may not leave more than
+        // `$maxMissing` of them in the shop: a recipe the household cannot cook is not a recipe.
+        if ($coverage['matched'] < 2 || $coverage['total'] < 2) {
+            $skipped++;
+            continue;
+        }
+        $missingCount = count($coverage['missing']);
+        if ($missingCount > $maxMissing) {
+            $skipped++;
+            continue;
+        }
         $score = mealieScoreRecipeForPantry($recipe, $pantryItems, $mustInclude);
-        if ($score > $bestScore) {
-            $bestScore = $score;
+        if (trim($mustInclude) !== '' && $score <= 0) {
+            $skipped++;
+            continue;
+        }
+        // Fewest missing wins (and full coverage beats a bigger score), then the usual score.
+        $better = $best === null
+            || $missingCount < $bestMissing
+            || ($missingCount === $bestMissing && $score > $bestScore);
+        if ($better) {
             $best = $recipe;
+            $bestScore = $score;
+            $bestMissing = $missingCount;
+            $bestCoverage = $coverage;
         }
     }
 
-    if (!$best || $bestScore < 15) {
+    if (!$best || !$bestCoverage) {
+        EverLog::info('No Mealie recipe the pantry can cook', [
+            'event'      => 'mealie_pick_no_match',
+            'candidates' => count($cache['recipes']),
+            'skipped'    => $skipped,
+            'max_missing'=> $maxMissing,
+        ]);
         return null;
     }
+
     $best['from_cache'] = true;
-    return mealieRecipeToEverShelfFormat($best, $persons);
+    $out = mealieRecipeToEverShelfFormat($best, $persons);
+    $out['pantry_coverage'] = $bestCoverage;
+    EverLog::info('Mealie recipe proposed', [
+        'event'    => 'mealie_pick',
+        'title'    => (string)($out['title'] ?? ''),
+        'missing'  => $bestCoverage['missing'],
+        'coverage' => $bestCoverage['coverage'],
+    ]);
+    return $out;
 }
 
 function mealieTryRecipeGeneration(PDO $db, array $pantryItems, int $persons, array $opts = []): ?array {

@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.0-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.5-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -227,76 +227,50 @@ the gate this release was developed against.
 <details open>
 <summary><b>Last five releases</b></summary>
 
-**v2.2.0 — three features that close the loop.** Expiry notifications now arrive with
-**✓ Usato** and **🔥 Buttato** buttons that write the stock without opening the app (one to
-three products per alert; the button is a signed door, never the API token); a **monthly report**
-in Settings → Dati prints to PDF with the pantry snapshot, consumption, every discard and its
-reason, and the recorded spend — same numbers as the dashboard; and the **freezer became a
-state**: freeze a pack and its countdown becomes the category's freezer shelf life, thaw it and
-you get the original date back, limited by the 48-hour rule, with a notification. Along the way,
-Web Push itself was broken on any install with an API token (the worker's inbox request was
-answered 401): fixed.
+**v2.2.5 — «hai tutti gli ingredienti» was not a fact.** The idle screen proposed recipes whose
+ingredients were finished and printed «✅ Hai tutti gli ingredienti» over them: that chip came from
+`missing === 0`, and zero meant both "everything is on a shelf" and "nothing was checked". The check
+also **skipped** every ingredient whose quantity is not a number («q.b.», «80-90 g» — the sugar of
+the Maxi-Pancake, the lemon of the Piadina), so with the sugar gone it still answered `missing 0`.
+The answer is now three-valued — missing / unverifiable / verified — the ✅ is printed only when
+*every* ingredient was found on a shelf, otherwise «⚠️ Manca: …» or «❔ Da verificare: …», and any
+write into the pantry drops the shelf snapshot, so a product finished a second ago can no longer
+read as present.
 
-**v2.1.5 — five reports from other households, fixed.** The daily expiry alert now reaches
-ntfy/webhook without Home Assistant enabled (it was gated on `HA_ENABLED`, while the sender
-already fans out to both), with `EXPIRY_ALERT_HOUR` to move it away from midnight UTC;
-`backup.sh` no longer exits before writing a file when `.env` has no `BACKUP_RETENTION_DAYS`;
-Mealie recipes are cached again (`mealieCacheKey()` read `slug`/`id`, the normalized recipe
-carries `mealie_slug`/`mealie_id`) and a linked unit is its name instead of `Array`; and one
-switch in Settings → Aspetto turns the «no expiry» banner off for every product at once.
+**v2.2.4 — a search does not outlive the moment.** While a word narrows the pantry the idle return to
+the Home comes after **1 minute** instead of 2 and **clears the search**: the shelf comes back whole
+and the next visit no longer finds an empty or wrong list (the search survives navigation on
+purpose). Measured in a browser: «latte» → 4 rows and a 60 s clock → after 60 s the Home with an
+empty field, then 150 rows again with the clock back at 2 minutes.
 
-**v2.1.4 — SHELFY stops saying "I understood" when it didn't.** The fallback card opened with
-«Ho capito: «…» — ma il comando non è andato a buon fine» over a message that said the sentence
-was not understood. It now asks the honest question — «Non riesco a capire la richiesta: posso
-passare il tuo messaggio a un agente AI?» with the chat, or «Mi dispiace, ma non riesco a capire
-la tua richiesta» with **no** chat button when no AI provider is configured — and «Riprova a
-voce» is back on the wall now that the kiosk has a native recogniser.
+**v2.2.3 — «non mi chiede più dove metto il resto».** Nothing was broken: the question was
+answering itself. Its clock is the app's confidence, and that confidence was learned **from the
+app's own auto-answers** — the countdown expiring on a presumed place was recorded as if you had
+chosen it, so one guess became a "habit" that shortened the next clock, which produced more guesses.
+Measured on a real install: **361 learned places**, almost every product at the 2-second floor, i.e.
+a modal that flashed and answered itself. Now only a real tap teaches a place, and the floor is 6 s
+(measured after the fix: 10 s on screen, then «📦 la confezione resta in Frigo»).
 
-**v2.1.2 — SHELFY listens on the wall again.** The kiosk microphone was switched off in
-v1.31.1 because Android's WebView recogniser needs a permission dialog, and a dialog cannot
-come to the front over a pinned kiosk: the Activity was recreated and the wall read it as
-"tapping SHELFY restarts the app". The APK now carries a **native `SpeechRecognizer`**
-(kiosk 1.7.39) that runs in the app process, shows no dialog, and speaks the same events to
-the page — so the whole SHELFY turn works unchanged. An older APK keeps the honest message.
+**v2.2.2 — a recipe nobody can cook is not a recipe.** With Mealie configured, the ricettario was
+consulted before the AI and answered every request — so the AI stopped generating, and the dishes
+it returned were picked on a loose score (nine ingredients of which two happened to be on a shelf
+was enough: **2 of 27 recipes were actually cookable** on a real pantry). The generator now **asks
+which engine you want** («✨ Genera una ricetta nuova con l'AI» or «📚 Prendi una ricetta dal
+ricettario»), and the book may only propose a dish whose ingredients you have — the count is
+verified against the shelves, the sheet says «✅ Tutti gli ingredienti sono in dispensa», and the log
+names what was missing when nothing qualifies. The AI side refuses a result that lost its
+ingredients instead of showing "sale e pepe". Every sheet also says where the dish came from.
 
-**v2.1.1 — two reports from the forks.** An in-store barcode (EAN-13 starting with `2`,
-the shop's own numbering and what a homemade label gets) is no longer sent to the public
-catalogues, which answered with an arbitrary product that was then stored: it is resolved
-against the local database only. And the low-stock prompt no longer appears when shopping is
-switched off, where its list writes are no-ops. Both come from
-[@fabian1512](https://github.com/fabian1512)'s fork — thank you.
+**v2.2.1 — a row tap opens the sheet, and nothing else.** Tapping a product in a list opened the
+sheet *and* consumed the default quantity: `pointerup` opens the sheet, and the `click` the browser
+fires right after lands on whatever is now under the finger — the sheet's own «✓ Usa {qty}»
+primary. Measured on a phone: a tap at y=712 with that button at 689–734 wrote a 25 g consumption
+by itself («appena premo parte di default un uso di 1 unità senza chiedermi nulla»). The gesture
+that opens a sheet now swallows that one synthetic click, so nothing is written until the household
+presses. And a «✓ Usa» in the Home lists no longer falls back to the old full-page «Usa / Consuma»
+when the pantry has not been loaded yet: it resolves the row and opens the same sheet.
 
-**v2.1.0 — demo mode that actually shows a pantry.** `DEMO_MODE=true` (or `?demo=1`,
-or serving the app under `/demo`) now opens the app on a **seeded demo database** — thirty
-products across pantry, fridge and freezer, a month of history and a real shopping list —
-instead of an empty screen. English by default and translated by `?lang=` (products
-included: each language has its own seed), no pairing, read-only with quiet no-ops, and
-embeddable in an iframe (`frame-ancestors` instead of `X-Frame-Options`). The household's
-database is never opened in demo mode. A fresh install also boots again: `initializeDB()`
-was missing `products.kind`, which the migrations read.
-
-**v2.0.0 — the big one.** The settings page became a control panel (six sections, four
-essentials always visible, no Save button: every control writes itself) and the idle screen
-became a dashboard that reads your own data: a recipe you already cooked («fatta 11 giorni fa —
-ti era piaciuta?», with a thumb), what to eat first, the pantry charts and an idea of the day. One row grammar across pantry, Home and shopping; the medicine cabinet and the
-stocktake are first-class; the API is token-and-pairing only; and an update repairs and verifies
-the database on the first boot. This is the first major release after 1.16.16 — nothing about the
-data changes, every screen does.
-
-**v1.31.35 — a medicine's active ingredient wraps.** «CLORTETRACICLINA CLORIDRATO» was cut at
-the edge of the cabinet row; it goes on the next line now, and the sheet's facts wrap instead
-of scrolling sideways.
-
-**v1.31.34 — the shopping list wears the same row as the Home.** Photo strip, one meta line
-(stock · qty · price), one state pill, the same two actions — 132 px like every other list.
-
-**v1.31.33 — the Home lists wait with the SHELFY skeleton.** «Expiring», «Opened» and
-«Forgotten» show the breathing skeleton instead of a blank panel, and a slow first paint no
-longer hides the animation behind the splash.
-
-**v1.31.32 — every banner reason wears its own tint.** An open yoghurt, a loss check and a
-prediction stopped being the same grey card with different words: each reason sets one soft hue,
-the theme keeps the paper and the rail keeps the urgency.
+Older releases live in [CHANGELOG.md](CHANGELOG.md).
 
 </details>
 
