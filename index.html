@@ -1571,6 +1571,23 @@
                         </select>
                     </div>
                 </div>
+                <!-- Issue #316: one switch for a reason, not one tap per article. The
+                     «no expiry» notice is the one banner that repeats for every spice and
+                     staple the household does not date; «non serve la scadenza» stays the
+                     per-product answer, this is the instance-wide one. -->
+                <div class="settings-card">
+                    <h4 data-i18n="settings.no_expiry_banner.title">🔔 Avviso «senza scadenza»</h4>
+                    <div class="form-group">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.no_expiry_banner.label">Mostra l'avviso per i prodotti senza scadenza</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-no-expiry-banner">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                        <p class="settings-hint" data-i18n="settings.no_expiry_banner.hint">Gli articoli senza data di scadenza ricevono un avviso nella Home. Se non tieni le scadenze di spezie e dispensa puoi spegnerlo qui: vale per tutti i prodotti e per ogni dispositivo, invece di segnarli uno per uno.</p>
+                    </div>
+                </div>
                 <div class="settings-card">
                     <h4 data-i18n="settings.screensaver.card_title">🌙 Salvaschermo</h4>
                     <p class="settings-hint" data-i18n="settings.screensaver.card_hint">Mostra un orologio con fatti utili dopo un periodo di inattività. Di default è disattivato.</p>

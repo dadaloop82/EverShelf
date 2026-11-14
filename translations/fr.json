@@ -1680,6 +1680,11 @@
       "card_hint": "Pendant la cuisson, affichez des conseils pour réutiliser les déchets produits à chaque étape (épluchures, eau de cuisson, etc.). Désactivé par défaut.",
       "label": "Afficher les conseils pendant la cuisson"
     },
+    "no_expiry_banner": {
+      "title": "🔔 Avis « sans date de péremption »",
+      "hint": "Les articles sans date limite d'utilisation reçoivent un avis sur l'accueil. Si vous ne suivez pas les dates des épices et des réserves, désactivez-le ici : il s'applique à tous les produits et à tous les appareils, au lieu de les marquer un par un.",
+      "label": "Afficher l'avis pour les produits sans date de péremption"
+    },
     "backup": {
       "tab": "Sauvegarde",
       "local_title": "Sauvegarde locale",

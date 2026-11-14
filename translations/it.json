@@ -1785,6 +1785,11 @@
       "card_hint": "Durante la cottura, mostra consigli su come riutilizzare gli scarti prodotti in ogni passo (bucce, acqua di cottura, ecc.). Disattivo per impostazione predefinita.",
       "label": "Mostra suggerimenti durante la cottura"
     },
+    "no_expiry_banner": {
+      "title": "🔔 Avviso «senza scadenza»",
+      "hint": "Gli articoli senza data di scadenza ricevono un avviso nella Home. Se non tieni le scadenze di spezie e dispensa puoi spegnerlo qui: vale per tutti i prodotti e per ogni dispositivo, invece di segnarli uno per uno.",
+      "label": "Mostra l'avviso per i prodotti senza scadenza"
+    },
     "backup": {
       "tab": "Backup",
       "local_title": "Backup Locale",

@@ -56,11 +56,23 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "tab": "tab-general",
             "group": "general",
             "label": "settings.theme.off",
-            "hint": "settings.screensaver.card_hint",
+            "hint": "",
             "card": "settings.theme.title",
             "card_hint": "settings.theme.hint",
             "keywords": "settings.search_kw.theme",
             "type": "select"
+        },
+        {
+            "id": "setting-no-expiry-banner",
+            "env": "NO_EXPIRY_BANNER_ENABLED",
+            "tab": "tab-general",
+            "group": "general",
+            "label": "settings.no_expiry_banner.label",
+            "hint": "settings.no_expiry_banner.hint",
+            "card": "settings.no_expiry_banner.title",
+            "card_hint": "settings.no_expiry_banner.hint",
+            "keywords": "",
+            "type": "bool"
         },
         {
             "id": "setting-screensaver-enabled",
@@ -1710,6 +1722,10 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         },
         {
             "env": "HA_WEBHOOK_EVENTS",
+            "reason": "advanced"
+        },
+        {
+            "env": "EXPIRY_ALERT_HOUR",
             "reason": "advanced"
         },
         {

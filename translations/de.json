@@ -1741,6 +1741,11 @@
       "card_hint": "Zeige während des Kochens Tipps zur Wiederverwendung von Abfällen (Schalen, Kochwasser usw.). Standardmäßig deaktiviert.",
       "label": "Tipps beim Kochen anzeigen"
     },
+    "no_expiry_banner": {
+      "title": "🔔 Hinweis „ohne Haltbarkeitsdatum“",
+      "hint": "Artikel ohne Mindesthaltbarkeitsdatum erhalten einen Hinweis auf der Startseite. Wenn du bei Gewürzen und Vorräten keine Daten pflegst, schalte ihn hier ab: er gilt für alle Produkte und alle Geräte, statt sie einzeln zu markieren.",
+      "label": "Hinweis für Produkte ohne Haltbarkeitsdatum anzeigen"
+    },
     "backup": {
       "tab": "Sicherung",
       "local_title": "Lokales Backup",

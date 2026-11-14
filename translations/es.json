@@ -1680,6 +1680,11 @@
       "card_hint": "Durante la cocción, muestra consejos sobre cómo reutilizar los restos generados en cada paso (peladuras, agua de cocción, etc.). Desactivado por defecto.",
       "label": "Mostrar consejos durante la cocción"
     },
+    "no_expiry_banner": {
+      "title": "🔔 Aviso «sin caducidad»",
+      "hint": "Los artículos sin fecha de caducidad reciben un aviso en la pantalla de inicio. Si no controlas las fechas de especias y despensa, desactívalo aquí: se aplica a todos los productos y a todos los dispositivos, en lugar de marcarlos uno a uno.",
+      "label": "Mostrar el aviso para productos sin fecha de caducidad"
+    },
     "backup": {
       "tab": "Copia de seguridad",
       "local_title": "Copia local",
