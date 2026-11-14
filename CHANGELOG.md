@@ -5,6 +5,41 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.5] - 2026-11-14
+
+### The expiry alert reaches somewhere, and the backup runs
+
+Five reports from other households: four bugs — all reproduced and fixed here — and one
+feature request that landed with them.
+
+- **The daily expiry alert no longer needs Home Assistant** (#321). The check lived behind
+  `HA_ENABLED` + `HA_WEBHOOK_ID`, while `_fireHaWebhook()` already fans the event out to the
+  ntfy/webhook channels *before* its own HA gate: an install with `NOTIFY_ENABLED=true`,
+  `NOTIFY_EVENTS=expiry_alert` and Home Assistant off received nothing at all. It now runs when
+  either river is configured (HA webhook, HA notify service, ntfy, webhook), the delivery gates
+  stay in the sender, and `EXPIRY_ALERT_HOUR` (0-23, server local time, empty = the old
+  "as soon as the day turns") moves the pass away from midnight UTC — the 19:00 alert a US
+  household was getting.
+- **`backup.sh` no longer exits before writing anything** (#320). `grep` exits 1 when `.env` has
+  no `BACKUP_RETENTION_DAYS` line and `set -euo pipefail` ended the script before `mkdir`: the
+  `RETENTION=3` default existed for that case and was never reached. Measured — old script:
+  exit 1, no file; new script: exit 0, `evershelf_<date>.db` written.
+- **Mealie recipes are cached again** (#318). `mealieCacheKey()` read `slug` / `id` from a
+  normalized recipe that carries `mealie_slug` / `mealie_id`: the key was always empty,
+  `mealieStoreInCache()` returned without storing, `data/mealie_cache.json` stayed
+  `"recipes": []` and every suggestion ran a full sync inside the web request.
+- **A linked Mealie unit is its name, not `Array`** (#319). An ingredient parsed by Mealie
+  carries `unit` as an object (`{id, name, …}`); `(string)` on it stored the literal `Array`
+  and logged one "Array to string conversion" warning per line.
+
+### One switch for the «no expiry» notice (#316)
+
+Every item without a best-before date raised its own banner, so a pantry of spices and staples
+asked the same question on each of them. `NO_EXPIRY_BANNER_ENABLED` (Settings → Aspetto, ON by
+default so nothing changes for an existing install) turns the whole reason off for every
+product and every device, while «Non serve la scadenza» keeps working per product. The value
+lives on the server, like every household answer: a phone and the wall see the same one.
+
 ## [2.1.4] - 2026-11-13
 
 ### SHELFY says the truth when it does not understand

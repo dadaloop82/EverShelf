@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.1.4-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.1.5-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -226,6 +226,14 @@ the gate this release was developed against.
 
 <details open>
 <summary><b>Last five releases</b></summary>
+
+**v2.1.5 — five reports from other households, fixed.** The daily expiry alert now reaches
+ntfy/webhook without Home Assistant enabled (it was gated on `HA_ENABLED`, while the sender
+already fans out to both), with `EXPIRY_ALERT_HOUR` to move it away from midnight UTC;
+`backup.sh` no longer exits before writing a file when `.env` has no `BACKUP_RETENTION_DAYS`;
+Mealie recipes are cached again (`mealieCacheKey()` read `slug`/`id`, the normalized recipe
+carries `mealie_slug`/`mealie_id`) and a linked unit is its name instead of `Array`; and one
+switch in Settings → Aspetto turns the «no expiry» banner off for every product at once.
 
 **v2.1.4 — SHELFY stops saying "I understood" when it didn't.** The fallback card opened with
 «Ho capito: «…» — ma il comando non è andato a buon fine» over a message that said the sentence
