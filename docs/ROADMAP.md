@@ -43,6 +43,9 @@ far), `feature` / `enhancement` / `bug` / `i18n` / `docs`.
 | Optional support layer — **donations only**, no advertising | — | 1.12.0 |
 | SHELFY acts on the page you are on (floating 10 s confirmation, compact sheet, avatar) + “…alla spesa” intent | — | 1.29.5 |
 | Editable PAO — the opening window («consigliato entro 3-6 gg») is corrected in the edit sheet and the app keeps the **average** per family + place | — | branch (`pao_overrides`, `pao_save`) |
+| Quick stocktake — one article at a time on the shelf, resumable from any device | [#285](https://github.com/dadaloop82/EverShelf/issues/285) | 2.0.0 (`assets/js/audit.js`, `app_settings.audit_state`) |
+| One switch for the «no expiry» notice, instead of tapping «non serve la scadenza» on every spice | [#316](https://github.com/dadaloop82/EverShelf/issues/316) | 2.1.5 (`NO_EXPIRY_BANNER_ENABLED`) |
+| Expiry alerts reach ntfy / webhook without Home Assistant enabled | [#321](https://github.com/dadaloop82/EverShelf/issues/321) | 2.1.5 (`EXPIRY_ALERT_HOUR`) |
 
 ## 🔜 Next (agreed, waiting for hands)
 
@@ -98,27 +101,7 @@ The anti-waste logic cannot ignore the freezer.
 * Sits next to the existing vacuum-seal expiry extension, so the two must not fight
   over the same `expiry_date`.
 
-### 5. Quick audit mode (stocktaking in two minutes) · **S–M**
-Issue: [#285](https://github.com/dadaloop82/EverShelf/issues/285)
-Inventories drift. A touch view that shows **one item at a time** as a sentence —
-“Ci sono ancora 120 g di Formaggio Morbido di Barilla in Frigo” — and asks one
-question with real answers: *Sì, confermo*, *Cambio quantità* / *Cambio posizione*
-(the normal edit sheet opens on top of the run, manual or from the scale), *No, è
-esaurito* (the use-all action) and *No, è deperito* (the throw-all action), plus
-*quasi finito* and *salta* for the rest. You can walk a shelf or the fridge without
-the scanner.
-
-* One screen, large targets, works on the kiosk with a finger and on a phone.
-* A run closed by mistake resumes from the point reached for one hour; when the
-  scale is connected, *Leggi dalla bilancia* fills the quantity in one tap.
-* *Indietro* rewinds the last answer with a real undo — including from the summary,
-  so the last article can be fixed after the run has ended.
-* Writes through the existing `inventory_update` / `inventory_use` paths, so
-  consumption stats, the shopping list and the waste learning keep working; batches
-  the changes and reports them at the end.
-* No new backend action needed.
-
-### 6. Household nutrition profiles for the AI chef · **M**
+### 5. Household nutrition profiles for the AI chef · **M**
 Issue: [#287](https://github.com/dadaloop82/EverShelf/issues/287)
 The Health Bridge already knows about diets and goals; the recipe generator should
 know about **everyone at the table**.
@@ -130,7 +113,7 @@ know about **everyone at the table**.
   cannot be verified is flagged instead of served.
 * Same choke point as the health pipeline, so one place owns the rules.
 
-### 7. Thermal label printing (ESC/POS + Brother) · **M** (ESC/POS **S**)
+### 6. Thermal label printing (ESC/POS + Brother) · **M** (ESC/POS **S**)
 Issue: [#288](https://github.com/dadaloop82/EverShelf/issues/288)
 For meal prep and portions pulled out of the freezer: one tap on the kiosk prints a
 sticker with the name, the date and a QR code that later deducts that portion.
@@ -142,7 +125,7 @@ sticker with the name, the date and a QR code that later deducts that portion.
 * Scanning the printed QR resolves the product + portion and calls the existing use
   action.
 
-### 8. Multi-store and inflation tracking · **M–L**
+### 7. Multi-store and inflation tracking · **M–L**
 Issue: [#289](https://github.com/dadaloop82/EverShelf/issues/289)
 Instead of only estimating a replacement cost: know what *you* paid, where.
 
@@ -168,7 +151,7 @@ Open issues we would happily hand over — say the word in the issue:
 |---|---|---|
 | Custom tags per product (`gluten-free`, `bulk-buy`, …) | [#97](https://github.com/dadaloop82/EverShelf/issues/97) | self-contained: one column, one filter bar |
 | Monthly PDF report (inventory, consumption, waste) | [#103](https://github.com/dadaloop82/EverShelf/issues/103) | server-side only, no UI risk |
-| Public REST API v1 + outbound webhooks | [#106](https://github.com/dadaloop82/EverShelf/issues/106) | integration-facing, spec already exists |
+| Public REST API v1 + outbound webhooks | [#106](https://github.com/dadaloop82/EverShelf/issues/106) | integration-facing; the outbound webhooks (HA, ntfy, generic) and the token-authenticated action API already ship, the versioned surface is what is missing |
 | Voice input (add items by speaking) | [#115](https://github.com/dadaloop82/EverShelf/issues/115) | browser API + one AI prompt |
 | Voice commands in cooking mode | [#125](https://github.com/dadaloop82/EverShelf/issues/125) | the TTS half already ships |
 | Geofencing: remind me near the supermarket | [#121](https://github.com/dadaloop82/EverShelf/issues/121) | client-side only, GPS never leaves the device |
