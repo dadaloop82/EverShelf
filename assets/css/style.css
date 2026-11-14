@@ -7401,6 +7401,28 @@ body::after {
     line-height: 1.5;
 }
 
+/* WHICH engine answered (`recipes.source_ai` / `recipes.source_mealie`): one emerald pill, the
+   same in every theme — it is a fact about the answer, not a warning. */
+.recipe-result .recipe-tag.recipe-source-tag {
+    background: var(--primary);
+    color: #fff;
+}
+/* A ricettario dish verified against the shelves: green when the pantry carries all of it, amber
+   (`.recipe-expiry-note` alone) when `MEALIE_RECIPE_MAX_MISSING` allows one gap. */
+.recipe-result .recipe-coverage-note.is-ok {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+/* The engine question — one hint line under the two buttons, never a paragraph. */
+.recipe-engine-choice-hint {
+    margin: 10px 0 0;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    color: var(--text-muted);
+    text-align: center;
+}
+
 /* ===== RECIPE NUTRITION BLOCK ===== */
 .recipe-nutrition-block {
     background: #f0fdf4;
@@ -13613,6 +13635,7 @@ body.cooking-mode-active .app-header {
 
 /* ── Recipe components ── */
 [data-theme="dark"] .recipe-expiry-note  { background: #2a1e00; color: #fde68a; }
+[data-theme="dark"] .recipe-result .recipe-coverage-note.is-ok { background: #052e16; color: #86efac; border-color: #14532d; }
 [data-theme="dark"] .recipe-nutrition-block { background: #052e16; border-color: #166534; }
 [data-theme="dark"] .recipe-section-heading { color: #4ade80; }
 [data-theme="dark"] .recipe-storage-card .recipe-section-heading { color: #fbbf24; }

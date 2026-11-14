@@ -219,12 +219,18 @@ function _ssPickRecipe() {
         if (!r || !Array.isArray(r.ingredients) || !r.ingredients.length) return;
         const info = (typeof _recipeArchiveMissingInfo === 'function')
             ? _recipeArchiveMissingInfo(r)
-            : { missing: 0, pantry: 0, uncookable: false, items: [] };
-        if (info.uncookable || info.missing > 1) return;
+            : { missing: 0, pantry: 0, unknown: [], checked: false, uncookable: false, allInPantry: false, items: [] };
+        // A proposal must be VERIFIABLE: a shelf snapshot plus at least one linked ingredient.
+        // Without them «missing: 0» is a default, not a fact — which is exactly how this card
+        // ended up offering a dish whose ingredients had been finished («mi fa vedere ricette cui
+        // non ho più gli ingredienti e mi dice "hai tutti gli ingredienti"»).
+        if (!info.checked || !info.pantry || info.uncookable || info.missing > 1) return;
         const expiring = r.ingredients.filter(i => i && i.product_id && expiringIds.has(String(i.product_id)));
         const rating = Number(entry.rating) || 0;
         const ageDays = _ssAgeDays(entry);
         let score = 100 - info.missing * 25;
+        if (info.allInPantry) score += 15;                   // every ingredient is on a shelf
+        else if (info.unknown.length) score -= 10;           // something nobody can verify
         score += expiring.length * 10;
         if (rating >= 4) score += 12;                        // a dish this household liked
         else if (rating > 0 && rating <= 2) score -= 10;     // one it did not
@@ -277,10 +283,16 @@ function _ssViewMeal() {
     const r = pick.recipe;
     const nutr = r.nutrition || {};
     const facts = [];
-    if (pick.info.missing === 0) {
+    // The ✅ is a CLAIM, so it is printed only when every ingredient was verified on a shelf
+    // (`allInPantry`): `missing === 0` alone also means "nothing was checked", which is what turned
+    // this chip into a lie for recipes whose «q.b.» ingredients were skipped or whose products were
+    // finished since.
+    if (pick.info.allInPantry) {
         facts.push(`<span class="ss-chip is-ok">✅ ${escapeHtml(t('screensaver.meal_all'))}</span>`);
-    } else if (pick.info.items.length) {
+    } else if (pick.info.missing > 0 && pick.info.items.length) {
         facts.push(`<span class="ss-chip is-warn">⚠️ ${escapeHtml(t('screensaver.meal_missing', { items: pick.info.items.map(i => i.name).join(', ') }))}</span>`);
+    } else if (pick.info.unknown.length) {
+        facts.push(`<span class="ss-chip">❔ ${escapeHtml(t('screensaver.meal_unknown', { items: pick.info.unknown.join(', ') }))}</span>`);
     }
     if (pick.expiring.length) {
         facts.push(`<span class="ss-chip is-warn">${escapeHtml(t('screensaver.meal_expiring', { items: pick.expiring.map(i => i.name).join(', ') }))}</span>`);

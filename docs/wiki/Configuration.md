@@ -111,6 +111,22 @@ GH_ISSUE_TOKEN_KEY=
 REPORT_ENABLED=false
 
 # ─────────────────────────────────────────────
+# Recipes: which engine answers
+# ─────────────────────────────────────────────
+
+# gemini | mealie | auto (default: auto when a Mealie ricettario is usable).
+# The app ASKS when both engines exist and sends the answer with the request
+# (`recipe_source`), which wins over this setting — «auto» can never make the
+# book answer in place of the AI the household pressed.
+RECIPE_SOURCE=auto
+
+# How many ingredients a recipe from the Mealie book may lack before it is
+# refused (0 = only dishes the pantry can cook completely, the default).
+# The gate counts every ingredient that is not a free staple (water, salt,
+# pepper, oil) and logs `mealie_pick` / `mealie_pick_no_match` with the names.
+# MEALIE_RECIPE_MAX_MISSING=0
+
+# ─────────────────────────────────────────────
 # Idle screen (kiosk / wall tablet)
 # ─────────────────────────────────────────────
 
@@ -129,6 +145,12 @@ SCREENSAVER_VIEWS=meal,alerts,nutrition,fact
 # Seconds between two cards (10-300, default 30). The old card dissolves upward
 # and the next one comes down from the top.
 SCREENSAVER_INTERVAL=30
+
+# Not a setting, on purpose: the app returns to the Home by itself after 2 minutes
+# of stillness, and after 1 minute while a search narrows the pantry — that search
+# is cleared first, so the next visit starts from the whole shelf instead of an
+# empty-looking list. Shopping, the in-store scan/add flows, cooking mode and any
+# open dialog keep the clock away (that is the household using the app).
 
 # ─────────────────────────────────────────────
 # Calendar feed (ICS / WebCal)

@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261114b'; // bump when translations change
+const _I18N_VERSION = '20261114g'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4580,6 +4580,9 @@ function _rememberInventorySearchFromInput() {
     const el = document.getElementById('inventory-search');
     if (el) _inventorySearchQuery = el.value || '';
     _syncSearchClearBtn('inventory-search', 'inventory-search-clear');
+    // A search (or its removal) changes how long the idle clock may run: re-arm it from here, or
+    // the 1-minute window would start only at the next keystroke/scroll.
+    _resetAutoHomeTimer();
 }
 
 function _restoreInventorySearchInput() {
@@ -9789,6 +9792,11 @@ function refreshAppDataAfterMutation() {
     _captureInventoryCacheAt = 0;
     // …and the shared READ cache, or the next load would answer with the rows just changed.
     _apiDropReadCache();
+    // The archive judges every recipe against a 30 s snapshot of the shelves
+    // (`_recipeLiveProductIds`): after a consumption that snapshot is a lie, and the screensaver
+    // kept telling the household «hai tutti gli ingredienti» about a product it had just finished.
+    _recipeLiveProductIds = null;
+    _recipeLiveProductIdsAt = 0;
     if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
     // One choke point: whatever mutated, the dashboard rebuilds itself if it is on screen.
     _dashboardLiveRefresh();
@@ -16657,6 +16665,33 @@ const ROW_OPEN_HOLD_MS = 900;
 const ROW_OPEN_MOVE_PX = 12;
 
 /**
+ * A gesture that OPENS a sheet must not also press a button inside it.
+ *
+ * `pointerup` runs before the browser's synthetic `click`, and that click is hit-tested when it is
+ * dispatched: by then the sheet has replaced the row under the finger, so whatever button landed at
+ * those coordinates gets a REAL click. Measured on a 393×860 phone: a row tapped at y=712 with the
+ * sheet's primary «✓ Usa 25 g» at 689–734 wrote `inventory_use { quantity: 25 }` all by itself —
+ * the household's report «appena premo parte di default un uso di 1 unità senza chiedermi nulla».
+ * The synthetic click follows within a few milliseconds, so swallowing the first one is enough;
+ * the window is short on purpose and a later tap always belongs to the user.
+ */
+let _tapClickGuardUntil = 0;
+let _tapClickGuardBound = false;
+function _guardTapClick(ms = 450) {
+    _tapClickGuardUntil = Date.now() + ms;
+    if (_tapClickGuardBound) return;
+    _tapClickGuardBound = true;
+    document.addEventListener('click', (ev) => {
+        if (!_tapClickGuardUntil) return;
+        const live = Date.now() <= _tapClickGuardUntil;
+        _tapClickGuardUntil = 0;   // one shot: a second click is the household's
+        if (!live) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+    }, true);
+}
+
+/**
  * Bind press-and-hold (touch/pen) or click (mouse) to open a list row.
  * Cancels if the finger moves → scroll works without opening.
  */
@@ -16720,6 +16755,8 @@ function _bindRowHoldOpen(el, openFn, opts = {}) {
         // made every alert row feel dead on Android: "tap su qualsiasi elemento non
         // accade nulla". The synthetic click that follows is swallowed below.
         opened = true;
+        // …and it must not land on the sheet this very tap is opening (`_guardTapClick`).
+        _guardTapClick();
         openFn(e);
         setTimeout(() => { opened = false; }, 400);
     };
@@ -16922,6 +16959,7 @@ function _initInventoryRowSwipe(container) {
         if (!ctx.scrollIntent && !scrolled && dx >= INV_SWIPE_MIN_X
             && dx >= ctx.maxDy * INV_SWIPE_RATIO + 12 && !isNaN(invId)) {
             markSwipeDone();
+            _guardTapClick();
             editInventoryItem(invId);
             return;
         }
@@ -16935,7 +16973,14 @@ function _initInventoryRowSwipe(container) {
             && (ctx.maxDy <= INV_TAP_SLOP_Y || (elapsed <= INV_TAP_MAX_MS && ctx.maxDy <= INV_TAP_FORGIVE_Y));
         if (stayedStill && !isNaN(productId)) {
             markSwipeDone();
-            quickUse(productId, location);
+            // The click the browser synthesizes right after this pointerup is hit-tested at the
+            // same coordinates — now the sheet — and used to press its «✓ Usa {qty}» primary,
+            // recording a consumption of the default quantity nobody asked for.
+            _guardTapClick();
+            // The row knows its OWN inventory id: two packs of the same product in the same place
+            // (Amido ×3) must open the pack that was tapped, not the first one found.
+            if (!isNaN(invId) && invId > 0) showItemDetail(invId, productId);
+            else quickUse(productId, location);
         }
     };
 
@@ -20548,25 +20593,14 @@ function closeModal() {
     if (startSpesaAfterSpend) _spesaBeginScanning();
 }
 
-async function _openUsePage(productId, location) {
-    showLoading(true);
-    try {
-        await _loadUseProduct(productId, location);
-        showPage('use', null, { skipHistory: false });
-    } catch (err) {
-        console.error('_openUsePage error:', err);
-        showToast(t('error.loading'), 'error');
-    } finally {
-        showLoading(false);
-    }
-}
-
 /**
  * Product + rows a USE action subtracts from, WITHOUT navigating.
  *
- * `showUseForm()` (the guided page) needs `currentProduct` and `_useCurrentItems`; so does
- * `submitUseAll()` when it is called from the product modal. One loader for both paths, so
- * "consume everything" can stay in the sheet the user is already looking at.
+ * The guided `#page-use` form needs `currentProduct` and `_useCurrentItems`. It is NOT a row
+ * action any more: a product tapped in a list opens the sheet (`showItemDetail`), and a "✓ Usa"
+ * opens that same sheet — this loader only fills the legacy page, which the product action page
+ * and the scale still drive (`showUseForm`). It used to be the body of `_openUsePage()`, the
+ * function that took a row tap to that page.
  */
 async function _loadUseProduct(productId, location) {
     currentProduct = { id: productId };
@@ -20615,16 +20649,42 @@ function _inventoryIdFor(productId, location) {
  * It used to close the sheet and navigate to the legacy full-page USE form, so the same
  * decision had two different shapes a thumb apart (and the page still carried the old red
  * "Usa TUTTO" and the purple recipe button). One surface, one grammar: the modal with the
- * quantity stepper. The guided page stays for SHELFY and the scale, which drive its fields.
+ * quantity stepper — and the modal is the answer even when the row is not in the client cache
+ * yet. That was the second way a "✓ Usa" could leave the sheet: the Home is the first page and
+ * never loads the pantry, so `_inventoryIdFor()` answered 0 for every row and the button dropped
+ * the household on that old page («mi va subito in usa»). The row is now read from the server and
+ * the sheet opens on it; a product with no row anywhere gets the honest "esaurito" card.
  */
 async function quickUse(productId, location) {
-    const invId = _inventoryIdFor(productId, location);
+    const pid = Number(productId) || 0;
+    if (!pid) return;
+    const loc = String(location || '');
+    const invId = _inventoryIdFor(pid, loc);
     if (invId) {
-        showItemDetail(invId, productId);
+        showItemDetail(invId, pid);
         return;
     }
-    closeModal();
-    await _openUsePage(productId, location);
+    let rows = null;
+    try {
+        // Read-only: the sheet needs the row (place, stock, expiry, «Anche in»), and the pantry
+        // list on screen is not ours to repaint from here.
+        const data = await api('inventory_list', { include_depleted: 1 });
+        rows = Array.isArray(data?.inventory) ? data.inventory : [];
+    } catch (_) {
+        showToast(t('error.connection'), 'error');
+        return;
+    }
+    const sameProduct = rows.filter(i => Number(i.product_id) === pid && Number(i.id) > 0);
+    const hit = sameProduct.find(i => String(i.location || '') === loc) || sameProduct[0];
+    if (!hit) {
+        closeModal();
+        _showExhaustedProductModal(pid);
+        return;
+    }
+    // The whole pantry, exactly as the server reports it: `_findInventoryItem()` and the sheet's
+    // «Anche in» block read this cache, while `currentInventory` keeps the list on screen as it is.
+    _allInventoryCache = rows;
+    showItemDetail(Number(hit.id), pid);
 }
 
 /**
@@ -22097,7 +22157,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261114b';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261114g';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -22107,7 +22167,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261114b';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261114g';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -29329,8 +29389,16 @@ function _moveHistoryConfidence(hist, sourceWeight = 1) {
     return Math.max(0, Math.min(1, conf));
 }
 
-/** The clock the household asked for: 2 s when the app is sure, 20 s when it is guessing. */
-const _MOVE_PROMPT_MIN_S = 2;
+/**
+ * The clock the household asked for: short when the app is sure, 20 s when it is guessing.
+ *
+ * The floor was **2 s**, and that is not a question — it is a flash: the sheet closes, a toast
+ * appears, and by the time the line is read the prompt has answered itself. Measured on the field
+ * install after a few weeks of habits: 361 learned places, most products at the floor, and the
+ * household's report «non mi chiede più dove metto il resto». 6 s is still short enough for a
+ * confident presumption (one tap confirms it) and long enough to read it.
+ */
+const _MOVE_PROMPT_MIN_S = 6;
 const _MOVE_PROMPT_MAX_S = 20;
 
 /**
@@ -30106,18 +30174,21 @@ function _showMovePrompt(cfg) {
     `;
     _showModalOverlay();
     // The countdown lives on the presumed answer, wherever it is.
+    // A clock that runs out is NOT an answer: `fromClock` keeps the app's own guess out of the
+    // household's habits (see `_recordMoveLocChoice`), or a presumption believed once becomes
+    // "certain" after a few silences and the question starts answering itself faster and faster.
     if (stayPresumed) startMoveModalCountdown('btn-move-stay', () => _movePromptStay({ auto: true }), seconds);
-    else startMoveModalCountdown('btn-move-presumed', () => _movePromptChoose(presumedLoc), seconds);
+    else startMoveModalCountdown('btn-move-presumed', () => _movePromptChoose(presumedLoc, true), seconds);
 }
 
 /** One place chosen — by the household or by the draining bar. */
-function _movePromptChoose(locKey) {
+function _movePromptChoose(locKey, fromClock = false) {
     const cfg = _movePromptCtx;
     if (!cfg) return;
     clearMoveModalTimer();
     _movePromptCtx = null;
-    if (cfg.mode === 'recipe') confirmRecipeMove(cfg.productId, cfg.fromLoc, locKey, cfg.openedId || 0, undefined);
-    else confirmMoveAfterUse(cfg.productId, cfg.fromLoc, locKey, cfg.openedId || 0, undefined);
+    if (cfg.mode === 'recipe') confirmRecipeMove(cfg.productId, cfg.fromLoc, locKey, cfg.openedId || 0, undefined, !!fromClock);
+    else confirmMoveAfterUse(cfg.productId, cfg.fromLoc, locKey, cfg.openedId || 0, undefined, !!fromClock);
 }
 
 /** "No, resta dove l'ho preso" — or the bar emptied with no habit yet. */
@@ -30195,8 +30266,10 @@ async function _saveVacuumAndStay(openedId, auto = false) {
     // Record the "stay" preference (and say where the pack is) before closing.
     const ctx = _pendingMoveCtx;
     const landing = ctx ? ctx.landing : 'dashboard';
+    // The household tapping «resta qui» is evidence; the clock running out is silence, and
+    // counting it as a choice is what taught the app to stop asking.
     if (ctx) {
-        _recordMoveLocChoice(ctx.productId, ctx.fromLoc, ctx.fromLoc, ctx.category);
+        if (!auto) _recordMoveLocChoice(ctx.productId, ctx.fromLoc, ctx.fromLoc, ctx.category);
         _pendingMoveCtx = null;
     }
     const vacuumEl = document.getElementById('move-vacuum-check');
@@ -30217,11 +30290,12 @@ async function _saveVacuumAndStay(openedId, auto = false) {
     if (landing) showPage(landing);
 }
 
-async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId, forcedVacuum) {
+async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId, forcedVacuum, fromClock = false) {
     clearMoveModalTimer();
     const newVacuum = forcedVacuum !== undefined ? (forcedVacuum ? 1 : 0) : (document.getElementById('move-vacuum-check')?.checked ? 1 : 0);
-    // Record preference
-    if (_pendingMoveCtx && _pendingMoveCtx.productId === productId) {
+    // Record the household's choice — never the clock's (`fromClock`): an auto-answer is the app
+    // agreeing with itself, and feeding it back made the next question shorter.
+    if (!fromClock && _pendingMoveCtx && _pendingMoveCtx.productId === productId) {
         _recordMoveLocChoice(productId, fromLoc, toLoc, _pendingMoveCtx.category);
         _pendingMoveCtx = null;
     }
@@ -36439,23 +36513,53 @@ async function _recipeLiveProductIdSet() {
 }
 
 /**
+ * Water/salt/pepper/oil live in every kitchen — the same rule the generator applies on the server
+ * (`recipeIsFreeStaple()`), ported here because the archive is judged in the browser. An ingredient
+ * that is one of these is never «missing».
+ */
+function _recipeIsFreeStaple(name) {
+    const n = String(name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    return /^(acqua|sale|pepe|peper|olio(\s|$)|extraverg|evoo)\b/u.test(n);
+}
+
+/**
  * What is missing for an archived recipe: the count, the total, the all-missing case and the
  * NAMES — the card says "manca 1 ingrediente" and the popover has to say WHICH one (and put it
  * on the shopping list).
+ *
+ * THREE answers, not two, because two were a lie:
+ *  - `pantry` / `missing` — ingredients linked to a product row, and the ones whose row is gone.
+ *    The link is `product_id` ALONE: the old check also demanded a numeric `qty_number`, so every
+ *    «q.b.» or «80-90 g» ingredient was skipped in silence («Cioccolato lindt», «Pasta Spaghetti
+ *    n.5», «Trentingrana») and the screensaver printed «✅ Hai tutti gli ingredienti» about them.
+ *  - `unknown` — ingredients with no link at all that are not a free staple: nobody can say
+ *    whether they are on a shelf, so nothing may be claimed about them.
+ *  - `checked` — whether a shelf snapshot existed at all (`_recipeLiveProductIds`). Without one
+ *    every count is zero, and zero is not an answer.
+ * `allInPantry` is the ONE verdict a card may print as «hai tutti gli ingredienti».
  */
 function _recipeArchiveMissingInfo(recipe) {
-    const info = { missing: 0, pantry: 0, uncookable: false, items: [] };
+    const info = { missing: 0, pantry: 0, unknown: [], checked: false, uncookable: false, allInPantry: false, items: [] };
+    if (!recipe || !Array.isArray(recipe.ingredients)) return info;
     const live = _recipeLiveProductIds;
-    if (!live || !recipe || !Array.isArray(recipe.ingredients)) return info;
+    info.checked = !!live;
     recipe.ingredients.forEach((i) => {
-        if (!i || !i.product_id || !(Number(i.qty_number) > 0)) return;
-        info.pantry++;
-        if (!live.has(String(i.product_id))) {
-            info.missing++;
-            info.items.push({ name: String(i.name || '').trim(), qty: String(i.qty || '').trim() });
+        if (!i) return;
+        const name = String(i.name || i.qty || '').trim();
+        if (!name) return;
+        if (i.product_id) {
+            info.pantry++;
+            // No snapshot → say nothing about it (`checked` is false and `allInPantry` stays false).
+            if (live && !live.has(String(i.product_id))) {
+                info.missing++;
+                info.items.push({ name, qty: String(i.qty || '').trim() });
+            }
+            return;
         }
+        if (!_recipeIsFreeStaple(name)) info.unknown.push(name);
     });
     info.uncookable = info.pantry > 0 && info.missing === info.pantry;
+    info.allInPantry = info.checked && info.pantry > 0 && info.missing === 0 && info.unknown.length === 0;
     return info;
 }
 
@@ -36745,10 +36849,13 @@ let _recipeVariationCount = {}; // { 'pranzo': 0, 'cena': 1, ... }
 let _rejectedRecipeIngredients = []; // ingredient names from previously rejected recipes
 
 function openRecipeDialog() {
-    if (!_requireGemini()) return;
+    // MEALIE ONLY is a valid install: the generator must open there too. The engine question
+    // (`generateRecipe`) then offers just the ricettario instead of dead-ending on `no_api_key`.
+    if (!_requireRecipeEngine()) return;
     const meal = getMealType();
     const settings = getSettings();
     document.getElementById('recipe-overlay').style.display = 'flex';
+    _hideRecipeEngineChoice();
 
     // Build meal selector radios — meals only, a juice is a drink.
     const mealGrid = document.getElementById('recipe-meal-grid');
@@ -38149,9 +38256,12 @@ function _recipeMoveCancelStay(productId, fromLoc, openedId) {
     closeModal();
 }
 
-async function confirmRecipeMove(productId, fromLoc, toLoc, openedId, forcedVacuum) {
+async function confirmRecipeMove(productId, fromLoc, toLoc, openedId, forcedVacuum, fromClock = false) {
     clearMoveModalTimer();
-    _recordMoveLocChoice(productId, fromLoc, toLoc, (_pendingMoveCtx && _pendingMoveCtx.category) || '');
+    // Only a real answer teaches a habit (see `confirmMoveAfterUse`).
+    if (!fromClock) {
+        _recordMoveLocChoice(productId, fromLoc, toLoc, (_pendingMoveCtx && _pendingMoveCtx.category) || '');
+    }
     _pendingMoveCtx = null;
     const newVacuum = forcedVacuum !== undefined ? (forcedVacuum ? 1 : 0) : (document.getElementById('move-vacuum-check')?.checked ? 1 : 0);
     closeModal();
@@ -38806,7 +38916,21 @@ async function renderRecipe(r) {
     </span>`;
     if (r.prep_time) html += `<span class="recipe-tag">🔪 ${r.prep_time}</span>`;
     if (r.cook_time) html += `<span class="recipe-tag">🔥 ${r.cook_time}</span>`;
-    if (r.tags) r.tags.forEach(tag => { html += `<span class="recipe-tag">${escapeHtml(tag)}</span>`; });
+    // WHERE it came from: the AI invents a dish for tonight, the ricettario returns one the
+    // household already saved. Same sheet, two different promises — say which one you are reading.
+    const fromMealie = r.source === 'mealie' || !!r.from_mealie_cache;
+    // `mealie` is the transport tag the archive carries, not a quality of the dish: the source
+    // pill below says it in the household's language, so the raw word must not be printed as well.
+    if (r.tags) {
+        r.tags
+            .filter(tag => !(fromMealie && String(tag).toLowerCase() === 'mealie'))
+            .forEach(tag => { html += `<span class="recipe-tag">${escapeHtml(tag)}</span>`; });
+    }
+    if (fromMealie) {
+        html += `<span class="recipe-tag recipe-source-tag">${escapeHtml(t('recipes.source_mealie'))}</span>`;
+    } else if (_recipeLastSource === 'gemini') {
+        html += `<span class="recipe-tag recipe-source-tag">${escapeHtml(t('recipes.source_ai'))}</span>`;
+    }
     // Favorite star — archives on first tap when the recipe is still new
     if (_cachedRecipe) {
         html += `<button class="btn-recipe-fav${isFav ? ' active' : ''}" onclick="toggleRecipeFavorite(this)" title="${isFav ? t('recipes.unfavorite') : t('recipes.save_favorite')}">${isFav ? '★' : '☆'}</button>`;
@@ -38819,6 +38943,17 @@ async function renderRecipe(r) {
     // Expiry note
     if (r.expiry_note) {
         html += `<div class="recipe-expiry-note">⚠️ ${escapeHtml(r.expiry_note)}</div>`;
+    }
+
+    // A ricettario answer is verified against the shelves (`mealieRecipePantryCoverage`): say what
+    // the household is going to need, instead of leaving them to discover it at the stove.
+    const coverage = r.pantry_coverage;
+    if (fromMealie && coverage && Number(coverage.total) > 0) {
+        const missing = Array.isArray(coverage.missing) ? coverage.missing : [];
+        const line = missing.length
+            ? t('recipes.coverage_missing', { items: missing.join(', ') })
+            : t('recipes.coverage_all', { n: coverage.total });
+        html += `<div class="recipe-expiry-note recipe-coverage-note${missing.length ? '' : ' is-ok'}">${missing.length ? '⚠️ ' : '✅ '}${escapeHtml(line)}</div>`;
     }
 
     // Fuel Mode: why these ingredients (bio + activity)
@@ -42442,8 +42577,66 @@ function _recipeLoadingStagesStart() {
     _recipeLoadingStageTimer = setInterval(paint, 2200);
 }
 
-async function generateRecipe() {
+/**
+ * The generator's CTA: WHICH ENGINE?
+ *
+ * `RECIPE_SOURCE=auto` made the ricettario answer every request before the AI, so a household with
+ * Mealie configured never got a generated recipe again and was handed dishes whose ingredients were
+ * not on the shelves. The question is now asked (the household asked for exactly this), and only
+ * the engines that really exist are offered — with one engine there is nothing to choose.
+ */
+function generateRecipe() {
     if (!_requireRecipeEngine()) return;
+    const engines = _recipeEngineOptions();
+    if (engines.length === 1) {
+        _startRecipeGeneration(engines[0]);
+        return;
+    }
+    _showRecipeEngineChoice();
+}
+
+/** Engines this install can answer with: `gemini` (AI) and/or `mealie` (the household's book). */
+function _recipeEngineOptions() {
+    const out = [];
+    if (_geminiAvailable) out.push('gemini');
+    if (_mealieAvailable) out.push('mealie');
+    return out;
+}
+
+function _showRecipeEngineChoice() {
+    const panel = document.getElementById('recipe-engine-choice');
+    const cta = document.querySelector('#recipe-ask .btn-success[onclick*="generateRecipe"]');
+    if (!panel) {
+        // No panel in this build: fall back to the AI, never to a silent switch.
+        _startRecipeGeneration(_geminiAvailable ? 'gemini' : 'mealie');
+        return;
+    }
+    const aiBtn = document.getElementById('recipe-engine-ai');
+    const mealieBtn = document.getElementById('recipe-engine-mealie');
+    // A button nobody can use is a lie: draw only the engines that are configured.
+    if (aiBtn) aiBtn.style.display = _geminiAvailable ? '' : 'none';
+    if (mealieBtn) mealieBtn.style.display = _mealieAvailable ? '' : 'none';
+    if (cta) cta.style.display = 'none';
+    panel.style.display = '';
+}
+
+function _hideRecipeEngineChoice() {
+    const panel = document.getElementById('recipe-engine-choice');
+    const cta = document.querySelector('#recipe-ask .btn-success[onclick*="generateRecipe"]');
+    if (panel) panel.style.display = 'none';
+    if (cta) cta.style.display = '';
+}
+
+/** Which engine produced the sheet on screen — the re-roll has to stay on the same one. */
+let _recipeLastSource = '';
+
+async function _startRecipeGeneration(source) {
+    if (!_requireRecipeEngine()) return;
+    const engine = (source === 'mealie' || source === 'gemini')
+        ? source
+        : (_geminiAvailable ? 'gemini' : 'mealie');
+    _recipeLastSource = engine;
+    _hideRecipeEngineChoice();
     const meal = getSelectedMealType();
     const persons = parseInt(document.getElementById('recipe-persons').value) || 1;
     const settings = getSettings();
@@ -42491,6 +42684,9 @@ async function generateRecipe() {
             meal,
             persons,
             lang: _currentLang,
+            // The engine the household picked in the chooser. The server honours it per request,
+            // so «auto» (ricettario first) can never answer in place of the AI they pressed.
+            recipe_source: engine,
             sub_type: getMealSubTypes()[meal] ? getSelectedSubType() : '',
             options,
             appliances: settings.appliances || [],
@@ -42569,7 +42765,10 @@ async function generateRecipe() {
                 if (errorEvent.error === 'no_api_key') {
                     showToast(t('error.no_api_key'), 'warning');
                 } else if (errorEvent.error === 'mealie_no_match') {
+                    // No silent switch to the AI (the household asked to CHOOSE), but the question
+                    // comes back with the form: the AI is one tap away instead of a dead end.
                     showToast(t('recipes.mealie_no_match'), 'warning');
+                    _showRecipeEngineChoice();
                 } else {
                     const detail = errorEvent.detail ? ` (${errorEvent.detail})` : '';
                     showToast((errorEvent.error || t('recipes.generate_error')) + detail, 'error');
@@ -43649,14 +43848,46 @@ function _flushOfflineQueueSoon() {
 let _inactivityTimer = null;
 let _screensaverActive = false;
 
-// ── Auto-home: always-on 2-minute idle return to dashboard ──
+// ── Auto-home: idle return to the dashboard ──
+// Two minutes of stillness bring the Home back from anywhere. **One minute when the pantry is
+// filtered by a word**: a search nobody remembers is a dead end (the list looks empty, or wrong),
+// so the search is dropped and the Home comes back — asked for by the household: «quando cerco un
+// prodotto e non faccio nulla per un minuto, mi puoi cancellare la ricerca e riportarmi alla home?».
 let _autoHomeTimer = null;
-const AUTO_HOME_MS = 2 * 60 * 1000; // 2 minutes
+const AUTO_HOME_MS = 2 * 60 * 1000;        // 2 minutes anywhere
+const AUTO_HOME_SEARCH_MS = 60 * 1000;     // 1 minute while a search narrows the pantry
+
+/** Is a word narrowing the pantry right now? */
+function _inventorySearchActive() {
+    const el = document.getElementById('inventory-search');
+    const q = String((el && el.value) || _inventorySearchQuery || '').trim();
+    return q !== '';
+}
+
+/** How long the household may stay still before the Home comes back. */
+function _autoHomeDelayMs() {
+    // Only the PANTRY counts: the search survives navigation on purpose (`_inventorySearchQuery`
+    // is restored on every return), and reading a recipe must not be cut short because a word is
+    // still sitting in that field.
+    if (_currentPageId === 'inventory' && _inventorySearchActive()) return AUTO_HOME_SEARCH_MS;
+    return AUTO_HOME_MS;
+}
+
+/** Drop the pantry search without stealing focus (a kiosk must never open a keyboard). */
+function _clearInventorySearchSilently() {
+    const el = document.getElementById('inventory-search');
+    if (el) el.value = '';
+    _inventorySearchQuery = '';
+    _syncSearchClearBtn('inventory-search', 'inventory-search-clear');
+    if (_currentPageId === 'inventory') {
+        try { filterInventory(); } catch (_) { /* the list is repainted on the next load anyway */ }
+    }
+}
 
 function _resetAutoHomeTimer() {
     if (_currentPageId === 'shopping') return;
     clearTimeout(_autoHomeTimer);
-    _autoHomeTimer = setTimeout(_triggerAutoHome, AUTO_HOME_MS);
+    _autoHomeTimer = setTimeout(_triggerAutoHome, _autoHomeDelayMs());
 }
 
 function _cancelAutoHomeTimer() {
@@ -43678,6 +43909,10 @@ function _triggerAutoHome() {
     // and `showPage('dashboard')` pulled the page out from under it (reported as "l'app si
     // riavvia quando si usa SHELFY").
     if (_visibleOverlays().length) return;
+    // The search is the reason the pantry no longer looks like itself: drop it BEFORE leaving, so
+    // the next visit starts from the whole shelf (an empty `input` and `_inventorySearchQuery`
+    // both cleared — the field is restored from that variable on every load).
+    if (_inventorySearchActive()) _clearInventorySearchSilently();
     showPage('dashboard');
 }
 let _screensaverClockInterval = null;
