@@ -105,6 +105,8 @@ $idToEnv = [
     // registry left `env` empty and searching for the key found nothing.
     'setting-mealie-token'        => 'MEALIE_API_TOKEN',
     'setting-zerowaste-tips'      => 'ZEROWASTE_TIPS_ENABLED',
+    // Issue #316: the control id and the key do not share the slug.
+    'setting-no-expiry-banner'    => 'NO_EXPIRY_BANNER_ENABLED',
     'setting-webpush-enabled'     => 'WEB_PUSH_ENABLED',
     'setting-shopping-auto-add'   => 'SHOPPING_AUTO_ADD_THRESHOLD',
     // One switch, two radios (plan | trip).

@@ -92,6 +92,10 @@ function evershelfSettingsEnvAllowlist(): array
         'SHOPPING_MODE'             => 'advanced',
         'NOTIFY_CHANNELS'           => 'advanced',
         'NOTIFY_EVENTS'             => 'advanced',
+        // Hour (0-23, server local time) of the daily expiry alert. The schedule of a
+        // cron job, not a preference of a room: the same check feeds Home Assistant and
+        // the ntfy/webhook channels, and no screen owns the server's clock.
+        'EXPIRY_ALERT_HOUR'         => 'advanced',
         'HA_WEBHOOK_EVENTS'         => 'advanced',
         'APPLIANCES'                => 'advanced',
         'CUSTOM_LOCATIONS'          => 'advanced',

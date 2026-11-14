@@ -199,12 +199,38 @@ try {
     exit(1);
 }
 
-// ── Home Assistant: expiry alerts ─────────────────────────────────────────────
-// Fire one HA webhook per expiring item (once per day guard via a simple flag file).
-if (env('HA_ENABLED', 'false') === 'true' && env('HA_WEBHOOK_ID', '') !== '') {
+// ── Expiry alerts: Home Assistant webhook + NOTIFY_* channels ─────────────────
+// ONE daily expiry check feeds both rivers: `_fireHaWebhook()` fans the event out to
+// the ntfy/webhook channels (api/lib/notify.php) and only then applies its own HA gate.
+// The check itself used to live behind `HA_ENABLED` + `HA_WEBHOOK_ID`, so an install
+// with ntfy configured (NOTIFY_ENABLED=true, NOTIFY_EVENTS=expiry_alert) and Home
+// Assistant off never received an expiry alert at all (issue #321).
+// It now runs when EITHER channel is configured; the HA gate stays in the sender.
+// A Home Assistant install that only pushes through HA_NOTIFY_SERVICE (no webhook id)
+// counts as configured too: `evershelfNotifySend()` delivers to it.
+$haExpiryReady = env('HA_ENABLED', 'false') === 'true'
+    && (env('HA_WEBHOOK_ID', '') !== '' || env('HA_NOTIFY_SERVICE', '') !== '');
+$notifyExpiryReady = function_exists('evershelfNotifyEnabled')
+    && evershelfNotifyEnabled()
+    && function_exists('evershelfNotifyEventEnabled')
+    && evershelfNotifyEventEnabled('expiry_alert')
+    && count(evershelfNotifyChannels()) > 0;
+if ($haExpiryReady || $notifyExpiryReady) {
     try {
+        // The check runs on the first cron pass of the day (once-per-day flag file).
+        // The image's PHP runs on UTC, so a US household got its alert in the evening:
+        // EXPIRY_ALERT_HOUR (0-23, server local time) moves the pass, and an empty
+        // value keeps the old "as soon as the day turns" behaviour.
+        $expiryHourRaw = trim((string)env('EXPIRY_ALERT_HOUR', ''));
+        $expiryHour = null;
+        if ($expiryHourRaw !== '' && ctype_digit($expiryHourRaw)) {
+            $expiryHour = max(0, min(23, (int)$expiryHourRaw));
+        }
+        $expiryHourReached = $expiryHour === null || (int)date('G') >= $expiryHour;
+        // The file keeps its historical `ha_` name on purpose: an install that already
+        // fired today must not receive the same alert twice after this update.
         $haFlagFile = __DIR__ . '/../data/ha_expiry_notified_' . date('Y-m-d') . '.json';
-        if (!file_exists($haFlagFile)) {
+        if ($expiryHourReached && !file_exists($haFlagFile)) {
             $expiryDays = max(1, (int)env('HA_EXPIRY_DAYS', '3'));
             $expiringItems = $db->query(
                 "SELECT p.id AS product_id, i.id AS inventory_id,
@@ -287,7 +313,7 @@ if (env('HA_ENABLED', 'false') === 'true' && env('HA_WEBHOOK_ID', '') !== '') {
                     'type'    => 'expired',
                     'summary' => $expNames,
                 ]);
-                echo '[' . date('Y-m-d H:i:s') . '] HA expired fired: ' . count($expiredItems) . " items\n";
+                echo '[' . date('Y-m-d H:i:s') . '] expired alert fired: ' . count($expiredItems) . " items\n";
             }
 
             // Mark as done for today
@@ -299,7 +325,7 @@ if (env('HA_ENABLED', 'false') === 'true' && env('HA_WEBHOOK_ID', '') !== '') {
             }
         }
     } catch (Throwable $haE) {
-        echo '[' . date('Y-m-d H:i:s') . '] HA expiry hook warning: ' . $haE->getMessage() . "\n";
+        echo '[' . date('Y-m-d H:i:s') . '] expiry alert warning: ' . $haE->getMessage() . "\n";
     }
 }
 

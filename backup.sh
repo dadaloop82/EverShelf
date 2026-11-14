@@ -14,7 +14,11 @@ ENV_FILE="${INSTALL_DIR}/.env"
 
 RETENTION=3
 if [ -f "$ENV_FILE" ]; then
-    val=$(grep -E '^BACKUP_RETENTION_DAYS=' "$ENV_FILE" | tail -1 | cut -d= -f2)
+    # `grep` exits 1 when the key is simply not in .env, and under `set -euo pipefail`
+    # that ended the script before mkdir and before any backup at all, while the
+    # default above exists for exactly that case. `|| true` keeps the pipeline
+    # (grep | tail | cut) from aborting the run.
+    val=$(grep -E '^BACKUP_RETENTION_DAYS=' "$ENV_FILE" | tail -1 | cut -d= -f2 || true)
     if [[ "$val" =~ ^[0-9]+$ ]] && [ "$val" -ge 1 ]; then
         RETENTION="$val"
     fi

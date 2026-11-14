@@ -1785,6 +1785,11 @@
       "card_hint": "During cooking, show tips on how to reuse scraps generated in each step (peels, cooking water, etc.). Disabled by default.",
       "label": "Show tips during cooking"
     },
+    "no_expiry_banner": {
+      "title": "🔔 “No expiry date” notice",
+      "hint": "Items with no best-before date get a notice on the Home. If you do not track dates for spices and staples, turn it off here: it applies to every product and every device, instead of marking them one by one.",
+      "label": "Show the notice for products with no expiry date"
+    },
     "backup": {
       "tab": "Backup",
       "local_title": "Local Backup",

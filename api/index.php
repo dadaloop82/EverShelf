@@ -10076,6 +10076,10 @@ function getServerSettings(?PDO $db = null): void {
         'screensaver_timeout' => screensaverTimeoutMinutes(),
         'zerowaste_tips_enabled' => env('ZEROWASTE_TIPS_ENABLED', 'false') === 'true',
         'zerowaste_tips_set' => env('ZEROWASTE_TIPS_ENABLED', '') !== '',
+        // Issue #316: the «no expiry date» notice is the one banner that repeats for
+        // every spice and staple nobody dates. ON by default — the pantry should say
+        // when it does not know a date — and one switch turns the whole reason off.
+        'no_expiry_banner_enabled' => env('NO_EXPIRY_BANNER_ENABLED', 'true') === 'true',
         // Expiry calendar feed: the subscribe URL is minted by get_ics_settings, but
         // the on/off flag is also needed here — the Settings checklist reports
         // "calendar configured" without opening that tab first.
@@ -11407,6 +11411,8 @@ function saveSettings(): void {
         'screensaver_enabled' => 'SCREENSAVER_ENABLED',
         'price_enabled' => 'PRICE_ENABLED',
         'zerowaste_tips_enabled' => 'ZEROWASTE_TIPS_ENABLED',
+        // Issue #316: the instance-wide answer for articles without a best-before date.
+        'no_expiry_banner_enabled' => 'NO_EXPIRY_BANNER_ENABLED',
         'web_push_enabled' => 'WEB_PUSH_ENABLED',
         'backup_enabled' => 'BACKUP_ENABLED',
         'gdrive_enabled' => 'GDRIVE_ENABLED',

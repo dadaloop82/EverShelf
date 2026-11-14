@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261113l'; // bump when translations change
+const _I18N_VERSION = '20261114a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -6155,6 +6155,7 @@ function _applySyncedSettings(serverSettings) {
         'screensaver_enabled','screensaver_timeout','screensaver_views','screensaver_interval',
         'price_enabled','price_country','price_currency','price_update_months',
         'zerowaste_tips_enabled',
+        'no_expiry_banner_enabled',
         'shopping_enabled','shopping_mode','shopping_smart_suggestions',
         'shopping_forecast','shopping_auto_add_threshold',
         'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_batch_size','product_variants_enabled','receipt_ocr_enabled',
@@ -7414,6 +7415,9 @@ async function loadSettingsUI() {
     // Zero-waste tips setting
     const zwEl = document.getElementById('setting-zerowaste-tips');
     if (zwEl) zwEl.checked = s.zerowaste_tips_enabled === true;
+    // «No expiry» notice (issue #316): ON unless the household turned it off.
+    const nebEl = document.getElementById('setting-no-expiry-banner');
+    if (nebEl) nebEl.checked = s.no_expiry_banner_enabled !== false;
 
     // Populate About section version
     _loadAboutSection();
@@ -8294,6 +8298,9 @@ async function _saveSettingsInner(opts = {}) {
     // Zero-waste tips
     const zwSaveEl = document.getElementById('setting-zerowaste-tips');
     if (zwSaveEl) s.zerowaste_tips_enabled = zwSaveEl.checked;
+    // «No expiry» notice (issue #316)
+    const nebSaveEl = document.getElementById('setting-no-expiry-banner');
+    if (nebSaveEl) s.no_expiry_banner_enabled = nebSaveEl.checked;
     // Meal plan enabled toggle
     const mpEnabledEl = document.getElementById('setting-meal-plan-enabled');
     if (mpEnabledEl) s.meal_plan_enabled = mpEnabledEl.checked;
@@ -8462,6 +8469,8 @@ async function _saveSettingsInner(opts = {}) {
             ...(((_serverSettings && _serverSettings.zerowaste_tips_set)
                 || document.getElementById('setting-zerowaste-tips')?.dataset.touched === '1')
                 ? { zerowaste_tips_enabled: !!s.zerowaste_tips_enabled } : {}),
+            // «No expiry» notice (issue #316): default ON, so the value is always sent.
+            no_expiry_banner_enabled: s.no_expiry_banner_enabled !== false,
             tts_enabled: s.tts_enabled,
             tts_url: s.tts_url,
             tts_token: s.tts_token,
@@ -14221,6 +14230,16 @@ function setReviewConfirmed(inventoryId) {
 function _getNoExpiryDismissed() {
     return _noExpiryDismissedCache || {};
 }
+/**
+ * Is the «no expiry» notice wanted at all? (issue #316)
+ *
+ * The per-product «non serve la scadenza» answer stays the household's, but a pantry
+ * full of spices and staples would ask it on every article: this is the ONE switch,
+ * stored on the server, that turns the whole reason off for every device.
+ */
+function _noExpiryBannerEnabled() {
+    return getSettings().no_expiry_banner_enabled !== false;
+}
 /** Permanently mark a product as "no expiry needed" for this browser. */
 function _dismissNoExpiry(productId) {
     const m = Object.assign({}, _noExpiryDismissedCache || {});
@@ -14478,9 +14497,11 @@ async function loadBannerAlerts() {
             if (!!a.opened_at !== !!b.opened_at) return a.opened_at ? -1 : 1;
             return (a.name || '').localeCompare(b.name || '');
         });
-        noExpiryItems.slice(0, 8).forEach(item => {
-            _bannerQueue.push({ type: 'no_expiry', data: item });
-        });
+        if (_noExpiryBannerEnabled()) { // issue #316: the whole reason can be switched off
+            noExpiryItems.slice(0, 8).forEach(item => {
+                _bannerQueue.push({ type: 'no_expiry', data: item });
+            });
+        }
 
         // Drop expired banners that are still safe (ok) — opened items stay in dashboard list only
         _bannerQueue = _bannerQueue.filter(entry =>
@@ -22007,7 +22028,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261113l';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261114a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -22017,7 +22038,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261113l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261114a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
