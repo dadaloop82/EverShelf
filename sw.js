@@ -6,7 +6,7 @@
  * pin a stale app.js indefinitely. The cache below is only a safety net when the
  * server cannot be reached.
  */
-const CACHE = 'evershelf-v2.1.5a';
+const CACHE = 'evershelf-v2.2.0b';
 const BASE = (() => {
     const p = self.location.pathname || '/';
     return p.endsWith('sw.js') ? p.slice(0, -'sw.js'.length) : '/';
@@ -163,12 +163,45 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(networkFirst(event.request));
 });
 
-/* Empty-payload Web Push: wake, pull inbox, show system notification. */
+/* Empty-payload Web Push: wake, pull inbox, show system notification.
+ *
+ * The inbox is read with the per-device token minted at subscription (#122): the
+ * worker has no page and cannot present the API token, and without this proof the
+ * request answered 401 — every push showed a bare “EverShelf” with no body. The page
+ * hands the token over with `postMessage`; it is kept in the Cache API because the
+ * worker is killed between events.
+ */
+const PUSH_TOKEN_CACHE = 'evershelf-push-token';
+const PUSH_TOKEN_KEY = BASE + '__push_inbox_token';
+
+async function pushInboxToken() {
+    try {
+        const cache = await caches.open(PUSH_TOKEN_CACHE);
+        const hit = await cache.match(PUSH_TOKEN_KEY);
+        if (hit) return (await hit.text()).trim();
+    } catch (_) { /* no cache yet */ }
+    return '';
+}
+
+self.addEventListener('message', (event) => {
+    const data = event.data || {};
+    if (data.type === 'push-inbox-token' && data.token) {
+        event.waitUntil(
+            caches.open(PUSH_TOKEN_CACHE)
+                .then((cache) => cache.put(PUSH_TOKEN_KEY, new Response(String(data.token))))
+                .catch(() => {})
+        );
+    }
+});
+
 self.addEventListener('push', (event) => {
     event.waitUntil((async () => {
         let items = [];
         try {
-            const res = await fetch(BASE + 'api/index.php?action=webpush_inbox', {
+            const token = await pushInboxToken();
+            const url = BASE + 'api/index.php?action=webpush_inbox'
+                + (token ? '&token=' + encodeURIComponent(token) : '');
+            const res = await fetch(url, {
                 credentials: 'same-origin',
                 headers: { 'X-EverShelf-Request': '1' },
                 cache: 'no-store',
@@ -186,7 +219,13 @@ self.addEventListener('push', (event) => {
                 body: String(it.body || ''),
                 icon: BASE + 'assets/img/logo/logo_icon.png',
                 badge: BASE + 'assets/img/logo/logo_icon.png',
-                data: { url: it.url || BASE },
+                data: { url: it.url || BASE, actions: Array.isArray(it.actions) ? it.actions : [] },
+                // Two buttons at most: ✓ Usato / 🔥 Buttato (#122). A browser that does
+                // not support them (older iOS) simply shows the notification without.
+                actions: (Array.isArray(it.actions) ? it.actions : [])
+                    .slice(0, 2)
+                    .map((a) => ({ action: String(a.action || ''), title: String(a.title || '') }))
+                    .filter((a) => a.action && a.title),
                 tag: 'evershelf-' + String(it.ts || Date.now()),
             })
         ));
@@ -195,7 +234,41 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
-    const target = (event.notification.data && event.notification.data.url) || BASE;
+    const data = event.notification.data || {};
+    const action = String(event.action || '');
+    // The two buttons write through the action token carried by the notification.
+    // A failure is silent on purpose: nothing was written, and the item is still on
+    // the shelf — opening the app (the default tap) stays the way to see it.
+    if (action === 'use' || action === 'waste') {
+        const entry = (Array.isArray(data.actions) ? data.actions : [])
+            .find((a) => a && a.action === action && a.token);
+        if (!entry) return;
+        event.waitUntil((async () => {
+            try {
+                const res = await fetch(BASE + 'api/index.php?action=notification_action', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-EverShelf-Request': '1',
+                    },
+                    body: JSON.stringify({ token: String(entry.token) }),
+                });
+                const out = await res.json();
+                if (out && out.title) {
+                    await self.registration.showNotification(String(out.title), {
+                        body: String(out.body || ''),
+                        icon: BASE + 'assets/img/logo/logo_icon.png',
+                        badge: BASE + 'assets/img/logo/logo_icon.png',
+                        tag: 'evershelf-done-' + Date.now(),
+                    });
+                }
+            } catch (_) { /* offline: nothing was written */ }
+        })());
+        return;
+    }
+    const target = data.url || BASE;
     event.waitUntil((async () => {
         const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
         for (const client of all) {

@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261114a'; // bump when translations change
+const _I18N_VERSION = '20261114b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2543,6 +2543,25 @@ function exportInventory(format) {
         // Open print-ready HTML in new tab
         window.open(url, '_blank', 'noopener');
     }
+}
+
+/**
+ * Open the printable monthly report (#103) in its own tab.
+ *
+ * The server renders the whole page (the same `monthlyStatsData()` the dashboard
+ * shows, the pantry snapshot, the discards and the recorded spend), the browser opens
+ * its print dialog, and “Save as PDF” suggests `evershelf-report-YYYY-MM` — which is
+ * the document's `<title>`, the only name a `window.open` can hand to the print
+ * dialog. `month` is optional (`YYYY-MM`, default: this month) so a past month can be
+ * reopened by hand.
+ */
+function exportMonthlyReport(month) {
+    const tok = typeof getApiToken === 'function' ? getApiToken() : '';
+    const tokParam = tok ? `&api_token=${encodeURIComponent(tok)}` : '';
+    const m = /^\d{4}-\d{2}$/.test(String(month || '')) ? String(month) : '';
+    const url = `api/index.php?action=export_monthly_report${m ? '&month=' + m : ''}`
+        + `&lang=${encodeURIComponent(_currentLang || 'en')}${tokParam}&_t=${Date.now()}`;
+    window.open(url, '_blank', 'noopener');
 }
 
 function _showExportModal() {
@@ -6192,6 +6211,11 @@ function _applySyncedSettings(serverSettings) {
         mergeCustomLocations(s.custom_locations || []);
         // Update localStorage hint for _earlyTheme() IIFE on next load
         try { localStorage.setItem('evershelf_dark_mode', s.dark_mode || 'auto'); } catch(_) {}
+    }
+    // #122: Web Push needs the worker to hold this device's inbox token. Cheap when it
+    // already does (localStorage + postMessage), self-healing when it does not.
+    if (serverSettings.web_push_enabled && typeof _ensurePushInboxToken === 'function') {
+        Promise.resolve().then(() => _ensurePushInboxToken());
     }
 }
 
@@ -15251,18 +15275,6 @@ function intelligentExtendDays(_item) {
     return 7;
 }
 
-/**
- * Shelf-life gain when moving a product into the freezer (mirrors getExpiredSafety).
- * @returns {number} days to add from today
- */
-function _freezeBonusDays(item) {
-    const cat = mapToLocalCategory((item && item.category) || '', (item && item.name) || '');
-    if (['carne', 'pesce'].includes(cat)) return 90;
-    if (['verdura', 'frutta'].includes(cat)) return 180;
-    if (['latticini', 'pane'].includes(cat)) return 60;
-    return 120;
-}
-
 /** First place whose storage kind is freezer, or the builtin key. */
 function _freezerLocationKey() {
     const found = Object.keys(LOCATIONS).find(k => storageKindOfLocation(k) === 'freezer');
@@ -15291,45 +15303,81 @@ async function freezeInventoryItem(item) {
         showToast(t('dashboard.freeze_no_freezer'), 'warning');
         return false;
     }
-    const bonus = _freezeBonusDays(item);
+    // #286: the server owns the freezer date (data/frozen_shelf_life.json per category)
+    // and keeps the original one, so thawing can give it back.
     const today = new Date();
     today.setHours(12, 0, 0, 0);
-    let base = today;
-    if (item.expiry_date) {
-        const cur = new Date(String(item.expiry_date).slice(0, 10) + 'T12:00:00');
-        if (!Number.isNaN(cur.getTime()) && cur > today) base = cur;
-    }
-    const next = new Date(base.getTime());
-    next.setDate(next.getDate() + bonus);
-    const newExpiry = next.toISOString().slice(0, 10);
     try {
-        const res = await api('inventory_update', {}, 'POST', {
-            id: item.id,
-            location: freezerKey,
-            expiry_date: newExpiry,
-            expiry_user_set: 1,
-        });
-        if (res.success || res.ok) {
-            item.location = freezerKey;
-            item.expiry_date = newExpiry;
-            item.expiry_user_set = 1;
+        const res = await api('inventory_freeze', {}, 'POST', { id: item.id });
+        if (!res || res.success === false) {
+            showToast(_apiErrorText ? _apiErrorText(res) : t('error.generic'), 'error');
+            return false;
+        }
+        // The move follows the state and does NOT touch the date (inventory_update writes
+        // only the fields it receives), so the frozen best-before survives the trip.
+        await api('inventory_update', {}, 'POST', { id: item.id, location: freezerKey });
+        item.location = freezerKey;
+        item.expiry_date = res.expiry_date;
+        item.expiry_user_set = 1;
+        item.frozen_at = res.frozen_at;
+        item.pre_frozen_expiry = res.pre_frozen_expiry || null;
+        const next = new Date(String(res.expiry_date).slice(0, 10) + 'T12:00:00');
+        if (!Number.isNaN(next.getTime())) {
             const daysLeft = Math.round((next - today) / 86400000);
             item.days_to_expiry = daysLeft;
             item.days_expired = daysLeft < 0 ? Math.abs(daysLeft) : 0;
             item.is_edible = daysLeft >= 0;
-            _dashboardLiveRefresh(item.id);
-            showToast(
-                t('dashboard.freeze_done', {
-                    name: item.name || '',
-                    days: bonus,
-                    location: (LOCATIONS[freezerKey] || {}).label || freezerKey,
-                }),
-                'success'
-            );
-            if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-            return true;
         }
-        showToast(res.error || t('error.generic'), 'error');
+        _dashboardLiveRefresh(item.id);
+        showToast(
+            t('dashboard.freeze_done', {
+                name: item.name || '',
+                days: Number(res.days) || 0,
+                location: (LOCATIONS[freezerKey] || {}).label || freezerKey,
+            }),
+            'success'
+        );
+        if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+        return true;
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
+    return false;
+}
+
+/**
+ * Thaw a frozen row (#286): the server gives back the original date, limited by the 48 h
+ * window, stores it as the best-before date of the row and notifies the household.
+ */
+async function thawInventoryItem(item) {
+    if (!item || !item.id) return false;
+    if (!item.frozen_at) {
+        showToast(t('freezer.error_not_frozen'), 'info');
+        return false;
+    }
+    try {
+        const res = await api('inventory_thaw', {}, 'POST', { id: item.id });
+        if (!res || res.success === false) {
+            showToast(_apiErrorText ? _apiErrorText(res) : t('error.generic'), 'error');
+            return false;
+        }
+        item.frozen_at = null;
+        item.pre_frozen_expiry = null;
+        item.expiry_date = res.expiry_date;
+        item.expiry_user_set = 1;
+        const next = new Date(String(res.expiry_date).slice(0, 10) + 'T12:00:00');
+        if (!Number.isNaN(next.getTime())) {
+            const today = new Date();
+            today.setHours(12, 0, 0, 0);
+            const daysLeft = Math.round((next - today) / 86400000);
+            item.days_to_expiry = daysLeft;
+            item.days_expired = daysLeft < 0 ? Math.abs(daysLeft) : 0;
+            item.is_edible = daysLeft >= 0;
+        }
+        _dashboardLiveRefresh(item.id);
+        showToast(t('freezer.thaw_toast', { date: formatDate(res.expiry_date) }), 'success');
+        if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+        return true;
     } catch (e) {
         showToast(t('error.connection'), 'error');
     }
@@ -16548,6 +16596,7 @@ function renderInventoryItem(item, opts = {}) {
         // Opened/sealed state lives on the PAO / expiry badge — not repeated here.
     }
     if (!medRow && item.vacuum_sealed) metaBits.push(escapeHtml(t('inventory.vacuum_badge')));
+    if (!medRow && item.frozen_at) metaBits.push(escapeHtml(t('inventory.frozen_badge')));
     const isFav = !!Number(item.is_favorite);
     const favTitle = isFav ? t('inventory.unfavorite') : t('inventory.favorite');
     const thumb = medRow
@@ -17774,6 +17823,12 @@ function showItemDetail(inventoryId, productId, presetQty) {
         }
     }
     if (!isMed && item.vacuum_sealed) statusBits.push(escapeHtml(t('inventory.vacuum_badge')));
+    if (!isMed && item.frozen_at) {
+        statusBits.push(escapeHtml(t('freezer.frozen_since', {
+            date: formatDate(String(item.frozen_at).slice(0, 10)),
+            until: item.expiry_date ? formatDate(String(item.expiry_date).slice(0, 10)) : '—',
+        })));
+    }
     // Coloured pill only for the expiry verdict — location/category no longer compete with it.
     const expiryChip = _itemDetailExpiryChip(item);
 
@@ -17831,7 +17886,13 @@ function showItemDetail(inventoryId, productId, presetQty) {
                            <span>${escapeHtml(throwBtn)}</span>
                        </button>`
         ];
-        if (canFreeze) {
+        if (item.frozen_at) {
+            // #286: a frozen pack offers the way back — the freezer date is not a one-way door.
+            supportBtns.push(`<button type="button" class="item-detail-support-btn" onclick="itemDetailThaw(${inventoryId})">
+                           <span class="item-detail-action-icon" aria-hidden="true">🔥</span>
+                           <span>${escapeHtml(t('freezer.thaw'))}</span>
+                       </button>`);
+        } else if (canFreeze) {
             supportBtns.push(`<button type="button" class="item-detail-support-btn" onclick="itemDetailFreeze(${inventoryId})">
                            <span class="item-detail-action-icon" aria-hidden="true">❄️</span>
                            <span>${escapeHtml(t('inventory.detail_freeze_short'))}</span>
@@ -17931,6 +17992,14 @@ async function itemDetailFreeze(inventoryId) {
     if (!item || !_itemAllowsFreeze(item)) return;
     closeModal();
     await freezeInventoryItem(item);
+}
+
+/** Thaw the row and reopen its sheet with the new date (#286). */
+async function itemDetailThaw(inventoryId) {
+    const item = _findInventoryItem(inventoryId);
+    if (!item || !item.frozen_at) return;
+    const ok = await thawInventoryItem(item);
+    if (ok) showItemDetail(inventoryId, item.product_id);
 }
 
 /** Seal under vacuum (extend expiry) or open the seal (start opened clock). */
@@ -22028,7 +22097,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261114a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261114b';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -22038,7 +22107,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261114a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261114b';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -40653,13 +40722,58 @@ async function subscribeWebPush() {
             });
         }
         const json = sub.toJSON();
-        await api('webpush_subscribe', {}, 'POST', json);
+        const res = await api('webpush_subscribe', {}, 'POST', json);
+        // #122: the worker's own proof (only its SHA-256 is stored server-side).
+        _handPushInboxToken(res && res.inbox_token);
         _notifyStatus(statusEl, 'success', t('settings.webpush.subscribed'));
         try { _serverSettings = (await api('get_settings')) || _serverSettings; } catch (_) {}
         _applyWebPushSettingsUI(_serverSettings || {});
     } catch (e) {
         _notifyStatus(statusEl, 'error', e.message || t('error.generic'));
     }
+}
+
+/**
+ * Hand the inbox token to the service worker (#122).
+ *
+ * The worker has no page and no API token: this value is how it reads the inbox when
+ * a push wakes it and how a notification button is allowed to write. It is kept in
+ * `localStorage` (the page) and in the worker's Cache API (the worker), because the
+ * two do not share memory and a push can arrive with no window open.
+ */
+function _handPushInboxToken(token) {
+    const value = String(token || '').trim();
+    if (!value) return;
+    try { localStorage.setItem('evershelf_push_inbox', value); } catch (_) {}
+    try {
+        navigator.serviceWorker.ready.then((reg) => {
+            if (reg.active) reg.active.postMessage({ type: 'push-inbox-token', token: value });
+        }).catch(() => {});
+    } catch (_) {}
+}
+
+/**
+ * Make sure this device can read its notification inbox.
+ *
+ * Called at boot when Web Push is on: a device that subscribed before 2.2.0 has no
+ * inbox token (only its SHA-256 existed from then on), so the stored subscription is
+ * posted once more — an idempotent upsert — and the fresh token handed to the worker.
+ * A device that already has it just refreshes the worker's copy after an update.
+ */
+async function _ensurePushInboxToken() {
+    try {
+        let local = '';
+        try { local = localStorage.getItem('evershelf_push_inbox') || ''; } catch (_) {}
+        if (local) { _handPushInboxToken(local); return; }
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+        const cfg = _serverSettings || {};
+        if (!cfg.web_push_enabled) return;
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub) return;
+        const res = await api('webpush_subscribe', {}, 'POST', sub.toJSON());
+        _handPushInboxToken(res && res.inbox_token);
+    } catch (_) { /* not subscribed yet, or offline */ }
 }
 
 async function testWebPush() {

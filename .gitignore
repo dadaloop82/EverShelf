@@ -24,6 +24,8 @@ data/opened_shelf_cache.json
 data/shopping_name_cache.json
 data/product_kind_cache.json
 data/shopping_total_cache.json
+# The Web Push inbox (api/lib/webpush.php): drained on read, runtime state only.
+data/webpush_inbox.json
 data/ai_usage.json
 data/classify_daily.json
 data/client_debug.log

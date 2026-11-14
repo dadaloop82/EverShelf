@@ -491,7 +491,8 @@
     "group_by_label": "Gruppieren nach",
     "group_category": "Kategorie",
     "group_location": "Ort",
-    "group_aria": "Liste gruppieren"
+    "group_aria": "Liste gruppieren",
+    "frozen_badge": "❄️ eingefroren"
   },
   "scan": {
     "title": "Scannen",
@@ -2183,7 +2184,8 @@
       "need_keys": "VAPID-Schlüssel fehlen — nach dem Aktivieren erneut speichern",
       "denied": "Benachrichtigungsrecht verweigert",
       "subscribed": "Gerät abonniert",
-      "test_ok": "Testbenachrichtigung gesendet"
+      "test_ok": "Testbenachrichtigung gesendet",
+      "actions_hint": "Ablauf-Hinweise kommen mit zwei Schaltflächen — ✓ Verbraucht und 🔥 Entsorgt —, die die Aktion ohne Öffnen der App erfassen. Ein Telefon, das sie nicht anzeigt (älteres iOS), öffnet einfach die App."
     },
     "group_medical": "Medikamente",
     "tab_medical": "Medikamente",
@@ -3152,7 +3154,15 @@
     "shopping_remove_title": "🛒 Von der Einkaufsliste entfernt",
     "trip_complete_title": "✅ Einkauf erledigt",
     "trip_complete_message": "Liste geleert: {n} Artikel.",
-    "weekly_digest_title": "📊 EverShelf Wochenübersicht"
+    "weekly_digest_title": "📊 EverShelf Wochenübersicht",
+    "action_use": "✓ Verbraucht",
+    "action_waste": "🔥 Entsorgt",
+    "push_expiring_body": "Läuft in {days} Tagen ab · {date}",
+    "push_expires_today": "Läuft heute ab · {date}",
+    "push_expired_body": "Seit {days} Tagen abgelaufen · {date}",
+    "push_failed": "Nicht mehr vorhanden",
+    "thawed_title": "❄️ Aufgetaut",
+    "thawed_message": "{items}: verbrauchen bis {date} (48 Stunden)"
   },
   "capture": {
     "title": "SHELFY",
@@ -3589,5 +3599,47 @@
   "ai_cost": {
     "pill_title": "KI-Kosten diesen Monat",
     "pill_title_detail": "KI diesen Monat: {cost} · {tokens} Token · {calls} Aufrufe. Tippen für Details."
+  },
+  "report": {
+    "title": "Monatsbericht",
+    "period": "Zeitraum: {month}",
+    "snapshot": "Vorrat",
+    "snapshot_hint": "Bestand am {date} · ablaufend bis {soon}",
+    "stock_total": "Artikel",
+    "expiring": "läuft ab (7 T.)",
+    "expired": "abgelaufen",
+    "opened": "geöffnet",
+    "prev_month": "Verbrauch Vormonat",
+    "col_name": "Artikel",
+    "col_place": "Ort",
+    "col_qty": "Menge",
+    "col_expiry": "Ablauf",
+    "col_reason": "Grund",
+    "col_date": "Datum",
+    "added": "hinzugefügt",
+    "consumed": "verbraucht",
+    "wasted_count": "entsorgt",
+    "wasted_value": "geschätzter Wert (EUR)",
+    "consumption": "Verbrauch im Monat",
+    "top_products": "Am häufigsten",
+    "top_categories": "Nach Kategorie",
+    "waste": "Abfall",
+    "spend": "Erfasste Ausgaben",
+    "spend_trips": "Erfasste Einkäufe",
+    "spend_total": "Summe",
+    "none": "Keine Daten für diesen Monat.",
+    "generated": "Erstellt von EverShelf am {date}",
+    "print": "Drucken / Als PDF speichern",
+    "button": "Monatsbericht (PDF)",
+    "button_hint": "Öffnet eine druckfertige Seite: wähle „Als PDF speichern“ im Druckdialog. Sie enthält den Vorratsstand, Verbrauch und Abfall des Monats sowie die erfassten Ausgaben."
+  },
+  "freezer": {
+    "frozen_since": "Eingefroren am {date} · haltbar bis {until}",
+    "thaw": "Auftauen",
+    "thaw_toast": "Aufgetaut: verbrauchen bis {date}",
+    "frozen_toast": "Eingefroren: haltbar bis {date}",
+    "error_already_frozen": "Ist bereits eingefroren",
+    "error_not_frozen": "Ist nicht eingefroren",
+    "error_medical": "Medikamente werden nicht eingefroren"
   }
 }

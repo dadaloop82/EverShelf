@@ -491,7 +491,8 @@
     "group_by_label": "Regrouper par",
     "group_category": "Catégorie",
     "group_location": "Emplacement",
-    "group_aria": "Regrouper la liste"
+    "group_aria": "Regrouper la liste",
+    "frozen_badge": "❄️ congelé"
   },
   "scan": {
     "title": "Scanner",
@@ -2183,7 +2184,8 @@
       "need_keys": "Clés VAPID manquantes — enregistrez à nouveau après activation",
       "denied": "Permission de notification refusée",
       "subscribed": "Appareil inscrit",
-      "test_ok": "Notification de test envoyée"
+      "test_ok": "Notification de test envoyée",
+      "actions_hint": "Les avis d'expiration arrivent avec deux boutons — ✓ Consommé et 🔥 Jeté — qui enregistrent l'action sans ouvrir l'application. Un téléphone qui ne les affiche pas (iOS ancien) ouvre simplement l'application."
     },
     "group_medical": "Médicaments",
     "tab_medical": "Médicaments",
@@ -3152,7 +3154,15 @@
     "shopping_remove_title": "🛒 Retiré de la liste de courses",
     "trip_complete_title": "✅ Courses terminées",
     "trip_complete_message": "Liste vidée : {n} articles.",
-    "weekly_digest_title": "📊 Résumé hebdomadaire EverShelf"
+    "weekly_digest_title": "📊 Résumé hebdomadaire EverShelf",
+    "action_use": "✓ Consommé",
+    "action_waste": "🔥 Jeté",
+    "push_expiring_body": "Expire dans {days} j · {date}",
+    "push_expires_today": "Expire aujourd'hui · {date}",
+    "push_expired_body": "Expiré depuis {days} j · {date}",
+    "push_failed": "Plus disponible",
+    "thawed_title": "❄️ Décongelé",
+    "thawed_message": "{items} : à consommer avant le {date} (48 heures)"
   },
   "capture": {
     "title": "SHELFY",
@@ -3589,5 +3599,47 @@
   "ai_cost": {
     "pill_title": "Coût IA ce mois-ci",
     "pill_title_detail": "IA ce mois-ci : {cost} · {tokens} jetons · {calls} appels. Toucher pour les détails."
+  },
+  "report": {
+    "title": "Rapport mensuel",
+    "period": "Période : {month}",
+    "snapshot": "Garde-manger",
+    "snapshot_hint": "Stock au {date} · péremption avant le {soon}",
+    "stock_total": "articles",
+    "expiring": "bientôt périmés (7 j)",
+    "expired": "périmés",
+    "opened": "ouverts",
+    "prev_month": "consommés le mois précédent",
+    "col_name": "Article",
+    "col_place": "Lieu",
+    "col_qty": "Quantité",
+    "col_expiry": "Péremption",
+    "col_reason": "Motif",
+    "col_date": "Date",
+    "added": "ajoutés",
+    "consumed": "consommés",
+    "wasted_count": "jetés",
+    "wasted_value": "valeur estimée (EUR)",
+    "consumption": "Consommation du mois",
+    "top_products": "Les plus utilisés",
+    "top_categories": "Par catégorie",
+    "waste": "Gaspillage",
+    "spend": "Dépenses enregistrées",
+    "spend_trips": "Courses enregistrées",
+    "spend_total": "Total",
+    "none": "Aucune donnée pour ce mois.",
+    "generated": "Généré par EverShelf le {date}",
+    "print": "Imprimer / Enregistrer en PDF",
+    "button": "Rapport mensuel (PDF)",
+    "button_hint": "Ouvre une page prête à imprimer : choisissez « Enregistrer en PDF » dans la boîte d'impression. Elle contient l'état du garde-manger, la consommation et le gaspillage du mois, et les dépenses enregistrées."
+  },
+  "freezer": {
+    "frozen_since": "Congelé le {date} · bon jusqu'au {until}",
+    "thaw": "Décongeler",
+    "thaw_toast": "Décongelé : à consommer avant le {date}",
+    "frozen_toast": "Congelé : bon jusqu'au {date}",
+    "error_already_frozen": "Déjà congelé",
+    "error_not_frozen": "N'est pas congelé",
+    "error_medical": "Les médicaments ne se congèlent pas"
   }
 }

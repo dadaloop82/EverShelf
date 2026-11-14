@@ -491,7 +491,8 @@
     "group_by_label": "Agrupar por",
     "group_category": "Categoría",
     "group_location": "Ubicación",
-    "group_aria": "Agrupar la lista"
+    "group_aria": "Agrupar la lista",
+    "frozen_badge": "❄️ congelado"
   },
   "scan": {
     "title": "Escáner",
@@ -2183,7 +2184,8 @@
       "need_keys": "Faltan claves VAPID — guarda de nuevo tras activar",
       "denied": "Permiso de notificaciones denegado",
       "subscribed": "Dispositivo suscrito",
-      "test_ok": "Notificación de prueba enviada"
+      "test_ok": "Notificación de prueba enviada",
+      "actions_hint": "Los avisos de caducidad llegan con dos botones — ✓ Consumido y 🔥 Desechado — que registran la acción sin abrir la app. Un teléfono que no los muestra (iOS antiguo) simplemente abre la app."
     },
     "group_medical": "Medicamentos",
     "tab_medical": "Medicamentos",
@@ -3152,7 +3154,15 @@
     "shopping_remove_title": "🛒 Quitado de la lista de la compra",
     "trip_complete_title": "✅ Compra hecha",
     "trip_complete_message": "Lista vaciada: {n} artículos.",
-    "weekly_digest_title": "📊 Resumen semanal EverShelf"
+    "weekly_digest_title": "📊 Resumen semanal EverShelf",
+    "action_use": "✓ Consumido",
+    "action_waste": "🔥 Desechado",
+    "push_expiring_body": "Caduca en {days} d · {date}",
+    "push_expires_today": "Caduca hoy · {date}",
+    "push_expired_body": "Caducado hace {days} d · {date}",
+    "push_failed": "Ya no está",
+    "thawed_title": "❄️ Descongelado",
+    "thawed_message": "{items}: consumir antes del {date} (48 horas)"
   },
   "capture": {
     "title": "SHELFY",
@@ -3589,5 +3599,47 @@
   "ai_cost": {
     "pill_title": "Coste de IA este mes",
     "pill_title_detail": "IA este mes: {cost} · {tokens} tokens · {calls} llamadas. Toca para ver detalles."
+  },
+  "report": {
+    "title": "Informe mensual",
+    "period": "Periodo: {month}",
+    "snapshot": "Despensa",
+    "snapshot_hint": "Existencias al {date} · caducan antes del {soon}",
+    "stock_total": "artículos",
+    "expiring": "por caducar (7 d)",
+    "expired": "caducados",
+    "opened": "abiertos",
+    "prev_month": "consumidos el mes anterior",
+    "col_name": "Artículo",
+    "col_place": "Lugar",
+    "col_qty": "Cantidad",
+    "col_expiry": "Caducidad",
+    "col_reason": "Motivo",
+    "col_date": "Fecha",
+    "added": "añadidos",
+    "consumed": "consumidos",
+    "wasted_count": "desechados",
+    "wasted_value": "valor estimado (EUR)",
+    "consumption": "Consumo del mes",
+    "top_products": "Los más usados",
+    "top_categories": "Por categoría",
+    "waste": "Desperdicio",
+    "spend": "Gasto registrado",
+    "spend_trips": "Compras registradas",
+    "spend_total": "Total",
+    "none": "Sin datos para este mes.",
+    "generated": "Generado por EverShelf el {date}",
+    "print": "Imprimir / Guardar como PDF",
+    "button": "Informe mensual (PDF)",
+    "button_hint": "Abre una página lista para imprimir: elige «Guardar como PDF» en el diálogo de impresión. Incluye el estado de la despensa, el consumo y el desperdicio del mes y el gasto registrado."
+  },
+  "freezer": {
+    "frozen_since": "Congelado el {date} · bueno hasta {until}",
+    "thaw": "Descongelar",
+    "thaw_toast": "Descongelado: consumir antes del {date}",
+    "frozen_toast": "Congelado: bueno hasta {date}",
+    "error_already_frozen": "Ya está congelado",
+    "error_not_frozen": "No está congelado",
+    "error_medical": "Los medicamentos no se congelan"
   }
 }

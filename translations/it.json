@@ -491,7 +491,8 @@
     "group_by_label": "Raggruppa per",
     "group_category": "Categoria",
     "group_location": "Posizione",
-    "group_aria": "Raggruppa la lista"
+    "group_aria": "Raggruppa la lista",
+    "frozen_badge": "❄️ congelato"
   },
   "scan": {
     "title": "Scansiona",
@@ -2183,7 +2184,8 @@
       "need_keys": "Chiavi VAPID mancanti — salva di nuovo dopo aver abilitato",
       "denied": "Permesso notifiche negato",
       "subscribed": "Dispositivo iscritto",
-      "test_ok": "Notifica di prova inviata"
+      "test_ok": "Notifica di prova inviata",
+      "actions_hint": "Le notifiche di scadenza arrivano con due pulsanti — «✓ Usato» e «🔥 Buttato» — che registrano l'azione senza aprire l'app. Un telefono che non li mostra (iOS vecchio) apre semplicemente l'app."
     },
     "group_medical": "Farmaci",
     "tab_medical": "Farmaci",
@@ -3152,7 +3154,15 @@
     "shopping_remove_title": "🛒 Tolto dalla lista della spesa",
     "trip_complete_title": "✅ Spesa fatta",
     "trip_complete_message": "Lista svuotata: {n} articoli.",
-    "weekly_digest_title": "📊 Riepilogo settimanale EverShelf"
+    "weekly_digest_title": "📊 Riepilogo settimanale EverShelf",
+    "action_use": "✓ Usato",
+    "action_waste": "🔥 Buttato",
+    "push_expiring_body": "Scade tra {days} gg · {date}",
+    "push_expires_today": "Scade oggi · {date}",
+    "push_expired_body": "Scaduto da {days} gg · {date}",
+    "push_failed": "Non più disponibile",
+    "thawed_title": "❄️ Scongelato",
+    "thawed_message": "{items}: consuma entro il {date} (48 ore)"
   },
   "capture": {
     "title": "SHELFY",
@@ -3589,5 +3599,47 @@
   "ai_cost": {
     "pill_title": "Costo AI di questo mese",
     "pill_title_detail": "AI questo mese: {cost} · {tokens} token · {calls} chiamate. Tocca per i dettagli."
+  },
+  "report": {
+    "title": "Report mensile",
+    "period": "Periodo: {month}",
+    "snapshot": "Dispensa",
+    "snapshot_hint": "Scorte al {date} · in scadenza entro il {soon}",
+    "stock_total": "articoli",
+    "expiring": "in scadenza (7 gg)",
+    "expired": "scaduti",
+    "opened": "aperti",
+    "prev_month": "consumi mese prima",
+    "col_name": "Articolo",
+    "col_place": "Luogo",
+    "col_qty": "Quantità",
+    "col_expiry": "Scadenza",
+    "col_reason": "Motivo",
+    "col_date": "Data",
+    "added": "aggiunti",
+    "consumed": "consumati",
+    "wasted_count": "buttati",
+    "wasted_value": "valore stimato (EUR)",
+    "consumption": "Consumi del mese",
+    "top_products": "I più usati",
+    "top_categories": "Per categoria",
+    "waste": "Sprechi",
+    "spend": "Spesa registrata",
+    "spend_trips": "Spese registrate",
+    "spend_total": "Totale",
+    "none": "Nessun dato per questo mese.",
+    "generated": "Generato da EverShelf il {date}",
+    "print": "Stampa / Salva come PDF",
+    "button": "Report mensile (PDF)",
+    "button_hint": "Apre una pagina pronta da stampare: scegli «Salva come PDF» nella finestra di stampa. Contiene l'istantanea della dispensa, i consumi e gli sprechi del mese, con la spesa registrata."
+  },
+  "freezer": {
+    "frozen_since": "Congelato il {date} · buono fino al {until}",
+    "thaw": "Scongela",
+    "thaw_toast": "Scongelato: consuma entro il {date}",
+    "frozen_toast": "Congelato: buono fino al {date}",
+    "error_already_frozen": "È già congelato",
+    "error_not_frozen": "Non risulta congelato",
+    "error_medical": "I farmaci non si congelano"
   }
 }

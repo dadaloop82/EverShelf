@@ -151,6 +151,48 @@ Consume inventory. Set `use_all: true` to consume all stock at a location.
 ### `inventory_update` — POST
 Update an inventory entry by `id`.
 
+A partial update: only the fields present are written, so a location move never touches the
+date. Rows carry two freezer columns (`frozen_at`, `pre_frozen_expiry`) that only
+`inventory_freeze` / `inventory_thaw` write.
+
+### `inventory_freeze` — POST
+Seal one row into the freezer (#286). The server stores `frozen_at`, keeps the date the pack
+had in `pre_frozen_expiry`, moves the pack to the freezer place and sets `expiry_date` to
+today + the category's freezer shelf life (`data/frozen_shelf_life.json`).
+
+```json
+{ "id": 456 }
+```
+
+```json
+{
+  "success": true,
+  "inventory_id": 456,
+  "expiry_date": "2027-05-13",
+  "pre_frozen_expiry": "2026-11-17",
+  "frozen_at": "2026-11-14 14:45:58",
+  "days": 180
+}
+```
+
+`409` with `error_key: freezer.error_already_frozen` when it is already frozen, and
+`freezer.error_medical` for a medicine.
+
+### `inventory_thaw` — POST
+Thaw one row (#286): the best-before becomes the **sooner** of *now + 48 h* and the original
+date (when that one is still in the future); the freezer state is cleared and the household
+gets one notification (`expiry_alert` with `type: "thawed"`).
+
+```json
+{ "id": 456 }
+```
+
+```json
+{ "success": true, "inventory_id": 456, "expiry_date": "2026-11-16", "window": "2026-11-16" }
+```
+
+`409` with `error_key: freezer.error_not_frozen` when the row is not frozen.
+
 ### `inventory_delete` — POST
 Remove an inventory entry by `id`.
 
@@ -400,6 +442,75 @@ cron job. With no URL stored yet it answers `200`
 (`{"success":true,"configured":false,"sent":false,"error":"healthcheck_not_configured"}`),
 an unparseable URL answers `400 invalid_url`, and a failed ping answers `400` with the
 upstream message.
+
+### `webpush_inbox` — GET
+
+The notification inbox the **service worker** drains when a push wakes it. It is a *public*
+action because a worker has no page and no API token; it authenticates with the per-device
+`token` minted by `webpush_subscribe` (only its SHA-256 is stored), and refuses everything
+else with `403 invalid_inbox_token`.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `token` | string | The inbox token returned once by `webpush_subscribe` (64 hex chars) |
+
+```json
+{
+  "success": true,
+  "items": [
+    {
+      "title": "Latte fresco",
+      "body": "Scade tra 1 gg · 2026-11-15",
+      "ts": 1763128800,
+      "url": "./",
+      "actions": [
+        { "action": "use",   "title": "✓ Usato",   "token": "djF8NDU2fHVzZXw…" },
+        { "action": "waste", "title": "🔥 Buttato", "token": "djF8NDU2fHdhc3RlfD…" }
+      ]
+    }
+  ]
+}
+```
+
+The inbox is **drained** on read (a repeated wake must not re-alert). An event that names one
+to three products produces one entry per product with its own two buttons; a longer list keeps
+the aggregate line without buttons.
+
+### `notification_action` — POST
+
+The **✓ Usato / 🔥 Buttato** button of a system notification (#122). Posted by the service
+worker, so it is public and authenticates itself: the `token` is the HMAC-signed value carried
+by the notification (one row, one action, 12 h).
+
+```json
+{ "token": "djF8NDU2fHVzZXwxNzk0NzA5OTIyfDA…" }
+```
+
+```json
+{ "success": true, "ok": true, "action": "use", "title": "✓ Usato", "body": "Latte fresco" }
+```
+
+The write goes through the same `useFromInventoryCore()` the app uses (`use` = finish the pack,
+`waste` = throw it away with the `spoiled` reason), so the ledger, the waste learning and the
+shopping sync behave identically. An expired or tampered token answers `403 invalid_token`
+(`error_key: push.invalid_token`); a row that is already empty answers `ok: false, gone: true`
+with the words of a small "nothing left" note.
+
+### `export_monthly_report` — GET
+
+The printable monthly report (#103), as a **print-first HTML page** (the browser's *Save as
+PDF* names it `evershelf-report-YYYY-MM`). Not JSON: the caller opens it in a tab.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `month` | string | `YYYY-MM`, default: the current month |
+| `lang` | string | Two-letter UI language, default: `NOTIFY_LANGUAGE` |
+
+Sections: the month's KPIs, the pantry snapshot (one row per pack + per-place chips + the
+counts of expiring / expired / opened), the top ten products and the category breakdown, every
+discard of the month with its reason, and the recorded spending (trips + total). The numbers
+come from `monthlyStatsData()` — the same function behind `monthly_stats` — so the report and
+the dashboard cannot disagree.
 
 ---
 

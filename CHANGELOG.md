@@ -5,6 +5,44 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-11-14
+
+### Three features that close the loop
+
+**✓ Usato / 🔥 Buttato straight from the notification** (#122). A browser notification for an
+expiring pack now arrives with two buttons that record the action **without opening the app**.
+The button writes through the same `useFromInventoryCore()` the app uses (`use` finishes the
+pack, `waste` throws it away with the `spoiled` reason), so the ledger, the waste learning, the
+favourites and the shopping sync behave identically, and a second notification confirms it
+(«✓ Usato · Latte fresco»). One to three products → one notification each with its own buttons;
+a longer list keeps the aggregate line — a wall of pushes is not a feature. The worker holds no
+API token: the action is authorised by an HMAC token carried *inside* the notification (one
+row, one action, 12 h, `api/lib/push_actions.php`) and the inbox by a per-device token minted at
+subscription. **That second part was broken before 2.2.0**: `webpush_inbox` required the API
+token, so every push the worker received answered 401 and showed a bare “EverShelf” with no
+body. Fixed, and existing subscriptions heal themselves on the next boot. Older iOS shows the
+notification without buttons and opens the app on tap.
+
+**🧾 Monthly report, printable to PDF** (#103). Settings → Sistema → Dati → *Report mensile
+(PDF)* opens a print-ready page and the browser's print dialog; «Save as PDF» names it
+`evershelf-report-YYYY-MM`. It carries the month's figures, the pantry snapshot (one row per
+pack with place/quantity/expiry, plus expiring / expired / opened counts and one chip per
+place), the ten most-used products and the category breakdown, **every discard of the month**
+with the reason the household picked and the estimated € value, and the recorded spending of
+the «spesa» ledger (trips + total). The numbers come from `monthlyStatsData()` — the same
+function behind the dashboard panel — so the report and the screen cannot disagree, and a past
+month can be reopened by hand (`?month=2026-10`). No PDF library, no external service.
+
+**❄️ Freezing is a state, and it thaws** (#286). «Congela» on a product moves the pack into the
+freezer *and* replaces the countdown with the freezer shelf life of its category
+(`data/frozen_shelf_life.json`: meat 180 days, fish 90, vegetables 240, dairy 60 …), keeping the
+date the pack had before. The row wears a `❄️` mark, the sheet says «Congelato il … · buono fino
+al …», and because the frozen date is *written into* `expiry_date` the dashboard, the calendar
+feed and the cron keep reading one column. «Scongela» gives the original date back — limited by
+the **48-hour rule**: the new best-before is the sooner of *now + 48 h* and a still-future
+original, and a pack whose printed date had already passed keeps the window. Thawing fires one
+notification in the household's language, with the two buttons of the push above.
+
 ## [2.1.5] - 2026-11-14
 
 ### The expiry alert reaches somewhere, and the backup runs

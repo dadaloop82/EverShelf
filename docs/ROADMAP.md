@@ -46,6 +46,9 @@ far), `feature` / `enhancement` / `bug` / `i18n` / `docs`.
 | Quick stocktake — one article at a time on the shelf, resumable from any device | [#285](https://github.com/dadaloop82/EverShelf/issues/285) | 2.0.0 (`assets/js/audit.js`, `app_settings.audit_state`) |
 | One switch for the «no expiry» notice, instead of tapping «non serve la scadenza» on every spice | [#316](https://github.com/dadaloop82/EverShelf/issues/316) | 2.1.5 (`NO_EXPIRY_BANNER_ENABLED`) |
 | Expiry alerts reach ntfy / webhook without Home Assistant enabled | [#321](https://github.com/dadaloop82/EverShelf/issues/321) | 2.1.5 (`EXPIRY_ALERT_HOUR`) |
+| Freezer lifecycle — freeze / thaw with a per-category shelf life and the 48 h window | [#286](https://github.com/dadaloop82/EverShelf/issues/286) | 2.2.0 (`inventory_freeze`, `data/frozen_shelf_life.json`) |
+| Actionable push — ✓ Usato / 🔥 Buttato straight from the notification | [#122](https://github.com/dadaloop82/EverShelf/issues/122) | 2.2.0 (`notification_action`, `api/lib/push_actions.php`) |
+| Monthly PDF report — snapshot, consumption, waste and recorded spend | [#103](https://github.com/dadaloop82/EverShelf/issues/103) | 2.2.0 (`export_monthly_report`) |
 
 ## 🔜 Next (agreed, waiting for hands)
 
@@ -90,18 +93,7 @@ Barilla / Rummo / De Cecco are children with their own barcode.
 * Migration + one merge helper; must not break `normalizeProductName()` duplicate
   detection or the `kind` / `shopping_name` split.
 
-### 4. Freezer lifecycle (freeze / thaw) · **M**
-Issue: [#286](https://github.com/dadaloop82/EverShelf/issues/286)
-The anti-waste logic cannot ignore the freezer.
-
-* A **frozen** state that swaps the countdown for a configurable shelf life (e.g.
-  fresh meat + 180 days), with a per-category default.
-* A **thaw** action that sets `expiry_date = now + 48 h` and says so: “Thawed — eat
-  within 48 hours”, by notification as well.
-* Sits next to the existing vacuum-seal expiry extension, so the two must not fight
-  over the same `expiry_date`.
-
-### 5. Household nutrition profiles for the AI chef · **M**
+### 4. Household nutrition profiles for the AI chef · **M**
 Issue: [#287](https://github.com/dadaloop82/EverShelf/issues/287)
 The Health Bridge already knows about diets and goals; the recipe generator should
 know about **everyone at the table**.
@@ -113,7 +105,7 @@ know about **everyone at the table**.
   cannot be verified is flagged instead of served.
 * Same choke point as the health pipeline, so one place owns the rules.
 
-### 6. Thermal label printing (ESC/POS + Brother) · **M** (ESC/POS **S**)
+### 5. Thermal label printing (ESC/POS + Brother) · **M** (ESC/POS **S**)
 Issue: [#288](https://github.com/dadaloop82/EverShelf/issues/288)
 For meal prep and portions pulled out of the freezer: one tap on the kiosk prints a
 sticker with the name, the date and a QR code that later deducts that portion.
@@ -125,7 +117,7 @@ sticker with the name, the date and a QR code that later deducts that portion.
 * Scanning the printed QR resolves the product + portion and calls the existing use
   action.
 
-### 7. Multi-store and inflation tracking · **M–L**
+### 6. Multi-store and inflation tracking · **M–L**
 Issue: [#289](https://github.com/dadaloop82/EverShelf/issues/289)
 Instead of only estimating a replacement cost: know what *you* paid, where.
 
@@ -149,13 +141,8 @@ Open issues we would happily hand over — say the word in the issue:
 
 | Idea | Issue | Why it is a good first step |
 |---|---|---|
-| Custom tags per product (`gluten-free`, `bulk-buy`, …) | [#97](https://github.com/dadaloop82/EverShelf/issues/97) | self-contained: one column, one filter bar |
-| Monthly PDF report (inventory, consumption, waste) | [#103](https://github.com/dadaloop82/EverShelf/issues/103) | server-side only, no UI risk |
 | Public REST API v1 + outbound webhooks | [#106](https://github.com/dadaloop82/EverShelf/issues/106) | integration-facing; the outbound webhooks (HA, ntfy, generic) and the token-authenticated action API already ship, the versioned surface is what is missing |
-| Voice input (add items by speaking) | [#115](https://github.com/dadaloop82/EverShelf/issues/115) | browser API + one AI prompt |
-| Voice commands in cooking mode | [#125](https://github.com/dadaloop82/EverShelf/issues/125) | the TTS half already ships |
 | Geofencing: remind me near the supermarket | [#121](https://github.com/dadaloop82/EverShelf/issues/121) | client-side only, GPS never leaves the device |
-| Actionable push notifications (use / throw from the notification) | [#122](https://github.com/dadaloop82/EverShelf/issues/122) | builds on the existing web-push inbox |
 | Video walkthrough for the README | [#69](https://github.com/dadaloop82/EverShelf/issues/69) | no code at all |
 | A new language (translation) | [#93](https://github.com/dadaloop82/EverShelf/issues/93) | one JSON file, no setup |
 
