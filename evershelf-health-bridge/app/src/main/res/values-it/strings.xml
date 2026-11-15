@@ -54,6 +54,14 @@
     <string name="wiz_done_title">Tutto pronto</string>
     <string name="wiz_done_body">EverShelf può usare «A ritmo mio» con la tua attività. Il bridge sincronizza in background e tiene in coda ogni giorno non ancora inviato.</string>
     <string name="wiz_done_battery">Ora Android potrebbe chiedere di escludere l\'app dalle ottimizzazioni batteria, così la sync in background non viene uccisa.</string>
+    <string name="wiz_step_count">Passo %1$d di %2$d</string>
+    <string name="wiz_opts_title">Opzioni di sincronizzazione</string>
+    <string name="wiz_opts_body">Come il bridge parla con EverShelf. Ogni scelta si può cambiare dal pannello di controllo.</string>
+    <string name="wiz_goals_title">I tuoi obiettivi</string>
+    <string name="wiz_goals_body">Guidano gli anelli di Oggi. Passi e calorie bruciate sono i tuoi numeri, non i nostri.</string>
+    <string name="wiz_diag_title">Privacy e diagnostica</string>
+    <string name="wiz_diag_body">I dati salute non lasciano mai la tua rete. Crash e caricamenti falliti finiscono nel log locale; puoi anche inviarli al tuo server EverShelf.</string>
+    <string name="wiz_summary_title">Tutto pronto</string>
 
     <string name="nav_dashboard">Oggi</string>
     <string name="nav_diary">Diario</string>

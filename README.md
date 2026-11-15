@@ -230,7 +230,7 @@ the gate this release was developed against.
 **v2.2.9 — the Health Bridge, rebuilt from zero.** The Android companion is now *EverShelf
 Health Bridge*: five tabs (Today / Diary / Charts / Control / Info), every biometric Health
 Connect exposes, 7/30/90-day charts drawn without a chart library, a diary that keeps the
-household's notes — in the **same six languages as EverShelf** (it/en/de/fr/es/zh) — and a rule
+household's notes — in the **same six languages as EverShelf** (it/en/de/fr/es/zh), an eight-step setup wizard that asks the language first and then every parameter, and a rule
 that is now enforced by code: **data leaves the phone only when EverShelf ANSWERS**, so a day
 spent outside the house waits in a local queue instead of being lost or retried in a storm. It
 updates itself over the LAN first (the workflow now publishes the APK in `releases/`) and GitHub

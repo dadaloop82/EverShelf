@@ -103,7 +103,10 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             R.id.action_setup -> {
-                startActivity(Intent(this, WizardActivity::class.java))
+                startActivity(
+                    Intent(this, WizardActivity::class.java)
+                        .putExtra(WizardActivity.EXTRA_RECONFIGURE, true)
+                )
                 true
             }
             R.id.action_open_hc -> {

@@ -35,7 +35,10 @@ class ControlFragment : Fragment() {
         val ctx = requireContext()
 
         binding.ctrlPairBtn.setOnClickListener {
-            startActivity(Intent(ctx, WizardActivity::class.java))
+            startActivity(
+                Intent(ctx, WizardActivity::class.java)
+                    .putExtra(WizardActivity.EXTRA_RECONFIGURE, true)
+            )
         }
         binding.ctrlTestBtn.setOnClickListener {
             binding.ctrlTestBtn.isEnabled = false

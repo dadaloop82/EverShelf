@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### The Health Bridge, rebuilt from zero — and it speaks only when EverShelf answers
 
-The Android companion app is now **EverShelf Health Bridge** (2.0.1, `versionCode` 21) and
+The Android companion app is now **EverShelf Health Bridge** (2.0.2, `versionCode` 22) and
 nothing of the old single screen survived:
 
 - **Five tabs.** *Today* (goal rings for steps and burned kcal, plus sleep and its stages,
@@ -38,6 +38,12 @@ nothing of the old single screen survived:
   a GitHub issue when the instance is configured for it. On the phone the same lines live in
   `filesDir/health-bridge.log` (show / share / clear from Info) and a crash is persisted
   **before** the process dies, then sent on the next start.
+- **A setup wizard, language first.** A phone that is not paired yet opens an eight-step
+  wizard — language · welcome · Health Connect · pairing · sync options · goals · privacy &
+  diagnostics · ready — and every control writes itself the moment it is touched, so closing
+  it halfway keeps what was already chosen. The last step summarises the pairing and the
+  choices and offers «Import recent history» and «Sync now». *Setup / pairing* reopens it at
+  the pairing step; the Control panel keeps every value editable.
 - **The same six languages as EverShelf** (it / en / de / fr / es / zh, 244 strings each, no
   raw key can reach the screen): the wizard asks the language and every date and number is
   formatted with it.
