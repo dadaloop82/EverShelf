@@ -66,6 +66,11 @@ class ControlFragment : Fragment() {
         binding.intervalMinus.setOnClickListener { changeInterval(-15) }
         binding.intervalPlus.setOnClickListener { changeInterval(15) }
 
+        binding.stepsGoalMinus.setOnClickListener { adjustSteps(-500) }
+        binding.stepsGoalPlus.setOnClickListener { adjustSteps(500) }
+        binding.kcalGoalMinus.setOnClickListener { adjustKcal(-50) }
+        binding.kcalGoalPlus.setOnClickListener { adjustKcal(50) }
+
         binding.batteryRow.setOnClickListener {
             BatteryHelper.requestIgnoreBatteryOptimizations(requireActivity())
         }
@@ -126,6 +131,21 @@ class ControlFragment : Fragment() {
         SyncEngine.schedulePeriodic(ctx)
     }
 
+    /** The goals drive the Today rings, and they are the household's own numbers. */
+    private fun adjustSteps(delta: Int) {
+        val ctx = requireContext()
+        val next = (Prefs.stepsGoal(ctx) + delta).coerceIn(1000, 50000)
+        Prefs.setStepsGoal(ctx, next)
+        binding.stepsGoalValue.text = getString(R.string.control_goal_value, next)
+    }
+
+    private fun adjustKcal(delta: Int) {
+        val ctx = requireContext()
+        val next = (Prefs.kcalGoal(ctx) + delta).coerceIn(100, 5000)
+        Prefs.setKcalGoal(ctx, next)
+        binding.kcalGoalValue.text = getString(R.string.control_goal_value, next)
+    }
+
     private fun requestPermissions() {
         when (HealthConnectReader.sdkStatus(requireContext())) {
             HealthConnectClient.SDK_AVAILABLE -> runCatching {
@@ -156,6 +176,8 @@ class ControlFragment : Fragment() {
         binding.swNotifications.isChecked = Prefs.notifications(ctx)
         binding.swKeepalive.isChecked = Prefs.keepAlive(ctx)
         binding.intervalValue.text = getString(R.string.control_interval_value, Prefs.syncIntervalMin(ctx))
+        binding.stepsGoalValue.text = getString(R.string.control_goal_value, Prefs.stepsGoal(ctx))
+        binding.kcalGoalValue.text = getString(R.string.control_goal_value, Prefs.kcalGoal(ctx))
 
         val pending = HealthDb(ctx).pendingCount()
         binding.ctrlPendingText.text = if (pending > 0) {

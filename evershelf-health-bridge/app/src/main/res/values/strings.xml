@@ -187,6 +187,8 @@
     <string name="control_perms_ok">All granted</string>
     <string name="control_perms_missing">%1$d missing</string>
     <string name="control_hc">Open Health Connect</string>
+    <string name="control_goals">Goals</string>
+    <string name="control_goal_value">%1$d</string>
     <string name="control_data">Data</string>
     <string name="control_pending_count">%1$d days waiting to be sent</string>
     <string name="control_pending_none">Everything has been sent</string>

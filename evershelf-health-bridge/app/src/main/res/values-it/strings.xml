@@ -180,6 +180,8 @@
     <string name="control_perms_ok">Tutti concessi</string>
     <string name="control_perms_missing">%1$d mancanti</string>
     <string name="control_hc">Apri Health Connect</string>
+    <string name="control_goals">Obiettivi</string>
+    <string name="control_goal_value">%1$d</string>
     <string name="control_data">Dati</string>
     <string name="control_pending_count">%1$d giorni in attesa di invio</string>
     <string name="control_pending_none">Tutto è stato inviato</string>
