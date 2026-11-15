@@ -41,6 +41,16 @@ const SHOPPING_TOTAL_CACHE_MAX = 4;
 const EVERSHELF_STAPLE_SHELF_DAYS = 180;
 
 /**
+ * A recipe must be a DISH, not a leftover: at least this many ingredients the pantry can carry.
+ *
+ * It lives HERE, with the other constants, and not next to the function that reads it: a `const`
+ * at the bottom of this file does not exist yet when the router (line ~900) dispatches a handler —
+ * `generate_recipe_stream` answered `Undefined constant "RECIPE_MIN_PANTRY_INGREDIENTS"`
+ * (index.php:15914) and the household's generation failed with an internal error.
+ */
+const RECIPE_MIN_PANTRY_INGREDIENTS = 2;
+
+/**
  * Comprato → block until the family is finished again (cleared on deplete).
  * Rimuovi (purchased=false) → block only for the rest of the calendar month.
  * Override: SHOPPING_REMOVED_BLOCK_MODE=days + SHOPPING_REMOVED_BLOCK_DAYS=N (month-mode only).
@@ -13846,15 +13856,14 @@ function recipeEnforcePantryOnly(array &$recipe): array {
     return $removed;
 }
 
-/** A recipe must be a DISH, not a leftover: at least this many real pantry ingredients. */
-const RECIPE_MIN_PANTRY_INGREDIENTS = 2;
-
 /**
- * How many of a recipe's ingredients the pantry really holds (free staples excluded).
+ * How many of a recipe's ingredients the pantry really holds (free staples count: they are
+ * never "unavailable").
  *
  * `recipePostProcessGenerated()` drops every ingredient the shelves do not have, so a model that
- * invented its way through the prompt leaves a recipe with one ingredient — "sale e pepe" — and
- * that is not a recipe the household can cook. The stream refuses it instead of rendering it.
+ * invented its way through the prompt leaves almost nothing behind — "sale e pepe" is not a dish.
+ * The stream refuses a result below `RECIPE_MIN_PANTRY_INGREDIENTS` instead of rendering it, and
+ * logs `recipe_not_cookable` with the title.
  */
 function recipePantryIngredientCount(array $recipe): int {
     $n = 0;

@@ -220,17 +220,17 @@ function _ssPickRecipe() {
         const info = (typeof _recipeArchiveMissingInfo === 'function')
             ? _recipeArchiveMissingInfo(r)
             : { missing: 0, pantry: 0, unknown: [], checked: false, uncookable: false, allInPantry: false, items: [] };
-        // A proposal must be VERIFIABLE: a shelf snapshot plus at least one linked ingredient.
-        // Without them «missing: 0» is a default, not a fact — which is exactly how this card
-        // ended up offering a dish whose ingredients had been finished («mi fa vedere ricette cui
-        // non ho più gli ingredienti e mi dice "hai tutti gli ingredienti"»).
-        if (!info.checked || !info.pantry || info.uncookable || info.missing > 1) return;
+        // A proposal must be VERIFIABLE **and complete**: a shelf snapshot, at least one linked
+        // ingredient, and NOTHING missing. `missing <= 1` used to leave a dish on the screen with
+        // a ⚠️ next to it — «mi parla ancora di ricette con ingredienti che non ho» (a «pizza
+        // margherita con pizza alta regina» whose pizza is finished). The meal card proposes only
+        // what the house can cook tonight; when nothing qualifies the rotation walks to the next
+        // view instead of apologising over a recipe.
+        if (!info.checked || !info.pantry || info.uncookable || !info.allInPantry) return;
         const expiring = r.ingredients.filter(i => i && i.product_id && expiringIds.has(String(i.product_id)));
         const rating = Number(entry.rating) || 0;
         const ageDays = _ssAgeDays(entry);
-        let score = 100 - info.missing * 25;
-        if (info.allInPantry) score += 15;                   // every ingredient is on a shelf
-        else if (info.unknown.length) score -= 10;           // something nobody can verify
+        let score = 100;
         score += expiring.length * 10;
         if (rating >= 4) score += 12;                        // a dish this household liked
         else if (rating > 0 && rating <= 2) score -= 10;     // one it did not
