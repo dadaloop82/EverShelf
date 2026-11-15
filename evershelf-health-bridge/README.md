@@ -4,7 +4,7 @@ Android companion app that reads **Health Connect** on the phone and syncs daily
 activity + biometrics into EverShelf for **Fuel Mode** recipes, the diary and the charts.
 
 > Package `it.dadaloop.evershelf.health` · minSdk 28 (Android 9) · targetSdk 35
-> Version **2.0.1** (versionCode 21) · **six languages**, the same as EverShelf
+> Version **2.0.2** (versionCode 22) · **six languages**, the same as EverShelf
 > (it / en / de / fr / es / zh)
 > Signing: CI refuses to publish a build without the `HEALTH_KEYSTORE_*` secrets, so an
 > OTA update always carries the same signature as the installed app.
@@ -90,14 +90,27 @@ elevation gained.
 The server stores the daily aggregates it knows and keeps the whole snapshot in
 `health_daily.raw_json`, so a metric the UI grew later is already there.
 
-## Pairing
+## First run — the setup wizard
 
-1. EverShelf → **Settings → Health**: enable health data, save the profile, generate the
-   **pairing QR** (URL + token in one scan).
-2. Install the APK, open it, grant Health Connect permissions.
-3. Scan the QR (or type URL + `es_health_…` token, or let **Find EverShelf on Wi-Fi** scan
-   the /24 with bounded parallelism).
-4. The wizard only accepts the pairing when `health_bridge_hello` really answers.
+Nothing has to be hunted through menus: on a phone that is not paired yet the app opens a
+**setup wizard**, the same way EverShelf does, and asks everything in order — language first.
+
+| Step | Asks for | Where it is stored |
+|---|---|---|
+| 1 · Language | Italiano / English / Deutsch / Français / Español / 中文 (the current one is ticked) | `app_language`, applied immediately (the step is preserved) |
+| 2 · Welcome | what the bridge does and the rule it follows | — |
+| 3 · Health Connect | the read permissions (all of them, or only the ones you want) | Android |
+| 4 · Link EverShelf | QR scan, **Find EverShelf on Wi-Fi**, or URL + `es_health_…`; Next is accepted only when `health_bridge_hello` really answers | `url` + `token` |
+| 5 · Sync options | automatic sync, how often (15–240 min), Wi-Fi-only guard, persistent notification, keep-alive | `auto_sync`, `sync_interval_min`, `wifi_only`, `notifications`, `keepalive` |
+| 6 · Goals | steps and burned-calorie targets that drive the Today rings | `steps_goal`, `kcal_goal` |
+| 7 · Privacy & diagnostics | automatic error reporting + the battery-optimisation exemption | `auto_report` |
+| 8 · Ready | a summary of the pairing and of the choices, **Import recent history** and **Sync now** | — (finishes into Today) |
+
+Every control writes itself the moment it is touched (there is no Save button), so closing the
+wizard halfway keeps what was already chosen — and the same values are visible and editable
+later in the **Control** panel. The wizard is shown only while the app is **not configured**;
+afterwards, *Setup / pairing* in the menu (and *Pair / change server* in Control) reopens it at
+the pairing step.
 
 ## Updates (OTA)
 

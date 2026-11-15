@@ -81,13 +81,18 @@ start.
 
 [evershelf-health-bridge.apk](https://github.com/dadaloop82/EverShelf/releases/download/health-bridge-latest/evershelf-health-bridge.apk)
 
-## Pairing
+## Pairing and first run
 
 1. Enable Health in EverShelf and save your profile.
 2. Install the APK on an Android phone with Health Connect (Android 14+ has it built in).
-3. Generate the pairing QR (URL + token).
-4. Scan from the app; grant permissions; sync. The wizard only accepts the pairing when
-   `health_bridge_hello` really answers.
+3. Generate the pairing QR (URL + token) in **Settings → Health**.
+4. The app opens its **setup wizard** — language first, then permissions, the pairing
+   (QR / Wi-Fi discovery / manual), the sync options, the goals and the diagnostics switches —
+   and only accepts the pairing when `health_bridge_hello` really answers.
+5. At the end it offers **Import recent history** and **Sync now**, then lands on Today.
+
+The wizard runs only on a phone that is not paired yet; later, *Setup / pairing* reopens it at
+the pairing step and the control panel holds every option.
 
 Details: [`evershelf-health-bridge/README.md`](https://github.com/dadaloop82/EverShelf/blob/main/evershelf-health-bridge/README.md)
 

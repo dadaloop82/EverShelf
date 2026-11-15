@@ -54,6 +54,14 @@
     <string name="wiz_done_title">Todo listo</string>
     <string name="wiz_done_body">EverShelf ya puede usar «Fuel mode / A mi ritmo» con tu actividad. El bridge sincroniza en segundo plano y mantiene en cola cada día no enviado.</string>
     <string name="wiz_done_battery">Ahora Android puede pedir excluir la app de la optimización de batería para que la sync en segundo plano no se detenga.</string>
+    <string name="wiz_step_count">Paso %1$d de %2$d</string>
+    <string name="wiz_opts_title">Opciones de sincronización</string>
+    <string name="wiz_opts_body">Cómo habla el bridge con EverShelf. Cada elección se puede cambiar luego en el panel de control.</string>
+    <string name="wiz_goals_title">Tus objetivos</string>
+    <string name="wiz_goals_body">Guían los anillos de Hoy. Pasos y calorías quemadas son tus números, no los nuestros.</string>
+    <string name="wiz_diag_title">Privacidad y diagnóstico</string>
+    <string name="wiz_diag_body">Los datos de salud nunca salen de tu red. Los fallos y las subidas fallidas van al registro local; también puedes enviarlos a tu servidor EverShelf.</string>
+    <string name="wiz_summary_title">Todo listo</string>
 
     <string name="nav_dashboard">Hoy</string>
     <string name="nav_diary">Diario</string>

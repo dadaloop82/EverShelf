@@ -56,6 +56,14 @@
     <string name="wiz_done_title">You\'re set</string>
     <string name="wiz_done_body">EverShelf can now use «Fuel mode / At my pace» with your activity. The bridge syncs in the background and keeps every unsent day queued.</string>
     <string name="wiz_done_battery">Next, Android may ask to keep this app unrestricted (no battery optimization) so the background sync is not killed.</string>
+    <string name="wiz_step_count">Step %1$d of %2$d</string>
+    <string name="wiz_opts_title">Sync options</string>
+    <string name="wiz_opts_body">How the bridge talks to EverShelf. Every choice can be changed later in the Control panel.</string>
+    <string name="wiz_goals_title">Your goals</string>
+    <string name="wiz_goals_body">They drive the rings on Today. Steps and burned calories are your own numbers, not ours.</string>
+    <string name="wiz_diag_title">Privacy &amp; diagnostics</string>
+    <string name="wiz_diag_body">Health data never leaves your network. Crashes and failed uploads are written to the local log; you can also send them to your EverShelf server.</string>
+    <string name="wiz_summary_title">Ready</string>
 
     <!-- Navigation -->
     <string name="nav_dashboard">Today</string>

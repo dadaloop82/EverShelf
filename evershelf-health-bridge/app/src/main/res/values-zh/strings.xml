@@ -54,6 +54,14 @@
     <string name="wiz_done_title">一切就绪</string>
     <string name="wiz_done_body">EverShelf 现在可以根据你的活动使用「我的节奏」。桥接在后台同步，并把每个尚未发送的日子保留在队列中。</string>
     <string name="wiz_done_battery">接下来，Android 可能会请求将本应用设为不受限制（关闭电池优化），以免后台同步被终止。</string>
+    <string name="wiz_step_count">第 %1$d 步，共 %2$d 步</string>
+    <string name="wiz_opts_title">同步选项</string>
+    <string name="wiz_opts_body">桥接如何与 EverShelf 通信。之后可在控制面板中更改每一项选择。</string>
+    <string name="wiz_goals_title">你的目标</string>
+    <string name="wiz_goals_body">它们决定「今天」页面的圆环。步数和消耗的卡路里是你的数字，不是我们的。</string>
+    <string name="wiz_diag_title">隐私与诊断</string>
+    <string name="wiz_diag_body">健康数据绝不会离开你的网络。崩溃和上传失败会写入本地日志；你也可以把它们发送到自己的 EverShelf 服务器。</string>
+    <string name="wiz_summary_title">一切就绪</string>
 
     <string name="nav_dashboard">今天</string>
     <string name="nav_diary">日记</string>
