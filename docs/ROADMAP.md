@@ -49,6 +49,7 @@ far), `feature` / `enhancement` / `bug` / `i18n` / `docs`.
 | Freezer lifecycle — freeze / thaw with a per-category shelf life and the 48 h window | [#286](https://github.com/dadaloop82/EverShelf/issues/286) | 2.2.0 (`inventory_freeze`, `data/frozen_shelf_life.json`) |
 | Actionable push — ✓ Usato / 🔥 Buttato straight from the notification | [#122](https://github.com/dadaloop82/EverShelf/issues/122) | 2.2.0 (`notification_action`, `api/lib/push_actions.php`) |
 | Monthly PDF report — snapshot, consumption, waste and recorded spend | [#103](https://github.com/dadaloop82/EverShelf/issues/103) | 2.2.0 (`export_monthly_report`) |
+| Health Bridge 2.0 — five tabs (Today / Diary / Charts / Control / Info), the full Health Connect biometric set, a local queue that uploads **only when EverShelf answers**, LAN-first OTA, crash + sync reports into the GitHub pipeline | — | 2.2.9 (APK 2.0.0, `evershelf-health-bridge/`) |
 
 ## 🔜 Next (agreed, waiting for hands)
 

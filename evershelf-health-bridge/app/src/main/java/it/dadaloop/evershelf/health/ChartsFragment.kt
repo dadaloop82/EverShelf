@@ -22,6 +22,7 @@ class ChartsFragment : Fragment() {
     private var selectedMetric: Metric = Metrics.ALL.first()
     private var selectedRange: Int = 30
     private var renderJob: kotlinx.coroutines.Job? = null
+    private var lastBackfillAt = 0L
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, state: Bundle?): View {
         _binding = FragmentChartsBinding.inflate(inflater, container, false)
@@ -68,7 +69,13 @@ class ChartsFragment : Fragment() {
             var rows = db.daysSince(start.toString())
 
             // The store is filled from Health Connect the first time a range is asked for.
-            if (rows.size < days - 1) {
+            // Two guards: no permission means there is nothing to import, and a range is
+            // never re-imported more than once every 10 minutes (a day without data would
+            // otherwise make every chip tap read the whole phone again).
+            val canRead = runCatching { HealthConnectReader.grantedCount(ctx) }.getOrDefault(0) > 0
+            val backfillDue = System.currentTimeMillis() - lastBackfillAt > 10 * 60 * 1000L
+            if (canRead && backfillDue && rows.size < days - 1) {
+                lastBackfillAt = System.currentTimeMillis()
                 binding.chartsProgress.visibility = View.VISIBLE
                 binding.chartsProgressText.visibility = View.VISIBLE
                 binding.chartsProgressText.text = getString(R.string.charts_loading)
