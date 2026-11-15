@@ -508,9 +508,19 @@ function mealieScoreRecipeForPantry(array $recipe, array $pantryItems, string $m
  * @return array{total:int,matched:int,missing:string[],coverage:float}
  */
 function mealieRecipePantryCoverage(array $recipe, array $pantryItems): array {
+    // ONE matcher, the same the recipe is then linked with: `recipeEnrichIngredientsFromPantry()`
+    // decides `from_pantry` / `product_id` with `recipeScorePantryMatch()`, and the pantry filter
+    // DELETES every ingredient it cannot link. Judging coverage with a different rule (any token
+    // of the ingredient appearing in any pantry name) made the two disagree: «Pizza margherita»
+    // was counted as covered because «Pizza alta regina» was on a shelf, then thrown away by the
+    // filter — so the recipe looked complete without its pizza and kept being proposed.
+    $threshold = defined('RECIPE_PANTRY_MIN_MATCH_SCORE') ? (int)RECIPE_PANTRY_MIN_MATCH_SCORE : 80;
     $pantryNames = [];
     foreach ($pantryItems as $it) {
-        $n = mb_strtolower(trim((string)($it['name'] ?? '')));
+        if (function_exists('isInventoryDepletedForRecipe') && isInventoryDepletedForRecipe($it)) {
+            continue;   // a trace is not stock
+        }
+        $n = trim((string)($it['name'] ?? ''));
         if ($n !== '') {
             $pantryNames[] = $n;
         }
@@ -525,13 +535,25 @@ function mealieRecipePantryCoverage(array $recipe, array $pantryItems): array {
             continue;
         }
         $total++;
-        $tokens = mealieTokens($name);
         $hit = false;
-        foreach ($pantryNames as $pName) {
-            foreach ($tokens as $tok) {
-                if ($tok !== '' && str_contains($pName, $tok)) {
+        if (function_exists('recipeScorePantryMatch')) {
+            foreach ($pantryNames as $pName) {
+                if (recipeScorePantryMatch($name, $pName) >= $threshold) {
                     $hit = true;
-                    break 2;
+                    break;
+                }
+            }
+        } else {
+            // Stand-alone use of this module (a script that never loaded api/index.php):
+            // keep the old token rule rather than answering «everything is missing».
+            $tokens = mealieTokens($name);
+            foreach ($pantryNames as $pName) {
+                $lower = mb_strtolower($pName);
+                foreach ($tokens as $tok) {
+                    if ($tok !== '' && str_contains($lower, $tok)) {
+                        $hit = true;
+                        break 2;
+                    }
                 }
             }
         }

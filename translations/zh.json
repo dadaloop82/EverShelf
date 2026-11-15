@@ -947,6 +947,7 @@
     "missing_chip_one": "🛒 缺 1 种食材",
     "missing_chip_many": "🛒 缺 {n} 种食材",
     "missing_chip_none": "🛒 库存中已无食材",
+    "missing_scrubbed": "储藏室中没有：{list}",
     "missing_popover_title": "库存缺少",
     "missing_already_listed": "已在清单中",
     "missing_all_listed": "全部已在清单中",

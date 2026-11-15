@@ -723,6 +723,16 @@ runtime/binary files — if a task truly needs one, ask first.
   the link, so every «q.b.» or «80-90 g» ingredient was skipped in silence: with the sugar finished,
   «Maxi-Pancake al Forno» still read «✅ Hai tutti gli ingredienti» (measured: old rule
   `missing 0`, new `missing 1`).
+- **A recipe that lost an ingredient REMEMBERS it.** `recipeEnforcePantryOnly()` deletes every
+  ingredient the pantry cannot link, and `recipeAttachShoppingSuggestions()` records that list
+  **always** (a fact about the dish, not a shopping preference). `_recipeArchiveMissingInfo()`
+  counts those rows as missing (`scrubbed`), so `allInPantry` is false and the screensaver refuses
+  the dish — it used to propose a «pizza margherita» whose pizza had been deleted, and opening it
+  showed nothing missing. A suggestion bought since stops counting (`_recipePantryHasName()`: every
+  token on ONE live product name, so «Pizza alta regina» never covers «Pizza margherita»), the live
+  shelf uses `isInventoryDepleted()` (a trace is not stock), `mealieRecipePantryCoverage()` uses
+  `recipeScorePantryMatch()` — the matcher that actually links the ingredients — and the sheet
+  prints `recipes.missing_scrubbed`.
 - **Tablet/kiosk CSS is opt-in**: `assets/css/tablet.css` activates on `html.is-kiosk`
   / `html.is-touch-tablet` (set by `_markDeviceChrome()`), never on `min-width` alone —
   a desktop monitor keeps the base styles.

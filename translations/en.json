@@ -947,6 +947,7 @@
     "missing_chip_one": "🛒 1 ingredient missing",
     "missing_chip_many": "🛒 {n} ingredients missing",
     "missing_chip_none": "🛒 No ingredients left in the pantry",
+    "missing_scrubbed": "The pantry did not have: {list}",
     "missing_popover_title": "Missing from the pantry",
     "missing_already_listed": "Already on the list",
     "missing_all_listed": "Everything is already on the list",

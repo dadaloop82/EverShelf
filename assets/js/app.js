@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261115d'; // bump when translations change
+const _I18N_VERSION = '20261115e'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -22157,7 +22157,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261115d';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261115e';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -22167,7 +22167,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261115d';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261115e';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -36491,6 +36491,7 @@ function _setRecipeArchiveView(view) {
  * only after you open it.
  */
 let _recipeLiveProductIds = null;
+let _recipeLivePantryNames = [];
 let _recipeLiveProductIdsAt = 0;
 const _RECIPE_LIVE_IDS_TTL_MS = 30000;
 
@@ -36501,15 +36502,73 @@ async function _recipeLiveProductIdSet() {
     try {
         const data = await api('inventory_list', {}, 'GET', null, {}, 8000);
         const set = new Set();
+        const names = [];
         (data && Array.isArray(data.inventory) ? data.inventory : []).forEach((row) => {
-            if (parseFloat(row.quantity) > 0) set.add(String(row.product_id));
+            // The pantry's OWN rule (`isInventoryDepleted`): a trace — 0.3 g of flour, an eighth
+            // of a piece — is not stock. `quantity > 0` kept such a row «live», so a recipe that
+            // needed it was still called cookable with a practically empty shelf.
+            if (isInventoryDepleted(row)) return;
+            set.add(String(row.product_id));
+            const n = String(row.name || '').trim();
+            if (n) names.push(n);
         });
         _recipeLiveProductIds = set;
+        _recipeLivePantryNames = names;
         _recipeLiveProductIdsAt = Date.now();
         return set;
     } catch (e) {
         return _recipeLiveProductIds || new Set();
     }
+}
+
+/**
+ * Does a live product name carry EVERY significant token of [name]?
+ *
+ * The same strictness the server's `recipeScorePantryMatch()` applies: «Pizza margherita» is
+ * NOT covered by «Pizza alta regina», which is exactly the confusion that kept proposing a
+ * dish without its main ingredient.
+ */
+function _recipePantryHasName(name, pantryNames) {
+    const want = _recipeNameKey(name).split(' ').filter(w => w.length > 2);
+    if (!want.length || !Array.isArray(pantryNames)) return false;
+    return pantryNames.some((pName) => {
+        const have = _recipeNameKey(pName).split(' ').filter(Boolean);
+        if (!have.length) return false;
+        return want.every(w => have.some(h => h === w || h.startsWith(w) || w.startsWith(h)));
+    });
+}
+
+/**
+ * The ingredients the server had to REMOVE because the pantry had none.
+ *
+ * `recipeEnforcePantryOnly()` deletes them from `ingredients` and records them in
+ * `shopping_suggestions` (always, whatever the shopping mode says). Without this the recipe
+ * looked complete: the screensaver proposed a «pizza margherita» whose pizza had been deleted,
+ * and opening it showed nothing missing because the row was simply gone.
+ *
+ * A suggestion the household has bought since is NOT missing any more — the live shelf is
+ * asked, by name, with the strict token rule above.
+ */
+function _recipeScrubbedItems(recipe) {
+    const out = [];
+    if (!recipe || !Array.isArray(recipe.shopping_suggestions)) return out;
+    const liveNames = _recipeLiveProductIds ? _recipeLivePantryNames : [];
+    const seen = new Set();
+    (recipe.ingredients || []).forEach((ing) => {
+        const k = _recipeNameKey(ing && ing.name);
+        if (k) seen.add(k);
+    });
+    recipe.shopping_suggestions.forEach((row) => {
+        if (!row) return;
+        const name = String(row.name || row.qty || '').trim();
+        if (!name || _recipeIsFreeStaple(name)) return;
+        const key = _recipeNameKey(name);
+        if (!key || seen.has(key)) return;
+        if (_recipePantryHasName(name, liveNames)) return;   // bought since: no longer missing
+        seen.add(key);
+        out.push({ name, qty: String(row.qty || '').trim() });
+    });
+    return out;
 }
 
 /**
@@ -36539,7 +36598,7 @@ function _recipeIsFreeStaple(name) {
  * `allInPantry` is the ONE verdict a card may print as «hai tutti gli ingredienti».
  */
 function _recipeArchiveMissingInfo(recipe) {
-    const info = { missing: 0, pantry: 0, unknown: [], checked: false, uncookable: false, allInPantry: false, items: [] };
+    const info = { missing: 0, pantryMissing: 0, pantry: 0, unknown: [], scrubbed: 0, incomplete: false, checked: false, uncookable: false, allInPantry: false, items: [] };
     if (!recipe || !Array.isArray(recipe.ingredients)) return info;
     const live = _recipeLiveProductIds;
     info.checked = !!live;
@@ -36551,15 +36610,36 @@ function _recipeArchiveMissingInfo(recipe) {
             info.pantry++;
             // No snapshot → say nothing about it (`checked` is false and `allInPantry` stays false).
             if (live && !live.has(String(i.product_id))) {
-                info.missing++;
+                info.pantryMissing++;
                 info.items.push({ name, qty: String(i.qty || '').trim() });
             }
             return;
         }
         if (!_recipeIsFreeStaple(name)) info.unknown.push(name);
     });
-    info.uncookable = info.pantry > 0 && info.missing === info.pantry;
-    info.allInPantry = info.checked && info.pantry > 0 && info.missing === 0 && info.unknown.length === 0;
+
+    // The rows the server had to DELETE (they live in `shopping_suggestions`). They are not in
+    // `ingredients` any more, so nothing above can see them — and a recipe that lost its main
+    // ingredient looked complete. This is what kept the screensaver proposing a «pizza
+    // margherita» whose pizza had been removed by the pantry filter.
+    const scrubbed = _recipeScrubbedItems(recipe);
+    const seen = new Set(info.items.map(it => _recipeNameKey(it.name)));
+    scrubbed.forEach((row) => {
+        const key = _recipeNameKey(row.name);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        info.scrubbed++;
+        info.items.push(row);
+    });
+
+    info.missing = info.pantryMissing + info.scrubbed;
+    info.incomplete = info.scrubbed > 0;
+    // «No ingredient in the pantry» is the extreme case only: a dish that lost ONE row is still
+    // dinner and must not wear the alarm of a dish that lost everything.
+    info.uncookable = (info.pantry > 0 && info.pantryMissing >= info.pantry)
+        || (info.pantry === 0 && info.scrubbed > 0);
+    info.allInPantry = info.checked && info.pantry > 0 && info.missing === 0
+        && info.unknown.length === 0 && info.scrubbed === 0;
     return info;
 }
 
@@ -38984,16 +39064,27 @@ async function renderRecipe(r) {
     // Ingredients
     const missingIngs = (r.ingredients || []).filter(ing => ing && ing.stock_missing);
     const pantryIngs = (r.ingredients || []).filter(ing => ing && ing.from_pantry && ing.product_id);
+    // The rows the pantry filter had to DELETE (`shopping_suggestions`): they are not in
+    // `r.ingredients` any more, so the list below cannot show them — and the recipe used to
+    // read as complete while its main ingredient had simply vanished.
+    const scrubbedRows = _recipeScrubbedItems(r);
     // The red banner is for a dish that CANNOT be cooked at all. A recipe that lost one
     // ingredient is still dinner: its row is struck through below, and a red alarm on sixteen
     // recipes out of eighteen (the real pantry) would only teach the household to ignore red.
     const uncookable = pantryIngs.length > 0 && missingIngs.length === pantryIngs.length;
     if (uncookable) {
         const names = missingIngs.map(ing => ing.name).filter(Boolean);
+        scrubbedRows.forEach(it => { if (it.name && !names.includes(it.name)) names.push(it.name); });
         html += `<div class="recipe-missing-banner" role="status">
             <strong>${escapeHtml(t('recipes.missing_title'))}</strong>
             <p>${escapeHtml(t('recipes.missing_body', { list: names.join(', ') || '—' }))}</p>
         </div>`;
+    } else if (scrubbedRows.length) {
+        // Softer than the alarm above: the dish is still dinner, but the household must see WHAT
+        // the pantry filter removed instead of a recipe that reads as complete.
+        const names = scrubbedRows.map(it => it.name).filter(Boolean);
+        html += `<div class="recipe-expiry-note recipe-scrubbed-note" role="status">`
+            + `⚠️ ${escapeHtml(t('recipes.missing_scrubbed', { list: names.join(', ') }))}</div>`;
     }
     html += `<h3>${t('recipes.ingredients_title')}</h3><ul class="recipe-ingredients">`;
     (r.ingredients || []).forEach((ing, idx) => {
