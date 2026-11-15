@@ -180,6 +180,8 @@
     <string name="control_perms_ok">Toutes accordées</string>
     <string name="control_perms_missing">%1$d manquantes</string>
     <string name="control_hc">Ouvrir Health Connect</string>
+    <string name="control_goals">Objectifs</string>
+    <string name="control_goal_value">%1$d</string>
     <string name="control_data">Données</string>
     <string name="control_pending_count">%1$d jours en attente d\'envoi</string>
     <string name="control_pending_none">Tout a été envoyé</string>

@@ -144,11 +144,11 @@ object HealthConnectReader {
             out.put("hydration_ml", it.inMilliliters.roundToInt())
         }
         agg(client, range, RestingHeartRateRecord.BPM_AVG)?.let {
-            out.put("resting_hr", it.roundToInt())
+            out.put("resting_hr", it.toInt())
         }
-        agg(client, range, HeartRateRecord.BPM_AVG)?.let { out.put("hr_avg", it.roundToInt()) }
-        agg(client, range, HeartRateRecord.BPM_MIN)?.let { out.put("hr_min", it.roundToInt()) }
-        agg(client, range, HeartRateRecord.BPM_MAX)?.let { out.put("hr_max", it.roundToInt()) }
+        agg(client, range, HeartRateRecord.BPM_AVG)?.let { out.put("hr_avg", it.toInt()) }
+        agg(client, range, HeartRateRecord.BPM_MIN)?.let { out.put("hr_min", it.toInt()) }
+        agg(client, range, HeartRateRecord.BPM_MAX)?.let { out.put("hr_max", it.toInt()) }
         agg(client, range, SpeedRecord.SPEED_AVG)?.let {
             out.put("speed_avg_kmh", (it.inMetersPerSecond * 3.6 * 10).roundToInt() / 10.0)
         }
@@ -271,7 +271,7 @@ object HealthConnectReader {
         runCatching {
             client.readRecords(
                 ReadRecordsRequest(BasalMetabolicRateRecord::class, timeRangeFilter = range)
-            ).records.lastOrNull()?.basalMetabolicRate?.inKilocalories?.let {
+            ).records.lastOrNull()?.basalMetabolicRate?.inKilocaloriesPerDay?.let {
                 out.put("basal_kcal", it.roundToInt())
             }
         }
