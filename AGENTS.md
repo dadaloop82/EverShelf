@@ -71,6 +71,19 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   code must stay greppable with the command the docs advertise
   (`grep -i "pairing code" logs/evershelf_*.log`) — a snake_case-only message made
   that command silently return nothing.
+- **The Android Health Bridge uploads only when EverShelf ANSWERS, and says which river it
+  is.** `evershelf-health-bridge/` keeps each day in a local SQLite queue and every pass asks
+  `health_bridge_hello` first: a phone in the street has internet and no route to the LAN
+  server, so "the phone is online" is never the question — an unreachable server is a
+  *successful deferral* (the day waits on the phone), never a retry storm. Its
+  `report_error` carries `source=health_bridge`, which `reportError()` and `clientLog()`
+  map to their own river (`data/logs/health-YYYY-MM-DD.log`) next to `app` and `kiosk`, and
+  `context.version_guard_bypass=true` because that guard compares against the WEBAPP release
+  tag while the bridge has its own version line. Its OTA asks the LAN server first
+  (`health_bridge_update`, `releases/evershelf-health-bridge.apk` + `health-bridge-version.json`,
+  published by the health-bridge workflow) and GitHub second, and installs only an APK with
+  the **same signature** and a higher `versionCode`. Feature work on it follows the same rule
+  as the webapp: a roadmap entry + an issue, never a code-only change.
 - **Product titles lead with their genre.** `products.name` is user data and the app
   now owns the first word of it: a new/renamed product goes through
   `mergeIncomingProductFields()` → `productKindApply()` (`api/lib/product_kind.php`),
@@ -327,6 +340,7 @@ npm run build
 | `.env` bootstrap / pairing | `api/lib/env.php`, `api/lib/pairing.php`, `app_bootstrap` in `api/index.php` |
 | Seasonal produce | `api/lib/seasonal.php` + `data/seasonal_produce_it.json` |
 | Health / Fuel mode | `api/lib/health.php` |
+| Android Health Bridge (companion APK) | `evershelf-health-bridge/` — Kotlin, package `it.dadaloop.evershelf.health`, `versionName 2.0.0`. Five tabs (Today / Diary / Charts / Control / Info) with the day stored in a local SQLite queue (`HealthDb`), a **reachability gate** before every upload (`ServerReachability` → `health_bridge_hello`: a phone in the street has internet and no route to the LAN server, so \"has internet\" is never the question), OTA through `health_bridge_update` (LAN, from `releases/`) with a GitHub fallback and a **signature + versionCode** check before `PackageInstaller`, and errors sent to the public `report_error` with `source=health_bridge` → its own river `data/logs/health-YYYY-MM-DD.log`. Its keep-alive FGS is started **only from a visible screen**: Android 15 refuses a `dataSync` FGS from `BOOT_COMPLETED`, which was one of the ways the old APK died. Built by `.github/workflows/build-health-bridge.yml` (signing secrets `HEALTH_KEYSTORE_*`) |
 | Frontend API wrapper | `api()` in `assets/js/app.js` (line drifts — `grep -n "^async function api("`). It **shares heavy reads**: `_API_READ_CACHEABLE` (inventory_list, products_list, stats, shopping_list, smart_shopping, the dashboard summaries…) answers a GET that is already in flight or arrived < 2 s ago, because the wall's boot asked for the same 136 KB `inventory_list` **eight times in four seconds** and the parse storm is what got its WebView renderer OOM-killed. Writes are never shared: any POST and `refreshAppDataAfterMutation()` call `_apiDropReadCache()` first. The real fetch is `_apiFetchJson()` |
 | A translation that carries markup | Some strings are HTML by design (`use.disambiguation_one_conf` «Finita `<strong>1 confezione</strong>` ({qty})», `scanner.camera_error_hint` «…fotocamera.`<br>`Puoi inserire…»): they are written RAW into `innerHTML` (or a template literal that lands there) and only the interpolated VALUE goes through `escapeHtml()`. Wrapping the whole translation in `escapeHtml(t(…))` or assigning it to `textContent` prints the tags to the household — the «usa / finito tutto» chooser literally read `<strong>1 confezione</strong>`. `scripts/i18n-audit.py` section **[5]** fails on that pattern (a bare `<` like «Peso < 10 g» is not a tag) |
 | i18n helper | `t()` (~line 1471), `loadTranslations()` (~1482), `_urlLangOverride()` (line 1417: `?lang=` wins over localStorage); anything PHP hands to the UI is a key (`error_key`, `hint_key`, `urgency_label_key`) |

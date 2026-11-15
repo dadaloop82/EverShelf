@@ -1,13 +1,11 @@
 # EverShelf Health Bridge
 
-Android companion app that reads **Health Connect** on the phone and syncs daily activity into EverShelf for **Fuel Mode** recipes.
+Android companion app that reads **Health Connect** on the phone and syncs daily
+activity + biometrics into EverShelf for **Fuel Mode** recipes, the diary and the charts.
 
-## What it does
-
-- Pairs with EverShelf via **QR** (Settings → Health) — URL + API token in one scan
-- Reads Health Connect aggregates: steps, active/total kcal, workouts, sleep, distance, floors, resting heart rate
-- Posts to `health_ingest` on your self-hosted EverShelf server (LAN / same Wi‑Fi)
-- **Keep-alive**: foreground notification + optional battery-optimization exemption so OEMs don’t kill sync
+> Package `it.dadaloop.evershelf.health` · minSdk 28 (Android 9) · targetSdk 35
+> Signing: CI refuses to publish a build without the `HEALTH_KEYSTORE_*` secrets, so an
+> OTA update always carries the same signature as the installed app.
 
 ## Download
 
@@ -15,22 +13,120 @@ Always the latest CI build:
 
 **[evershelf-health-bridge.apk](https://github.com/dadaloop82/EverShelf/releases/download/health-bridge-latest/evershelf-health-bridge.apk)**
 
-Release tag: `health-bridge-latest` (published from `main` by [`.github/workflows/build-health-bridge.yml`](../.github/workflows/build-health-bridge.yml)).
+Release tag: `health-bridge-latest` (published from `main` by
+[`.github/workflows/build-health-bridge.yml`](../.github/workflows/build-health-bridge.yml)).
+The same APK is also committed to `releases/evershelf-health-bridge.apk` so a LAN-only
+install (no internet at all) can update itself from its own server.
 
-## Setup
+## Screens
 
-1. In EverShelf open **Settings → Health**, enable health data, save your profile.
-2. Tap **Download Health Bridge** (or use the link above) and install the APK (allow unknown sources if needed).
-3. Generate the **pairing QR** in EverShelf.
-4. Open the app, grant Health Connect permissions, scan the QR.
-5. Sync — today’s activity appears under Settings → Health and drives Fuel Mode recipes.
+| Tab | What it does |
+|---|---|
+| **Today** | Goal rings (steps / burned kcal) and the day's real facts: sleep and its stages, exercise, water, distance, floors, heart rate (avg + resting), HRV, SpO₂, breathing rate, weight, body fat, blood pressure, glucose, temperature, basal metabolism. Bridge status: paired, server online/offline, last sync, queued days, one-tap sync. |
+| **Diary** | Every day the bridge has seen, with a **sent / queued / local** chip, its own note and the full metric list. A single day can be sent on its own. |
+| **Charts** | History for 17 metrics over 7 / 30 / 90 days, drawn with the Canvas (no chart library): line + soft area, min/avg/max summary, two series for blood pressure. The store is filled from Health Connect the first time a range is opened, then it is instant. |
+| **Control** | The control panel: pairing, a live server test, automatic sync and its pace, Wi-Fi-only guard, persistent notification / keep-alive, battery optimisation, Health Connect permissions, the queue, history import, local data reset, log viewer. |
+| **Info** | Project identity (repository, **MIT** licence, author), OTA updates, automatic error reporting, a manual report, the local log (show / share / clear) and the privacy statement. |
+
+## The one rule: send only when EverShelf ANSWERS
+
+A phone in the street has internet and no route to a LAN server (or to the VPN that
+reaches it). So every upload pass is:
+
+1. **read the phone** and write the day to the local SQLite store (`HealthDb`);
+2. **ask the server** (`health_bridge_hello`, 5 s) — if it does not answer, the day stays
+   queued and the pass *succeeds*: nothing is lost, nothing is retried in a storm;
+3. **upload the queue**, oldest first, until the server acknowledges each day.
+
+Network came back? `NetworkCallback` schedules a pass. Phone rebooted? WorkManager does.
+The optional **Wi-Fi-only** switch is an extra guard on metered connections — it never
+replaces the server test, which is the actual decision.
+
+Queued days live on the phone, so "outside the house, no VPN" loses nothing; the next pass
+sends them all (one `health_ingest` per day, the server merges per date).
+
+## Metrics
+
+Read-only, via Health Connect; every metric is optional and a missing permission only
+removes that line:
+
+steps · active/total calories · basal metabolic rate · exercise sessions (+ type) · sleep
+(+ deep/light/REM/awake) · weight · height · body fat · lean mass · hydration · heart rate
+(avg/min/max) · resting heart rate · HRV (rMSSD) · oxygen saturation · respiratory rate ·
+blood pressure · blood glucose · body temperature · distance · floors · speed · power ·
+elevation gained.
+
+The server stores the daily aggregates it knows and keeps the whole snapshot in
+`health_daily.raw_json`, so a metric the UI grew later is already there.
+
+## Pairing
+
+1. EverShelf → **Settings → Health**: enable health data, save the profile, generate the
+   **pairing QR** (URL + token in one scan).
+2. Install the APK, open it, grant Health Connect permissions.
+3. Scan the QR (or type URL + `es_health_…` token, or let **Find EverShelf on Wi-Fi** scan
+   the /24 with bounded parallelism).
+4. The wizard only accepts the pairing when `health_bridge_hello` really answers.
+
+## Updates (OTA)
+
+The Info tab (and a 6-hour throttled check at startup) asks, in this order:
+
+1. **your server** — `GET api/index.php?action=health_bridge_update` (works with no
+   internet at all, and the APK is served from the same origin);
+2. **GitHub** — `releases/tags/health-bridge-latest` (asset URL must belong to the
+   EverShelf repository).
+
+Before anything reaches the installer the APK is proved to be ours: a ZIP header, our
+package name, a **higher `versionCode`** and the **same signing certificate** as the
+installed app. A mismatch is deleted and reported, never offered.
+
+The install runs through `PackageInstaller` with `INSTALL_REASON_USER` (the path Android
+14+ accepts for self-update) and a result receiver that logs `STATUS_*` — so a refused
+update is a log line, not a silent failure.
+
+## Errors and crashes
+
+- `data/logs/health-YYYY-MM-DD.log` on the server (its own river, next to `app` and
+  `kiosk`), written through the public `report_error` action with `source=health_bridge`.
+- A GitHub issue when the instance is configured with a GitHub token (`REPORT_ENABLED`) —
+  the same deduplicating pipeline the rest of EverShelf uses. The bridge sends
+  `context.version_guard_bypass = true` on purpose: that guard compares against the
+  *webapp* release tag, and the bridge has its own version line.
+- On the phone: `filesDir/health-bridge.log`, readable and shirable from **Info →
+  Diagnostics**, and a crash written to SharedPreferences **before** the process dies,
+  then sent on the next start.
+
+## Why the old app "closed by itself"
+
+Three real defects, all fixed here:
+
+1. **A foreground service started from `BOOT_COMPLETED`.** Android 15 refuses a `dataSync`
+   FGS launched from boot (`ForegroundServiceStartNotAllowedException`), and an exception
+   in a receiver is a crash. Boot now schedules WorkManager only; the keep-alive service is
+   started exclusively from a visible screen, and a refusal is logged and ignored.
+2. **1016 simultaneous requests** in the network discovery (254 hosts × 2 schemes × 2
+   paths). Now 24 at a time with a 15 s ceiling.
+3. **A rebuilt Activity on every rotation or locale change** (state lost, then a crash on
+   the stale binding) and a reader that returned an almost empty payload on the first
+   failing metric. The host declares every `configChanges`, and each metric read is
+   isolated.
 
 ## Build
 
-Do **not** build on the EverShelf server. Use GitHub Actions (`workflow_dispatch` or push to `main` that touches the Android tree).
+Do **not** build on the EverShelf server. Use GitHub Actions
+(`workflow_dispatch` or a push to `main` that touches the Android tree).
 
 Local Android Studio builds are for development only; production APKs come from CI.
 
 ## Privacy
 
-Health data stays on your phone + your EverShelf server. There is no cloud analytics path in Health Bridge.
+Health data stays on the phone and on your EverShelf server. There is no cloud account,
+no advertising SDK and no analytics; uploads happen only when the server answers.
+
+## Project
+
+- Repository: <https://github.com/dadaloop82/EverShelf>
+- Licence: **MIT** (same as EverShelf)
+- Author: **dadaloop82**
+- Built on Health Connect, AndroidX and Material 3.

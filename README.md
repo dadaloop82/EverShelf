@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.8-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.9-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -226,6 +226,17 @@ the gate this release was developed against.
 
 <details open>
 <summary><b>Last five releases</b></summary>
+
+**v2.2.9 — the Health Bridge, rebuilt from zero.** The Android companion is now *EverShelf
+Health Bridge*: five tabs (Today / Diary / Charts / Control / Info), every biometric Health
+Connect exposes, 7/30/90-day charts drawn without a chart library, a diary that keeps the
+household's notes, and a rule that is now enforced by code — **data leaves the phone only when
+EverShelf ANSWERS**, so a day spent outside the house waits in a local queue instead of being
+lost or retried in a storm. It updates itself over the LAN first (the workflow now publishes the
+APK in `releases/`) and GitHub second, and installs only an APK with the same signature.
+Crashes and sync failures are reported through `report_error` into their own river
+(`data/logs/health-*.log`) and, when the instance is configured for it, into a GitHub issue like
+the rest of EverShelf.
 
 **v2.2.8 — a translation that carries markup was printed as text.** In the «usa / finito tutto»
 chooser the line «Finita **1 confezione** ({qty})» carries a `<strong>` by design, and it was wrapped

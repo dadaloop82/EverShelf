@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/charts_title"
+        android:textColor="@color/es_text"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="@string/charts_hint"
+        android:textColor="@color/es_muted"
+        android:textSize="13sp" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:scrollbars="none">
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chart_metrics"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:singleLine="true"
+            app:singleSelection="true" />
+    </HorizontalScrollView>
+
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/chart_ranges"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        app:singleLine="true"
+        app:singleSelection="true">
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/range_7"
+            style="@style/Widget.Material3.Chip.Filter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checkable="true"
+            android:text="@string/charts_range_7" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/range_30"
+            style="@style/Widget.Material3.Chip.Filter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checkable="true"
+            android:checked="true"
+            android:text="@string/charts_range_30" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/range_90"
+            style="@style/Widget.Material3.Chip.Filter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checkable="true"
+            android:text="@string/charts_range_90" />
+    </com.google.android.material.chip.ChipGroup>
+
+    <ProgressBar
+        android:id="@+id/charts_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:indeterminate="true"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/charts_progress_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/es_muted"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="8dp"
+        app:cardBackgroundColor="@color/es_surface"
+        app:cardCornerRadius="18dp"
+        app:cardElevation="0dp"
+        app:strokeColor="@color/es_border"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <it.dadaloop.evershelf.health.MetricChartView
+                android:id="@+id/chart_view"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/chart_summary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/es_muted"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/chart_empty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:padding="16dp"
+                android:text="@string/charts_empty"
+                android:textColor="@color/es_muted"
+                android:textSize="13sp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+</LinearLayout>

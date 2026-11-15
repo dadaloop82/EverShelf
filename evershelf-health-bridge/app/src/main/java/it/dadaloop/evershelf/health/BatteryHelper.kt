@@ -15,23 +15,26 @@ import androidx.core.content.ContextCompat
 object BatteryHelper {
     const val REQ_POST_NOTIFICATIONS = 4101
 
-    fun isIgnoringBatteryOptimizations(ctx: Context): Boolean {
+    fun isIgnoringBatteryOptimizations(ctx: Context): Boolean = try {
         val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager
-        return pm.isIgnoringBatteryOptimizations(ctx.packageName)
+        pm.isIgnoringBatteryOptimizations(ctx.packageName)
+    } catch (_: Throwable) {
+        true
     }
 
-    /** Opens system dialog asking to disable battery optimizations for this app. */
+    /** Opens the system dialog that exempts this app. Never throws (OEMs rename it). */
     fun requestIgnoreBatteryOptimizations(activity: Activity) {
         if (isIgnoringBatteryOptimizations(activity)) return
         try {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:${activity.packageName}")
-            }
-            activity.startActivity(intent)
-        } catch (_: Exception) {
+            activity.startActivity(
+                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:${activity.packageName}")
+                }
+            )
+        } catch (_: Throwable) {
             try {
                 activity.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-            } catch (_: Exception) { /* OEM without settings page */ }
+            } catch (_: Throwable) { /* OEM without the page */ }
         }
     }
 
@@ -43,17 +46,12 @@ object BatteryHelper {
 
     fun requestNotificationPermission(activity: Activity) {
         if (!needsNotificationPermission(activity)) return
-        ActivityCompat.requestPermissions(
-            activity,
-            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-            REQ_POST_NOTIFICATIONS
-        )
-    }
-
-    /** Notifications + battery exemption + start sticky keep-alive. Call after pairing. */
-    fun ensureBackgroundSurvival(activity: Activity) {
-        requestNotificationPermission(activity)
-        requestIgnoreBatteryOptimizations(activity)
-        KeepAliveService.start(activity)
+        runCatching {
+            ActivityCompat.requestPermissions(
+                activity,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                REQ_POST_NOTIFICATIONS
+            )
+        }
     }
 }

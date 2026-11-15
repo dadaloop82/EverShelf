@@ -1,10 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- EverShelf palette (shared with the kiosk and the webapp) -->
     <color name="es_green">#2D5016</color>
     <color name="es_green_light">#4A7C2C</color>
+    <color name="es_mint">#DCFCE7</color>
+    <color name="es_mint_soft">#ECFDF5</color>
     <color name="es_cream">#F3F7EC</color>
     <color name="es_amber">#B45309</color>
+    <color name="es_amber_soft">#FEF3C7</color>
+    <color name="es_red">#B91C1C</color>
+    <color name="es_red_soft">#FEE2E2</color>
+    <color name="es_blue">#0369A1</color>
+    <color name="es_blue_soft">#E0F2FE</color>
+    <color name="es_violet">#5B21B6</color>
+
     <color name="es_surface">#FFFFFF</color>
+    <color name="es_surface_alt">#F8FAF4</color>
+    <color name="es_border">#D8E4C8</color>
     <color name="es_text">#1A2E0A</color>
+    <color name="es_text_soft">#3F4A38</color>
     <color name="es_muted">#5C6B52</color>
+    <color name="es_on_brand">#FFFFFF</color>
+
+    <!-- Chart palette (one colour per metric family) -->
+    <color name="chart_emerald">#2D5016</color>
+    <color name="chart_amber">#B45309</color>
+    <color name="chart_blue">#0369A1</color>
+    <color name="chart_violet">#7C3AED</color>
+    <color name="chart_rose">#BE123C</color>
+    <color name="chart_grid">#E2E8D8</color>
 </resources>

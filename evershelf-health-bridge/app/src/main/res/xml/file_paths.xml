@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- App-private external dir: no storage permission is needed -->
+    <external-files-path name="apk_downloads" path="." />
+    <files-path name="internal" path="." />
+</paths>

@@ -1,28 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Network -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- Notifications + background work -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- Optional helper (the device only asks when the user taps it) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- QR pairing -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!-- OTA: install the downloaded APK ourselves -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- ── Health Connect: read-only, every metric the bridge shows ─────────── -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
     <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_BASAL_METABOLIC_RATE" />
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
     <uses-permission android:name="android.permission.health.READ_WEIGHT" />
+    <uses-permission android:name="android.permission.health.READ_HEIGHT" />
+    <uses-permission android:name="android.permission.health.READ_BODY_FAT" />
+    <uses-permission android:name="android.permission.health.READ_LEAN_BODY_MASS" />
     <uses-permission android:name="android.permission.health.READ_HYDRATION" />
     <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
     <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY" />
+    <uses-permission android:name="android.permission.health.READ_OXYGEN_SATURATION" />
+    <uses-permission android:name="android.permission.health.READ_RESPIRATORY_RATE" />
+    <uses-permission android:name="android.permission.health.READ_BLOOD_PRESSURE" />
+    <uses-permission android:name="android.permission.health.READ_BLOOD_GLUCOSE" />
+    <uses-permission android:name="android.permission.health.READ_BODY_TEMPERATURE" />
     <uses-permission android:name="android.permission.health.READ_DISTANCE" />
     <uses-permission android:name="android.permission.health.READ_FLOORS_CLIMBED" />
+    <uses-permission android:name="android.permission.health.READ_SPEED" />
+    <uses-permission android:name="android.permission.health.READ_POWER" />
+    <uses-permission android:name="android.permission.health.READ_ELEVATION_GAINED" />
 
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
@@ -36,6 +62,7 @@
     </queries>
 
     <application
+        android:name=".HealthBridgeApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -45,9 +72,13 @@
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config">
 
+        <!-- The bridge is ONE screen: a bottom-nav host. A rotation or a locale switch
+             must not rebuild it (a rebuilt Activity is how the old app "closed by itself"). -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|fontScale|layoutDirection|locale|colorMode|mcc|mnc|touchscreen"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -61,6 +92,7 @@
         <activity
             android:name=".WizardActivity"
             android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|fontScale|layoutDirection|locale|colorMode|mcc|mnc|touchscreen"
             android:windowSoftInputMode="adjustResize">
             <!-- QR / deep link pairing: evershelfhealth://pair?url=...&token=... -->
             <intent-filter>
@@ -71,13 +103,10 @@
             </intent-filter>
         </activity>
 
+        <!-- Optional keep-alive, started from the foreground app only: Android 15 refuses
+             a dataSync foreground service launched from BOOT_COMPLETED. -->
         <service
             android:name=".KeepAliveService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <service
-            android:name=".SyncForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
@@ -89,6 +118,21 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <!-- Result of the self-update PackageInstaller session -->
+        <receiver
+            android:name=".InstallResultReceiver"
+            android:exported="false" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <activity-alias
             android:name="ViewPermissionUsageActivity"

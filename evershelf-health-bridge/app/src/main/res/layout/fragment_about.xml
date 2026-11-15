@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/about_title"
+            android:textColor="@color/es_text"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <!-- Project identity -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            app:cardBackgroundColor="@color/es_surface"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/es_border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/app_name"
+                    android:textColor="@color/es_text"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/about_version"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/es_muted"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/about_project"
+                    android:textColor="@color/es_muted"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/about_project_value"
+                    android:textColor="@color/es_text"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/about_repo"
+                    android:textColor="@color/es_muted"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/about_repo_row"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp"
+                    android:textColor="@color/es_green"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="@string/about_author"
+                    android:textColor="@color/es_muted"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/about_author_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/about_open_repo"
+                    android:textColor="@color/es_text"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/about_license"
+                    android:textColor="@color/es_muted"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/about_license_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/es_text"
+                    android:textSize="14sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Updates -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="@color/es_surface"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/es_border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/about_update"
+                    android:textColor="@color/es_text"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/about_update_state"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/es_muted"
+                    android:textSize="13sp" />
+
+                <ProgressBar
+                    android:id="@+id/about_update_progress"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:max="100"
+                    android:visibility="gone" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/about_update_check"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/about_check_update"
+                    android:textAllCaps="false"
+                    app:cornerRadius="14dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/about_update_install"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/about_update_now"
+                    android:textAllCaps="false"
+                    android:visibility="gone"
+                    app:cornerRadius="14dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Diagnostics -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="@color/es_surface"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/es_border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/about_diagnostics"
+                    android:textColor="@color/es_text"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/sw_auto_report"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/about_auto_report"
+                    android:textColor="@color/es_text" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/about_auto_report_hint"
+                    android:textColor="@color/es_muted"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_send_report"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/about_send_report"
+                    android:textAllCaps="false"
+                    app:cornerRadius="14dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_show_logs"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/about_open_logs"
+                    android:textAllCaps="false" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_share_logs"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/about_share_logs"
+                    android:textAllCaps="false" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_clear_logs"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/about_clear_logs"
+                    android:textAllCaps="false" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Privacy -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="20dp"
+            app:cardBackgroundColor="@color/es_surface"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/es_border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/about_privacy_title"
+                    android:textColor="@color/es_text"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/about_privacy_body"
+                    android:textColor="@color/es_text_soft"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/about_thanks"
+                    android:textColor="@color/es_muted"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>
