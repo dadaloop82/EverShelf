@@ -98,7 +98,11 @@ class DiaryFragment : Fragment() {
             val value = Metrics.value(row, metric) ?: continue
             val text = if (metric.decimals == 0) value.toLong().toString()
             else String.format(loc, "%.${metric.decimals}f", value)
-            box.addView(metricLine(getString(metric.labelRes), "$text ${metric.unit}".trim()))
+            // A pressure needs BOTH numbers: "120 mmHg" alone is half a reading.
+            val second = Metrics.secondValue(row, metric)
+            val shown = if (second != null) "${text}/${second.toLong()} ${metric.unit}".trim()
+            else "$text ${metric.unit}".trim()
+            box.addView(metricLine(getString(metric.labelRes), shown))
         }
 
         val note = EditText(ctx).apply {
