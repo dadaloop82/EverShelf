@@ -44,6 +44,17 @@ runtime/binary files — if a task truly needs one, ask first.
   `POST audit_state_save` / `audit_state_clear` and the TTL owned by the server).
   `localStorage` is allowed as an **offline mirror** (and for what is genuinely of that
   device: the chosen mode, a UI preference) — never as the truth.
+- **The Android Health Bridge (`evershelf-health-bridge/`) uploads only when EverShelf
+  ANSWERS.** Each day is stored in a local SQLite queue first, then every pass asks
+  `health_bridge_hello`: a phone in the street has internet and no route to the LAN server,
+  so an unreachable server is a **successful deferral** (the day waits on the phone), never a
+  retry storm. Its `report_error` travels with `source=health_bridge` → its own river
+  `data/logs/health-YYYY-MM-DD.log`, and with `version_guard_bypass=true` (that guard compares
+  against the webapp tag while the bridge has its own version line). OTA asks the LAN server
+  first (`health_bridge_update` + `releases/evershelf-health-bridge.apk`), GitHub second, and
+  installs only an APK with the **same signature** and a higher `versionCode`. Its keep-alive
+  foreground service is started **only from a visible screen** — Android 15 refuses a
+  `dataSync` FGS from `BOOT_COMPLETED`, which is what made the old APK "close by itself".
 - **A demo answers by DATA, and never asks.** `DEMO_MODE=true`, `?demo=1` or a `/demo`
   mount (`api/lib/demo.php`) serve `data/demo/evershelf-demo-<lang>.db`, seeded from
   `api/lib/demo_seed.json` and rebuilt once a day; `data/evershelf.db` is never opened.

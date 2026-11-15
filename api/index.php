@@ -315,6 +315,15 @@ if (($_GET['action'] ?? '') === 'kiosk_update') {
     exit;
 }
 
+// ── Health Bridge OTA metadata (LAN self-host; no DB required) ───────────────
+// A LAN-only phone may have no internet at all, so the bridge asks its OWN server
+// first and only falls back to the GitHub release. Nothing secret is disclosed:
+// a version number, a versionCode and the APK URL of this same instance.
+if (($_GET['action'] ?? '') === 'health_bridge_update') {
+    getHealthBridgeUpdate();
+    exit;
+}
+
 // ── App bootstrap — the API token is disclosed only after pairing ────────────
 if (($_GET['action'] ?? '') === 'app_bootstrap') {
     checkRateLimit('app_bootstrap');
@@ -4410,9 +4419,12 @@ function clientLog(): void {
     $deviceIn = is_array($input) ? preg_replace('/[^a-z\-]/', '', strtolower((string)($input['device'] ?? ''))) : '';
     if (in_array($deviceIn, ['kiosk', 'tablet', 'phone', 'desktop'], true)) $device = $deviceIn;
     $source = ($device === 'kiosk') ? 'kiosk' : 'app';
-    if (is_array($input) && in_array(($input['source'] ?? ''), ['app', 'kiosk'], true)) {
+    if (is_array($input) && in_array(($input['source'] ?? ''), ['app', 'kiosk', 'health_bridge'], true)) {
+        // The Health Bridge declares itself: its line goes to its own river
+        // (data/logs/health-YYYY-MM-DD.log) instead of mixing with the phones'.
         $source = (string)$input['source'];
     }
+    $logRiver = $source === 'kiosk' ? 'kiosk' : ($source === 'health_bridge' ? 'health' : 'app');
     $levelHint = is_array($input) ? (string)($input['level'] ?? '') : '';
     $ts = date('Y-m-d H:i:s');
     // A public sink: the lines are whatever the client sent, so they can carry the
@@ -4438,9 +4450,9 @@ function clientLog(): void {
         $kept[$level][] = preg_replace('/^\[(DEBUG|INFO|WARN|WARNING|ERROR|ERR)\]\s*/i', '', $raw);
         $lines[] = "[$ts] [$device] $raw";          // the legacy mirror below
     }
-    // One file per source (`app` / `kiosk`) and per day, leveled.
+    // One file per source (`app` / `kiosk` / `health`) and per day, leveled.
     foreach ($kept as $level => $group) {
-        _clientLogWrite($source, $level, $group, $device);
+        _clientLogWrite($logRiver, $level, $group, $device);
     }
     if ($lines) {
         // Keep log under 100KB — truncate oldest if needed
@@ -10170,6 +10182,43 @@ function getConsumptionPredictions(PDO $db): void {
 }
 
 // ===== SETTINGS =====
+
+/**
+ * LAN OTA metadata for the Android Health Bridge (companion app).
+ *
+ * The bridge is built by `.github/workflows/build-health-bridge.yml`, which also copies
+ * the APK + `releases/health-bridge-version.json` into the repository (the same pattern
+ * the kiosk uses). A LAN-only install has no route to github.com, so this endpoint is the
+ * only update source it can reach; the client falls back to the GitHub release when this
+ * answers `not_available`.
+ */
+function getHealthBridgeUpdate(): void {
+    $root     = dirname(__DIR__);
+    $jsonPath = $root . '/releases/health-bridge-version.json';
+    $apkPath  = $root . '/releases/evershelf-health-bridge.apk';
+    if (!is_file($jsonPath) || !is_file($apkPath)) {
+        echo json_encode(['success' => false, 'error' => 'not_available']);
+        return;
+    }
+    $meta = json_decode((string)file_get_contents($jsonPath), true);
+    if (!is_array($meta)) {
+        echo json_encode(['success' => false, 'error' => 'invalid_metadata']);
+        return;
+    }
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'
+        ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $script = $_SERVER['SCRIPT_NAME'] ?? '/api/index.php';
+    $basePath = preg_replace('#/api/index\.php$#', '', $script) ?: '';
+    $defaultApkUrl = $scheme . '://' . $host . $basePath . '/releases/evershelf-health-bridge.apk';
+    echo json_encode([
+        'success'      => true,
+        'version'      => (string)($meta['version'] ?? ''),
+        'version_code' => (int)($meta['version_code'] ?? 0),
+        'apk_url'      => (string)($meta['apk_url'] ?? $defaultApkUrl),
+    ], JSON_UNESCAPED_UNICODE);
+}
 
 function getKioskUpdate(): void {
     $root     = dirname(__DIR__);
@@ -23687,8 +23736,12 @@ function reportError(): void {
     // wall's own reports and its WebView's `[CAM]`/`[SHELFY]` lines belong in ONE place, filed by
     // level, so nobody has to cross two files to rebuild a timeline again.
     if (_clientLogWanted($level)) {
+        // One river per native surface: `kiosk` for the wall, `health` for the Health
+        // Bridge APK, `app` for phones/tablets/desktops. The source is declared by the
+        // client because an Android WebView claims to be a phone in its User-Agent.
+        $logSource = $source === 'kiosk' ? 'kiosk' : ($source === 'health_bridge' ? 'health' : 'app');
         _clientLogWrite(
-            $source === 'kiosk' ? 'kiosk' : 'app',
+            $logSource,
             $level,
             ["$type: $message" . ($pageUrl ? " | url=$pageUrl" : '')],
             $source

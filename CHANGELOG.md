@@ -5,6 +5,51 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.9] - 2026-11-15
+
+### The Health Bridge, rebuilt from zero — and it speaks only when EverShelf answers
+
+The Android companion app is now **EverShelf Health Bridge** (2.0.0, `versionCode` 20) and
+nothing of the old single screen survived:
+
+- **Five tabs.** *Today* (goal rings for steps and burned kcal, plus sleep and its stages,
+  exercise, water, distance, floors, heart rate, resting HR, HRV, SpO₂, breathing rate,
+  weight, body fat, blood pressure, glucose, temperature, basal metabolism), *Diary* (every
+  stored day with a **sent / queued / local** chip, its own note, and a per-day send),
+  *Charts* (17 metrics over 7 / 30 / 90 days, drawn with the Canvas — no chart library),
+  *Control* (pairing, live server test, pace, Wi-Fi-only guard, keep-alive, battery,
+  permissions, queue, history import, local reset, log viewer) and *Info* (repository,
+  **MIT** licence, author, OTA, error reporting, the local log, privacy).
+- **Uploads happen only when the server ANSWERS.** A phone in the street has internet and no
+  route to a LAN server or its VPN, so each pass reads the phone into a local SQLite queue,
+  probes `health_bridge_hello`, and either uploads the queue oldest-first or *defers* — a
+  deferral is a success, the day waits on the phone and leaves on the next pass (a returned
+  connection schedules one). 31 days can be backfilled so the charts are useful on the first
+  run.
+- **OTA like the rest of EverShelf.** The LAN server first (`health_bridge_update`, served
+  from `releases/evershelf-health-bridge.apk`, which the workflow now publishes), GitHub
+  second; the APK is installed only after a ZIP + package-name + **higher versionCode** +
+  **same signing certificate** check, through `PackageInstaller` with
+  `INSTALL_REASON_USER` and a result receiver that logs `STATUS_*`.
+- **Errors go where EverShelf's go.** `report_error` with `source=health_bridge` and
+  `version_guard_bypass=true` (that guard compares against the *webapp* tag while the bridge
+  has its own version line): the backend now keeps its own river,
+  `data/logs/health-YYYY-MM-DD.log`, next to `app` and `kiosk`, and still opens or comments on
+  a GitHub issue when the instance is configured for it. On the phone the same lines live in
+  `filesDir/health-bridge.log` (show / share / clear from Info) and a crash is persisted
+  **before** the process dies, then sent on the next start.
+
+Three defects explain the old «si chiude da solo»: a `dataSync` foreground service started
+from `BOOT_COMPLETED` (Android 15 refuses it — an exception in a receiver is a crash), 1016
+simultaneous requests in the Wi-Fi discovery (now 24 at a time with a 15 s ceiling), and an
+Activity rebuilt on every rotation/locale change while the reader returned an almost empty
+payload on the first failing metric (now every `configChanges` is declared and every metric
+read is isolated).
+
+Server side: new public `health_bridge_update` action, and `report_error` / `client_log` map
+`source=health_bridge` to the new `health` log river. Docs are in
+`evershelf-health-bridge/README.md` and `docs/wiki/Health.md`.
+
 ## [2.2.8] - 2026-11-15
 
 ### A translation that carries markup was printed as text
