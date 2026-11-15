@@ -4,8 +4,39 @@ Android companion app that reads **Health Connect** on the phone and syncs daily
 activity + biometrics into EverShelf for **Fuel Mode** recipes, the diary and the charts.
 
 > Package `it.dadaloop.evershelf.health` · minSdk 28 (Android 9) · targetSdk 35
+> Version **2.0.1** (versionCode 21) · **six languages**, the same as EverShelf
+> (it / en / de / fr / es / zh)
 > Signing: CI refuses to publish a build without the `HEALTH_KEYSTORE_*` secrets, so an
 > OTA update always carries the same signature as the installed app.
+
+## Languages
+
+The app ships **the same six locales as EverShelf** — Italiano, English, Deutsch, Français,
+Español, 中文 — in `res/values/` + `values-it|de|fr|es|zh/`. The first-run wizard asks the
+language (it can be changed there at any time) and every date, number and month name is
+formatted with that locale. A string that is missing falls back to English, never to a raw
+key; the six files are kept at full parity (244 strings each).
+
+## Updates install IN PLACE — no uninstall, no reinstall
+
+An EverShelf Health Bridge update is meant to land on top of the installed app and keep the
+diary, the queue and the pairing. That needs three things, and all three are guaranteed:
+
+| Requirement | How |
+|---|---|
+| Same app identity | `applicationId = it.dadaloop.evershelf.health` is never renamed |
+| Same signing key | CI signs with `HEALTH_KEYSTORE_BASE64`; the certificate is **SHA-256 `36d84a43…cb25`** for every published build (1.0.5 → 2.0.x) |
+| Higher `versionCode` | bumped in `app/build.gradle.kts` at every build |
+
+The workflow enforces the last two before publishing anything: `Guard — the APK must update
+the published app in place` reads `releases/health-bridge-version.json` (refusing a
+`versionCode` that is not greater) and compares the APK's v2 signing certificate with the one
+in `releases/evershelf-health-bridge.apk`. A mismatch fails the build with a message that
+names the cause, instead of shipping an APK that would ask the household to uninstall.
+
+In the app the same check runs again before `PackageInstaller` is opened: ZIP header, package
+name, higher `versionCode` and the **same signing certificate**. Nothing else ever reaches
+the installer.
 
 ## Download
 
@@ -80,6 +111,10 @@ The Info tab (and a 6-hour throttled check at startup) asks, in this order:
 Before anything reaches the installer the APK is proved to be ours: a ZIP header, our
 package name, a **higher `versionCode`** and the **same signing certificate** as the
 installed app. A mismatch is deleted and reported, never offered.
+
+CI runs the same two checks BEFORE publishing (`releases/health-bridge-version.json` for the
+`versionCode`, the v2 certificate of `releases/evershelf-health-bridge.apk` for the key), so a
+build that could not install over the installed app never becomes a release at all.
 
 The install runs through `PackageInstaller` with `INSTALL_REASON_USER` (the path Android
 14+ accepts for self-update) and a result receiver that logs `STATUS_*` — so a refused

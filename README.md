@@ -230,13 +230,14 @@ the gate this release was developed against.
 **v2.2.9 — the Health Bridge, rebuilt from zero.** The Android companion is now *EverShelf
 Health Bridge*: five tabs (Today / Diary / Charts / Control / Info), every biometric Health
 Connect exposes, 7/30/90-day charts drawn without a chart library, a diary that keeps the
-household's notes, and a rule that is now enforced by code — **data leaves the phone only when
-EverShelf ANSWERS**, so a day spent outside the house waits in a local queue instead of being
-lost or retried in a storm. It updates itself over the LAN first (the workflow now publishes the
-APK in `releases/`) and GitHub second, and installs only an APK with the same signature.
-Crashes and sync failures are reported through `report_error` into their own river
-(`data/logs/health-*.log`) and, when the instance is configured for it, into a GitHub issue like
-the rest of EverShelf.
+household's notes — in the **same six languages as EverShelf** (it/en/de/fr/es/zh) — and a rule
+that is now enforced by code: **data leaves the phone only when EverShelf ANSWERS**, so a day
+spent outside the house waits in a local queue instead of being lost or retried in a storm. It
+updates itself over the LAN first (the workflow now publishes the APK in `releases/`) and GitHub
+second, and installs only an APK with the same signature and a higher `versionCode` — the
+build refuses to publish anything that Android would make you uninstall first. Crashes and sync
+failures are reported through `report_error` into their own river (`data/logs/health-*.log`)
+and, when the instance is configured for it, into a GitHub issue like the rest of EverShelf.
 
 **v2.2.8 — a translation that carries markup was printed as text.** In the «usa / finito tutto»
 chooser the line «Finita **1 confezione** ({qty})» carries a `<strong>` by design, and it was wrapped
