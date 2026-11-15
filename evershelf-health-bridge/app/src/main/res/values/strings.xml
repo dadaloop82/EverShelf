@@ -1,32 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">EverShelf Health</string>
-    <string name="privacy_policy">EverShelf Health Bridge reads daily aggregates (steps, calories, exercise, sleep) via Health Connect and sends them to your EverShelf server on the local network. No raw GPS. You can revoke permissions anytime.</string>
+    <string name="app_name">EverShelf Health Bridge</string>
+    <string name="privacy_policy">EverShelf Health Bridge reads daily aggregates and biometrics (steps, calories, exercise, sleep, heart rate, oxygen saturation, weight, hydration and more) via Health Connect and sends them ONLY to your own EverShelf server, and only when that server answers. No GPS track, no cloud, no analytics. You can revoke every permission at any time.</string>
 
-    <string name="wizard_exit_title">Exit setup?</string>
-    <string name="wizard_exit_message">You can finish setup later when you reopen the app.</string>
-    <string name="wizard_exit_confirm">Exit</string>
-    <string name="wizard_exit_cancel">Continue</string>
+    <!-- Common -->
     <string name="btn_back">← Back</string>
     <string name="btn_next">Next →</string>
     <string name="btn_skip">Skip</string>
     <string name="btn_finish">Start using the app</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_save">Save</string>
+    <string name="btn_close">Close</string>
+    <string name="btn_retry">Retry</string>
+    <string name="btn_refresh">Refresh</string>
+    <string name="btn_ok">OK</string>
 
+    <!-- Setup wizard -->
+    <string name="wizard_exit_title">Exit setup?</string>
+    <string name="wizard_exit_message">You can finish setup later when you reopen the app.</string>
+    <string name="wizard_exit_confirm">Exit</string>
+    <string name="wizard_exit_cancel">Continue</string>
     <string name="wiz_lang_title">Choose language</string>
     <string name="wiz_lang_hint">You can change this later in the system settings.</string>
-
-    <string name="wiz_welcome_title">Fuel your kitchen</string>
-    <string name="wiz_welcome_body">This app bridges Health Connect / Google Fit with EverShelf so recipes can match what you burned today.\n\nEverything stays on your Wi‑Fi. Optional and private.</string>
-
+    <string name="wiz_welcome_title">Your body, your pantry</string>
+    <string name="wiz_welcome_body">This app bridges Health Connect with EverShelf so recipes can follow what you burned today.\n\nIt uploads ONLY while your EverShelf server answers: outside the house, on mobile data without VPN, nothing leaves the phone — the days wait in a local queue and are sent the moment you are back.\n\nEverything stays on your network. Optional and private.</string>
     <string name="wiz_perms_title">Health permissions</string>
-    <string name="wiz_perms_body">We only need read access to daily activity: steps, calories, exercise, sleep, weight.\n\nTap below to open Health Connect and allow EverShelf Health.</string>
+    <string name="wiz_perms_body">We only need READ access. The more you grant, the richer your diary and charts: activity, sleep, heart, oxygen, body composition.\n\nTap below to open Health Connect and allow EverShelf Health Bridge.</string>
     <string name="wiz_perms_btn">Grant Health Connect access</string>
     <string name="wiz_perms_open_store">Install / open Health Connect</string>
     <string name="wiz_perms_granted">Permissions look good — continue</string>
     <string name="wiz_perms_partial">Some permissions missing — you can continue and fix later</string>
-
     <string name="wiz_pair_title">Link EverShelf</string>
-    <string name="wiz_pair_body">On the computer/tablet open EverShelf → Settings → Health → create a Bridge token, then scan the QR. It passes the server URL and the token together.</string>
+    <string name="wiz_pair_body">On the computer/tablet open EverShelf → Settings → Health → create a Bridge token, then scan the QR. It carries the server URL and the token together.</string>
     <string name="wiz_pair_scan">📷 Scan QR from EverShelf</string>
     <string name="wiz_pair_manual">Or enter manually</string>
     <string name="wiz_pair_discover">🔍 Find EverShelf on Wi‑Fi</string>
@@ -42,46 +47,223 @@
     <string name="wiz_discovering">Scanning local network…</string>
     <string name="wiz_discover_none">No server found. Scan the QR or type the URL.</string>
     <string name="wiz_discover_pick">Choose EverShelf</string>
-
     <string name="wiz_sync_title">First sync</string>
-    <string name="wiz_sync_body">We\'ll pull today\'s activity from Health Connect and send it to EverShelf.</string>
+    <string name="wiz_sync_body">We\'ll read today from Health Connect and queue it for EverShelf. Nothing is uploaded until the server answers.</string>
     <string name="wiz_sync_btn">Sync now</string>
     <string name="wiz_sync_running">Syncing…</string>
     <string name="wiz_sync_ok">Synced successfully</string>
     <string name="wiz_sync_fail">Sync failed: %1$s</string>
-
     <string name="wiz_done_title">You\'re set</string>
-    <string name="wiz_done_body">EverShelf can now use \"Fuel mode / A ritmo mio\" with your activity. The app syncs in the background about every 30 minutes.</string>
-    <string name="wiz_done_battery">Next, Android will ask to keep this app unrestricted (no battery optimization) and show a persistent notification so the sync is not killed.</string>
+    <string name="wiz_done_body">EverShelf can now use «Fuel mode / At my pace» with your activity. The bridge syncs in the background and keeps every unsent day queued.</string>
+    <string name="wiz_done_battery">Next, Android may ask to keep this app unrestricted (no battery optimization) so the background sync is not killed.</string>
 
-    <string name="main_hero">At your pace</string>
-    <string name="main_subtitle">Sync activity and calories with your pantry</string>
-    <string name="main_today">TODAY</string>
-    <string name="main_waiting">Waiting for sync…</string>
-    <string name="main_server">SERVER</string>
-    <string name="main_not_linked">Not linked</string>
-    <string name="main_last_sync">Last sync: %1$s</string>
-    <string name="main_last_sync_none">Last sync: —</string>
+    <!-- Navigation -->
+    <string name="nav_dashboard">Today</string>
+    <string name="nav_diary">Diary</string>
+    <string name="nav_charts">Charts</string>
+    <string name="nav_control">Control</string>
+    <string name="nav_about">Info</string>
     <string name="main_sync_now">Sync now</string>
-    <string name="main_syncing">Syncing…</string>
-    <string name="main_perms">Health Connect permissions</string>
-    <string name="main_battery">Disable battery optimization</string>
-    <string name="main_reconfigure">Reconfigure / change server</string>
-    <string name="main_synced">Synced ✓</string>
-    <string name="main_error">Error: %1$s</string>
-    <string name="main_hc_missing">Install / update Health Connect</string>
-    <string name="main_menu_setup">Setup</string>
+    <string name="main_menu_setup">Setup / pairing</string>
     <string name="main_menu_hc">Open Health Connect</string>
+
+    <!-- Dashboard -->
+    <string name="dash_hero">At your pace</string>
+    <string name="dash_subtitle">Today, measured by your phone</string>
+    <string name="dash_today">TODAY</string>
+    <string name="dash_steps">Steps</string>
+    <string name="dash_kcal">Burned</string>
+    <string name="dash_sleep">Sleep</string>
+    <string name="dash_exercise">Exercise</string>
+    <string name="dash_water">Water</string>
+    <string name="dash_distance">Distance</string>
+    <string name="dash_floors">Floors</string>
+    <string name="dash_hr">Heart rate</string>
+    <string name="dash_weight">Weight</string>
+    <string name="dash_bmr">Basal</string>
+    <string name="dash_bp">Blood pressure</string>
+    <string name="dash_spo2">Oxygen</string>
+    <string name="dash_status_title">Bridge</string>
+    <string name="dash_linked">Linked</string>
+    <string name="dash_not_linked">Not linked</string>
+    <string name="dash_reachable">Server online</string>
+    <string name="dash_unreachable">Server offline — data is kept on the phone</string>
+    <string name="dash_checking">Checking the server…</string>
+    <string name="dash_last_sync">Last sync: %1$s</string>
+    <string name="dash_last_sync_none">Last sync: —</string>
+    <string name="dash_pending">Waiting to be sent: %1$d</string>
+    <string name="dash_pending_none">Nothing waiting to be sent</string>
+    <string name="dash_syncing">Syncing…</string>
+    <string name="dash_sync_ok">Synced ✓</string>
+    <string name="dash_sync_deferred">Server unreachable — kept on the phone</string>
+    <string name="dash_sync_fail">Sync failed: %1$s</string>
+    <string name="dash_waiting">Waiting for the first reading…</string>
+    <string name="dash_no_data">No data for today yet</string>
+    <string name="dash_hc_missing">Health Connect is not available. Install or update it from the Play Store.</string>
+    <string name="dash_perms_needed">Health permissions missing — the bridge cannot read this phone.</string>
+    <string name="dash_grant_perms">Grant permissions</string>
+    <string name="dash_more_metrics">More metrics</string>
+    <string name="dash_local_note">Today\'s row is also stored on the phone, so a day without network is not lost.</string>
+
+    <!-- Diary -->
+    <string name="diary_title">Diary</string>
+    <string name="diary_hint">Every day the bridge has seen, with what was sent and what is still queued on the phone.</string>
+    <string name="diary_empty">No days stored yet. Open Today and sync once.</string>
+    <string name="diary_synced">Sent</string>
+    <string name="diary_pending">Queued</string>
+    <string name="diary_local">Local</string>
+    <string name="diary_note_add">Add a note</string>
+    <string name="diary_note_edit">Edit note</string>
+    <string name="diary_note_hint">How did the day feel?</string>
+    <string name="diary_note_saved">Note saved</string>
+    <string name="diary_send">Send this day</string>
+    <string name="diary_send_ok">Day sent</string>
+    <string name="diary_send_fail">Not sent: %1$s</string>
+    <string name="diary_detail_title">Day detail</string>
+    <string name="diary_loading">Reading Health Connect…</string>
+    <string name="diary_refresh">Reload from Health Connect</string>
+    <string name="diary_refresh_done">Diary updated</string>
+    <string name="diary_metric_none">—</string>
+
+    <!-- Charts -->
+    <string name="charts_title">History</string>
+    <string name="charts_hint">Read from Health Connect and stored on the phone. Pick a metric and a range.</string>
+    <string name="charts_loading">Loading history…</string>
+    <string name="charts_loading_progress">%1$d of %2$d days…</string>
+    <string name="charts_empty">No readings for this metric in the selected range.</string>
+    <string name="charts_avg">avg</string>
+    <string name="charts_min">min</string>
+    <string name="charts_max">max</string>
+    <string name="charts_range_7">7 days</string>
+    <string name="charts_range_30">30 days</string>
+    <string name="charts_range_90">90 days</string>
+    <string name="metric_steps">Steps</string>
+    <string name="metric_kcal">Calories</string>
+    <string name="metric_sleep">Sleep</string>
+    <string name="metric_weight">Weight</string>
+    <string name="metric_hr">Heart rate</string>
+    <string name="metric_resting_hr">Resting HR</string>
+    <string name="metric_hrv">HRV</string>
+    <string name="metric_spo2">Oxygen</string>
+    <string name="metric_resp">Breathing</string>
+    <string name="metric_hydration">Water</string>
+    <string name="metric_distance">Distance</string>
+    <string name="metric_floors">Floors</string>
+    <string name="metric_bodyfat">Body fat</string>
+    <string name="metric_bp">Blood pressure</string>
+    <string name="metric_glucose">Glucose</string>
+    <string name="metric_temp">Temperature</string>
+    <string name="metric_bmr">Basal metabolism</string>
+
+    <!-- Control panel -->
+    <string name="control_title">Control panel</string>
+    <string name="control_server">Server</string>
+    <string name="control_url">Address</string>
+    <string name="control_token">Token</string>
+    <string name="control_paired">Paired</string>
+    <string name="control_not_paired">Not paired</string>
+    <string name="control_pair">Pair / change server</string>
+    <string name="control_pair_hint">Open EverShelf → Settings → Health and generate a pairing QR.</string>
+    <string name="control_reach">Connection</string>
+    <string name="control_check_now">Test now</string>
+    <string name="control_connected">Server answers</string>
+    <string name="control_disconnected">Server does not answer</string>
+    <string name="control_checking">Testing…</string>
+    <string name="control_sync">Synchronisation</string>
+    <string name="control_auto_sync">Automatic sync</string>
+    <string name="control_auto_sync_hint">Reads the phone and queues the day in the background.</string>
+    <string name="control_interval">How often</string>
+    <string name="control_interval_value">Every %1$d min</string>
+    <string name="control_wifi_only">Only on Wi‑Fi</string>
+    <string name="control_wifi_only_hint">Extra guard for metered connections. The server test above always decides whether anything is uploaded.</string>
+    <string name="control_notifications">Persistent notification</string>
+    <string name="control_keepalive">Keep the bridge alive</string>
+    <string name="control_keepalive_hint">A silent notification keeps Android from killing the background sync.</string>
+    <string name="control_battery">Battery optimization</string>
+    <string name="control_battery_ok">Unrestricted ✓</string>
+    <string name="control_battery_needed">Tap to disable optimization</string>
+    <string name="control_permissions">Health permissions</string>
+    <string name="control_perms">Manage Health Connect access</string>
+    <string name="control_perms_ok">All granted</string>
+    <string name="control_perms_missing">%1$d missing</string>
+    <string name="control_hc">Open Health Connect</string>
+    <string name="control_data">Data</string>
+    <string name="control_pending_count">%1$d days waiting to be sent</string>
+    <string name="control_pending_none">Everything has been sent</string>
+    <string name="control_sync_all">Send the queue now</string>
+    <string name="control_backfill">Import recent history</string>
+    <string name="control_backfill_hint">Fills the diary and the charts with the last %1$d days already on this phone.</string>
+    <string name="control_clear">Clear local data</string>
+    <string name="control_clear_confirm">Remove every day stored on this phone? Nothing is deleted from EverShelf.</string>
+    <string name="control_clear_done">Local data cleared</string>
+    <string name="control_logs">Logs</string>
+
+    <!-- About / info -->
+    <string name="about_title">Info</string>
+    <string name="about_version">Version %1$s (build %2$d)</string>
+    <string name="about_project">Project</string>
+    <string name="about_project_value">EverShelf Health Bridge — the Android gateway of EverShelf, the self-hosted pantry manager.</string>
+    <string name="about_repo">GitHub repository</string>
+    <string name="about_author">Author</string>
+    <string name="about_license">License</string>
+    <string name="about_open_repo">Open the repository</string>
+    <string name="about_update">Updates</string>
+    <string name="about_check_update">Check for updates</string>
+    <string name="about_checking">Checking…</string>
+    <string name="about_up_to_date">You are on the latest version</string>
+    <string name="about_update_available">Version %1$s is available</string>
+    <string name="about_update_now">Download and install</string>
+    <string name="about_update_downloading">Downloading… %1$d%%</string>
+    <string name="about_update_install">Starting the installer…</string>
+    <string name="about_update_error">Update failed: %1$s</string>
+    <string name="about_update_perm">Allow this app to install unknown apps, then try again.</string>
+    <string name="about_diagnostics">Diagnostics</string>
+    <string name="about_auto_report">Report errors automatically</string>
+    <string name="about_auto_report_hint">Crashes and failures are written to the local log; with this on they are also sent to your EverShelf server, which opens a GitHub issue like the rest of the project.</string>
+    <string name="about_send_report">Send a report now</string>
+    <string name="about_report_sent">Report sent</string>
+    <string name="about_report_fail">Report not sent: %1$s</string>
+    <string name="about_open_logs">Show log</string>
+    <string name="about_share_logs">Share log</string>
+    <string name="about_clear_logs">Clear log</string>
+    <string name="about_logs_cleared">Log cleared</string>
+    <string name="about_privacy_title">Privacy</string>
+    <string name="about_privacy_body">Health data stays on this phone and on your EverShelf server. Uploads happen only when the server answers. There is no cloud account, no advertising SDK and no analytics.</string>
+    <string name="about_thanks">Built on Health Connect, AndroidX and Material 3 — MIT licensed like EverShelf.</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_name">Health Bridge</string>
+    <string name="notif_channel_desc">Keeps EverShelf Health Bridge alive for background sync</string>
+    <string name="notif_title">EverShelf Health Bridge</string>
+    <string name="notif_never">never</string>
+    <string name="notif_body">Active · last sync %1$s</string>
+    <string name="notif_syncing">Reading the phone…</string>
+    <string name="notif_sync_ok">Synced · waiting for the next cycle</string>
+    <string name="notif_sync_fail">Sync failed: %1$s</string>
+    <string name="notif_waiting">Server offline · %1$d day(s) queued</string>
+    <string name="notif_action_sync">Sync now</string>
+
+    <!-- Errors and toasts -->
+    <string name="err_not_configured">The bridge is not paired with EverShelf yet</string>
+    <string name="err_unreachable">EverShelf is not reachable right now</string>
+    <string name="err_hc_unavailable">Health Connect is not available</string>
+    <string name="err_no_permissions">No Health Connect permission granted</string>
+    <string name="err_generic">Something went wrong</string>
     <string name="toast_perms_ok">Permissions granted</string>
     <string name="toast_perms_incomplete">Incomplete permissions — open Health Connect</string>
 
-    <string name="notif_channel_name">Health Bridge</string>
-    <string name="notif_channel_desc">Keeps EverShelf Health alive for background sync</string>
-    <string name="notif_title">EverShelf Health Bridge</string>
-    <string name="notif_body">Active · last sync %1$s</string>
-    <string name="notif_never">never</string>
-    <string name="notif_syncing">Syncing with EverShelf…</string>
-    <string name="notif_sync_ok">Synced · waiting for next cycle</string>
-    <string name="notif_sync_fail">Sync failed: %1$s</string>
-    <string name="notif_action_sync">Sync now</string>
+    <!-- OTA install -->
+    <string name="install_perm_detail">Android needs permission to install this update.</string>
+    <string name="install_downloading">Downloading the update…</string>
+    <string name="install_downloading_detail">The APK is downloaded with the same trusted connection used for sync.</string>
+    <string name="install_error_download">Download failed</string>
+    <string name="install_error_invalid">The downloaded file is not a valid APK</string>
+    <string name="install_starting">Opening the installer…</string>
+    <string name="install_done">Update installed</string>
+    <string name="install_failed">Installation failed</string>
+
+    <!-- Local log -->
+    <string name="log_viewer_title">Bridge log</string>
+    <string name="log_empty">The log is empty</string>
+    <string name="log_share_title">Share the Health Bridge log</string>
 </resources>

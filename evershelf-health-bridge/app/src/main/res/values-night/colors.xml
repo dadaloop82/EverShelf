@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark theme: the same names, the paper belongs to the night. -->
+    <color name="es_green">#86C36A</color>
+    <color name="es_green_light">#6BAE4F</color>
+    <color name="es_mint">#1B3320</color>
+    <color name="es_mint_soft">#15261A</color>
+    <color name="es_cream">#0F1512</color>
+    <color name="es_amber">#FBBF24</color>
+    <color name="es_amber_soft">#3A2A0B</color>
+    <color name="es_red">#F87171</color>
+    <color name="es_red_soft">#3A1414</color>
+    <color name="es_blue">#7DD3FC</color>
+    <color name="es_blue_soft">#0B2A3A</color>
+    <color name="es_violet">#C4B5FD</color>
+
+    <color name="es_surface">#18211C</color>
+    <color name="es_surface_alt">#131A16</color>
+    <color name="es_border">#2C3A31</color>
+    <color name="es_text">#E8F0E9</color>
+    <color name="es_text_soft">#C7D3C9</color>
+    <color name="es_muted">#9BAF9F</color>
+    <color name="es_on_brand">#0B120D</color>
+
+    <color name="chart_emerald">#86C36A</color>
+    <color name="chart_amber">#FBBF24</color>
+    <color name="chart_blue">#7DD3FC</color>
+    <color name="chart_violet">#C4B5FD</color>
+    <color name="chart_rose">#FCA5A5</color>
+    <color name="chart_grid">#2C3A31</color>
+</resources>

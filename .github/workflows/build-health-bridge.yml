@@ -14,6 +14,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: health-bridge-release
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build Health Bridge APK
@@ -81,7 +85,7 @@ jobs:
         working-directory: evershelf-health-bridge
         run: |
           rm -f local.properties
-          gradle assembleRelease --no-daemon
+          gradle assembleRelease --no-daemon --stacktrace
 
       - name: Rename APK
         run: |
@@ -130,3 +134,26 @@ jobs:
             artifacts/evershelf-health-bridge.apk
 
           echo "Published ${TAG} and health-bridge-latest → ${SHA}"
+
+      # A LAN-only phone may have no internet at all: the bridge asks its own server first
+      # (`health_bridge_update`), so the APK must also live in the repository it serves.
+      - name: Publish APK to releases/ for LAN OTA
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p releases
+          cp artifacts/evershelf-health-bridge.apk releases/evershelf-health-bridge.apk
+          printf '{"version":"%s","version_code":%s}\n' \
+            "${{ steps.version.outputs.name }}" "${{ steps.version.outputs.code }}" \
+            > releases/health-bridge-version.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f releases/evershelf-health-bridge.apk releases/health-bridge-version.json
+          if git diff --staged --quiet; then
+            echo "No OTA artifact changes to commit"
+          else
+            git commit -m "chore(health-bridge): publish APK v${{ steps.version.outputs.name }} for LAN OTA"
+            # Do not fail the release if the branch moved: the GitHub Release above is
+            # already published for install/OTA from github.com.
+            git push origin HEAD:${{ github.ref_name }} || echo "::warning::LAN OTA git push failed; GitHub Release still published"
+          fi

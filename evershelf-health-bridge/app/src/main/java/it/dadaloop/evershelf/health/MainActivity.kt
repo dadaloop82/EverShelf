@@ -1,36 +1,22 @@
 package it.dadaloop.evershelf.health
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.MenuItem
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.PermissionController
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import it.dadaloop.evershelf.health.databinding.ActivityMainBinding
 import kotlinx.coroutines.launch
-import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import kotlin.math.roundToInt
 
+/** One screen, five tabs: Today, Diary, Charts, Control, Info. */
 class MainActivity : AppCompatActivity() {
-    private lateinit var binding: ActivityMainBinding
 
-    private val permissionLauncher = registerForActivityResult(
-        PermissionController.createRequestPermissionResultContract()
-    ) { granted ->
-        Toast.makeText(
-            this,
-            if (granted.containsAll(HealthConnectReader.PERMISSIONS)) R.string.toast_perms_ok
-            else R.string.toast_perms_incomplete,
-            Toast.LENGTH_SHORT
-        ).show()
-        refreshUi()
-    }
+    private lateinit var binding: ActivityMainBinding
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(LocaleHelper.wrap(newBase))
@@ -46,134 +32,133 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setSupportActionBar(binding.toolbar)
-        SyncHelper.schedulePeriodic(this)
-        BatteryHelper.ensureBackgroundSurvival(this)
 
-        binding.heroTitle.setText(R.string.main_hero)
-        binding.heroSubtitle.setText(R.string.main_subtitle)
-        binding.btnSync.setText(R.string.main_sync_now)
-        binding.btnPermissions.setText(R.string.main_perms)
-        binding.btnSetup.setText(R.string.main_reconfigure)
-        binding.btnBattery.setText(R.string.main_battery)
-        binding.btnBattery.setOnClickListener {
-            BatteryHelper.requestIgnoreBatteryOptimizations(this)
+        binding.bottomNav.setOnItemSelectedListener { item ->
+            showTab(item.itemId)
+            true
+        }
+        if (savedInstanceState == null) {
+            showTab(R.id.nav_dashboard)
         }
 
-        binding.btnSync.setOnClickListener { doSync() }
-        binding.btnPermissions.setOnClickListener { requestHcPermissions() }
-        binding.btnSetup.setOnClickListener {
-            startActivity(Intent(this, WizardActivity::class.java))
+        BatteryHelper.requestNotificationPermission(this)
+        SyncEngine.schedulePeriodic(this)
+        if (Prefs.keepAlive(this)) KeepAliveService.start(this)
+        SyncEngine.requestImmediate(this)
+        maybeCheckUpdates()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+    }
+
+    private fun showTab(itemId: Int) {
+        val tag = when (itemId) {
+            R.id.nav_diary -> "diary"
+            R.id.nav_charts -> "charts"
+            R.id.nav_control -> "control"
+            R.id.nav_about -> "about"
+            else -> "dashboard"
         }
+        val label = when (tag) {
+            "diary" -> R.string.nav_diary
+            "charts" -> R.string.nav_charts
+            "control" -> R.string.nav_control
+            "about" -> R.string.nav_about
+            else -> R.string.nav_dashboard
+        }
+        supportActionBar?.subtitle = getString(label)
+
+        val fm = supportFragmentManager
+        val tx = fm.beginTransaction()
+        for (f in fm.fragments) {
+            if (f.tag != tag && !f.isHidden) tx.hide(f)
+        }
+        val existing = fm.findFragmentByTag(tag)
+        if (existing == null) {
+            tx.add(R.id.nav_host_fragment, newFragment(tag), tag)
+        } else {
+            tx.show(existing)
+        }
+        tx.commitAllowingStateLoss()
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (::binding.isInitialized) refreshUi()
+    private fun newFragment(tag: String): Fragment = when (tag) {
+        "diary" -> DiaryFragment()
+        "charts" -> ChartsFragment()
+        "control" -> ControlFragment()
+        "about" -> AboutFragment()
+        else -> DashboardFragment()
     }
 
-    override fun onCreateOptionsMenu(menu: android.view.Menu?): Boolean {
+    override fun onCreateOptionsMenu(menu: android.view.Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
         return true
     }
 
-    override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_sync -> {
+                doSync()
+                true
+            }
             R.id.action_setup -> {
-                startActivity(Intent(this, WizardActivity::class.java)); true
+                startActivity(Intent(this, WizardActivity::class.java))
+                true
             }
             R.id.action_open_hc -> {
-                openHealthConnect(); true
+                openHealthConnect()
+                true
+            }
+            R.id.action_update -> {
+                binding.bottomNav.selectedItemId = R.id.nav_about
+                true
             }
             else -> super.onOptionsItemSelected(item)
         }
     }
 
-    private fun refreshUi() {
-        val url = Prefs.url(this)
-        binding.serverLine.text = if (url.isBlank()) getString(R.string.main_not_linked) else url
-        val last = Prefs.lastSync(this)
-        binding.lastSyncLine.text = if (last == 0L) getString(R.string.main_last_sync_none)
-        else getString(
-            R.string.main_last_sync,
-            SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date(last))
-        )
-
-        val raw = Prefs.lastPayloadJson(this)
-        if (raw.isNotBlank()) {
-            try {
-                val j = JSONObject(raw)
-                binding.metricKcal.text = "🔥 ${fmtInt(j, "burned_kcal")} kcal"
-                binding.metricSteps.text = "👟 ${fmtInt(j, "steps")}"
-                binding.metricExercise.text = "⏱ ${fmtInt(j, "exercise_min")} min"
-                binding.metricSleep.text = "😴 ${fmtSleep(j)} h"
-                binding.statusLine.text = j.optString("source", "health_connect")
-            } catch (_: Exception) {
-                binding.statusLine.setText(R.string.main_waiting)
+    private fun doSync() {
+        Toast.makeText(this, R.string.dash_syncing, Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val outcome = SyncEngine.syncNow(this@MainActivity, "manual")
+            val text = when {
+                !outcome.ok && outcome.message == "not_configured" -> getString(R.string.err_not_configured)
+                outcome.deferred -> getString(R.string.dash_sync_deferred)
+                outcome.ok -> getString(R.string.dash_sync_ok)
+                else -> getString(R.string.dash_sync_fail, outcome.message)
             }
-        } else {
-            binding.statusLine.setText(R.string.main_waiting)
+            Toast.makeText(this@MainActivity, text, Toast.LENGTH_LONG).show()
         }
-
-        if (HealthConnectReader.sdkStatus(this) != HealthConnectClient.SDK_AVAILABLE) {
-            binding.statusLine.setText(R.string.main_hc_missing)
-        }
-        binding.btnBattery.alpha = if (BatteryHelper.isIgnoringBatteryOptimizations(this)) 0.45f else 1f
     }
 
-    private fun requestHcPermissions() {
-        when (HealthConnectReader.sdkStatus(this)) {
-            HealthConnectClient.SDK_AVAILABLE ->
-                permissionLauncher.launch(HealthConnectReader.PERMISSIONS)
-            HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> openHealthConnect()
-            else -> Toast.makeText(this, R.string.main_hc_missing, Toast.LENGTH_LONG).show()
+    private fun maybeCheckUpdates() {
+        lifecycleScope.launch {
+            try {
+                val info = Updater.check(this@MainActivity) ?: return@launch
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.about_update_available, info.version),
+                    Toast.LENGTH_LONG
+                ).show()
+                binding.bottomNav.selectedItemId = R.id.nav_about
+            } catch (e: Throwable) {
+                Logs.warn(this@MainActivity, "update", "check failed: ${e.message}")
+            }
         }
     }
 
     private fun openHealthConnect() {
         try {
             startActivity(Intent(Intent.ACTION_VIEW).setPackage("com.google.android.apps.healthdata"))
-        } catch (_: Exception) {
+        } catch (_: ActivityNotFoundException) {
             try {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.apps.healthdata")))
+                startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.apps.healthdata"))
+                )
             } catch (_: Exception) {
-                Toast.makeText(this, R.string.main_hc_missing, Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, R.string.dash_hc_missing, Toast.LENGTH_LONG).show()
             }
-        }
-    }
-
-    private fun doSync() {
-        binding.btnSync.isEnabled = false
-        binding.btnSync.setText(R.string.main_syncing)
-        KeepAliveService.start(this)
-        lifecycleScope.launch {
-            val res = SyncHelper.syncNow(this@MainActivity)
-            binding.btnSync.isEnabled = true
-            binding.btnSync.setText(R.string.main_sync_now)
-            Toast.makeText(
-                this@MainActivity,
-                if (res.isSuccess) getString(R.string.main_synced)
-                else getString(R.string.main_error, res.exceptionOrNull()?.message ?: "sync"),
-                Toast.LENGTH_LONG
-            ).show()
-            refreshUi()
-        }
-    }
-
-    private fun fmtInt(j: JSONObject, key: String): String {
-        if (!j.has(key) || j.isNull(key)) return "—"
-        return try {
-            j.getDouble(key).roundToInt().toString()
-        } catch (_: Exception) {
-            j.optString(key, "—")
-        }
-    }
-
-    private fun fmtSleep(j: JSONObject): String {
-        if (!j.has("sleep_hours") || j.isNull("sleep_hours")) return "—"
-        return try {
-            String.format(Locale.getDefault(), "%.1f", j.getDouble("sleep_hours"))
-        } catch (_: Exception) {
-            "—"
         }
     }
 }

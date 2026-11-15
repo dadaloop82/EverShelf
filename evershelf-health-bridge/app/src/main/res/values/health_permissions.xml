@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Declared for Play / Health Connect reviewers -->
-    <string name="health_permissions_rationale">EverShelf Health legge aggregati giornalieri (passi, calorie, esercizio, sonno, peso) per personalizzare le ricette sul tuo server EverShelf. I dati restano sulla tua rete.</string>
+    <!-- Declared for Play / Health Connect reviewers: the rationale shown before the
+         permission screen. Read-only, and the household can revoke it at any time. -->
+    <string name="health_permissions_rationale">EverShelf Health Bridge reads daily aggregates and biometrics (steps, calories, exercise, sleep, heart rate, oxygen saturation, weight, hydration and more) only to build your diary and charts and to send them to your own EverShelf server. Data never leaves your network, and nothing is uploaded unless the server answers.</string>
 </resources>

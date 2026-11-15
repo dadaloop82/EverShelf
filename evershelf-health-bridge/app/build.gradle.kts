@@ -24,23 +24,23 @@ android {
         applicationId = "it.dadaloop.evershelf.health"
         minSdk = 28
         targetSdk = 35
-        versionCode = 6
-        versionName = "1.0.5"
+        versionCode = 20
+        versionName = "2.0.0"
+
+        // OTA checks read this repository (Info panel + GitHub fallback).
+        buildConfigField("String", "GITHUB_OWNER", "\"dadaloop82\"")
+        buildConfigField("String", "GITHUB_REPO", "\"EverShelf\"")
+        buildConfigField("String", "RELEASE_TAG", "\"health-bridge-latest\"")
     }
 
     signingConfigs {
         create("project") {
             // Paths in keystore.properties are relative to the project root
             // (evershelf-health-bridge/), not the :app module — hence rootProject.file().
-            // With file(storePath) a relative "storeFile=evershelf.jks" resolves to
-            // app/evershelf.jks and CI dies in :app:validateSigningRelease (the kiosk
-            // fixed exactly this; this file had been left behind).
             val storePath = signingValue("storeFile", "HEALTH_STORE_FILE")
                 ?: if (rootProject.file("evershelf.jks").exists()) "evershelf.jks" else null
             val storePass = signingValue("storePassword", "HEALTH_STORE_PASSWORD")
             if (storePath != null && storePass != null) {
-                // rootProject.file() accepts absolute CI paths and relative
-                // keystore.properties paths from the project root.
                 storeFile = rootProject.file(storePath)
                 storePassword = storePass
                 keyAlias = signingValue("keyAlias", "HEALTH_KEY_ALIAS")
@@ -72,6 +72,7 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -93,6 +94,9 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.coordinatorlayout:coordinatorlayout:1.2.0")
     implementation("androidx.activity:activity-ktx:1.9.2")
+    implementation("androidx.fragment:fragment-ktx:1.8.3")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")

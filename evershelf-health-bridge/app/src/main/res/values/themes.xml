@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.EverShelfHealth" parent="Theme.Material3.Light.NoActionBar">
+    <style name="Theme.EverShelfHealth" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/es_green</item>
-        <item name="colorPrimaryContainer">@color/es_cream</item>
+        <item name="colorOnPrimary">@color/es_on_brand</item>
+        <item name="colorPrimaryContainer">@color/es_mint</item>
+        <item name="colorOnPrimaryContainer">@color/es_text</item>
         <item name="colorSecondary">@color/es_amber</item>
+        <item name="colorSurface">@color/es_surface</item>
+        <item name="colorOnSurface">@color/es_text</item>
+        <item name="colorSurfaceVariant">@color/es_surface_alt</item>
+        <item name="colorOnSurfaceVariant">@color/es_muted</item>
+        <item name="colorOutline">@color/es_border</item>
         <item name="android:statusBarColor">@color/es_green</item>
-        <item name="android:navigationBarColor">@color/es_cream</item>
+        <item name="android:navigationBarColor">@color/es_surface</item>
         <item name="android:windowBackground">@color/es_cream</item>
         <item name="android:fontFamily">sans-serif</item>
     </style>
