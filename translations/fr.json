@@ -947,6 +947,7 @@
     "missing_chip_one": "🛒 1 ingrédient manque",
     "missing_chip_many": "🛒 {n} ingrédients manquent",
     "missing_chip_none": "🛒 Aucun ingrédient dans le garde-manger",
+    "missing_scrubbed": "Pas dans le garde-manger : {list}",
     "missing_popover_title": "Manque dans le garde-manger",
     "missing_already_listed": "Déjà sur la liste",
     "missing_all_listed": "Tout est déjà sur la liste",

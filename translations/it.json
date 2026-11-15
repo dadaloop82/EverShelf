@@ -947,6 +947,7 @@
     "missing_chip_one": "🛒 Manca 1 ingrediente",
     "missing_chip_many": "🛒 Mancano {n} ingredienti",
     "missing_chip_none": "🛒 Nessun ingrediente in dispensa",
+    "missing_scrubbed": "La dispensa non aveva: {list}",
     "missing_popover_title": "Manca dalla dispensa",
     "missing_already_listed": "Già in lista",
     "missing_all_listed": "È già tutto in lista",

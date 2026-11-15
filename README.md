@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.9-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.10-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -226,6 +226,15 @@ the gate this release was developed against.
 
 <details open>
 <summary><b>Last five releases</b></summary>
+
+**v2.2.10 — a recipe that lost an ingredient remembers it.** The screensaver kept proposing a
+«pizza margherita» whose pizza was finished, and opening it showed nothing missing: the pantry
+filter had *deleted* that row (it was not on a shelf) and only recorded the deletion when the
+shopping mode was on. Now what the pantry could not give is always recorded, the archive and the
+idle screen count it as missing (so the dish is not proposed), the recipe sheet says «La dispensa
+non aveva: …» instead of a list that silently lost a line, Mealie coverage uses the same matcher
+that actually links the ingredients (so «Pizza alta regina» no longer covers «Pizza margherita»),
+and a trace — 0.4 g of flour — is no longer stock.
 
 **v2.2.9 — the Health Bridge, rebuilt from zero.** The Android companion is now *EverShelf
 Health Bridge*: five tabs (Today / Diary / Charts / Control / Info), every biometric Health

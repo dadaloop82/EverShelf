@@ -14040,7 +14040,12 @@ function recipeScrubUnavailableMentionsInSteps(array &$recipe, array $removed): 
 
 /** Merge removed ingredients into recipe shopping_suggestions (deduped by name). */
 function recipeAttachShoppingSuggestions(array &$recipe, array $removed): void {
-    if (recipeShoppingMode() === 'off' || empty($removed)) {
+    // ALWAYS, whatever `recipe_shopping_mode` says: this list is not a shopping preference,
+    // it is the record of what the pantry could not give. With shopping off the rows were
+    // dropped here too, so a recipe that lost its main ingredient looked 100% complete — and
+    // the screensaver kept proposing a «pizza margherita» whose pizza had been silently
+    // deleted by the pantry filter (the household opened it and the ingredient was gone).
+    if (empty($removed)) {
         return;
     }
     $existing = [];
@@ -14205,6 +14210,17 @@ function recipePostProcessGenerated(PDO $db, array &$recipe, array $pantryItems)
         recipeApplyStockHintsToRecipe($db, $recipe);
         $removed = recipeEnforcePantryOnly($recipe);
         recipeAttachShoppingSuggestions($recipe, $removed);
+        if (!empty($removed)) {
+            // The scrub is a FACT about the dish, and it is the only trace left once the
+            // ingredient has been deleted: log it so «it proposed a dish I cannot cook» has
+            // evidence beyond the client's own verdict.
+            EverLog::info('recipe ingredients scrubbed', [
+                'event'   => 'recipe_ingredients_scrubbed',
+                'title'   => (string)($recipe['title'] ?? ''),
+                'removed' => count($removed),
+                'names'   => array_slice(array_values(array_column($removed, 'name')), 0, 8),
+            ]);
+        }
     }
     // Always scrub steps: removed pantry items + invented staples (e.g. burro in steps only)
     recipeScrubUnavailableMentionsInSteps($recipe, $removed);

@@ -5,6 +5,41 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.10] - 2026-11-15
+
+### A recipe that lost an ingredient remembers it (and stops being proposed)
+
+Report: «nello screensaver mi propone ricette con ingredienti che non ho più — la pizza margherita
+me la continua a riproporre, poi apro la ricetta e la pizza margherita non c'è neppure, è sparita
+perché è finita».
+
+Three defects, one chain:
+
+1. **The pantry filter deletes what it cannot link** (`recipeEnforcePantryOnly()`), and the list of
+   what it removed was written into `recipe.shopping_suggestions` only when
+   `recipe_shopping_mode` was on. With shopping off the row vanished without a trace, so the
+   recipe looked complete.
+2. **The screensaver and the archive read only `ingredients`** — where the missing row no longer
+   existed: `_recipeArchiveMissingInfo()` answered «hai tutti gli ingredienti» about a dish whose
+   main ingredient had been deleted.
+3. **Mealie judged coverage with a different rule than the one that then deletes the rows**: «any
+   token of the ingredient appears in any pantry name» made «Pizza margherita» covered by «Pizza
+   alta regina», and `quantity > 0` counted a trace (0.4 g of flour) as stock.
+
+Now `recipeAttachShoppingSuggestions()` always records what the pantry could not give (it is a fact
+about the dish, not a shopping preference); `_recipeArchiveMissingInfo()` counts those rows as
+missing, names them, and stops counting one the household has since bought (strict token rule, so
+another pizza does not cover it); `mealieRecipePantryCoverage()` uses `recipeScorePantryMatch()` —
+the very matcher `recipeEnrichIngredientsFromPantry()` links with, threshold
+`RECIPE_PANTRY_MIN_MATCH_SCORE` — and the live shelf uses `isInventoryDepleted()`, the pantry's own
+threshold. Opening a recipe now says «La dispensa non aveva: …» instead of showing a list that
+silently lost a line, the screensaver refuses the dish, and the archive card wears the missing chip.
+
+Measured: `recipeScorePantryMatch('Pizza margherita','Pizza alta regina') = 0` (a token hit before),
+coverage of the reported pizza 2/5 with `Pizza margherita`, `Basilico` and 0.4 g of `Farina` all
+reported missing; the client harness (the real functions, 9 assertions) refuses the dish, accepts it
+once the pizza is back on a shelf, and leaves an old recipe without a trace working as before.
+
 ## [2.2.9] - 2026-11-15
 
 ### The Health Bridge, rebuilt from zero — and it speaks only when EverShelf answers

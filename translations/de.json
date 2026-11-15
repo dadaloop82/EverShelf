@@ -947,6 +947,7 @@
     "missing_chip_one": "🛒 1 Zutat fehlt",
     "missing_chip_many": "🛒 {n} Zutaten fehlen",
     "missing_chip_none": "🛒 Keine Zutaten mehr im Vorrat",
+    "missing_scrubbed": "Nicht in der Speisekammer: {list}",
     "missing_popover_title": "Fehlt im Vorrat",
     "missing_already_listed": "Schon auf der Liste",
     "missing_all_listed": "Alles ist schon auf der Liste",
