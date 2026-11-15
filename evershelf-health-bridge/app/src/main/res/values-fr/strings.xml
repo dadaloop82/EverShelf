@@ -58,7 +58,7 @@
     <string name="wiz_opts_title">Options de synchronisation</string>
     <string name="wiz_opts_body">Comment le bridge parle à EverShelf. Chaque choix se change ensuite dans le panneau de contrôle.</string>
     <string name="wiz_goals_title">Tes objectifs</string>
-    <string name="wiz_goals_body">Ils remplissent les anneaux d'Aujourd'hui. Pas et calories brûlées sont tes chiffres, pas les nôtres.</string>
+    <string name="wiz_goals_body">Ils remplissent les anneaux d\'Aujourd\'hui. Pas et calories brûlées sont tes chiffres, pas les nôtres.</string>
     <string name="wiz_diag_title">Confidentialité et diagnostic</string>
     <string name="wiz_diag_body">Les données de santé ne quittent jamais ton réseau. Les plantages et les envois échoués vont dans le journal local ; tu peux aussi les envoyer à ton serveur EverShelf.</string>
     <string name="wiz_summary_title">Tout est prêt</string>
