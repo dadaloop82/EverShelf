@@ -5,6 +5,30 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.7] - 2026-11-15
+
+### The AI generator, and a card that still proposed what the house cannot cook
+
+Two reports, both mine.
+
+**«Non crea più la ricetta con AI: dice qualcosa come RECIPE_MIN_PANTRY_INGREDIENTS».** The guard
+added in 2.2.2 reads a constant that had been written next to the function that uses it — at the
+bottom of `api/index.php`. A `const` is a STATEMENT, executed where it stands, while the router
+(`switch ($action)`, line ~900) dispatches the handler long before the file reaches line 13850: the
+generator answered «Errore interno del server · Undefined constant
+"RECIPE_MIN_PANTRY_INGREDIENTS" (index.php:15914)» and never produced a recipe. The constant now
+lives at the top with the others (`RECIPE_PANTRY_MIN_MATCH_SCORE`,
+`EVERSHELF_STAPLE_SHELF_DAYS`…); functions are hoisted, constants are not. Verified end to end: the
+same request that failed now streams «✅ Ricetta pronta!» with a real dish.
+
+**«Nello screensaver mi parla ancora di ricette con ingredienti che non ho» — a pizza margherita
+whose «pizza alta regina» is finished.** 2.2.5 taught the meal card not to *claim* what it could not
+verify, but it still proposed a dish that was missing **one** ingredient, with a ⚠️ beside it: a
+warning over a recipe is still a proposal. `_ssPickRecipe()` now accepts only a recipe whose every
+ingredient is on a shelf (`allInPantry`), and when none qualifies the rotation walks to the next
+view instead of apologising over a dish. Measured on the field archive: 26 recipes, **9 fully
+cookable**, 17 that had no business on that screen.
+
 ## [2.2.6] - 2026-11-15
 
 ### «La lista dice esaurito cose che ho» — a yogurt in the milk family

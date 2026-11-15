@@ -68,6 +68,13 @@ runtime/binary files — if a task truly needs one, ask first.
   the source declared by the client (`app` | `kiosk`, WebView lines **and** native reports
   together), because an Android WebView claims to be a phone in its User-Agent.
   `LOG_LEVEL` filters, `EVERSHELF_LOG_KEEP_DAYS` (14) rotates, `?log=debug` raises one device.
+  **A `const` is a STATEMENT, not a declaration**: it is executed where it stands, so a `const`
+  written next to the function that reads it but BELOW the router (`switch ($action)`, line ~900)
+  does not exist yet when the handler runs — `generate_recipe_stream` answered «Errore interno del
+  server · Undefined constant "RECIPE_MIN_PANTRY_INGREDIENTS" (index.php:15914)» and the household's
+  recipe generation stopped working. Constants live at the TOP of the file with the others
+  (`RECIPE_PANTRY_MIN_MATCH_SCORE`, `EVERSHELF_STAPLE_SHELF_DAYS`…); functions are hoisted, constants
+  are not.
 - **Security**: new action → add it to the right allow-list in
   `api/lib/security.php` only when intended. Never trust client headers
   (`Origin`, `Referer`, `Sec-Fetch-Site`).
@@ -685,11 +692,14 @@ runtime/binary files — if a task truly needs one, ask first.
   `missing` (linked ingredients whose row is gone), `unknown` (no link and not a free
   staple — water/salt/pepper/oil) and `checked` (was there a snapshot at all). The screensaver's
   meal card prints ✅ only on `allInPantry` (`checked && pantry > 0 && missing === 0 &&
-  unknown.length === 0`), ⚠️ «Manca: …» when something is gone and «❔ Da verificare: …»
-  otherwise — and `_ssPickRecipe()` refuses a recipe nobody can verify (`!checked || !pantry`).
-  The old check required a NUMERIC `qty_number` as well as the link, so every «q.b.» or
-  «80-90 g» ingredient was skipped in silence: with the sugar finished, «Maxi-Pancake al Forno»
-  still read «✅ Hai tutti gli ingredienti» (measured: old rule `missing 0`, new `missing 1`).
+  unknown.length === 0`) and **`_ssPickRecipe()` refuses anything that is not `allInPantry`**: a
+  dish with one gone ingredient used to stay on the wall with a ⚠️ beside it, which the household
+  reads as «mi parla ancora di ricette con ingredienti che non ho» (a «pizza margherita con pizza
+  alta regina» whose pizza is finished). No fully-cookable recipe → the rotation walks to the next
+  view, it does not apologise over a dish. The old check required a NUMERIC `qty_number` as well as
+  the link, so every «q.b.» or «80-90 g» ingredient was skipped in silence: with the sugar finished,
+  «Maxi-Pancake al Forno» still read «✅ Hai tutti gli ingredienti» (measured: old rule
+  `missing 0`, new `missing 1`).
 - **Tablet/kiosk CSS is opt-in**: `assets/css/tablet.css` activates on `html.is-kiosk`
   / `html.is-touch-tablet` (set by `_markDeviceChrome()`), never on `min-width` alone —
   a desktop monitor keeps the base styles.

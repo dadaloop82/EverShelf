@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.6-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.7-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -227,6 +227,15 @@ the gate this release was developed against.
 <details open>
 <summary><b>Last five releases</b></summary>
 
+**v2.2.7 — the AI generator, and a card that still proposed what the house cannot cook.** My own
+regression: the guard added in 2.2.2 used a `const` written at the bottom of `api/index.php`, and a
+`const` is a statement — the router dispatches the handler long before that line runs, so the
+generator died with «Undefined constant "RECIPE_MIN_PANTRY_INGREDIENTS"» and produced no recipe at
+all. The constant now lives at the top with the others, and the same request streams «✅ Ricetta
+pronta!». And the idle screen no longer proposes a dish that is missing even ONE ingredient (a pizza
+margherita whose «pizza alta regina» is finished): only a fully cookable recipe is a proposal, 9 of
+the 26 archived ones on a real pantry; otherwise the rotation moves to the next view.
+
 **v2.2.6 — «la lista dice esaurito cose che ho».** The row named «Latte» was a **yogurt**: its
 `raw_name` was «Yougurth fior di latte», and because `yougurth` was a spelling the vocabulary had
 never been taught, the genre in the middle of the title («fior di **latte**») decided the family — so
@@ -259,16 +268,6 @@ chosen it, so one guess became a "habit" that shortened the next clock, which pr
 Measured on a real install: **361 learned places**, almost every product at the 2-second floor, i.e.
 a modal that flashed and answered itself. Now only a real tap teaches a place, and the floor is 6 s
 (measured after the fix: 10 s on screen, then «📦 la confezione resta in Frigo»).
-
-**v2.2.2 — a recipe nobody can cook is not a recipe.** With Mealie configured, the ricettario was
-consulted before the AI and answered every request — so the AI stopped generating, and the dishes
-it returned were picked on a loose score (nine ingredients of which two happened to be on a shelf
-was enough: **2 of 27 recipes were actually cookable** on a real pantry). The generator now **asks
-which engine you want** («✨ Genera una ricetta nuova con l'AI» or «📚 Prendi una ricetta dal
-ricettario»), and the book may only propose a dish whose ingredients you have — the count is
-verified against the shelves, the sheet says «✅ Tutti gli ingredienti sono in dispensa», and the log
-names what was missing when nothing qualifies. The AI side refuses a result that lost its
-ingredients instead of showing "sale e pepe". Every sheet also says where the dish came from.
 
 Older releases live in [CHANGELOG.md](CHANGELOG.md).
 
