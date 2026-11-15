@@ -209,6 +209,33 @@ def used_keys() -> set[str]:
             and not k.endswith(('.', '_'))}
 
 
+def markup_inserted_as_text() -> list[str]:
+    """Keys whose text carries HTML, inserted somewhere that shows the tags.
+
+    A translation may contain markup — `Finita <strong>1 confezione</strong> ({qty})`,
+    `…fotocamera.<br>Puoi inserire…` — and then it MUST be written with `innerHTML` (or a
+    template literal inside one), with the interpolated values escaped. Wrapping the whole
+    translation in `escapeHtml()` prints `<strong>` to the household, which is the bug this
+    section exists for (reported from the «usa / finito tutto» sheet).
+    """
+    tag_re = re.compile(r'</?(?:strong|b|em|i|br|a|span|small)\b', re.I)
+    bad_re = re.compile(
+        r"escapeHtml\(\s*t\(\s*(['\"])([^'\"]+)\1"       # escapeHtml(t('key'))
+        r"|textContent\s*=\s*t\(\s*(['\"])([^'\"]+)\3"   # el.textContent = t('key')
+    )
+    ref = flatten(json.loads((TRANS / 'it.json').read_text(encoding='utf-8')))
+    out: list[str] = []
+    for f in SRC_JS:
+        text = f.read_text(encoding='utf-8')
+        for m in bad_re.finditer(text):
+            key = m.group(2) or m.group(4)
+            value = ref.get(key)
+            if value and tag_re.search(value):
+                line = text.count('\n', 0, m.start()) + 1
+                out.append(f'{f.name}:{line} {key}')
+    return out
+
+
 def main() -> int:
     data = {loc: flatten(json.loads((TRANS / f'{loc}.json').read_text(encoding='utf-8')))
             for loc in LOCALES}
@@ -253,6 +280,17 @@ def main() -> int:
         exit_code = 1
         for problem in icon_problems:
             print('    -', problem)
+
+    marked_up = markup_inserted_as_text()
+    print(f'\n[5] Translations that carry HTML but are inserted as text ({len(marked_up)}):')
+    if not marked_up:
+        print('    none — a `<strong>`/`<br>` is written with innerHTML, its values escaped')
+    else:
+        exit_code = 1
+        for problem in marked_up:
+            print('    -', problem)
+        print('    -> drop the escapeHtml()/textContent and write the translation raw,')
+        print('       escaping only the interpolated values (otherwise the household reads <strong>)')
 
     if '--json' in sys.argv:
         print(json.dumps({
