@@ -5,6 +5,44 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.6] - 2026-11-15
+
+### «La lista dice esaurito cose che ho» — a yogurt in the milk family
+
+Report: the shopping list claimed «🛒 Esaurito» for articles that are on the shelves, milk among
+them. The row was real, the article was not: the list showed a row named **«Latte»** whose
+`raw_name` was **«Yougurth fior di latte»** — a yogurt.
+
+`computeShoppingName()` files a product under the genre found in its title, and a genre found in the
+MIDDLE of the title used to win over an unknown first word. «Yougurth» is a spelling the vocabulary
+had never been taught (it knew `yogurt`, `yogurth`, `jogurt`, `joghurt`, `yaourt`, `yougurt` — not
+`yougurth`), so «fior di **latte**» decided the family: **a yogurt joined the milk family**. The list
+then read «Latte · Esaurito» — the yogurt is out of stock — while 6,6 packs of milk sat in the
+fridge. The row could not even be pruned: the prune finds its smart item through the RAW name (the
+yogurt) and asks the stock of the row's NAME (milk), so the two never met.
+
+Three parts, one rule — the family comes from the genre that LEADS the title:
+
+- **the vocabulary is DATA**: `api/vocab/it.json` → `keyword_map` learns `yougurth`, `yoghurt`,
+  `yoghurth` → Yogurt and `merendine`, `merenda` → Merendine (`assets/js/vocab.generated.js`
+  regenerated, so the browser and the server read the same words);
+- **a mid-title genre cannot overrule a known lead**: `productKindFromDictionary()` returns no kind
+  for a trailing match when the first token is food the vocabulary can place
+  (`vocabCategoryOfName($lead) !== 'altro'`) — «Merendine nesquik **snack latte** x5» is a snack,
+  not milk, while «La sfogliata … piadine» keeps its trailing answer (its lead is not food);
+- **a row keeps the family of the day it was created**: `internalShoppingRetitleFamilies()` (on every
+  `shopping_list` read, before the prune) renames an app-owned row to the family its `raw_name`
+  belongs to now, or drops it when that family already has a row. A row the household typed has no
+  spec and is never touched. It logs `shopping_row_retitled`.
+
+`migration_shopping_family_leading_genre_v1` heals the products already stored — measured on the
+field install: 9 rows had a leading genre that disagreed, **2 were wrong** («Yougurth fior di latte»
+Latte → Yogurt, «Merendine …» Latte → Merendine) and the 7 compound families («Pangrattato»,
+«Panna da cucina», «Farina di mais», «Zucchero di canna», «Muesli croccante»…) were left alone
+because `computeShoppingName()` judges the whole name. The smart index built on the old families is
+dropped (`invalidateSmartShoppingCache()`), and after the pass the stale «Latte» row disappears
+while the milk stays in the fridge where it belongs.
+
 ## [2.2.5] - 2026-11-14
 
 ### «Hai tutti gli ingredienti» was not a fact
