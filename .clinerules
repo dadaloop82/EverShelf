@@ -52,7 +52,11 @@ runtime/binary files — if a task truly needs one, ask first.
   `data/logs/health-YYYY-MM-DD.log`, and with `version_guard_bypass=true` (that guard compares
   against the webapp tag while the bridge has its own version line). OTA asks the LAN server
   first (`health_bridge_update` + `releases/evershelf-health-bridge.apk`), GitHub second, and
-  installs only an APK with the **same signature** and a higher `versionCode`. Its keep-alive
+  installs only an APK with the **same signature** and a higher `versionCode` — the workflow
+  refuses to publish anything else (`Guard — the APK must update the published app in place`
+  compares `releases/health-bridge-version.json` and the published APK's v2 certificate), so an
+  update never asks for an uninstall. It ships the **same six locales as the webapp**
+  (`values/` + `values-it|de|fr|es|zh`, 244 strings each). Its keep-alive
   foreground service is started **only from a visible screen** — Android 15 refuses a
   `dataSync` FGS from `BOOT_COMPLETED`, which is what made the old APK "close by itself".
 - **A demo answers by DATA, and never asks.** `DEMO_MODE=true`, `?demo=1` or a `/demo`

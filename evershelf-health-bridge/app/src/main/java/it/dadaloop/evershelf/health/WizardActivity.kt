@@ -159,7 +159,7 @@ class WizardActivity : AppCompatActivity() {
                 box.addView(body(getString(R.string.wiz_lang_hint)))
                 val languages = listOf(
                     "it" to "Italiano", "en" to "English", "de" to "Deutsch",
-                    "fr" to "Français", "es" to "Español"
+                    "fr" to "Français", "es" to "Español", "zh" to "中文"
                 )
                 for ((code, label) in languages) {
                     box.addView(primaryButton(label) {

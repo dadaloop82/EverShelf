@@ -25,6 +25,19 @@ The bridge was rebuilt around five tabs:
 | **Control** | Pairing, live server test, automatic sync + pace, Wi-Fi-only guard, keep-alive notification, battery optimisation, Health Connect permissions, queue, history import, local reset, log viewer. |
 | **Info** | Repository, licence (**MIT**), author, OTA updates, automatic error reporting, manual report, local log (show / share / clear), privacy. |
 
+### Languages and updates
+
+The app ships **the same six locales as EverShelf** (it / en / de / fr / es / zh) at full
+parity — the first-run wizard asks the language and formats every date and number with it.
+
+Updates install **in place**: same `applicationId`, same signing key (SHA-256
+`36d84a43…cb25` for every published build) and a higher `versionCode`. The build workflow
+refuses to publish an APK whose `versionCode` is not greater than
+`releases/health-bridge-version.json` or whose v2 certificate differs from the published
+APK (`releases/evershelf-health-bridge.apk`), and the app repeats the same four proofs
+(ZIP, package, versionCode, certificate) before opening `PackageInstaller`. So an update
+never asks for an uninstall — the diary, the queue and the pairing survive.
+
 ### "Send only when EverShelf answers"
 
 A phone in the street has internet and **no route** to a LAN server (or to the VPN that

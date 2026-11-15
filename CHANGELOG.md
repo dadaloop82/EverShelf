@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### The Health Bridge, rebuilt from zero — and it speaks only when EverShelf answers
 
-The Android companion app is now **EverShelf Health Bridge** (2.0.0, `versionCode` 20) and
+The Android companion app is now **EverShelf Health Bridge** (2.0.1, `versionCode` 21) and
 nothing of the old single screen survived:
 
 - **Five tabs.** *Today* (goal rings for steps and burned kcal, plus sleep and its stages,
@@ -38,6 +38,15 @@ nothing of the old single screen survived:
   a GitHub issue when the instance is configured for it. On the phone the same lines live in
   `filesDir/health-bridge.log` (show / share / clear from Info) and a crash is persisted
   **before** the process dies, then sent on the next start.
+- **The same six languages as EverShelf** (it / en / de / fr / es / zh, 244 strings each, no
+  raw key can reach the screen): the wizard asks the language and every date and number is
+  formatted with it.
+- **An update installs IN PLACE.** Same `applicationId`, the same signing key (SHA-256
+  `36d84a43…cb25` for every published build, verified against the APK already in
+  `releases/`) and a higher `versionCode`: the workflow now refuses to publish an APK that
+  Android would reject over the installed app, and the app repeats the four proofs (ZIP,
+  package name, versionCode, certificate) before `PackageInstaller`. Nothing asks for an
+  uninstall — the diary, the queue and the pairing survive.
 
 Three defects explain the old «si chiude da solo»: a `dataSync` foreground service started
 from `BOOT_COMPLETED` (Android 15 refuses it — an exception in a receiver is a crash), 1016

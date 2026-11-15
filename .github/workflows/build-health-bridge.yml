@@ -94,6 +94,82 @@ jobs:
             artifacts/evershelf-health-bridge.apk
           ls -lh artifacts/evershelf-health-bridge.apk
 
+      # An update must install OVER the app already on the phone: same applicationId,
+      # same signing key and a HIGHER versionCode. Android refuses anything else, and the
+      # only cure left is "uninstall and reinstall" — which loses the local diary queue.
+      # The published metadata and APK are in this repository, so both halves are checked
+      # here, before anything is published.
+      - name: Guard — the APK must update the published app in place
+        env:
+          NEW_CODE: ${{ steps.version.outputs.code }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, struct, sys
+
+          def u32(b, o): return struct.unpack_from('<I', b, o)[0]
+          def u64(b, o): return struct.unpack_from('<Q', b, o)[0]
+
+          def signer_sha256(path):
+              data = open(path, 'rb').read()
+              eocd = data.rfind(b'PK\x05\x06')
+              if eocd < 0: return None
+              cd = u32(data, eocd + 16)
+              if data[cd - 16:cd] != b'APK Sig Block 42': return None
+              size2 = u64(data, cd - 24)
+              p = cd - 8 - size2 + 8
+              pairs = {}
+              while p < cd - 24:
+                  ln = u64(data, p); pid = u32(data, p + 8)
+                  pairs[pid] = data[p + 12:p + 8 + ln]; p += 8 + ln
+              v2 = pairs.get(0x7109871a)
+              if v2 is None: return None
+              o = 0
+              o += 4                                   # signers sequence length
+              o += 4                                   # first signer length
+              sd_len = u32(v2, o); o += 4
+              sd = v2[o:o + sd_len]
+              q = 0
+              q += 4 + u32(sd, q)                      # digests
+              q += 4                                   # certificates sequence length
+              cl = u32(sd, q); q += 4
+              return hashlib.sha256(sd[q:q + cl]).hexdigest()
+
+          new_code = int(os.environ['NEW_CODE'])
+          meta = 'releases/health-bridge-version.json'
+          new_apk = 'artifacts/evershelf-health-bridge.apk'
+          old_apk = 'releases/evershelf-health-bridge.apk'
+          problems = []
+
+          if os.path.exists(meta):
+              prev = json.load(open(meta))
+              prev_code = int(prev.get('version_code', 0))
+              print(f'published versionCode={prev_code}, this build={new_code}')
+              if new_code <= prev_code:
+                  problems.append(
+                      f'versionCode {new_code} is not greater than the published {prev_code}: '
+                      'Android refuses such an APK over the installed app — bump versionCode '
+                      'in evershelf-health-bridge/app/build.gradle.kts')
+          else:
+              print('no published metadata yet — versionCode guard skipped')
+
+          if os.path.exists(old_apk):
+              new_signer = signer_sha256(new_apk)
+              old_signer = signer_sha256(old_apk)
+              print(f'new signer={new_signer}\npublished signer={old_signer}')
+              if not new_signer or not old_signer:
+                  problems.append('could not read the APK v2 signing block')
+              elif new_signer != old_signer:
+                  problems.append(
+                      'this APK is signed with a different key: an update would force an '
+                      'uninstall. Check HEALTH_KEYSTORE_BASE64 / keystore.properties')
+          else:
+              print('no published APK yet — signature guard skipped')
+
+          for p in problems:
+              print('::error::' + p)
+          sys.exit(1 if problems else 0)
+          PY
+
       - name: Publish GitHub releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
