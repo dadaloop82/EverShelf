@@ -36492,6 +36492,7 @@ function _setRecipeArchiveView(view) {
  */
 let _recipeLiveProductIds = null;
 let _recipeLivePantryNames = [];
+let _recipeLivePantryTokens = [];
 let _recipeLiveProductIdsAt = 0;
 const _RECIPE_LIVE_IDS_TTL_MS = 30000;
 
@@ -36514,6 +36515,10 @@ async function _recipeLiveProductIdSet() {
         });
         _recipeLiveProductIds = set;
         _recipeLivePantryNames = names;
+        // Normalised once per snapshot: the archive verdict runs for every card (and for every
+        // candidate on the idle screen), so re-normalising 300 product names per recipe is work
+        // nobody sees but a small phone feels.
+        _recipeLivePantryTokens = names.map((n) => new Set(_recipeNameKey(n).split(' ').filter(Boolean)));
         _recipeLiveProductIdsAt = Date.now();
         return set;
     } catch (e) {
@@ -36530,11 +36535,14 @@ async function _recipeLiveProductIdSet() {
  */
 function _recipePantryHasName(name, pantryNames) {
     const want = _recipeNameKey(name).split(' ').filter(w => w.length > 2);
-    if (!want.length || !Array.isArray(pantryNames)) return false;
-    return pantryNames.some((pName) => {
-        const have = _recipeNameKey(pName).split(' ').filter(Boolean);
-        if (!have.length) return false;
-        return want.every(w => have.some(h => h === w || h.startsWith(w) || w.startsWith(h)));
+    if (!want.length) return false;
+    // Pre-normalised sets when the shelf snapshot has them (the common path), names otherwise.
+    const tokenSets = (_recipeLiveProductIds && Array.isArray(_recipeLivePantryTokens) && _recipeLivePantryTokens.length)
+        ? _recipeLivePantryTokens
+        : (Array.isArray(pantryNames) ? pantryNames.map(n => new Set(_recipeNameKey(n).split(' ').filter(Boolean))) : []);
+    return tokenSets.some((have) => {
+        if (!have || !have.size) return false;
+        return want.every(w => Array.from(have).some(h => h === w || h.startsWith(w) || w.startsWith(h)));
     });
 }
 
