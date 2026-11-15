@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.5-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.6-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -227,6 +227,15 @@ the gate this release was developed against.
 <details open>
 <summary><b>Last five releases</b></summary>
 
+**v2.2.6 — «la lista dice esaurito cose che ho».** The row named «Latte» was a **yogurt**: its
+`raw_name` was «Yougurth fior di latte», and because `yougurth` was a spelling the vocabulary had
+never been taught, the genre in the middle of the title («fior di **latte**») decided the family — so
+a yogurt joined the milk family and the list read «Latte · Esaurito» next to 6.6 packs of milk. The
+family now comes from the genre that LEADS the title (the misspellings are data, a middle-of-title
+genre can no longer overrule a known lead), an app-owned row is renamed to the family its article
+belongs to today, and a migration heals the products already stored (2 of 9 disagreeing rows were
+wrong; the compound families like «Pangrattato» were left alone).
+
 **v2.2.5 — «hai tutti gli ingredienti» was not a fact.** The idle screen proposed recipes whose
 ingredients were finished and printed «✅ Hai tutti gli ingredienti» over them: that chip came from
 `missing === 0`, and zero meant both "everything is on a shelf" and "nothing was checked". The check
@@ -260,15 +269,6 @@ ricettario»), and the book may only propose a dish whose ingredients you have �
 verified against the shelves, the sheet says «✅ Tutti gli ingredienti sono in dispensa», and the log
 names what was missing when nothing qualifies. The AI side refuses a result that lost its
 ingredients instead of showing "sale e pepe". Every sheet also says where the dish came from.
-
-**v2.2.1 — a row tap opens the sheet, and nothing else.** Tapping a product in a list opened the
-sheet *and* consumed the default quantity: `pointerup` opens the sheet, and the `click` the browser
-fires right after lands on whatever is now under the finger — the sheet's own «✓ Usa {qty}»
-primary. Measured on a phone: a tap at y=712 with that button at 689–734 wrote a 25 g consumption
-by itself («appena premo parte di default un uso di 1 unità senza chiedermi nulla»). The gesture
-that opens a sheet now swallows that one synthetic click, so nothing is written until the household
-presses. And a «✓ Usa» in the Home lists no longer falls back to the old full-page «Usa / Consuma»
-when the pantry has not been loaded yet: it resolves the row and opens the same sheet.
 
 Older releases live in [CHANGELOG.md](CHANGELOG.md).
 

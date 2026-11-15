@@ -220,6 +220,20 @@ runtime/binary files — if a task truly needs one, ask first.
   rows already stored without one. And when the suggested quantity would outlive the food,
   `smartShopping()` attaches `waste` and the row prints the smaller amount beside it
   (`🍃 (2 pz)` + `shopping.waste_hint`), emerald and never red: nothing is lost yet.
+- **The shopping family comes from the genre that LEADS the title, and a row keeps it.** «Yougurth
+  fior di latte» (a spelling the vocabulary had never been taught) was filed as «Latte», because a
+  genre found in the MIDDLE of a title used to win over an unknown first word: the yogurt joined
+  the milk family and the list read «Latte · Esaurito» next to a fridge full of milk («mi dice che
+  ho esaurito cose che ho ancora»). Three parts, one rule: the misspellings are DATA
+  (`api/vocab/it.json` → `keyword_map`: `yougurth`, `yoghurt`, `yoghurth`, `merendine`, `merenda`),
+  `productKindFromDictionary()` refuses a middle-of-title genre when the lead is food the
+  vocabulary can place (`vocabCategoryOfName($lead) !== 'altro'`), and
+  `internalShoppingRetitleFamilies()` (on every `shopping_list` READ, before the prune) renames an
+  app-owned row to the family its `raw_name` belongs to now — or drops it when that family already
+  has a row. Rows the household typed (no spec) are never touched. `migration_shopping_family_leading_genre_v1`
+  heals the products already stored (9 rows on the field install: 2 wrong, 7 compound families such
+  as «Pangrattato» left alone because `computeShoppingName()` is the judge), and
+  `invalidateSmartShoppingCache()` drops the index built on the old families.
 - **The shopping list must not fight itself.** Three things add or drop a row —
   `internalShoppingAutoAddCritical()` (cron), `internalShoppingPruneCovered()` (every
   `shopping_list` READ) and `bringQuickSyncProduct()` (every inventory WRITE) — and they must

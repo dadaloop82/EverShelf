@@ -483,6 +483,14 @@ function productKindFromDictionary(string $name, string $brand = ''): array {
         }
     }
     if ($trailing !== null) {
+        // …unless the title LEADS with food the vocabulary can place: a genre found in the middle
+        // then says nothing about what to buy. «Merendine nesquik snack latte x5» is a snack, not
+        // milk (its lead is classified `snack`), while «La sfogliata … piadine» keeps its trailing
+        // answer because its lead (`sfogliata`) is not a food word at all (`altro`).
+        $lead = (string)(evershelfSignificantTokens($name, $brand)[0] ?? '');
+        if ($lead !== '' && vocabCategoryOfName($lead) !== 'altro') {
+            return ['kind' => '', 'confident' => false];
+        }
         return ['kind' => $trailing, 'confident' => false];
     }
 

@@ -349,6 +349,65 @@ function migrateDB(PDO $db): void {
         }
     }
 
+    // A product's SHOPPING FAMILY must come from the genre that leads its title, not from a word
+    // buried in the middle of it. «Yougurth fior di latte» was filed as «Latte» (the dictionary
+    // knew the lead only as a misspelling it had never been taught, so the first word inside the
+    // title won), which put a yogurt in the milk family: the shopping list then read «Latte ·
+    // Esaurito» next to a fridge full of milk — «mi dice che ho esaurito cose che ho ancora».
+    // The vocabulary now knows the spellings AND `productKindFromDictionary()` refuses a
+    // middle-of-title genre when the lead is food the vocabulary can place; this pass rewrites the
+    // rows those rules produced, and only those: the lead must be a genre, and the family has to
+    // change when the whole name is asked again (so «Pane grattugiato» stays «Pangrattato»).
+    $familyHealed = $db->query("SELECT value FROM app_settings WHERE key = 'migration_shopping_family_leading_genre_v1'")->fetchColumn();
+    if (!$familyHealed) {
+        require_once __DIR__ . '/lib/product_kind.php';
+        if (function_exists('computeShoppingName')) {
+            $keywordMap = evershelfShoppingKeywordMap();
+            $rows = $db->query("SELECT id, name, brand, category, shopping_name FROM products WHERE shopping_name <> ''")
+                       ->fetchAll(PDO::FETCH_ASSOC);
+            $updFamily = $db->prepare('UPDATE products SET shopping_name = ? WHERE id = ?');
+            $fixedFamilies = 0;
+            $samples = [];
+            foreach ($rows as $row) {
+                $name = (string)$row['name'];
+                $stored = trim((string)$row['shopping_name']);
+                if ($stored === '') {
+                    continue;
+                }
+                $lead = (string)(evershelfSignificantTokens($name)[0] ?? '');
+                if ($lead === '' || !isset($keywordMap[$lead])) {
+                    continue;   // the title does not lead with a genre: nothing to correct
+                }
+                $fresh = computeShoppingName($name, (string)($row['category'] ?? ''), (string)($row['brand'] ?? ''));
+                if ($fresh === '' || mb_strtolower($fresh) === mb_strtolower($stored)) {
+                    continue;
+                }
+                $updFamily->execute([$fresh, (int)$row['id']]);
+                $fixedFamilies++;
+                if (count($samples) < 12) {
+                    $samples[] = ['id' => (int)$row['id'], 'from' => $stored, 'to' => $fresh];
+                }
+            }
+            $db->exec("INSERT OR REPLACE INTO app_settings (key, value)
+                       VALUES ('migration_shopping_family_leading_genre_v1', '1')");
+            if ($fixedFamilies > 0) {
+                // The smart index was built on the OLD families: a stale cache would keep the
+                // «Latte» row (built from a yogurt) for its whole TTL. No cache = no knowledge,
+                // so the prune paths stay quiet and the next read recomputes from the new names.
+                if (function_exists('invalidateSmartShoppingCache')) {
+                    invalidateSmartShoppingCache();
+                }
+                if (class_exists('EverLog')) {
+                    EverLog::info('Shopping families rebuilt from the genre that leads the title', [
+                        'event'   => 'shopping_family_recomputed',
+                        'changed' => $fixedFamilies,
+                        'samples' => $samples,
+                    ]);
+                }
+            }
+        }
+    }
+
     // The medical columns must exist BEFORE the migrations below read them.
     // The expiry pass (a few lines down) filters on `COALESCE(p.is_medical, 0) = 0`, and its
     // ALTER used to live further down in this same function: an installation arriving from a

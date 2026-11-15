@@ -22522,6 +22522,72 @@ function internalShoppingDedupeGenerics(PDO $db): array {
     return ['removed' => $removed, 'merged' => $merged];
 }
 
+/**
+ * A row keeps the FAMILY of the day it was created.
+ *
+ * The name is the family and `raw_name` is the article it came from. When the dictionary learns
+ * a genre (a misspelt «Yougurth fior di latte» filed under «Latte»), the row still says «Latte»
+ * while its smart item says «Yogurt» — and because the prune finds the smart item through the
+ * RAW name, the stale row lives forever: the household reads «Latte · Esaurito» next to a fridge
+ * full of milk. This pass re-asks the article's family and renames the app-owned row to it (or
+ * drops it when that family already has a row). Only app-managed rows are touched: a row the
+ * household wrote itself has no spec and keeps its name.
+ *
+ * @return array{retitled:int,merged:int}
+ */
+function internalShoppingRetitleFamilies(PDO $db): array {
+    if (isShoppingBringMode()) {
+        return ['retitled' => 0, 'merged' => 0];
+    }
+    $rows = $db->query("SELECT id, name, raw_name, specification FROM shopping_list WHERE raw_name <> '' ORDER BY id ASC")
+               ->fetchAll(PDO::FETCH_ASSOC);
+    if (!$rows) {
+        return ['retitled' => 0, 'merged' => 0];
+    }
+    $upd  = $db->prepare('UPDATE shopping_list SET name = ? WHERE id = ?');
+    $del  = $db->prepare('DELETE FROM shopping_list WHERE id = ?');
+    $dupe = $db->prepare('SELECT id FROM shopping_list WHERE LOWER(name) = LOWER(?) AND id <> ? LIMIT 1');
+    $retitled = 0;
+    $merged = 0;
+    foreach ($rows as $row) {
+        $raw  = trim((string)$row['raw_name']);
+        $name = trim((string)$row['name']);
+        if ($raw === '' || $name === '') {
+            continue;
+        }
+        if (!evershelfSpecIsAppManaged((string)($row['specification'] ?? ''))) {
+            continue;   // typed by the household: its words are the household's
+        }
+        $fresh = computeShoppingName($raw);
+        if ($fresh === '' || mb_strtolower($fresh) === mb_strtolower($name)) {
+            continue;
+        }
+        $dupe->execute([$fresh, (int)$row['id']]);
+        if ($dupe->fetchColumn()) {
+            // That family already owns a row: this one is the stale duplicate.
+            $del->execute([(int)$row['id']]);
+            $merged++;
+            continue;
+        }
+        try {
+            $upd->execute([$fresh, (int)$row['id']]);
+            $retitled++;
+        } catch (Throwable $e) {
+            // A unique-name race: the other row wins, this one is a duplicate.
+            $del->execute([(int)$row['id']]);
+            $merged++;
+        }
+    }
+    if ($retitled > 0 || $merged > 0) {
+        EverLog::info('Shopping rows retitled to the family their article belongs to', [
+            'event'    => 'shopping_row_retitled',
+            'retitled' => $retitled,
+            'merged'   => $merged,
+        ]);
+    }
+    return ['retitled' => $retitled, 'merged' => $merged];
+}
+
 function shoppingGetList(PDO $db): void {
     if (isShoppingBringMode()) {
         bringGetList();
@@ -22532,6 +22598,7 @@ function shoppingGetList(PDO $db): void {
     // demo. (The demo database is re-seeded every day anyway.)
     if (!evershelfDemoRequested()) {
         internalShoppingNormalizeNames($db);
+        internalShoppingRetitleFamilies($db);
         internalShoppingPruneCovered($db);
         internalShoppingDedupeGenerics($db);
     }
