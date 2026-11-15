@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.7-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.8-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -227,6 +227,13 @@ the gate this release was developed against.
 <details open>
 <summary><b>Last five releases</b></summary>
 
+**v2.2.8 — a translation that carries markup was printed as text.** In the «usa / finito tutto»
+chooser the line «Finita **1 confezione** ({qty})» carries a `<strong>` by design, and it was wrapped
+in `escapeHtml(...)`: the household read the tag instead of bold text. The scanner's no-camera notice
+had the same defect with a `<br>`. Both are written raw now, with only the interpolated value
+escaped — and `scripts/i18n-audit.py` grew a section **[5]** that fails on the pattern (a bare
+«Peso &lt; 10 g» is not flagged).
+
 **v2.2.7 — the AI generator, and a card that still proposed what the house cannot cook.** My own
 regression: the guard added in 2.2.2 used a `const` written at the bottom of `api/index.php`, and a
 `const` is a statement — the router dispatches the handler long before that line runs, so the
@@ -260,14 +267,6 @@ the Home comes after **1 minute** instead of 2 and **clears the search**: the sh
 and the next visit no longer finds an empty or wrong list (the search survives navigation on
 purpose). Measured in a browser: «latte» → 4 rows and a 60 s clock → after 60 s the Home with an
 empty field, then 150 rows again with the clock back at 2 minutes.
-
-**v2.2.3 — «non mi chiede più dove metto il resto».** Nothing was broken: the question was
-answering itself. Its clock is the app's confidence, and that confidence was learned **from the
-app's own auto-answers** — the countdown expiring on a presumed place was recorded as if you had
-chosen it, so one guess became a "habit" that shortened the next clock, which produced more guesses.
-Measured on a real install: **361 learned places**, almost every product at the 2-second floor, i.e.
-a modal that flashed and answered itself. Now only a real tap teaches a place, and the floor is 6 s
-(measured after the fix: 10 s on screen, then «📦 la confezione resta in Frigo»).
 
 Older releases live in [CHANGELOG.md](CHANGELOG.md).
 

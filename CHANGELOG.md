@@ -5,6 +5,32 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.8] - 2026-11-15
+
+### A translation that carries markup was printed as text
+
+Report: in the «usa / finito tutto» sheet some `<strong>` tags were visible as text. The chooser of
+that flow («Quale scorta vuoi segnare come finita?») has one line that is HTML **by design**:
+
+```
+use.disambiguation_one_conf = "Finita <strong>1 confezione</strong> ({qty})"
+```
+
+and it was wrapped in `escapeHtml(...)`, so the household read the tag instead of a bold
+«1 confezione». The same defect sat in the scanner's no-camera notice
+(`scanner.camera_error_hint`, which carries a `<br>`), where the two sentences ran together with a
+literal `<br>` in the middle. Both are written raw now — inside a template literal that lands in
+`innerHTML` — with only the interpolated value escaped (`escapeHtml(oneStr)`).
+
+`scripts/i18n-audit.py` grew a section **[5]** that fails the build on this pattern: a key whose
+reference text contains real markup (`strong`, `b`, `em`, `i`, `br`, `a`, `span`, `small`) used
+through `escapeHtml(t('…'))` or `textContent = t('…')`. A bare `<` that is not a tag («Peso &lt; 10 g»)
+and a translation written properly are not flagged — measured on the two real cases, which the check
+catches, and on both false positives, which it does not.
+
+Verified in a browser: the chooser now renders «Finished 1 package (1 pkg)» with the bold text as
+bold and **no** `<strong>` in it, and the camera notice breaks the line instead of printing `<br>`.
+
 ## [2.2.7] - 2026-11-15
 
 ### The AI generator, and a card that still proposed what the house cannot cook

@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261115b'; // bump when translations change
+const _I18N_VERSION = '20261115c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -22092,7 +22092,7 @@ async function initScanner() {
                     <button type="button" class="scan-result-sheet-close" onclick="_dismissAiMatchPanel()" aria-label="${escapeAttr(t('btn.close') || 'Close')}">✕</button>
                 </div>
                 <p style="color: var(--danger)">${escapeHtml(t('error.camera'))}</p>
-                <p style="font-size:0.85rem; color: var(--text-light); margin-top:8px">${escapeHtml(t('scanner.camera_error_hint'))}</p>
+                <p style="font-size:0.85rem; color: var(--text-light); margin-top:8px">${t('scanner.camera_error_hint')}</p>
                 <p class="tech-reason">${escapeHtml(_techReasonText(camDiagKey, camDiagDetail))}</p>
             `;
             result.style.display = 'block';
@@ -22157,7 +22157,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261115b';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261115c';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -22167,7 +22167,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261115b';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261115c';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -30590,7 +30590,7 @@ function _showUseAllDisambiguation(openedItems, allItems, options = {}) {
     const oneConfBtn = showOneConf ? `
         <button type="button" class="waste-qty-btn" style="width:100%;margin-bottom:8px;text-align:left"
             onclick="closeModal(); _submitUseOneConf('${preferEsc}')">
-            ${escapeHtml(t('use.disambiguation_one_conf').replace('{qty}', oneStr))}
+            ${t('use.disambiguation_one_conf').replace('{qty}', escapeHtml(oneStr))}
         </button>` : '';
 
     contentEl.innerHTML = `

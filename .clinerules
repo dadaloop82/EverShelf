@@ -75,6 +75,14 @@ runtime/binary files — if a task truly needs one, ask first.
   recipe generation stopped working. Constants live at the TOP of the file with the others
   (`RECIPE_PANTRY_MIN_MATCH_SCORE`, `EVERSHELF_STAPLE_SHELF_DAYS`…); functions are hoisted, constants
   are not.
+- **A translation that carries markup is written raw, with its VALUES escaped.** Some strings are
+  HTML by design — `use.disambiguation_one_conf` («Finita `<strong>1 confezione</strong>` ({qty})»),
+  `scanner.camera_error_hint` («…fotocamera.`<br>`Puoi inserire…») — so they go into `innerHTML`
+  (or a template literal that lands there) and only the interpolated value is passed through
+  `escapeHtml()`. Wrapping the whole translation (`escapeHtml(t('…'))`) or assigning it to
+  `textContent` prints the tags to the household: the «usa / finito tutto» chooser literally read
+  `<strong>1 confezione</strong>`. `scripts/i18n-audit.py` section **[5]** now fails on that pattern
+  (it ignores a bare `<` such as «Peso < 10 g», and a translation whose markup is written properly).
 - **Security**: new action → add it to the right allow-list in
   `api/lib/security.php` only when intended. Never trust client headers
   (`Origin`, `Referer`, `Sec-Fetch-Site`).
