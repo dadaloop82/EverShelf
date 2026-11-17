@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.10-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.11-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -227,6 +227,22 @@ the gate this release was developed against.
 <details open>
 <summary><b>Last five releases</b></summary>
 
+**v2.2.11 — «2 pezzi» are not «2 g», and one answer lost is not two purchases.** Two packs of
+tomini added as «2 pezzi» were on the shelf and in the database, and the pantry showed nothing:
+`inventory` has no unit column, so a row's number means `products.unit`, and the first save that
+carried the article's own unit (`g`, from the pack's «180 g») turned those two packs into **2 g** —
+a trace the list hides as finished. Now an amount typed in another scale is translated before it
+lands (`2 pz × 180 g = 360 g`, `0,5 kg = 500 g`) through the pack the article declares, the unit of
+an article that still has stock never moves (`product_unit_kept_stock`, `unit_kept: true`), an add
+that cannot be translated is refused with «già contato in g sullo scaffale» instead of
+reinterpreting the shelf, and the minimum (20 g) is checked **after** the conversion. And a write
+whose answer was lost is no longer written twice: it carries a `client_op_id` the server remembers
+for an hour, so the offline replay is answered with the state it already produced (the pantry read
+«8 mozzarelle» where two were in the fridge). Both reported shelves were repaired to what they
+really held: 1 pack of 180 g, 2 mozzarelle — and so were the other two products that burst doubled
+(onions 4,5 pz, piadina 1 pz); the same guard now covers a replayed use and a replayed spend, so
+the app can neither add nor remove the same thing twice.
+
 **v2.2.10 — a recipe that lost an ingredient remembers it.** The screensaver kept proposing a
 «pizza margherita» whose pizza was finished, and opening it showed nothing missing: the pantry
 filter had *deleted* that row (it was not on a shelf) and only recorded the deletion when the
@@ -300,7 +316,7 @@ Older releases live in [CHANGELOG.md](CHANGELOG.md).
 
 | | |
 |---|---|
-| **Inventory** | Scan (EAN, QR, DataMatrix), places, expiry estimates, opened packs, favourites, CSV import/export |
+| **Inventory** | Scan 1D product barcodes (EAN-13/8, UPC-A/E, Code 39, Code 128), places, expiry estimates, opened packs, favourites, CSV import/export |
 | **AI** | Gemini · OpenAI · Llama — identify a product, read an expiry, propose recipes, chat with SHELFY (voice or text) |
 | **Shopping** | Smart list with anti-waste quantities, recipe → list with pantry deduction, optional [Bring!](https://www.getbring.com/) |
 | **Cooking** | Step-by-step mode, TTS, timers, zero-waste tips, hands-free commands |

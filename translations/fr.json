@@ -2430,6 +2430,7 @@
     "invalid_quantity": "Quantité invalide",
     "invalid_location": "Cet emplacement n'existe plus : choisis-en un autre et réessaie.",
     "quantity_below_min": "Quantité trop petite : ajoutez au moins {min} {unit} — en dessous, le produit serait compté comme déjà terminé.",
+    "unit_mismatch": "Ce produit est déjà compté en {unit} sur l'étagère : ajoutez la quantité en {unit} (ou videz d'abord le stock).",
     "no_recipe_engine": "Configurez Gemini ou Mealie dans les réglages de recettes",
     "invalid_token": "🔒 Jeton invalide ou manquant",
     "backup_no_dir": "Impossible de créer le dossier de sauvegarde",

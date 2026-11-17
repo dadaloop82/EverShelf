@@ -16,7 +16,14 @@ A complete walkthrough of EverShelf's features.
 
 ### Barcode Scanning
 
-Tap the barcode icon to open the camera scanner (QuaggaJS). The app:
+Tap the barcode icon to open the camera scanner. The decoder is the browser's own
+`BarcodeDetector`, with a ZBar/WebAssembly fallback (Quagga is the last resort), and it
+asks for **1D product barcodes only**: EAN-13, EAN-8, UPC-A, UPC-E, Code 39 and Code 128.
+QR codes and 2D DataMatrix are **not** decoded (the EU FMD DataMatrix on a medicine box is
+parsed when a decoder hands it over, but most browsers do not expose `data_matrix` — which
+is why the medicine panel reads the printed AIC with OCR instead).
+
+The app:
 1. Checks your local database first
 2. Falls back to [Open Food Facts](https://world.openfoodfacts.org/) for unknown barcodes
 3. Pre-fills the product form with name, brand, category
@@ -89,9 +96,10 @@ Shown as an inline AI badge next to the expiry estimate. Does not block the form
 ### Product scan
 
 The **Scan** page is camera-first: a tall live viewport sits in the middle, with
-favourite and recent product chips above it. Point at a barcode — animated HUD
-feedback shows when digits are detected and when lookup is running. Prefetch
-starts as soon as a partial code is stable so the product card opens faster.
+favourite and recent product chips above it. The picture carries **one** overlay — a
+lock box placed where a code was actually read and holding still — and the status text
+plus the camera controls (torch / shopping / flip) live **under** the feed, never on top
+of it. Prefetch starts as soon as a partial code is stable so the product card opens faster.
 
 Below the stream: **Identify with AI** (keeps the live view visible with tips to
 show the whole product or a readable label), **Search** by name (opens only when

@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261115e'; // bump when translations change
+const _I18N_VERSION = '20261117b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -9430,6 +9430,13 @@ async function _apiFetchJson(action, params = {}, method = 'GET', body = null, e
     // In offline mode, serve from cache / queue writes
     if (_offlineMode) {
         return _handleOfflineApi(action, params, body);
+    }
+    // One id per INTENT: a write retried later (the offline queue keeps the body) carries
+    // the SAME id, so the server can tell a replay of a request whose response was lost
+    // from a second purchase. Without it, a dropped answer wrote the stock twice.
+    if (String(method).toUpperCase() !== 'GET' && body && _OFFLINE_QUEUEABLE_ACTIONS.includes(action)
+        && !body.client_op_id) {
+        body = { ...body, client_op_id: _newClientOpId() };
     }
     let url = `${API_BASE}?action=${action}`;
     if (method === 'GET') {
@@ -22157,7 +22164,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261115e';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261117b';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -22167,7 +22174,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261115e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261117b';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -28406,6 +28413,9 @@ function _apiErrorText(data) {
     }
     if (key === 'error.product_id_required') return t('error.product_id_required');
     if (key === 'error.quantity_below_min') return t('error.quantity_below_min', data?.error_args || {});
+    // The article is already counted in another unit on the shelf: the number would be
+    // re-read with the new unit, so the write is refused instead of reinterpreted.
+    if (key === 'error.unit_mismatch') return t('error.unit_mismatch', data?.error_args || {});
     // The place the form was holding no longer exists (the household deleted it).
     if (key === 'error.invalid_location') return t('error.invalid_location');
     // Backup endpoints answer with a translated key: the English prose in
@@ -28534,6 +28544,9 @@ async function submitAdd(e) {
     }
 
     const recent = _findRecentInventoryAdd(currentProduct.id, location);
+    // A confirmed "yes, add it again" is a deliberate second purchase: the server's
+    // duplicate guard (it drops a replay of the same write) must not swallow it.
+    let confirmedDuplicate = false;
     if (recent) {
         const ok = _confirmRecentDuplicateAdd(
             recent,
@@ -28549,6 +28562,7 @@ async function submitAdd(e) {
             startAddFormIdleCountdown();
             return;
         }
+        confirmedDuplicate = true;
     }
 
     showLoading(true);
@@ -28564,6 +28578,9 @@ async function submitAdd(e) {
             package_unit: selectedUnit === 'conf' ? (document.getElementById('add-conf-unit')?.value || null) : null,
             package_size: selectedUnit === 'conf' ? (parseFloat(document.getElementById('add-conf-size')?.value) || null) : null,
             vacuum_sealed: document.getElementById('add-vacuum-sealed')?.checked ? 1 : 0,
+            // Set only when the household answered «sì, aggiungilo comunque» — it tells the
+            // server this identical add is wanted, not a replay of a lost response.
+            confirm_duplicate: confirmedDuplicate ? 1 : 0,
         });
         
         showLoading(false);
@@ -43502,6 +43519,21 @@ const _OFFLINE_QUEUEABLE_ACTIONS = [
 let _offlineReplay = false;
 
 /**
+ * A unique id for ONE write intent, kept across every retry of that write.
+ *
+ * `crypto.randomUUID()` exists on the kiosk WebView and on every current browser; a
+ * household's phone with an older WebView still gets a random enough string.
+ */
+function _newClientOpId() {
+    try {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+            return crypto.randomUUID();
+        }
+    } catch (_) { /* older WebView */ }
+    return 'op-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+/**
  * A write whose request never reached the server goes into the queue instead of the bin.
  *
  * @returns {object|null} the optimistic answer, or null when the action is not queueable
@@ -43519,6 +43551,16 @@ function _queueWriteAfterNetworkFail(action, method, body) {
 
 function _offlineQueuePush(action, body) {
     const q = _offlineQueueGet();
+    // The SAME write pushed twice within a few seconds is one intent (a retry storm, two
+    // listeners on the same failure). Replaying it twice is how a lost response became a
+    // double purchase: two packs of mozzarella read as eight pieces on the field install.
+    const sig = body ? JSON.stringify(body) : '';
+    const now = Date.now();
+    if (q.some(op => op.action === action && op.ts && (now - op.ts) < 3000
+        && (op.body ? JSON.stringify(op.body) : '') === sig)) {
+        _renderOfflineBanner();
+        return;
+    }
     let dropped = 0;
     // The cap protects localStorage (a full quota silently kills every write). The
     // drop is still data loss, so it is logged and the user is told once per session
@@ -43767,18 +43809,39 @@ function _renderOfflineBanner(loading = false) {
     banner.style.display = '';
 }
 
+/** One replay at a time: two concurrent passes sent every queued op twice. */
+let _offlineQueueSyncing = false;
+
+/**
+ * Drop exactly ONE applied operation from the stored queue.
+ *
+ * A pass that only rewrote the queue at the END could not survive two triggers at once
+ * (`online` + leaving offline mode): both read the same list and both replayed it, so the
+ * server saw every write twice — and an op queued WHILE the pass ran was wiped by that
+ * final write-back. Dropping an op the moment it is applied fixes both.
+ */
+function _offlineQueueDrop(op) {
+    const q = _offlineQueueGet();
+    const i = q.findIndex(o => o.ts === op.ts && o.action === op.action);
+    if (i >= 0) {
+        q.splice(i, 1);
+        _offlineQueueSet(q);
+    }
+}
+
 async function _syncOfflineQueue() {
+    if (_offlineQueueSyncing) return 0;
     const q = _offlineQueueGet();
     if (q.length === 0) return 0;
+    _offlineQueueSyncing = true;
     let synced = 0;
-    const failed = [];
     const tempIdMap = {}; // negative temp id → real server id
     // A replay goes to the server as it is: it must never be re-queued by the failure
     // path of `api()` (that would append a copy of the pending op on every attempt).
     _offlineReplay = true;
     try {
         for (const op of q) {
-            if (!op.action) continue;
+            if (!op.action) { _offlineQueueDrop(op); continue; }
             let body = op.body ? { ...op.body } : {};
             // Resolve any temp IDs from earlier add operations in this batch
             if (typeof body.id === 'number' && body.id < 0 && tempIdMap[body.id]) {
@@ -43786,17 +43849,19 @@ async function _syncOfflineQueue() {
             }
             try {
                 const result = await api(op.action, {}, 'POST', body);
-                if (result && result._offline) { failed.push(op); continue; }
+                // Still offline: the op stays queued for the next pass.
+                if (result && result._offline) continue;
                 if (op.action === 'inventory_add' && result?.id && op.body?.id < 0) {
                     tempIdMap[op.body.id] = result.id;
                 }
                 synced++;
-            } catch(_) { failed.push(op); }
+                _offlineQueueDrop(op);
+            } catch(_) { /* keep it for the next pass */ }
         }
     } finally {
         _offlineReplay = false;
+        _offlineQueueSyncing = false;
     }
-    _offlineQueueSet(failed);
     return synced;
 }
 

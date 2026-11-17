@@ -2604,9 +2604,42 @@ function inventoryImportAddStock(PDO $db, int $productId, array $data): array {
     $consolidated = safeConsolidateDuplicateProducts($db, $productId);
     $productId = $consolidated['id'];
 
-    if ($unit) {
-        $stmt = $db->prepare('UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-        $stmt->execute([$unit, $productId]);
+    // Same rule as `addToInventory`: the amount is written in the ARTICLE's unit (a row's
+    // number MEANS `products.unit`), and that unit never moves under stock that is already
+    // counted — doing so would reinterpret every pack on the shelf.
+    $prodStmt = $db->prepare('SELECT unit, default_quantity, package_unit FROM products WHERE id = ?');
+    $prodStmt->execute([$productId]);
+    $importProd = $prodStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $prodStmt->closeCursor();
+    $productUnit = (string)($importProd['unit'] ?? '') !== '' ? (string)$importProd['unit'] : 'pz';
+    if ($unit && mb_strtolower(trim((string)$unit)) !== mb_strtolower(trim($productUnit))) {
+        $factor = inventoryUnitConversionFactor(
+            (string)$unit,
+            $productUnit,
+            (float)($importProd['default_quantity'] ?? 0),
+            (string)($importProd['package_unit'] ?? '')
+        );
+        if ($factor !== null) {
+            $quantity = round($quantity * $factor, 4);
+            EverLog::info('inventory import: amount converted to the article unit', [
+                'event'      => 'inventory_import_unit_converted',
+                'product_id' => $productId,
+                'from_unit'  => (string)$unit,
+                'to_unit'    => $productUnit,
+                'factor'     => $factor,
+                'qty'        => $quantity,
+            ]);
+        } elseif (inventoryLiveStockRows($db, $productId) === 0) {
+            $stmt = $db->prepare('UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+            $stmt->execute([$unit, $productId]);
+        } else {
+            EverLog::warn('inventory import: unit kept, the article has stock', [
+                'event'      => 'inventory_import_unit_kept_stock',
+                'product_id' => $productId,
+                'asked_unit' => (string)$unit,
+                'stock_unit' => $productUnit,
+            ]);
+        }
     }
 
     $expiryUserSet = $expiry ? 1 : 0;
@@ -5267,14 +5300,14 @@ function saveProduct(PDO $db): void {
 
     try {
         if ($id) {
-            executeProductUpdate($db, $fields, $id);
+            $unitKept = executeProductUpdate($db, $fields, $id);
             applyPieceProductInventoryRepair($db, $id, $existing, $invConvert);
             $consolidated = safeConsolidateDuplicateProducts($db, $id);
             if ($consolidated['merged']) {
                 $merged = true;
                 $id = $consolidated['id'];
             }
-            echo json_encode(['success' => true, 'id' => $id, 'merged' => $merged]);
+            echo json_encode(['success' => true, 'id' => $id, 'merged' => $merged, 'unit_kept' => $unitKept]);
             return;
         }
 
@@ -5301,9 +5334,9 @@ function saveProduct(PDO $db): void {
                 $fields = mergeIncomingProductFields($existingOwner, $input, $fields['barcode']);
                 $invConvert = $fields['_inventory_convert'] ?? null;
                 $fields = _stripPieceProductInternalKeys($fields);
-                executeProductUpdate($db, $fields, $owner);
+                $unitKept = executeProductUpdate($db, $fields, $owner);
                 applyPieceProductInventoryRepair($db, $owner, $existingOwner, $invConvert);
-                echo json_encode(['success' => true, 'id' => $owner, 'merged' => true]);
+                echo json_encode(['success' => true, 'id' => $owner, 'merged' => true, 'unit_kept' => $unitKept]);
                 return;
             }
             http_response_code(409);
@@ -6022,11 +6055,74 @@ function addToInventory(PDO $db): void {
     // Minimum stock: an "add" of 2 g (or 2 pieces read as grams) is a typo, and the
     // pantry would hide the row immediately (isInventoryDepleted()). Refused here,
     // logged with a greppable key, and the client shows the translated error_key.
-    // The unit being written is the one sent with the add, else the product's own.
-    $prodUnitStmt = $db->prepare('SELECT unit FROM products WHERE id = ?');
+    //
+    // ── The quantity is written in the ARTICLE's unit ─────────────────────────────
+    // `inventory` has no unit column: every row's number means `products.unit`. An add
+    // typed in another unit (2 pezzi, 2 confezioni da 180 g) is therefore translated
+    // BEFORE it lands — otherwise the same "2" is re-read as grams the moment the
+    // article is saved again with its own unit, which is how two packs of tomini ended
+    // up as "2 g": a trace the pantry hides as finished ("il prodotto appena aggiunto
+    // sparisce"). The pack the article declares is the only bridge between a count and
+    // a measure; a count is never guessed out of a weight.
+    $prodUnitStmt = $db->prepare('SELECT unit, default_quantity, package_unit FROM products WHERE id = ?');
     $prodUnitStmt->execute([$productId]);
-    $productUnit = (string)($prodUnitStmt->fetchColumn() ?: 'pz');
+    $prodUnitRow = $prodUnitStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $prodUnitStmt->closeCursor();
+    $productUnit = (string)($prodUnitRow['unit'] ?? '') !== '' ? (string)$prodUnitRow['unit'] : 'pz';
+
+    // Pack size sent WITH this add ("Confezioni"), read here because the conversion
+    // below needs it — the product row is only updated further down.
+    $packageUnit = $input['package_unit'] ?? null;
+    $packageSize = $input['package_size'] ?? null;
+
     $effectiveUnit = $unit !== null && $unit !== '' ? (string)$unit : $productUnit;
+    $unitFollowsAdd = false;
+    if (mb_strtolower(trim($effectiveUnit)) !== mb_strtolower(trim($productUnit))) {
+        $packSize = (float)($prodUnitRow['default_quantity'] ?? 0);
+        $packUnit = (string)($prodUnitRow['package_unit'] ?? '');
+        if ($packSize <= 0 && $packageSize !== null && $packageSize !== '') {
+            $packSize = (float)$packageSize;
+            $packUnit = (string)($packageUnit ?? '');
+        }
+        $factor = inventoryUnitConversionFactor($effectiveUnit, $productUnit, $packSize, $packUnit);
+        if ($factor !== null) {
+            $quantity = round($quantity * $factor, 4);
+            $effectiveUnit = $productUnit;
+            EverLog::info('addToInventory: amount converted to the article unit', [
+                'event'      => 'api_inventory_add_unit_converted',
+                'product_id' => $productId,
+                'from_unit'  => (string)$unit,
+                'to_unit'    => $productUnit,
+                'factor'     => $factor,
+                'qty'        => $quantity,
+                'pack_size'  => $packSize,
+                'pack_unit'  => $packUnit,
+            ]);
+        } elseif (inventoryLiveStockRows($db, $productId) > 0) {
+            // Switching the article's unit under stock that is already counted would
+            // silently rewrite what sits on the shelf. The shelf wins: refuse, and say
+            // in which unit the article is counted.
+            EverLog::warn('addToInventory: unit mismatch over existing stock (409)', [
+                'event'      => 'api_inventory_add_unit_mismatch',
+                'product_id' => $productId,
+                'asked_unit' => $effectiveUnit,
+                'stock_unit' => $productUnit,
+                'error_key'  => 'error.unit_mismatch',
+            ]);
+            http_response_code(409);
+            echo json_encode([
+                'success'    => false,
+                'error'      => 'Unit does not match the stock on the shelf',
+                'error_key'  => 'error.unit_mismatch',
+                'error_args' => ['unit' => $productUnit],
+            ]);
+            return;
+        } else {
+            // Empty shelf: the article's unit may follow the unit it is added in
+            // (nothing is on the shelf to reinterpret).
+            $unitFollowsAdd = true;
+        }
+    }
     $minAdd = inventoryMinAddQuantity($effectiveUnit);
     // A medicine is measured by what its box HOLDS: 10 ml of eye drops or 5 ml of drops is real
     // stock, not the "2 g typed by mistake" the floor exists for.
@@ -6059,26 +6155,23 @@ function addToInventory(PDO $db): void {
     }
 
     
-    // If a different unit was specified, update the product's unit.
+    // The article's unit moves ONLY when the shelf was empty (nothing on it to
+    // reinterpret) — see the conversion block above.
     // NOTE: default_quantity is the PACKAGE SIZE, not the quantity being added —
     // do NOT overwrite it here. It is managed via product_save / the edit form.
-    if ($unit) {
+    if ($unit && $unitFollowsAdd) {
         $stmt = $db->prepare("UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$unit, $productId]);
     } else {
         // Auto-set default_quantity if product has none (first add sets package size)
-        $stmt = $db->prepare("SELECT default_quantity, unit FROM products WHERE id = ?");
-        $stmt->execute([$productId]);
-        $prod = $stmt->fetch();
-        if ($prod && (float)($prod['default_quantity'] ?? 0) == 0 && !in_array($prod['unit'], ['pz', 'conf'])) {
+        if ((float)($prodUnitRow['default_quantity'] ?? 0) == 0
+            && !in_array(mb_strtolower(trim($productUnit)), ['pz', 'conf'], true)) {
             $stmt = $db->prepare("UPDATE products SET default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$quantity, $productId]);
         }
     }
     
-    // Update package info if conf
-    $packageUnit = $input['package_unit'] ?? null;
-    $packageSize = $input['package_size'] ?? null;
+    // Update package info if conf (the values were read above: the conversion needs them)
     if ($packageUnit !== null) {
         $stmt = $db->prepare("UPDATE products SET package_unit = ?, default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$packageUnit, $packageSize ?: 0, $productId]);
@@ -6115,6 +6208,47 @@ function addToInventory(PDO $db): void {
         }
     }
     
+    // ── One intent, one write ────────────────────────────────────────────────
+    // A request whose RESPONSE is lost is retried by the client: `api()` queues the write
+    // it could not answer (`_queueWriteAfterNetworkFail`) and `_syncOfflineQueue()` replays
+    // it — but the server had already committed it. Measured on the field install: mozzarella
+    // 3+3, onions 6+6 and a piadina 1+1 landed inside the same two seconds, and the pantry
+    // read «8 mozzarelle» where two were on the fridge shelf.
+    //
+    // The intent carries an id generated ONCE, before the first attempt, so a replay is
+    // recognised even hours later; a write with no id (an older bundle) is matched against
+    // an identical 'in' written seconds ago. Either way the replay is answered with the
+    // state it already produced: no second row, no second ledger line. A household that
+    // really wants two identical adds is asked by the client («aggiunto poco fa… aggiungere
+    // comunque?») and that answer travels as `confirm_duplicate`.
+    $clientOpId = trim((string)($input['client_op_id'] ?? ''));
+    if (mb_strlen($clientOpId) > 64) {
+        $clientOpId = '';
+    }
+    if (empty($input['confirm_duplicate'])) {
+        $seenTx = 0;
+        $isReplay = $clientOpId !== '' && clientOpSeen($db, $clientOpId);
+        if (!$isReplay && $clientOpId === '') {
+            $dupStmt = $db->prepare("
+                SELECT id FROM transactions
+                WHERE product_id = ? AND type = 'in' AND quantity = ? AND location = ?
+                  AND created_at >= datetime('now', '-5 seconds')
+                LIMIT 1
+            ");
+            $dupStmt->execute([$productId, $quantity, $location]);
+            $seenTx = (int)($dupStmt->fetchColumn() ?: 0);
+            $dupStmt->closeCursor();
+            $isReplay = $seenTx > 0;
+        }
+        if ($isReplay) {
+            echo json_encode(inventoryAddDuplicateAnswer(
+                $db, $productId, (float)$quantity, $productUnit, (string)$location,
+                $prodUnitRow, $expiry, $seenTx, $clientOpId
+            ));
+            return;
+        }
+    }
+
     // Merge only into a SEALED row with the SAME location AND SAME expiry_date.
     // Different best-before dates are physically distinct packs and must stay
     // separate (#214). Never merge into an already-opened pack.
@@ -6165,6 +6299,10 @@ function addToInventory(PDO $db): void {
     // Log transaction
     $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location) VALUES (?, 'in', ?, ?)");
     $stmt->execute([$productId, $quantity, $location]);
+
+    // The intent is applied: remember its id so a replay of the SAME write (a lost
+    // response, an offline queue) is answered from the shelf instead of writing twice.
+    clientOpMark($db, $clientOpId);
 
     clearFinishedDismissed($db, $productId);
     
@@ -6749,6 +6887,31 @@ function useFromInventory(PDO $db): void {
     $notes = $input['notes'] ?? '';
     // Household confirmed a soft duplicate (same dose again within ~30 s).
     $confirmDuplicate = !empty($input['confirm_duplicate']);
+
+    // A response lost on the way back is replayed by the offline queue, and the use had
+    // already taken the stock: the same id means the same intent, answered from the shelf.
+    // (The 2 s race guard below only covers a partial use with EMPTY notes — a recipe use
+    // carries its title in `notes`, so its replay would have been consumed twice.)
+    $clientOpId = trim((string)($input['client_op_id'] ?? ''));
+    if (mb_strlen($clientOpId) > 64) {
+        $clientOpId = '';
+    }
+    if ($clientOpId !== '' && clientOpSeen($db, $clientOpId)) {
+        EverLog::warn('useFromInventory: the same write arrived twice, ignored', [
+            'event'        => 'api_inventory_use_duplicate',
+            'product_id'   => (int)$productId,
+            'qty'          => (float)$quantity,
+            'client_op_id' => $clientOpId,
+        ]);
+        echo json_encode([
+            'success'            => true,
+            'duplicate'          => true,
+            'used_location'      => (string)$location,
+            'added_to_shopping'  => false,
+            'added_to_bring'     => false,
+        ], JSON_UNESCAPED_UNICODE);
+        return;
+    }
     
     if (!$productId) {
         // Same contract as addToInventory: stable key, translated client-side.
@@ -6772,6 +6935,8 @@ function useFromInventory(PDO $db): void {
             // own (lib/auto_favorite.php: AUTO_FAVORITE_MIN_USES uses in 90 days).
             maybeAutoFavorite($db, (int)$productId);
         });
+        // The intent is applied: its id makes a replay answer from the shelf, not again.
+        clientOpMark($db, $clientOpId);
     } catch (\PDOException $e) {
         EverLog::error('useFromInventory db error', ['msg' => $e->getMessage()]);
         http_response_code(500);
@@ -7576,6 +7741,160 @@ function inventoryMinAddQuantity(string $unit): float {
     return $floors[mb_strtolower(trim($unit))] ?? 0.25;
 }
 
+/** Live rows of this article (quantity above zero, in any place). */
+function inventoryLiveStockRows(PDO $db, int $productId): int {
+    $stmt = $db->prepare('SELECT COUNT(*) FROM inventory WHERE product_id = ? AND quantity > 0');
+    $stmt->execute([$productId]);
+    $count = (int)($stmt->fetchColumn() ?: 0);
+    $stmt->closeCursor();
+    return $count;
+}
+
+/** mass | volume | count — the three scales the pantry knows how to convert inside. */
+function inventoryUnitFamily(string $unit): string {
+    return match (mb_strtolower(trim($unit))) {
+        'g', 'kg'                                                  => 'mass',
+        'ml', 'l', 'lt'                                            => 'volume',
+        'pz', 'pezzo', 'pezzi', 'conf', 'confezione', 'confezioni' => 'count',
+        default                                                    => 'other',
+    };
+}
+
+/**
+ * How many `$to` is one `$from` worth — NULL when the two are not on the same scale.
+ *
+ * The pantry keeps ONE number per row and that number's unit lives on the ARTICLE
+ * (`products.unit`): `inventory` has no unit column. An amount typed in another unit
+ * therefore has to be translated BEFORE it is written, or the same "2" changes meaning
+ * the moment the article is saved again. Reported: two packs of tomini (2 × 180 g) added
+ * as "2 pezzi" were read as 2 g — under the trace threshold, so the pantry hid them as
+ * finished and the household saw a product it had just bought disappear.
+ *
+ * A count is turned into a measure only through the pack the article declares
+ * (`default_quantity` + `package_unit`); a measure is NEVER turned into a count, because
+ * on a `pz` row that number is often the pack's weight, not one piece.
+ */
+function inventoryUnitConversionFactor(string $from, string $to, float $packSize = 0.0, string $packUnit = ''): ?float {
+    $from = mb_strtolower(trim($from));
+    $to   = mb_strtolower(trim($to));
+    if ($from === '' || $to === '') {
+        return null;
+    }
+    if ($from === $to || ($from === 'lt' && $to === 'l') || ($from === 'l' && $to === 'lt')) {
+        return 1.0;
+    }
+    $fromFamily = inventoryUnitFamily($from);
+    $toFamily   = inventoryUnitFamily($to);
+    if ($fromFamily === 'mass' && $toFamily === 'mass') {
+        return $from === 'kg' ? 1000.0 : 0.001;
+    }
+    if ($fromFamily === 'volume' && $toFamily === 'volume') {
+        return ($from === 'l' || $from === 'lt') ? 1000.0 : 0.001;
+    }
+    if ($fromFamily === 'count' && $toFamily === 'count') {
+        return 1.0; // one pack is one piece
+    }
+    if ($fromFamily === 'count' && $packSize > 0 && ($toFamily === 'mass' || $toFamily === 'volume')) {
+        $pUnit = mb_strtolower(trim($packUnit));
+        $pSize = $packSize * ($pUnit !== '' && inventoryUnitFamily($pUnit) === $toFamily
+            ? (float)inventoryUnitConversionFactor($pUnit, $to)
+            : ($pUnit === '' ? 1.0 : 0.0));
+        return $pSize > 0 ? $pSize : null;
+    }
+    return null;
+}
+
+/**
+ * The id a client gives to ONE write — so a replay is recognised as the same intent.
+ *
+ * `api()` generates it once, before the first attempt, and the offline queue keeps it in the
+ * body it replays, even an hour later. A request whose RESPONSE was lost had already been
+ * committed by the server, and without this the replay wrote the purchase a second time
+ * (measured: 3+3 mozzarelle, 6+6 onions, 1+1 piadina within two seconds). One row in
+ * `app_settings.client_ops` (`{id: ts}`, one hour, 500 ids) is enough: no schema change and
+ * no second truth.
+ */
+function clientOpLoad(PDO $db): array {
+    $stmt = $db->prepare("SELECT value FROM app_settings WHERE key = 'client_ops'");
+    $stmt->execute();
+    $raw = (string)($stmt->fetchColumn() ?: '');
+    $stmt->closeCursor();
+    $map = json_decode($raw, true);
+    if (!is_array($map)) {
+        return [];
+    }
+    $cut = time() - 3600;
+    $fresh = [];
+    foreach ($map as $id => $ts) {
+        if ((int)$ts >= $cut) {
+            $fresh[(string)$id] = (int)$ts;
+        }
+    }
+    return $fresh;
+}
+
+function clientOpSeen(PDO $db, string $opId): bool {
+    if ($opId === '') {
+        return false;
+    }
+    return isset(clientOpLoad($db)[$opId]);
+}
+
+function clientOpMark(PDO $db, string $opId): void {
+    if ($opId === '') {
+        return;
+    }
+    $map = clientOpLoad($db);
+    $map[$opId] = time();
+    // Bound the ledger: a replay never carries an id older than the queue allows.
+    if (count($map) > 500) {
+        asort($map);
+        $map = array_slice($map, -500, null, true);
+    }
+    $stmt = $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('client_ops', ?, datetime('now'))
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')");
+    $stmt->execute([json_encode($map, JSON_UNESCAPED_SLASHES)]);
+}
+
+/**
+ * The answer a replayed add gets: success, the state it already produced, nothing written.
+ */
+function inventoryAddDuplicateAnswer(
+    PDO $db, int $productId, float $qty, string $unit, string $location,
+    array $prodRow, $expiry, int $seenTx = 0, string $clientOpId = ''
+): array {
+    $totalStmt = $db->prepare('SELECT COALESCE(SUM(quantity), 0) FROM inventory WHERE product_id = ? AND quantity > 0');
+    $totalStmt->execute([$productId]);
+    $total = (float)$totalStmt->fetchColumn();
+    $totalStmt->closeCursor();
+    EverLog::warn('addToInventory: the same write arrived twice, ignored', [
+        'event'        => 'api_inventory_add_duplicate',
+        'product_id'   => $productId,
+        'qty'          => $qty,
+        'unit'         => $unit,
+        'location'     => $location,
+        'seen_tx'      => $seenTx,
+        'client_op_id' => $clientOpId,
+    ]);
+    return [
+        'success'              => true,
+        'duplicate'            => true,
+        'new_qty'              => $qty,
+        'total_qty'            => $total,
+        'unit'                 => $unit,
+        'default_quantity'     => (float)($prodRow['default_quantity'] ?? 0),
+        'package_unit'         => (string)($prodRow['package_unit'] ?? ''),
+        'inventory_id'         => 0,
+        'expiry_date'          => $expiry,
+        'location'             => $location,
+        'removed_from_bring'   => false,
+        'removed_names'        => [],
+        'shopping_kept'        => false,
+        'catalog_merged'       => false,
+        'canonical_product_id' => $productId,
+    ];
+}
+
 /**
  * Cookable-stock threshold for recipes.
  * Pieces/packs match the UI (¼ lettuce head = finished). Weight/volume allows
@@ -7975,7 +8294,36 @@ function productSaveParams(array $fields): array {
     ];
 }
 
-function executeProductUpdate(PDO $db, array $fields, int $id): void {
+/**
+ * Write a merged product row — never moving the unit under stock that is counted.
+ *
+ * `inventory` carries no unit column: every row's number MEANS `products.unit`. Changing
+ * the unit of an article that still has stock therefore rewrites what sits on the shelf
+ * ("2 confezioni" becomes "2 g", a trace `isInventoryDepleted()` hides as finished), so a
+ * save may correct the name, the brand, the category or the pack — not the scale of the
+ * stock already counted. The shelf wins over the guess.
+ *
+ * @return bool TRUE when the incoming unit was ignored because stock exists
+ */
+function executeProductUpdate(PDO $db, array $fields, int $id): bool {
+    $unitKept = false;
+    $incomingUnit = mb_strtolower(trim((string)($fields['unit'] ?? '')));
+    if ($incomingUnit !== '' && inventoryLiveStockRows($db, $id) > 0) {
+        $cur = $db->prepare('SELECT unit FROM products WHERE id = ?');
+        $cur->execute([$id]);
+        $storedUnit = mb_strtolower(trim((string)($cur->fetchColumn() ?: '')));
+        $cur->closeCursor();
+        if ($storedUnit !== '' && $storedUnit !== $incomingUnit) {
+            EverLog::info('product_save: unit kept, the article has stock', [
+                'event'       => 'product_unit_kept_stock',
+                'product_id'  => $id,
+                'stored_unit' => $storedUnit,
+                'asked_unit'  => $incomingUnit,
+            ]);
+            $fields['unit'] = $storedUnit;
+            $unitKept = true;
+        }
+    }
     $stmt = $db->prepare('
         UPDATE products SET name=?, brand=?, category=?, image_url=?, unit=?,
         default_quantity=?, notes=?, barcode=?, package_unit=?, shopping_name=?,
@@ -7983,6 +8331,7 @@ function executeProductUpdate(PDO $db, array $fields, int $id): void {
         updated_at=CURRENT_TIMESTAMP WHERE id=?
     ');
     $stmt->execute([...productSaveParams($fields), $id]);
+    return $unitKept;
 }
 
 function normalizeProductName(string $name): string {
@@ -9740,10 +10089,32 @@ function spendAdd(): void {
         return;
     }
 
+    // A spend whose response was lost is replayed by the offline queue: the same id is
+    // the same trip, and counting it twice inflates the month with money nobody spent.
+    $clientOpId = trim((string)($input['client_op_id'] ?? ''));
+    if (mb_strlen($clientOpId) > 64) {
+        $clientOpId = '';
+    }
+    if ($clientOpId !== '') {
+        $spendDb = getDB();
+        if (clientOpSeen($spendDb, $clientOpId)) {
+            EverLog::warn('spend ignored: the same write arrived twice', [
+                'event'        => 'api_spend_add_duplicate',
+                'amount'       => round($amount, 2),
+                'client_op_id' => $clientOpId,
+            ]);
+            echo json_encode(['success' => true, 'duplicate' => true]);
+            return;
+        }
+    }
+
     $hist = _spendLoadHistory();
     $ts = time();
     $hist[] = ['ts' => $ts, 'amount' => round($amount, 2), 'currency' => $currency];
     _spendSaveHistory($hist);
+    if ($clientOpId !== '') {
+        clientOpMark($spendDb, $clientOpId);
+    }
 
     $month = date('Y-m', $ts);
     $monthTotal = 0.0;

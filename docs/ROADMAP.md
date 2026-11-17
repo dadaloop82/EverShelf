@@ -129,6 +129,21 @@ Instead of only estimating a replacement cost: know what *you* paid, where.
 * Builds on `shopping_price_cache.json`, `PRICE_SOURCE` and the monthly stats, so the
   UI work is mostly charts we already know how to draw.
 
+### 7. QR and 2D code reading in the scanner · **S–M**
+Issue: [#323](https://github.com/dadaloop82/EverShelf/issues/323)
+The scanner reads 1D product barcodes today (EAN/UPC, Code 39/128). QR and 2D DataMatrix
+would cover what a 1D code cannot: your own printed labels (the #288 stickers), shop labels
+on bulk goods, and the EU FMD DataMatrix on a medicine box — whose GS1 string the medicine
+module already parses, it just never receives one, so it falls back to OCR.
+
+* Decoding is the small half: `_SCAN_FORMATS` (the one list the native `BarcodeDetector` and
+  the ZBar polyfill are built from) gains `qr_code` and, where the browser exposes it,
+  `data_matrix` — ZBar reads QR, the native detector on Android reads DataMatrix too.
+* The real work is the payload rule: **a QR is not a product code by default**. Pure digits →
+  the normal catalogue lookup; one of our own labels → the product + portion; a URL or anything
+  else → refused out loud, never digit-stripped into a bogus barcode.
+* Shares its printing half with #288 (`api/lib/qr.php` already ships the encoder).
+
 ## 🧊 Parked (feature built, deliberately switched off)
 
 * **Ad banner slot** (the dashboard one; the idle screen has no slot since its 2.0.0

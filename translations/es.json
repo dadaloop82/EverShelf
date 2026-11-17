@@ -2430,6 +2430,7 @@
     "invalid_quantity": "Cantidad no válida",
     "invalid_location": "Ese lugar ya no existe: elige otro e inténtalo de nuevo.",
     "quantity_below_min": "Cantidad demasiado pequeña: añade al menos {min} {unit} — por debajo, el producto se consideraría ya terminado.",
+    "unit_mismatch": "Este producto ya se cuenta en {unit} en el estante: añade la cantidad en {unit} (o vacía antes las existencias).",
     "no_recipe_engine": "Configura Gemini o Mealie en los ajustes de recetas",
     "invalid_token": "🔒 Token no válido o ausente",
     "backup_no_dir": "No se puede crear la carpeta de copias",

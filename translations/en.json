@@ -2431,6 +2431,7 @@
     "invalid_quantity": "Invalid quantity",
     "invalid_location": "That place no longer exists: pick one and try again.",
     "quantity_below_min": "Quantity too small: add at least {min} {unit} — below that the product would count as already finished.",
+    "unit_mismatch": "This product is already counted in {unit} on the shelf: add the amount in {unit} (or empty the stock first).",
     "invalid_token": "🔒 Invalid or missing token",
     "backup_no_dir": "Cannot create the backup folder",
     "backup_no_db": "Database not found",
