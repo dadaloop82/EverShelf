@@ -99,7 +99,17 @@ class EverLog {
             @rename(self::$logFile, self::$logFile . '.' . time() . '.log');
         }
 
+        // TWO RIVERS, TWO USERS. The cron runs as root and the web app as www-data, and
+        // whichever writes first creates the slot file with its own umask: a root-created
+        // 0644 file then swallows every web line in silence (@file_put_contents), which is
+        // how a day of API requests left nothing but the cron's `smartShopping` in the log.
+        // The file is created group-writable (the log dir is setgid `www-data`), so both
+        // writers keep it. Only at creation: no chmod on every line.
+        $isNewFile = !is_file(self::$logFile);
         @file_put_contents(self::$logFile, $line, FILE_APPEND | LOCK_EX);
+        if ($isNewFile && is_file(self::$logFile)) {
+            @chmod(self::$logFile, 0664);
+        }
     }
 
     // ── Public API ────────────────────────────────────────────────────────

@@ -2431,6 +2431,7 @@
     "invalid_quantity": "Ungültige Menge",
     "invalid_location": "Diesen Ort gibt es nicht mehr: wähle einen Ort und versuche es erneut.",
     "quantity_below_min": "Menge zu klein: mindestens {min} {unit} hinzufügen — darunter gilt das Produkt als bereits aufgebraucht.",
+    "unit_mismatch": "Dieses Produkt wird im Regal bereits in {unit} gezählt: Menge in {unit} hinzufügen (oder zuerst den Bestand aufbrauchen).",
     "invalid_token": "🔒 Ungültiges oder fehlendes Token",
     "backup_no_dir": "Backup-Ordner kann nicht erstellt werden",
     "backup_no_db": "Datenbank nicht gefunden",

@@ -2431,6 +2431,7 @@
     "invalid_quantity": "Quantità non valida",
     "invalid_location": "Quel posto non esiste più: scegli un luogo e riprova.",
     "quantity_below_min": "Quantità troppo bassa: aggiungi almeno {min} {unit} — sotto quella soglia il prodotto risulterebbe già finito.",
+    "unit_mismatch": "Questo prodotto è già contato in {unit} sullo scaffale: aggiungi la quantità in {unit} (oppure svuota prima la scorta).",
     "invalid_token": "🔒 Token non valido o mancante",
     "backup_no_dir": "Cartella dei backup non creabile",
     "backup_no_db": "Database non trovato",

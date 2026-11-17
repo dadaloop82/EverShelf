@@ -5,6 +5,96 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.11] - 2026-11-17
+
+### «2 pezzi» are not «2 g»: the quantity is written in the article's own unit
+
+Report: «giorno fa avevo comprato e aggiunto dei tomini che oggi non ci sono più … avevo usato tutte
+le carote e oggi me le riproponeva — non aggiunge e non toglie i prodotti!». Two packs of tomini
+(2 × 180 g), added as **2 pezzi**, were in the database — and invisible.
+
+The cause is the shape of the data: `inventory` has **no unit column**, so every row's number means
+`products.unit`. The add form accepted "2 pezzi" (or "2 confezioni") and `addToInventory()` wrote
+`quantity = 2` **and** switched `products.unit` to the unit it was added in. The first save of the
+article that carried its own unit — `g`, as every Open Food Facts pack of tomini says ("Peso:
+180 g") — wrote `g` back and turned those two packs into **2 g**: under `EVERSHELF_TRACE_QTY`
+(`g => 2.0`), so `isInventoryDepleted()` called the row finished and `inventory_list()` dropped it.
+The same article could therefore be on the shelf, in the database and in the ledger, and yet the
+household saw a product it had just bought disappear (and the shopping list ask to buy it again).
+
+Three rules now hold:
+
+* **The amount is translated before it lands.** `inventoryUnitConversionFactor()` turns an add
+  typed in another scale into the article's own unit — `2 pz × 180 g = 360 g`, `0,5 kg = 500 g`,
+  `2 l = 2000 ml` — using the pack the article declares (`default_quantity` + `package_unit`) as the
+  only bridge between a count and a measure. A measure is **never** turned into a count: on a `pz`
+  row that number is often the pack's weight.
+* **The unit of an article with stock does not move.** `executeProductUpdate()` keeps the stored
+  unit and logs `product_unit_kept_stock` (`unit_kept: true` in the response), and an add that
+  cannot be converted over existing stock is refused with `error.unit_mismatch` (six locales)
+  instead of reinterpreting the shelf. With an empty shelf the old behaviour is kept: the unit may
+  follow the first add.
+* **One floor, applied after the conversion** (`inventoryMinAddQuantity`, 20 g / 20 ml): «2 g» is
+  still refused, «2 pezzi da 180 g» is 360 g and is accepted.
+
+The CSV import (`inventoryImportAddStock`) follows the same rule, and every event is logged
+(`api_inventory_add_unit_converted`, `api_inventory_add_unit_mismatch`, `product_unit_kept_stock`,
+`inventory_import_unit_*`) — which is also why the web log now matters: on this install the cron
+(running as root) created `logs/evershelf_*.log` root-owned, so www-data could not append a single
+line and every API request was missing from the log. Run the cron as www-data (as `docker/evershelf-cron`
+does) or `chown www-data:www-data logs/*.log`.
+
+Measured on the reported instance: 2 rows of `2` (`g`, frigo) returned by
+`inventory_list&include_depleted=1` and by nothing else; after the repair 1 row of **180 g**
+visible; on a copy, `inventory_add {quantity:2, unit:"pz"}` on a 180 g pack → `new_qty: 360`,
+`unit: "g"`, and `product_save {unit:"g"}` over a `conf` article → `unit_kept: true`.
+
+### One intent, one write: a lost answer no longer buys the same thing twice
+
+Report, the day after: «come è possibile che ho così tante mozzarelle? Ne ho solo 2 in realtà!».
+The ledger held `in 3` **twice**, one second apart — and the same burst doubled onions (`6+6`)
+and a piadina (`1+1`), while the eggs (12) landed once.
+
+`api()` hands a write whose request died in flight to the offline queue
+(`_queueWriteAfterNetworkFail`) and `_syncOfflineQueue()` replays it — but a response lost on
+the way back means the server had **already committed** it, so the replay wrote it again. Two
+more holes fed it: the replay pass had no re-entrancy guard (two triggers, `online` and leaving
+offline mode, replayed the same list twice) and it rewrote the whole queue only at the end, which
+also wiped an op queued while it ran.
+
+Now the intent carries an id (`client_op_id`, generated once in `api()` before the first attempt
+and kept by the queue across any retry) and `addToInventory` remembers the ids it applied for an
+hour (`app_settings.client_ops`, pruned, 500 max): a replay is answered with the state it already
+produced — `duplicate: true`, no second row, no second ledger line — and logged
+(`api_inventory_add_duplicate`). A write with no id (an older bundle) is matched against an
+identical `'in'` written seconds ago, and a household that really wants two identical adds is
+asked by the form («aggiunto poco fa … aggiungere comunque?») and that answer travels as
+`confirm_duplicate`, which bypasses the guard. The replay is also one pass at a time
+(`_offlineQueueSyncing`) and drops each op as it is applied (`_offlineQueueDrop`), so nothing is
+sent twice and nothing queued meanwhile is lost.
+
+Measured on a copy of the instance: first write `total_qty 4`, replay of the same id
+`duplicate: true` and still `4`; a new id with the same payload writes (`6`); an id-less repeat
+within 5 s is ignored (`6`); `confirm_duplicate: 1` writes (`8`). The reported shelf was repaired
+to the two mozzarelle that were really in the fridge.
+
+The same id guard covers the other two non-idempotent writes — a use and a recorded spend: a
+replayed `inventory_use` is answered from the shelf (`api_inventory_use_duplicate`; the 2 s race
+guard only ever covered a partial use with EMPTY notes, so a recipe use carrying its title in
+`notes` could be consumed twice) and a replayed `spend_add` no longer counts the trip twice
+(`api_spend_add_duplicate`). `inventory_update`, `inventory_delete`, the shopping actions and the
+finish/restore pair are absolute by nature, so a repeat is already a no-op.
+
+The whole ledger was then audited with the duplicate signature (same product, type, quantity and
+place, written within seconds): the 11:14 burst is the only damage of this bug — mozzarella
+(3+3), onions (6+6) and piadina (1+1) — and all three shelves were realigned to what they hold
+(2 pz, 4.5 pz, 1 pz; the tomini to 180 g). Two pairs that LOOK duplicated are real: two bottles of
+lemon juice and two packs of flour were bought in two loads, each with its own best-before date,
+and they sit in two rows. The remaining ledger-vs-shelf gaps (salt, rice, flour, oil…) predate
+this bug: those rows entered the app through an import or a stocktake/manual correction and never
+had an `in` line — the pantry already flags them as anomalies and the quick stocktake is the
+instrument that closes them, so nothing on a shelf was deleted to "make the numbers match".
+
 ## [2.2.10] - 2026-11-15
 
 ### A recipe that lost an ingredient remembers it (and stops being proposed)

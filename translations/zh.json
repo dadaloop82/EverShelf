@@ -2431,6 +2431,7 @@
     "invalid_quantity": "数量无效",
     "invalid_location": "该存放位置已不存在：请重新选择位置后再试。",
     "quantity_below_min": "数量太小：请至少添加 {min} {unit}——低于该值商品会被视为已用完。",
+    "unit_mismatch": "该商品在货架上已按 {unit} 计量：请按 {unit} 添加数量（或先清空库存）。",
     "invalid_token": "🔒 令牌无效或缺失",
     "backup_no_dir": "无法创建备份文件夹",
     "backup_no_db": "找不到数据库",
