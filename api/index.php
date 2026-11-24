@@ -686,7 +686,11 @@ if (($_GET['action'] ?? '') === 'health_check') {
     $dataDir = __DIR__ . '/../data';
     if (!is_dir($dataDir)) @mkdir($dataDir, 0775, true);
     $dataDirOk = is_dir($dataDir) && is_writable($dataDir);
-    $checks['data_dir'] = ['ok' => $dataDirOk];
+    // Synology / Unraid bind mounts often land as root or a NAS user; Apache is UID 33.
+    $checks['data_dir'] = [
+        'ok'       => $dataDirOk,
+        'hint_key' => !$dataDirOk ? 'startup.hint_data_dir' : null,
+    ];
 
     // data/rate_limits/
     $rlDir = $dataDir . '/rate_limits';
@@ -713,7 +717,10 @@ if (($_GET['action'] ?? '') === 'health_check') {
     $testFile = $dataDir . '/_hc_' . getmypid() . '.tmp';
     $writeOk  = $dataDirOk && (@file_put_contents($testFile, 'hc', LOCK_EX) !== false);
     if ($writeOk) @unlink($testFile);
-    $checks['data_write_test'] = ['ok' => $writeOk];
+    $checks['data_write_test'] = [
+        'ok'       => $writeOk,
+        'hint_key' => !$writeOk ? 'startup.hint_data_write' : null,
+    ];
 
     // ── 7. Free disk space ────────────────────────────────────────────────────
     $freeBytes = $dataDirOk ? @disk_free_space($dataDir) : false;

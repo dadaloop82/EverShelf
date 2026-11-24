@@ -3051,7 +3051,9 @@
     "stage_ready": "EverShelf ready",
     "powered_by_open_data": "Powered by Open Food Facts & Open Data",
     "free_project": "Free and open-source project",
-    "no_ads": "No ads"
+    "no_ads": "No ads",
+    "hint_data_dir": "data/ is not writable — on Docker/Synology run: chown -R 33:33 <host-data-path> (UID 33 = www-data)",
+    "hint_data_write": "Cannot write inside data/ — fix host folder ownership (chown -R 33:33) and restart the container"
   },
   "stats_monthly": {
     "title": "Monthly Stats",

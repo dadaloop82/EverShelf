@@ -5,6 +5,28 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.12] - 2026-11-24
+
+### Docker on Synology: the data folder is writable again
+
+Report ([discussion #324](https://github.com/dadaloop82/EverShelf/discussions/324)): a Synology
+compose that bind-mounts `/volume1/docker/evershelf/data` onto `/var/www/html/data` boots the
+container, then the splash fails with **Data directory / Disk write test / Database connection**.
+
+The image's build-time `chown www-data` lives in the image layer; a host bind mount shadows it,
+so Apache (UID **33**) cannot create `evershelf.db`. The container now has an **entrypoint**
+(`docker/entrypoint.sh`) that, as root before cron + Apache start, creates the data subdirs,
+`chown`s them to `www-data`, and as a last resort opens `a+rwX` when Synology ACLs refuse the
+chown — and logs a clear warning with the host fix (`chown -R 33:33 <path>`).
+
+Also:
+
+* Splash hints for `data_dir` / `data_write_test` (six locales) name the UID-33 fix.
+* New wiki page [Synology](docs/wiki/Synology.md); FAQ + Installation + Home link it.
+
+A stuck install after the update can still need one host `chown` when DSM shared-folder ACLs
+block every in-container mode change — the wiki has the exact commands.
+
 ## [2.2.11] - 2026-11-17
 
 ### «2 pezzi» are not «2 g»: the quantity is written in the article's own unit

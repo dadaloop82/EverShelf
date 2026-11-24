@@ -18,6 +18,12 @@ EverShelf runs on any server with PHP 8.2+ and SQLite (CI checks 8.2, the Docker
 
 ## Option A: Docker (recommended)
 
+> **Synology / Unraid bind mounts:** the web server inside the image runs as
+> UID **33** (`www-data`). If you map a host folder onto `/var/www/html/data`,
+> run `chown -R 33:33 <host-data-path>` once (or the splash fails with
+> “Data directory / Disk write”). Details: [Synology](Synology), [Unraid](Unraid),
+> [FAQ](FAQ).
+
 The fastest way to get started. Pre-built multi-arch images (`amd64` / `arm64`) are published to **GHCR**: `ghcr.io/dadaloop82/evershelf`.
 
 ```bash

@@ -16,6 +16,8 @@ Welcome to the **EverShelf** project wiki — your complete reference for instal
 | Page | Description |
 |------|-------------|
 | [Installation](Installation) | Docker, manual setup, HTTPS, web server config |
+| [Synology](Synology) | DSM Container Manager, bind-mount permissions (UID 33) |
+| [Unraid](Unraid) | Community Applications template, appdata paths |
 | [Configuration](Configuration) | `.env` reference — all options explained |
 | [Features](Features) | Complete feature documentation |
 | [SHELFY](SHELFY) | The voice assistant: what it understands, the 10 s confirmation, adding words |

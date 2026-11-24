@@ -64,9 +64,16 @@ RUN a2enconf evershelf
 # Expose port 80
 EXPOSE 80
 
+# Bind-mount entrypoint: Synology / Unraid host paths shadow the image chown,
+# so www-data cannot create evershelf.db until we fix ownership at start.
+COPY docker/entrypoint.sh /usr/local/bin/evershelf-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/evershelf-entrypoint.sh
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD curl -f http://localhost/ || exit 1
+
+ENTRYPOINT ["evershelf-entrypoint.sh"]
 
 # Cron daemon + Apache in one container. -f keeps cron attached so its own
 # messages reach `docker logs` (the image has no syslog daemon); Apache stays the
