@@ -49,8 +49,8 @@
     }
     .alert-item-badges {
         max-width: 100%;         /* …and the badges/buttons wrap under it */
-        flex: 0 1 auto;
-        justify-content: flex-start;
+        flex: 1 1 100%;
+        justify-content: flex-end; /* same place as the tablet band: right edge */
     }
     .alert-item-name,
     .alert-item-head .alert-item-name,
@@ -313,18 +313,31 @@
         /* The strip lines up under the name (the base grammar), not at the card's edge. */
         padding-left: calc(var(--row-photo-w, 5%) + 1%);
     }
-    /* The Home's notice rows follow the same rule: the badges go back under the text. */
+    /* Narrow window: the Home row stacks, but expiry+Usa stay on the RIGHT of that
+       second line (never under the photo). Reset the tablet grid to a stacked flex. */
     html.is-kiosk .alert-item,
     html.is-touch-tablet .alert-item {
+        display: flex;
         flex-wrap: wrap;
         align-items: flex-start;
         padding: 12px;
+        grid-template-columns: none;
     }
     html.is-kiosk .alert-item .alert-item-info,
-    html.is-touch-tablet .alert-item .alert-item-info { min-width: 0; }
+    html.is-touch-tablet .alert-item .alert-item-info {
+        min-width: 0;
+        grid-column: auto;
+        grid-row: auto;
+        flex: 1 1 100%;
+    }
     html.is-kiosk .alert-item .alert-item-badges,
     html.is-touch-tablet .alert-item .alert-item-badges {
         margin-left: 0;
-        justify-content: flex-start;
+        justify-content: flex-end;
+        justify-self: auto;
+        grid-column: auto;
+        grid-row: auto;
+        flex: 1 1 100%;
+        padding-left: calc(var(--row-photo-w, 5%) + 1%);
     }
 }

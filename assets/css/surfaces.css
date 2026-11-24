@@ -255,7 +255,9 @@ body {
 /* The touch-tablet/kiosk band puts the quantity/expiry/`✓ Usa` strip on the RIGHT of the
    row, nowhere near the photo: padding it there squeezed it into three broken lines. */
 html.is-kiosk .inventory-item .inv-row-content .inv-card-bottom,
-html.is-touch-tablet .inventory-item .inv-row-content .inv-card-bottom { padding-left: 0; }
+html.is-touch-tablet .inventory-item .inv-row-content .inv-card-bottom,
+html.is-kiosk .alert-item .alert-item-badges,
+html.is-touch-tablet .alert-item .alert-item-badges { padding-left: 0; }
 
 /* ── Too narrow? Then the card sheds what it can spare ────────────────────────
    A row never wraps onto a second action line: the household reads a list by scanning
@@ -404,7 +406,10 @@ html:not(.is-kiosk):not(.is-touch-tablet) .inventory-item .inv-row-content .inv-
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: flex-start;
+    /* Always the RIGHT of the action line — never under the photo on the left. When the
+       strip is alone on its row, flex-end parks the pill+Usa at the card's right edge;
+       the kiosk/tablet band (tablet.css grid) puts them mid-right on the SAME row. */
+    justify-content: flex-end;
     gap: 6px;
     flex: 1 1 100%;
     margin-left: 0;
