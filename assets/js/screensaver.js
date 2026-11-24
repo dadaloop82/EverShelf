@@ -16,9 +16,9 @@
  * A view with nothing to say is skipped (`null` from its builder), so an empty pantry or a
  * day with no plan never paints an empty card — the rotation walks to the next view.
  *
- * Interaction: a tap flips the view, a swipe left/right does the same, a swipe up (or the
- * «Sblocca» pill, or Esc) goes back to the app. The idle clock in app.js owns the timing,
- * the pin, the force parameter and the dismissal; this file owns what is on the screen.
+ * Interaction: a tap anywhere (or the «Sblocca» pill, a swipe up, or Esc) goes back to the
+ * app; a swipe left/right flips the view. The idle clock in app.js owns the timing, the
+ * pin, the force parameter and the dismissal; this file owns what is on the screen.
  */
 
 const SS_VIEWS = ['meal', 'alerts', 'nutrition', 'fact'];
@@ -770,7 +770,7 @@ function _ssRestartRotation() {
 }
 
 
-/* ── interaction: tap = next, swipe = next/prev, swipe up = unlock ───────────── */
+/* ── interaction: tap = unlock, swipe L/R = next/prev, swipe up = unlock ─────── */
 
 function _ssOnPointerDown(ev) {
     if (ev.target && ev.target.closest && ev.target.closest('button, a')) {
@@ -792,15 +792,14 @@ function _ssOnPointerUp(ev) {
         if (typeof dismissScreensaver === 'function') dismissScreensaver();
         return;
     }
-    // Swipe sideways: previous / next view.
+    // Swipe sideways: previous / next view (the only way left to flip without unlocking).
     if (Math.abs(dx) > SS_SWIPE_MIN && Math.abs(dx) > Math.abs(dy) * 1.4) {
         if (dx > 0) _ssPrevView(); else _ssNextView();
         return;
     }
-    // A tap anywhere: next view. It must NOT close the screen (an accidental brush on the
-    // wall must not take the clock away) — «Sblocca» and the swipe up are the way out.
+    // A tap anywhere unlocks — kitchen tablet: reach the screen, don't hunt for the pill.
     if (Math.abs(dx) <= SS_TAP_SLOP && Math.abs(dy) <= SS_TAP_SLOP && dt < 700) {
-        _ssNextView();
+        if (typeof dismissScreensaver === 'function') dismissScreensaver();
     }
 }
 

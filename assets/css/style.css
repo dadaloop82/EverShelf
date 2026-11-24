@@ -11785,9 +11785,9 @@ body.cooking-mode-active .app-header {
     grid-template-rows: auto minmax(0, 1fr) auto;
     gap: clamp(14px, 2.6vh, 30px);
     width: min(1100px, 100%);
-    /* The bottom room keeps the footer clear of the «Sblocca» pill. */
+    /* The bottom room keeps the footer clear of the taller «Sblocca» pill. */
     padding: clamp(20px, 4.5vh, 54px) clamp(18px, 5vw, 64px)
-             max(64px, calc(env(safe-area-inset-bottom, 0px) + 52px));
+             max(88px, calc(env(safe-area-inset-bottom, 0px) + 72px));
     box-sizing: border-box;
     transition: transform 1.4s ease;
     will-change: transform;
@@ -12177,7 +12177,7 @@ body.cooking-mode-active .app-header {
     text-align: center;
 }
 
-/* ── unlock: the way back (a tap flips the view, it must NOT close) ── */
+/* ── unlock: big target; a tap anywhere on the stage also unlocks ── */
 .ss-unlock {
     position: absolute;
     bottom: max(18px, env(safe-area-inset-bottom, 18px));
@@ -12186,26 +12186,38 @@ body.cooking-mode-active .app-header {
     z-index: 10003;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 9px 18px;
+    justify-content: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 14px 28px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
     font: inherit;
-    font-size: 0.84rem;
-    font-weight: 700;
+    font-size: 1.05rem;
+    font-weight: 750;
+    letter-spacing: 0.01em;
     cursor: pointer;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
 }
-.ss-unlock:active { background: rgba(255, 255, 255, 0.16); }
+.ss-unlock:active { background: rgba(255, 255, 255, 0.22); }
+@media (min-width: 768px) {
+    .ss-unlock {
+        min-height: 60px;
+        padding: 16px 36px;
+        font-size: 1.2rem;
+        gap: 12px;
+    }
+}
 
 /* A phone turns the card into a stack: the charts over the length, the rows on one column.
    The controls of a pinned run move to the BOTTOM here: at the top-right they covered the
    clock on a 393 px screen (measured), and the clock is the one thing that must stay whole. */
 @media (max-width: 640px) {
-    /* 76 px clear the «Sblocca» pill; a pinned run adds the room its own bar needs. */
-    .ss-stage { padding: 16px 12px 76px; gap: 10px; }
-    .screensaver-overlay.is-pinned .ss-stage { padding-bottom: 152px; }
+    /* Clear the taller «Sblocca» pill; a pinned run adds the room its own bar needs. */
+    .ss-stage { padding: 16px 12px 96px; gap: 10px; }
+    .screensaver-overlay.is-pinned .ss-stage { padding-bottom: 168px; }
     .ss-card {
         padding: 14px 14px 16px;
         /* A phone has no room for the portrait panel's floor: `min-height` wins over
