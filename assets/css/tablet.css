@@ -41,33 +41,34 @@ html.is-touch-tablet .inv-row-content.inv-card {
    strip (`qty · time · ✓ Usa · ⋮`) on the RIGHT — while the same information on the
    Home sat under the text, so the two lists read as two different layouts side by
    side. Same geometry here: the strip goes beside the text, the info takes the room,
-   and the card keeps the band's 8/10 px padding instead of the stacked 12. */
+   and the card keeps the band's 8/10 px padding instead of the stacked 12.
+
+   `nowrap` + `margin-left: auto` on the badges: the expiry pill and «✓ Usa» stay mid-
+   right on EVERY row. With `wrap` and no auto-margin they dropped under the text on
+   the LEFT whenever the name needed two lines (or the photo made the card tall), so
+   some cards had the actions bottom-left and the next one mid-right — image vs emoji
+   was a red herring; it was the wrap. The text block shrinks (`min-width: 0`) and
+   clamps instead of shoving the strip onto a second line. */
 html.is-kiosk .alert-item,
 html.is-touch-tablet .alert-item {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 10px;
-    row-gap: 6px;
     padding: 8px 10px;
 }
 html.is-kiosk .alert-item .alert-item-info,
 html.is-touch-tablet .alert-item .alert-item-info {
     flex: 1 1 auto;
-    /* Same floor as the pantry's text block: the notice strip wraps under the text before the
-       article's name is squeezed (the two lists share one grammar). */
-    min-width: 11rem;
+    min-width: 0;
     /* The band's height comes from the content, never from the stacked card's floor. */
     min-height: 0;
 }
 html.is-kiosk .alert-item .alert-item-badges,
 html.is-touch-tablet .alert-item .alert-item-badges {
-    /* `0 0 auto`: the strip keeps its content width instead of being squeezed by the text
-       beside it — a squeezed strip wraps into two lines and makes the card taller than the
-       row next to it, which is exactly what the two lists were doing to each other.
-       No `margin-left: auto` for the same reason as the pantry strip: when the band wraps
-       the badges belong under the text, not on the empty right half of their own line. */
     flex: 0 0 auto;
+    margin-left: auto;
     justify-content: flex-end;
+    align-self: center;
     /* Nothing to dodge: this strip is nowhere near the photo. */
     padding-left: 0;
 }
@@ -97,16 +98,16 @@ html.is-touch-tablet .inv-card-top {
 
 html.is-kiosk .inv-card-bottom,
 html.is-touch-tablet .inv-card-bottom {
-    flex: 0 1 auto;
-    /* No `margin-left: auto`: when the band wraps (a 2-column tablet card is ~469 px, where the
-       strip no longer fits beside the text) the strip must start under the text, not hang off
-       the right edge of an otherwise empty line. On one line the info block's `flex: 1 1 auto`
-       is what keeps the strip on the right. */
+    flex: 0 0 auto;
+    /* Same rule as the Home badges: always on the right of the row (or of the wrapped
+       line). `margin-left: auto` absorbs the free space either way. */
+    margin-left: auto;
     gap: 8px;
     /* Never clamp to half the card — that truncated qty + expiry on wide tablets. */
     max-width: none;
     flex-wrap: wrap;
     justify-content: flex-end;
+    align-self: center;
 }
 
 /* The band keeps a 40 px photo — but it is the SAME variable the gutter reads, so the words

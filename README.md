@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.12-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.13-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -226,6 +226,13 @@ the gate this release was developed against.
 
 <details open>
 <summary><b>Last five releases</b></summary>
+
+**v2.2.13 — tablet Home keeps expiry + «Usa» mid-right; screensaver unlocks on tap.** On a
+kiosk the alert rows used to drop the red pill and «✓ Usa» under the text on the left when
+the name wrapped, while the next card kept them on the right — it looked like photo vs emoji
+was moving them. The band now stays one line and anchors the strip on the right every time.
+The idle screen’s «Sblocca» is bigger, and a tap anywhere unlocks (swipe left/right still
+flips the view).
 
 **v2.2.12 — Synology bind mounts can write the database again.** A compose that maps
 `/volume1/docker/…/data` onto `/var/www/html/data` used to fail the splash (Data directory /

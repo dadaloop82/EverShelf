@@ -5,6 +5,20 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.13] - 2026-11-24
+
+### Tablet Home: expiry + «Usa» stay mid-right; screensaver unlocks on tap
+
+On a kiosk / touch tablet the Home alert rows («In scadenza», «Scaduti»…) parked the red
+expiry pill and the green «✓ Usa» under the text on the **left** whenever the name needed
+two lines — the next card with a shorter name kept them mid-right, so it looked like the
+photo vs emoji was moving them. The band now keeps `nowrap` and anchors the badge strip
+with `margin-left: auto`, so every row puts them in the same place on the right; the pantry
+action strip follows the same rule.
+
+Also the idle screen: «Sblocca» is a bigger target, a tap **anywhere** on the stage unlocks
+(swipe left/right still flips the view), and the six-locale hint says so.
+
 ## [2.2.12] - 2026-11-24
 
 ### Docker on Synology: the data folder is writable again
