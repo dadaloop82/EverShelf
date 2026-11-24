@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261124i'; // bump when translations change
+const _I18N_VERSION = '20261124j'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -22170,7 +22170,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261124i';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261124j';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -22180,7 +22180,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261124i';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261124j';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -34376,7 +34376,14 @@ async function _shopRowBought(idx) {
         .find((v) => v && validLocs.includes(v))
         || validLocs[0]
         || 'frigo';
-    if (productId > 0 && qty > 0 && (buyUnit === '' || buyUnit === ownUnit)) {
+    // A 🛒 Esaurito row is the deplete → list hand-off: swiping "bought" must NOT invent
+    // pantry stock from the suggestion. That loop (finish → auto-list → left-swipe →
+    // inventory_add) is what made finished products reappear with a guessed quantity.
+    // Restock is the scan / spesa / manual add once the bag is home; here we only clear
+    // the list (markShoppingItemBoughtAtHome).
+    const spec = String(item.specification || item.spec || '');
+    const isFinishedRow = /🛒\s*Esaurito/i.test(spec) || /🛒\s*Finished/i.test(spec);
+    if (!isFinishedRow && productId > 0 && qty > 0 && (buyUnit === '' || buyUnit === ownUnit)) {
         try {
             const res = await api('inventory_add', {}, 'POST', {
                 product_id: productId,

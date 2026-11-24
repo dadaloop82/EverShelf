@@ -9037,16 +9037,33 @@ function confirmFinishedCore(PDO $db, int $productId, bool $addToShopping = true
                ->execute([$productId, $txType, $reconciled, $location, '[Finished] Trace amount cleared']);
         }
     } else {
-        // Keep stock: close only the ledger gap so expected ≈ inventory.
+        // Align ledger to the shelf the household accepted — never invent stock.
+        //
+        // After use-all the caller has already deleted the rows and logged the real OUT,
+        // then asks us with addToShopping=false to wipe residual ledger ghosts. A POSITIVE
+        // gap (expected > stock) is a ghost credit → one OUT closes it. A NEGATIVE gap
+        // with an EMPTY shelf is historical noise (more outs than purchases on record) —
+        // inventing an IN here was the field bug that made finished products "come back":
+        // Minesteone out 100 + phantom in 202 in the same second, Passata out ~1 + in 691,
+        // 22 such pairs on this install. Only raise the ledger with an IN when the shelf
+        // still holds stock the ledger under-counts (keepBannerFinishedStock).
         $gap = round($expected - $stock, 3);
         if ($gap > $threshold) {
             $reconciled = $gap;
             $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'out', ?, ?, ?)")
                ->execute([$productId, $reconciled, $location, '[Reconciliation] Stock accepted as-is (ledger aligned)']);
-        } elseif ($gap < -$threshold) {
+        } elseif ($gap < -$threshold && $stock > $threshold) {
             $reconciled = abs($gap);
             $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'in', ?, ?, ?)")
                ->execute([$productId, $reconciled, $location, '[Reconciliation] Stock accepted as-is (ledger aligned)']);
+        } elseif ($gap < -$threshold) {
+            EverLog::info('confirmFinishedCore: skip invent-in on empty shelf', [
+                'event'      => 'reconcile_skip_invent_in',
+                'product_id' => $productId,
+                'expected'   => $expected,
+                'stock'      => $stock,
+                'gap'        => $gap,
+            ]);
         }
         $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity <= 0")->execute([$productId]);
     }
