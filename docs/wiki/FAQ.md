@@ -47,12 +47,22 @@ chown -R www-data:www-data data/
 
 ### Docker bind mount: "Critical error — Data directory / Disk write test / Database connection"
 
-When you replace the named volume evershelf_data with a host path (`./data:/var/www/html/data`), Docker creates the host directory as root if it doesn't exist, and the image's build-time chown www-data is shadowed. Fix on the host:
+When you replace the named volume `evershelf_data` with a host path
+(`./data:/var/www/html/data`, or Synology `/volume1/docker/evershelf/data:…`),
+Docker creates the host directory as root (or as your NAS user) if it doesn't
+exist, and the image's build-time `chown www-data` is shadowed. Apache inside
+the container runs as **UID 33** and cannot create `evershelf.db`. Fix on the host:
 
 ```bash
-mkdir -p ./data
+mkdir -p ./data   # or /volume1/docker/evershelf/data on Synology
 sudo chown -R 33:33 ./data   # 33 = www-data UID in the container
+sudo docker restart evershelf
 ```
+
+From **2.2.12** the image entrypoint also tries to repair ownership (and mode as
+a last resort) on every start. Synology shared-folder ACLs can still refuse an
+in-container `chown` — the host command above is the reliable fix. See
+[Synology](Synology) for a full NAS walkthrough.
 
 The same applies to a bind-mounted `.env`: if the file is owned by root, the app can read the configuration but **Settings cannot save it**. The app then keeps the changed keys in its own database (`app_settings.env_overrides`) and answers "saved". A later hand edit of `.env` wins over that copy — the stale entry is detected and dropped (since 1.16.1) — but the clean fix is to let the container own the file:
 

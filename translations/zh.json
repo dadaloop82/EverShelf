@@ -3051,7 +3051,9 @@
     "stage_ready": "EverShelf 已就绪",
     "powered_by_open_data": "Powered by Open Food Facts & Open Data",
     "free_project": "Free and open-source project",
-    "no_ads": "No ads"
+    "no_ads": "No ads",
+    "hint_data_dir": "data/ 不可写 — Docker/群晖请执行：chown -R 33:33 <主机数据路径>（UID 33 = www-data）",
+    "hint_data_write": "无法写入 data/ — 修正主机目录权限（chown -R 33:33）并重启容器"
   },
   "stats_monthly": {
     "title": "月度统计",

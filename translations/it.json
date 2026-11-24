@@ -3051,7 +3051,9 @@
     "stage_ready": "EverShelf pronto",
     "powered_by_open_data": "Powered by Open Food Facts & Open Data",
     "free_project": "Free and open-source project",
-    "no_ads": "No ads"
+    "no_ads": "No ads",
+    "hint_data_dir": "data/ non è scrivibile — su Docker/Synology: chown -R 33:33 <percorso-host> (UID 33 = www-data)",
+    "hint_data_write": "Impossibile scrivere in data/ — sistema i permessi della cartella host (chown -R 33:33) e riavvia il container"
   },
   "stats_monthly": {
     "title": "Statistiche Mensili",

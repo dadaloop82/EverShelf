@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.11-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.12-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -226,6 +226,13 @@ the gate this release was developed against.
 
 <details open>
 <summary><b>Last five releases</b></summary>
+
+**v2.2.12 — Synology bind mounts can write the database again.** A compose that maps
+`/volume1/docker/…/data` onto `/var/www/html/data` used to fail the splash (Data directory /
+Disk write / Database connection): the image `chown` was shadowed by the host folder, and
+Apache (UID 33) could not create `evershelf.db`. The container entrypoint now repairs ownership
+on every start (with a last-resort mode fix and a clear log line), the splash names the
+`chown -R 33:33` host fix, and the wiki has a Synology page.
 
 **v2.2.11 — «2 pezzi» are not «2 g», and one answer lost is not two purchases.** Two packs of
 tomini added as «2 pezzi» were on the shelf and in the database, and the pantry showed nothing:
