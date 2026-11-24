@@ -40,37 +40,49 @@ html.is-touch-tablet .inv-row-content.inv-card {
    On a tablet the pantry row is a horizontal band — photo, text, and the action
    strip (`qty · time · ✓ Usa · ⋮`) on the RIGHT — while the same information on the
    Home sat under the text, so the two lists read as two different layouts side by
-   side. Same geometry here: the strip goes beside the text, the info takes the room,
-   and the card keeps the band's 8/10 px padding instead of the stacked 12.
+   side.
 
-   `nowrap` + `margin-left: auto` on the badges: the expiry pill and «✓ Usa» stay mid-
-   right on EVERY row. With `wrap` and no auto-margin they dropped under the text on
-   the LEFT whenever the name needed two lines (or the photo made the card tall), so
-   some cards had the actions bottom-left and the next one mid-right — image vs emoji
-   was a red herring; it was the wrap. The text block shrinks (`min-width: 0`) and
-   clamps instead of shoving the strip onto a second line. */
+   CSS GRID, not flex-wrap: the absolute photo strip stretches `top→bottom` of the
+   card, so when badges wrapped onto a second flex line the strip grew with them and
+   the pill+«Usa» sat under the picture on the LEFT — except on a short name that
+   kept one line (mid-right). Image vs emoji was a red herring. Grid pins the
+   badges in column 2 / row 1 every time, mid-right, same place on every card. */
 html.is-kiosk .alert-item,
 html.is-touch-tablet .alert-item {
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto;
     align-items: center;
-    gap: 10px;
+    column-gap: 10px;
+    row-gap: 0;
     padding: 8px 10px;
+    /* Defeat surfaces' `flex-wrap: wrap` on `.alert-item`. */
+    flex-wrap: nowrap;
 }
 html.is-kiosk .alert-item .alert-item-info,
 html.is-touch-tablet .alert-item .alert-item-info {
-    flex: 1 1 auto;
+    grid-column: 1;
+    grid-row: 1;
+    flex: none;
+    width: auto;
     min-width: 0;
     /* The band's height comes from the content, never from the stacked card's floor. */
     min-height: 0;
 }
 html.is-kiosk .alert-item .alert-item-badges,
 html.is-touch-tablet .alert-item .alert-item-badges {
-    flex: 0 0 auto;
-    margin-left: auto;
-    justify-content: flex-end;
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
     align-self: center;
+    flex: none;
+    width: auto;
+    max-width: none;
+    margin-left: 0;
+    justify-content: flex-end;
     /* Nothing to dodge: this strip is nowhere near the photo. */
     padding-left: 0;
+    min-height: 0;
 }
 /* The pantry strip obeys the same rule (it was `0 1 auto`, i.e. shrinkable). */
 html.is-kiosk .inv-row-content .inv-card-bottom,

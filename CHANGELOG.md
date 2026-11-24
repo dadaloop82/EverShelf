@@ -5,6 +5,16 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.14] - 2026-11-24
+
+### Tablet Home: expiry + «Usa» really mid-right (grid)
+
+v2.2.13 tried `flex-wrap: nowrap`, but the absolute photo strip stretches the full
+card height — when badges still landed on a second line they sat under the picture
+on the left, while a short name kept them mid-right. Kiosk/touch-tablet rows now
+use a **two-column grid** (text | actions) so the pill and «✓ Usa» stay in column 2
+on every card; the stacked phone layout still right-aligns that action line.
+
 ## [2.2.13] - 2026-11-24
 
 ### Tablet Home: expiry + «Usa» stay mid-right; screensaver unlocks on tap
