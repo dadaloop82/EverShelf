@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261124f'; // bump when translations change
+const _I18N_VERSION = '20261124g'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -22164,7 +22164,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261124f';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261124g';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -22174,7 +22174,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261124f';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261124g';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -42701,14 +42701,47 @@ function _recipeLoadingStagesStart() {
  * not on the shelves. The question is now asked (the household asked for exactly this), and only
  * the engines that really exist are offered — with one engine there is nothing to choose.
  */
-function generateRecipe() {
+async function generateRecipe() {
     if (!_requireRecipeEngine()) return;
     const engines = _recipeEngineOptions();
     if (engines.length === 1) {
         _startRecipeGeneration(engines[0]);
         return;
     }
-    _showRecipeEngineChoice();
+    // Never ask first. Probe Mealie for a cookable dish; only then offer
+    // «usa una già fatta» vs «crea con AI». No match → straight to the AI.
+    if (!_mealieAvailable) {
+        _startRecipeGeneration('gemini');
+        return;
+    }
+    if (!_geminiAvailable) {
+        _startRecipeGeneration('mealie');
+        return;
+    }
+    const persons = parseInt((document.getElementById('recipe-persons') || {}).value, 10) || 1;
+    const ask = document.getElementById('recipe-ask');
+    const loading = document.getElementById('recipe-loading');
+    const loadingMsg = document.getElementById('recipe-loading-msg');
+    if (ask) ask.style.display = 'none';
+    if (loading) loading.style.display = '';
+    if (loadingMsg) {
+        loadingMsg.textContent = t('recipes.engine_probe_mealie')
+            || 'Cerco ricette compatibili nel ricettario…';
+    }
+    let hasMatch = false;
+    try {
+        const probe = await api('mealie_probe', { persons });
+        hasMatch = !!(probe && probe.success && probe.has_match);
+    } catch (e) {
+        hasMatch = false;
+    }
+    if (loading) loading.style.display = 'none';
+    if (ask) ask.style.display = '';
+    if (hasMatch) {
+        _showRecipeEngineChoice();
+        return;
+    }
+    _startRecipeGeneration('gemini');
 }
 
 /** Engines this install can answer with: `gemini` (AI) and/or `mealie` (the household's book). */

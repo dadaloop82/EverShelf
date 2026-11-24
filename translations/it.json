@@ -840,10 +840,10 @@
     "no_steps": "Nessun procedimento disponibile",
     "generate_error": "Errore nella generazione",
     "mealie_no_match": "Nessuna ricetta del ricettario ha tutti gli ingredienti che hai in dispensa: generane una nuova con l’AI.",
-    "engine_choice_title": "Come la genero?",
-    "engine_ai": "✨ Genera una ricetta nuova con l’AI",
-    "engine_mealie": "📚 Prendi una ricetta dal ricettario Mealie",
-    "engine_choice_hint": "Con l’AI nasce una ricetta nuova con quello che hai in dispensa; dal ricettario arriva una tua ricetta già salvata, solo se hai tutti gli ingredienti.",
+    "engine_choice_title": "Ho trovato ricette nel ricettario",
+    "engine_ai": "✨ Crea una ricetta nuova con l'AI",
+    "engine_mealie": "📚 Usa una ricetta già fatta da Mealie",
+    "engine_choice_hint": "Il ricettario ha almeno una ricetta cucinabile con quello che hai. Puoi usarla, oppure farne generare una nuova all’AI.",
     "source_ai": "✨ generata dall’AI",
     "source_mealie": "📚 dal ricettario",
     "coverage_all": "Tutti i {n} ingredienti sono in dispensa",
@@ -973,7 +973,8 @@
     "cook_none_selected": "Seleziona almeno un ingrediente da scalare.",
     "cook_deduct_done": "Scalati {n} ingredienti",
     "cook_deduct_partial": "{n} ingredienti non scalati — riprova da Usa",
-    "save_favorite": "⭐ Salva nei preferiti"
+    "save_favorite": "⭐ Salva nei preferiti",
+    "engine_probe_mealie": "Cerco ricette compatibili nel ricettario…"
   },
   "shopping": {
     "already_on_list": "Era già in lista",

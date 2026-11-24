@@ -874,10 +874,10 @@
     "unit_for_input": "Unidad de medida",
     "enter_in": "Introduce el valor en",
     "mealie_no_match": "Ninguna receta de tu libro tiene todos los ingredientes que tienes: genera una nueva con la IA.",
-    "engine_choice_title": "¿Cómo la genero?",
-    "engine_ai": "✨ Generar una receta nueva con la IA",
-    "engine_mealie": "📚 Tomar una receta del libro Mealie",
-    "engine_choice_hint": "La IA inventa un plato nuevo con lo que hay en la despensa; el libro devuelve una de tus recetas guardadas, solo si tienes todos los ingredientes.",
+    "engine_choice_title": "Hay recetas compatibles en tu recetario",
+    "engine_ai": "✨ Crear una receta nueva con la IA",
+    "engine_mealie": "📚 Usar una receta lista de Mealie",
+    "engine_choice_hint": "El recetario tiene al menos una receta cocinable con lo que tienes. Úsala, o deja que la IA invente una nueva.",
     "source_ai": "✨ generada por la IA",
     "source_mealie": "📚 del libro",
     "coverage_all": "Los {n} ingredientes están en la despensa",
@@ -973,7 +973,8 @@
     "cook_none_selected": "Selecciona al menos un ingrediente.",
     "cook_deduct_done": "Descontados {n} ingredientes",
     "cook_deduct_partial": "{n} no descontados — prueba Usar",
-    "save_favorite": "⭐ Guardar en favoritos"
+    "save_favorite": "⭐ Guardar en favoritos",
+    "engine_probe_mealie": "Busco recetas compatibles en el recetario…"
   },
   "shopping": {
     "already_on_list": "Ya estaba en la lista",

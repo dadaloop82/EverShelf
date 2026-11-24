@@ -839,10 +839,10 @@
     "no_steps": "暂无步骤",
     "generate_error": "生成食谱时出错",
     "mealie_no_match": "食谱库中没有与你现有食材完全匹配的食谱：请用 AI 生成一个新的。",
-    "engine_choice_title": "要怎么生成？",
-    "engine_ai": "✨ 用 AI 生成新食谱",
-    "engine_mealie": "📚 从 Mealie 食谱库中选一个",
-    "engine_choice_hint": "AI 会用贮物柜里现有的食材创作新菜；食谱库只给出你已保存的食谱，而且必须食材齐全。",
+    "engine_choice_title": "食谱本里有可用的菜",
+    "engine_ai": "✨ 用 AI 创建新食谱",
+    "engine_mealie": "📚 使用 Mealie 已有食谱",
+    "engine_choice_hint": "食谱本里至少有一道用现有食材就能做的菜。可以直接用，或让 AI 再创作一道。",
     "source_ai": "✨ 由 AI 生成",
     "source_mealie": "📚 来自食谱库",
     "coverage_all": "{n} 种食材都在贮物柜里",
@@ -973,7 +973,8 @@
     "cook_none_selected": "请至少选择一种食材。",
     "cook_deduct_done": "已扣减 {n} 种食材",
     "cook_deduct_partial": "{n} 种未扣减 — 请用「使用」重试",
-    "save_favorite": "⭐ 收藏食谱"
+    "save_favorite": "⭐ 收藏食谱",
+    "engine_probe_mealie": "正在食谱本中查找可用食谱…"
   },
   "shopping": {
     "already_on_list": "已在清单中",

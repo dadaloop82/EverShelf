@@ -1535,6 +1535,20 @@ try {
             echo json_encode(mealieStatus(), JSON_UNESCAPED_UNICODE);
             break;
 
+        case 'mealie_probe': {
+            // Genera Ricetta: ask whether a cookable Mealie dish exists BEFORE showing the
+            // AI/Mealie chooser — never ask first, never invent a dish here.
+            $input = ($_SERVER['REQUEST_METHOD'] === 'POST')
+                ? (json_decode(file_get_contents('php://input'), true) ?? [])
+                : $_GET;
+            $persons = max(1, (int)($input['persons'] ?? 2));
+            $exclude = $input['exclude_titles'] ?? [];
+            if (!is_array($exclude)) $exclude = [];
+            $probe = mealieProbeCompatible($db, $persons, array_map('strval', $exclude));
+            echo json_encode(['success' => true] + $probe, JSON_UNESCAPED_UNICODE);
+            break;
+        }
+
         case 'mealie_list':
             $q = trim($_GET['query'] ?? '');
             $limit = (int)($_GET['limit'] ?? 20);
@@ -14940,7 +14954,19 @@ function recipeApplyPantryQtyFields(array &$ing, array $bestMatch): void {
         }
         $ing['qty'] = recipeFormatPieceQtyLabel($qtyNum);
     } else {
-        if ($qtyNum > $invQty) $qtyNum = $invQty;
+        // Conf rows whose need is already in the pack's measure (g/ml) must be clamped
+        // against stock × pack size — never against bare pack count. Comparing 200 ml to
+        // 1.5 conf used to rewrite qty_number to 1.5 while the label still said "200 ml",
+        // so the recipe «Usa» sheet and the product sheet disagreed on the same article.
+        if ($confAlreadyInSubUnit) {
+            $defQty = (float)($bestMatch['default_quantity'] ?? 0);
+            $usableSub = ($defQty > 0) ? ($invQty * $defQty) : $invQty;
+            if ($usableSub > 0 && $qtyNum > $usableSub) {
+                $qtyNum = $usableSub;
+            }
+        } elseif ($qtyNum > $invQty) {
+            $qtyNum = $invQty;
+        }
         if ($recipeVal > 0 && $recipeUnit === $invUnit && $qtyNum < $recipeVal * 0.01) {
             $qtyNum = $recipeVal;
         }
@@ -15885,6 +15911,7 @@ function generateRecipeStream(PDO $db): void {
     if ($source !== 'gemini') {
         $send('status', ['step' => 1, 'message' => recipeText($lang, 'status_mealie_search') ?: 'Cerco ricette in Mealie…']);
         $mealieRecipe = mealieTryRecipeGeneration($db, $items, $persons, [
+            'source'         => $source,
             'exclude_titles' => array_merge($todayRecipes, array_map(static fn($n) => (string)$n, $rejectedIngredients)),
         ]);
         if ($mealieRecipe) {

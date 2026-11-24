@@ -692,7 +692,13 @@ function mealiePickRecipe(array $pantryItems, int $persons, string $mustInclude 
 }
 
 function mealieTryRecipeGeneration(PDO $db, array $pantryItems, int $persons, array $opts = []): ?array {
-    $source = recipeEffectiveSource();
+    // Honour an explicit per-request source (the Genera chooser) over RECIPE_SOURCE —
+    // otherwise Settings=`gemini` made a Mealie click return null after the probe had
+    // already said a cookable dish existed.
+    $force = strtolower(trim((string)($opts['source'] ?? '')));
+    $source = in_array($force, ['gemini', 'mealie', 'auto'], true)
+        ? $force
+        : recipeEffectiveSource();
     if ($source === 'gemini') {
         return null;
     }
@@ -704,6 +710,31 @@ function mealieTryRecipeGeneration(PDO $db, array $pantryItems, int $persons, ar
     }
     recipePostProcessGenerated($db, $recipe, $pantryItems);
     return $recipe;
+}
+
+/**
+ * Probe only: is there at least one Mealie recipe cookable from this pantry?
+ * Used by the Genera flow so the AI/Mealie chooser appears only when a match exists.
+ */
+function mealieProbeCompatible(PDO $db, int $persons = 2, array $excludeTitles = []): array {
+    if (!mealieUsable()) {
+        return ['has_match' => false, 'count' => 0, 'sample_title' => ''];
+    }
+    $items = function_exists('recipeFetchPantryItems')
+        ? recipeFetchPantryItems($db)
+        : [];
+    if (!$items) {
+        return ['has_match' => false, 'count' => 0, 'sample_title' => ''];
+    }
+    $pick = mealiePickRecipe($items, max(1, $persons), '', $excludeTitles);
+    if (!$pick) {
+        return ['has_match' => false, 'count' => 0, 'sample_title' => ''];
+    }
+    return [
+        'has_match'     => true,
+        'count'         => 1,
+        'sample_title'  => (string)($pick['title'] ?? ''),
+    ];
 }
 
 function mealieImportToEverShelf(PDO $db, string $slugOrId): array {

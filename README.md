@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.15-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.16-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -226,6 +226,10 @@ the gate this release was developed against.
 
 <details open>
 <summary><b>Last five releases</b></summary>
+
+**v2.2.16 — recipe Use qty fixed; Genera probes Mealie before asking.** Conf needs in
+g/ml no longer get clamped to pack counts; the create flow searches the ricettario first
+and only then offers Mealie vs AI.
 
 **v2.2.15 — shopping families stop calling a ragù «Salsicce».** Vocabulary for sugo/ragù,
 Monte Veronese, erbe aromatiche; mid-title «frutta secca» no longer renames muesli.
