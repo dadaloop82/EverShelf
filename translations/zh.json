@@ -589,7 +589,12 @@
     "ai_tip_show_product": "展示完整产品或正面标签",
     "ai_tip_show_barcode": "如有条形码，请保持清晰稳定",
     "ai_working": "正在分析图像…",
-    "method_med_ocr": "标签 OCR"
+    "method_med_ocr": "标签 OCR",
+    "status_not_product": "这不是商品码",
+    "own_label_using": "正在记录份量…",
+    "own_label_ok": "已记录份量",
+    "own_label_empty": "该标签对应的库存为空",
+    "own_label_fail": "无法记录份量"
   },
   "action": {
     "title": "请选择操作",

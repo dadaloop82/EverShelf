@@ -589,7 +589,12 @@
     "ai_tip_show_product": "Montrez le produit entier ou l’étiquette avant",
     "ai_tip_show_barcode": "S’il y a un code-barres, gardez-le lisible et stable",
     "ai_working": "Analyse de l’image…",
-    "method_med_ocr": "OCR étiquette"
+    "method_med_ocr": "OCR étiquette",
+    "status_not_product": "Ce code n’est pas un produit",
+    "own_label_using": "Enregistrement de la portion…",
+    "own_label_ok": "Portion enregistrée",
+    "own_label_empty": "Rien en réserve pour cette étiquette",
+    "own_label_fail": "Impossible d’enregistrer la portion"
   },
   "action": {
     "title": "Que voulez-vous faire ?",

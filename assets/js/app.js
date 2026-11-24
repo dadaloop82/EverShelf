@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261124h'; // bump when translations change
+const _I18N_VERSION = '20261124i'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4655,7 +4655,13 @@ const _MED_OCR_IDLE_MS = 2200;
 const _ZBAR_FALLBACK_DELAY_MS = 350;        // skip ZBar until native had a few frames
 const _BARCODE_PERSIST_KEY = 'evershelf_barcode_resolve_v1';
 const _BARCODE_PERSIST_MAX = 500;
-const _SCAN_FORMATS = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e'];
+// 1D retail + 2D (QR / DataMatrix / …). Native BarcodeDetector on Chrome Android
+// exposes all of these; the ZBar polyfill reads qr_code (not data_matrix) and the
+// init path filters to whatever the engine actually supports.
+const _SCAN_FORMATS = [
+    'ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e',
+    'qr_code', 'data_matrix', 'aztec', 'pdf417',
+];
 let _barcodeEnginesPreloadStarted = false;
 let _pendingBarcodeSave = null;
 
@@ -22164,7 +22170,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261124h';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261124i';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -22174,7 +22180,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261124h';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261124i';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -22291,6 +22297,7 @@ function _isEanFormat(format) {
 }
 
 let _scanLastCode = '';
+let _scanRefuseEcho = { raw: '', at: 0 };
 let _scanConsecCount = 0;
 
 function _finalizeBarcode(code, method) {
@@ -22312,12 +22319,120 @@ function _finalizeBarcode(code, method) {
  * @param {string} method
  * @param {{boundingBox?: DOMRectReadOnly|object, videoEl?: HTMLVideoElement}|null} [geo]
  */
+/**
+ * Classify a scanner payload BEFORE any digit-stripping.
+ * A QR of `https://…` must never become a bogus EAN of its digits.
+ * Own labels (#288 half): `evershelf:v1:use:<productId>:<qty>:<unit>`.
+ */
+function _scanClassifyPayload(code, format) {
+    const text = String(code || '').trim();
+    const fmt = String(format || '').toLowerCase();
+    const is2d = /qr|data_matrix|aztec|pdf417|sq_code/.test(fmt);
+    if (!text) return { kind: 'empty' };
+
+    // Own printed label (thermal stickers — encoder half is #288).
+    const own = text.match(/^evershelf:v1:use:(\d+):([0-9]+(?:[.,][0-9]+)?):([a-zA-Z]+)$/i);
+    if (own) {
+        return {
+            kind: 'own_label',
+            productId: parseInt(own[1], 10),
+            qty: parseFloat(String(own[2]).replace(',', '.')),
+            unit: String(own[3] || 'pz').toLowerCase(),
+        };
+    }
+
+    // Pure digits (or spaced) → catalogue lookup.
+    const compact = text.replace(/[\s-]/g, '');
+    if (/^\d{8,18}$/.test(compact)) {
+        return { kind: 'digits', digits: compact, raw: text };
+    }
+
+    // National medicine form with a letter (handled later by the medicine gate).
+    if (/^[A-Za-z]\d{8,12}$/.test(compact)) {
+        return { kind: 'national', raw: text };
+    }
+
+    // GS1 element string (FMD DataMatrix, etc.) — keep the raw for _medGs1Parse.
+    if (/\(0?1\)|\x1d|^01\d{13,14}/.test(text) || (is2d && /\d{14}/.test(text.replace(/\D/g, '')) && text.length > 16)) {
+        return { kind: 'gs1', raw: text };
+    }
+
+    // URL / vCard / Wi-Fi / free text on a 2D symbol → refuse out loud.
+    if (is2d || /^(https?:\/\/|WIFI:|BEGIN:VCARD|MECARD:|mailto:|tel:)/i.test(text)) {
+        return { kind: 'refuse', reason: 'not_a_product', raw: text };
+    }
+
+    // 1D with letters that is not a national form: packaging, not food.
+    if (/[A-Za-z]/.test(text)) {
+        return { kind: 'refuse', reason: 'not_a_product', raw: text };
+    }
+
+    const digits = text.replace(/\D/g, '');
+    if (digits.length >= 8) return { kind: 'digits', digits, raw: text };
+    return { kind: 'empty' };
+}
+
+/** Resolve an own-label QR into a pantry use (shared half of #288). */
+async function _scanApplyOwnLabel(label, method) {
+    if (!label || !(label.productId > 0) || !(label.qty > 0)) return false;
+    try {
+        scanLog(`Own label (${method}): product=${label.productId} qty=${label.qty} ${label.unit}`);
+        _setScanStatus(t('scan.own_label_using') || 'Registro la porzione…', 'ok', method);
+        const data = await api('inventory_list');
+        const rows = (data.inventory || []).filter(i => Number(i.product_id) === label.productId && (parseFloat(i.quantity) || 0) > 0);
+        if (!rows.length) {
+            showToast(t('scan.own_label_empty') || 'Niente in dispensa per questa etichetta', 'warn');
+            return true;
+        }
+        const loc = rows[0].location || 'dispensa';
+        await api('inventory_use', {
+            product_id: label.productId,
+            quantity: label.qty,
+            location: loc,
+            notes: 'label',
+        });
+        showToast(t('scan.own_label_ok') || 'Porzione registrata', 'success');
+        if (typeof loadInventory === 'function') loadInventory();
+        if (typeof loadDashboard === 'function') loadDashboard();
+        return true;
+    } catch (e) {
+        showToast(t('scan.own_label_fail') || 'Non sono riuscito a registrare la porzione', 'error');
+        return true;
+    }
+}
+
 function _tryConfirmBarcode(code, format, method, geo = null) {
     // The medicine panel in a PRINTED-number country does not accept barcode reads at all.
     if (_scanModeIsMedical() && !_medScanBarcodes()) return false;
-    const raw = String(code || '').trim().toUpperCase();
-    let digits = raw.replace(/\D/g, '');
-    if (!digits) return false;
+    const classified = _scanClassifyPayload(code, format);
+    if (classified.kind === 'empty') return false;
+
+    // Own freezer/portion label — never digit-stripped into a catalogue lookup.
+    if (classified.kind === 'own_label') {
+        _scanApplyOwnLabel(classified, method);
+        return true;
+    }
+
+    // A URL / vCard / free-text QR is not a pantry write.
+    if (classified.kind === 'refuse') {
+        const now = Date.now();
+        if (!_scanRefuseEcho) _scanRefuseEcho = { at: 0, raw: '' };
+        if (classified.raw === _scanRefuseEcho.raw && now - _scanRefuseEcho.at < 4000) return true;
+        _scanRefuseEcho = { raw: classified.raw, at: now };
+        scanLog(`Refused 2D payload (${method}): ${String(classified.raw).slice(0, 80)}`);
+        _setScanStatus(t('scan.status_not_product') || 'Questo codice non è un prodotto', 'invalid', method);
+        return true;
+    }
+
+    const raw = String(
+        classified.kind === 'gs1' || classified.kind === 'national'
+            ? classified.raw
+            : (classified.raw || code)
+    ).trim().toUpperCase();
+    let digits = classified.kind === 'digits'
+        ? String(classified.digits || '')
+        : raw.replace(/\D/g, '');
+    if (!digits && classified.kind !== 'gs1' && classified.kind !== 'national') return false;
 
     // MEDICINE PANEL. Only TWO reads identify the drug: the national number carried by the EU
     // FMD DataMatrix (AI 710, a standard) and the national number itself printed as a barcode
@@ -26252,7 +26367,7 @@ async function scanBarcodeForForm() {
             return;
         }
 
-        const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','code_128','code_39','upc_a','upc_e'] });
+        const detector = new BarcodeDetector({ formats: _SCAN_FORMATS.slice() });
         const detectionHistory = {};
 
         const scanFrame = async () => {

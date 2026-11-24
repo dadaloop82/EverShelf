@@ -5,6 +5,16 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.18] - 2026-11-24
+
+### Scanner reads QR / DataMatrix with a payload rule (#323)
+
+`_SCAN_FORMATS` now includes `qr_code`, `data_matrix`, `aztec` and `pdf417` (filtered to
+what the engine supports). A 2D payload is classified before any digit-stripping: pure
+digits stay a catalogue lookup, `evershelf:v1:use:…` records a portion, and a URL /
+vCard / free text is refused out loud — never turned into a bogus EAN. Medicine FMD
+DataMatrix (AI 710) already had the parser; it can finally receive a decoded string.
+
 ## [2.2.17] - 2026-11-24
 
 ### Telegram bot: /add, confirmed /use, /help, digest channel (#102)
