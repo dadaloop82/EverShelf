@@ -819,7 +819,22 @@
     "insalata di couscous": "Insalata di couscous",
     "insalata di quinoa": "Insalata di quinoa",
     "zucchero grezzo di canna": "Zucchero di canna",
-    "zucchero grezzo": "Zucchero di canna"
+    "zucchero grezzo": "Zucchero di canna",
+    "monte veronese": "Formaggio",
+    "monte maria": "Formaggio",
+    "sugo pronto": "Sugo",
+    "sugo ragù": "Sugo",
+    "sugo ragu": "Sugo",
+    "ragù di salsiccia": "Sugo",
+    "ragu di salsiccia": "Sugo",
+    "gran ragù": "Sugo",
+    "gran ragu": "Sugo",
+    "erbe aromatiche": "Erbe",
+    "frutta secca": "Frutta secca",
+    "noci sgusciate": "Noci",
+    "basilico tritato": "Basilico",
+    "prezzemolo tritato": "Prezzemolo",
+    "prezzemolo trittato": "Prezzemolo"
   },
   "keyword_map": {
     "mortadella": "Affettato",
@@ -990,7 +1005,16 @@
     "zumo": "Succo",
     "arome": "Aroma",
     "caffe": "Caffè",
-    "caffè": "Caffè"
+    "caffè": "Caffè",
+    "sugo": "Sugo",
+    "ragù": "Sugo",
+    "ragu": "Sugo",
+    "basilico": "Basilico",
+    "prezzemolo": "Prezzemolo",
+    "erbe": "Erbe",
+    "noci": "Noci",
+    "mandorle": "Mandorle",
+    "spinacio": "Spinaci"
   },
   "trailing_genre": [
     "piadina",
@@ -1021,7 +1045,9 @@
     "sale",
     "zucchero",
     "aceto",
-    "lievito"
+    "lievito",
+    "frutta",
+    "muesli"
   ],
   "phrase_connectors": [
     "di",
