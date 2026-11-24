@@ -3655,5 +3655,25 @@
     "error_already_frozen": "È già congelato",
     "error_not_frozen": "Non risulta congelato",
     "error_medical": "I farmaci non si congelano"
+  },
+  "telegram": {
+    "help": "Comandi:\n/lista — lista della spesa\n/scadenze — cosa scade entro 7 giorni\n/add [qty] [prodotto] [luogo] — aggiungi in dispensa\n/use [qty] [prodotto] — registra un uso (chiede conferma)\n/help — questo elenco",
+    "empty_list": "🛒 Lista vuota",
+    "empty_expiring": "📅 Niente in scadenza nei prossimi 7 giorni",
+    "expiring_header": "📅 In scadenza:",
+    "unknown_cmd": "Non ho capito. Scrivi /help per i comandi.",
+    "add_usage": "Uso: /add [qty] [prodotto] [luogo]\nEsempio: /add 2 uova frigo",
+    "use_usage": "Uso: /use [qty] [prodotto]\nEsempio: /use 1 latte\nTi chiedo conferma prima di scrivere.",
+    "product_not_found": "Non trovo «{name}» in dispensa.",
+    "product_not_stocked": "«{name}» non ha giacenza utilizzabile.",
+    "ambiguous": "Più prodotti corrispondono — specifica meglio:",
+    "add_ok": "✅ Aggiunti {qty} di {name} in {loc}",
+    "use_confirm": "Registro {qty} di {name}. Confermi?",
+    "confirm_yes": "✓ Conferma",
+    "confirm_no": "✕ Annulla",
+    "confirm_expired": "La conferma è scaduta — ripeti /use.",
+    "use_cancelled": "Annullato.",
+    "use_ok": "✅ Usati {qty} di {name}",
+    "error_generic": "Qualcosa è andato storto."
   }
 }

@@ -5,6 +5,15 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.17] - 2026-11-24
+
+### Telegram bot: /add, confirmed /use, /help, digest channel (#102)
+
+The webhook already answered `/lista` and `/scadenze`. It now also handles `/add`,
+`/use` (inline Confirm/Cancel before `useFromInventoryCore`), `/help`, and speaks
+the household language via `evershelfTr`. Notifications can fan out to Telegram
+(`NOTIFY_CHANNELS=…,telegram`) for the daily expiry digest.
+
 ## [2.2.16] - 2026-11-24
 
 ### Recipe «Usa» qty matches the pack; Genera probes Mealie first

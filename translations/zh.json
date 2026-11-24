@@ -3655,5 +3655,25 @@
     "error_already_frozen": "已经冷冻",
     "error_not_frozen": "未冷冻",
     "error_medical": "药品不冷冻"
+  },
+  "telegram": {
+    "help": "Commands:\n/lista — shopping list\n/scadenze — expiring in 7 days\n/add [qty] [product] [location] — add to pantry\n/use [qty] [product] — record a use (asks for confirmation)\n/help — this list",
+    "empty_list": "🛒 清单为空",
+    "empty_expiring": "📅 未来 7 天没有即将过期的物品",
+    "expiring_header": "📅 即将过期：",
+    "unknown_cmd": "没听懂。输入 /help 查看命令。",
+    "add_usage": "Usage: /add [qty] [product] [location]\nExample: /add 2 eggs fridge",
+    "use_usage": "Usage: /use [qty] [product]\nExample: /use 1 milk\nI will ask for confirmation before writing.",
+    "product_not_found": "I cannot find “{name}” in the pantry.",
+    "product_not_stocked": "“{name}” has no usable stock.",
+    "ambiguous": "Several products match — be more specific:",
+    "add_ok": "✅ Added {qty} of {name} in {loc}",
+    "use_confirm": "I will record {qty} of {name}. Confirm?",
+    "confirm_yes": "✓ 确认",
+    "confirm_no": "✕ 取消",
+    "confirm_expired": "That confirmation expired — run /use again.",
+    "use_cancelled": "已取消。",
+    "use_ok": "✅ Used {qty} of {name}",
+    "error_generic": "出了点问题。"
   }
 }

@@ -3655,5 +3655,25 @@
     "error_already_frozen": "Ya está congelado",
     "error_not_frozen": "No está congelado",
     "error_medical": "Los medicamentos no se congelan"
+  },
+  "telegram": {
+    "help": "Commands:\n/lista — shopping list\n/scadenze — expiring in 7 days\n/add [qty] [product] [location] — add to pantry\n/use [qty] [product] — record a use (asks for confirmation)\n/help — this list",
+    "empty_list": "🛒 Lista vacía",
+    "empty_expiring": "📅 Nada caduca en los próximos 7 días",
+    "expiring_header": "📅 Caducan pronto:",
+    "unknown_cmd": "No entendí. /help para los comandos.",
+    "add_usage": "Usage: /add [qty] [product] [location]\nExample: /add 2 eggs fridge",
+    "use_usage": "Usage: /use [qty] [product]\nExample: /use 1 milk\nI will ask for confirmation before writing.",
+    "product_not_found": "I cannot find “{name}” in the pantry.",
+    "product_not_stocked": "“{name}” has no usable stock.",
+    "ambiguous": "Several products match — be more specific:",
+    "add_ok": "✅ Added {qty} of {name} in {loc}",
+    "use_confirm": "I will record {qty} of {name}. Confirm?",
+    "confirm_yes": "✓ Confirmar",
+    "confirm_no": "✕ Cancelar",
+    "confirm_expired": "That confirmation expired — run /use again.",
+    "use_cancelled": "Cancelado.",
+    "use_ok": "✅ Used {qty} of {name}",
+    "error_generic": "Algo salió mal."
   }
 }

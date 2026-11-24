@@ -24,7 +24,7 @@
 declare(strict_types=1);
 
 /** Channels selectable through NOTIFY_CHANNELS (HA keeps its own legacy gate). */
-const EVERSHELF_NOTIFY_CHANNELS_KNOWN = ['ntfy', 'webhook'];
+const EVERSHELF_NOTIFY_CHANNELS_KNOWN = ['ntfy', 'webhook', 'telegram'];
 
 /** Events a channel can subscribe to. `all` in NOTIFY_EVENTS means every one.
  *  The names are the ones `_fireHaWebhook()` already uses, so notifications and
@@ -474,6 +474,9 @@ function evershelfNotifySend(string $event, string $title, string $message, arra
     if ($allowed && in_array('webhook', $channels, true)) {
         $result['channels']['webhook'] = evershelfWebhookSend($event, $title, $message, $data);
     }
+    if ($allowed && in_array('telegram', $channels, true) && function_exists('telegramNotifySend')) {
+        $result['channels']['telegram'] = telegramNotifySend($title, $message);
+    }
     // Legacy HA channel: unchanged gate, so nothing regresses for existing users.
     if (env('HA_ENABLED', 'false') === 'true' && env('HA_NOTIFY_SERVICE', '') !== '') {
         $result['channels']['ha'] = evershelfHaNotifySend($message, $data);
@@ -521,16 +524,18 @@ function evershelfNotifySend(string $event, string $title, string $message, arra
  * Which channels are configured right now? The Settings panel uses it to explain
  * *why* nothing was delivered instead of failing silently.
  *
- * @return array{ntfy:bool,webhook:bool,ha:bool,webpush:bool}
+ * @return array{ntfy:bool,webhook:bool,telegram:bool,ha:bool,webpush:bool}
  */
 function evershelfNotifyConfigured(): array
 {
     return [
-        'ntfy'    => evershelfNotifyUrlValid((string)env('NTFY_URL', 'https://ntfy.sh'))
-                     && evershelfNtfyTopicValid(trim((string)env('NTFY_TOPIC', ''))),
-        'webhook' => evershelfNotifyUrlValid(trim((string)env('NOTIFY_WEBHOOK_URL', ''))),
-        'ha'      => env('HA_ENABLED', 'false') === 'true' && env('HA_NOTIFY_SERVICE', '') !== '',
-        'webpush' => function_exists('evershelfWebPushEnabled') && evershelfWebPushEnabled()
-                     && function_exists('evershelfWebPushVapidMaterial') && evershelfWebPushVapidMaterial() !== null,
+        'ntfy'     => evershelfNotifyUrlValid((string)env('NTFY_URL', 'https://ntfy.sh'))
+                      && evershelfNtfyTopicValid(trim((string)env('NTFY_TOPIC', ''))),
+        'webhook'  => evershelfNotifyUrlValid(trim((string)env('NOTIFY_WEBHOOK_URL', ''))),
+        'telegram' => trim((string)env('TELEGRAM_BOT_TOKEN', '')) !== ''
+                      && trim((string)env('TELEGRAM_ALLOWED_CHAT_IDS', '')) !== '',
+        'ha'       => env('HA_ENABLED', 'false') === 'true' && env('HA_NOTIFY_SERVICE', '') !== '',
+        'webpush'  => function_exists('evershelfWebPushEnabled') && evershelfWebPushEnabled()
+                      && function_exists('evershelfWebPushVapidMaterial') && evershelfWebPushVapidMaterial() !== null,
     ];
 }
