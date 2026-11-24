@@ -5,6 +5,37 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.18] - 2026-11-24
+
+### Scanner reads QR / DataMatrix with a payload rule (#323)
+
+`_SCAN_FORMATS` now includes `qr_code`, `data_matrix`, `aztec` and `pdf417` (filtered to
+what the engine supports). A 2D payload is classified before any digit-stripping: pure
+digits stay a catalogue lookup, `evershelf:v1:use:…` records a portion, and a URL /
+vCard / free text is refused out loud — never turned into a bogus EAN. Medicine FMD
+DataMatrix (AI 710) already had the parser; it can finally receive a decoded string.
+
+## [2.2.17] - 2026-11-24
+
+### Telegram bot: /add, confirmed /use, /help, digest channel (#102)
+
+The webhook already answered `/lista` and `/scadenze`. It now also handles `/add`,
+`/use` (inline Confirm/Cancel before `useFromInventoryCore`), `/help`, and speaks
+the household language via `evershelfTr`. Notifications can fan out to Telegram
+(`NOTIFY_CHANNELS=…,telegram`) for the daily expiry digest.
+
+## [2.2.16] - 2026-11-24
+
+### Recipe «Usa» qty matches the pack; Genera probes Mealie first
+
+A conf ingredient needed in g/ml was clamped against the **pack count** (200 ml vs
+1.5 conf → qty_number became 1.5), so the recipe Use sheet disagreed with the product
+sheet. The clamp now uses stock × pack size.
+
+«Genera ricetta» no longer asks AI vs Mealie up front: it probes the ricettario for a
+cookable dish (`mealie_probe`), then offers «Usa una già fatta da Mealie» / «Crea con
+IA» — or goes straight to the AI when nothing matches.
+
 ## [2.2.15] - 2026-11-24
 
 ### Shopping families: sauces are not sausages, Veronese is cheese

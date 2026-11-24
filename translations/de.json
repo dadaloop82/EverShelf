@@ -589,7 +589,12 @@
     "ai_tip_show_product": "Zeige das ganze Produkt oder das Vorderetikett",
     "ai_tip_show_barcode": "Wenn ein Barcode da ist, halte ihn lesbar und ruhig",
     "ai_working": "Bild wird analysiert…",
-    "method_med_ocr": "Etikett-OCR"
+    "method_med_ocr": "Etikett-OCR",
+    "status_not_product": "Dieser Code ist kein Produkt",
+    "own_label_using": "Portion wird gebucht…",
+    "own_label_ok": "Portion gebucht",
+    "own_label_empty": "Für dieses Etikett ist nichts im Vorrat",
+    "own_label_fail": "Portion konnte nicht gebucht werden"
   },
   "action": {
     "title": "Was möchtest du tun?",
@@ -809,10 +814,10 @@
     "no_steps": "Keine Zubereitungsschritte verfügbar",
     "generate_error": "Fehler bei der Generierung",
     "mealie_no_match": "Kein Rezept in deinem Buch hat alle Zutaten, die du hast: lass eines mit der KI erstellen.",
-    "engine_choice_title": "Wie soll ich es machen?",
-    "engine_ai": "✨ Neues Rezept mit der KI erstellen",
-    "engine_mealie": "📚 Rezept aus dem Mealie-Buch nehmen",
-    "engine_choice_hint": "Die KI erfindet ein neues Gericht aus dem, was im Vorrat ist; aus dem Buch kommt eines deiner gespeicherten Rezepte – nur wenn du alle Zutaten hast.",
+    "engine_choice_title": "Im Rezeptbuch gibt es passende Gerichte",
+    "engine_ai": "✨ Neues Rezept mit KI erstellen",
+    "engine_mealie": "📚 Fertiges Mealie-Rezept verwenden",
+    "engine_choice_hint": "Im Rezeptbuch gibt es mindestens ein Gericht, das du mit dem Vorrat kochen kannst. Nimm es, oder lass die KI ein neues erfinden.",
     "source_ai": "✨ von der KI erstellt",
     "source_mealie": "📚 aus dem Buch",
     "coverage_all": "Alle {n} Zutaten sind im Vorrat",
@@ -973,7 +978,8 @@
     "cook_none_selected": "Mindestens eine Zutat auswählen.",
     "cook_deduct_done": "{n} Zutaten abgezogen",
     "cook_deduct_partial": "{n} Zutaten nicht abgezogen",
-    "save_favorite": "⭐ Zu Favoriten"
+    "save_favorite": "⭐ Zu Favoriten",
+    "engine_probe_mealie": "Suche passende Rezepte im Rezeptbuch…"
   },
   "shopping": {
     "already_on_list": "Schon auf der Liste",
@@ -3654,5 +3660,25 @@
     "error_already_frozen": "Ist bereits eingefroren",
     "error_not_frozen": "Ist nicht eingefroren",
     "error_medical": "Medikamente werden nicht eingefroren"
+  },
+  "telegram": {
+    "help": "Commands:\n/lista — shopping list\n/scadenze — expiring in 7 days\n/add [qty] [product] [location] — add to pantry\n/use [qty] [product] — record a use (asks for confirmation)\n/help — this list",
+    "empty_list": "🛒 Leere Liste",
+    "empty_expiring": "📅 Nichts läuft in den nächsten 7 Tagen ab",
+    "expiring_header": "📅 Bald ablaufend:",
+    "unknown_cmd": "Nicht verstanden. /help für die Befehle.",
+    "add_usage": "Usage: /add [qty] [product] [location]\nExample: /add 2 eggs fridge",
+    "use_usage": "Usage: /use [qty] [product]\nExample: /use 1 milk\nI will ask for confirmation before writing.",
+    "product_not_found": "I cannot find “{name}” in the pantry.",
+    "product_not_stocked": "“{name}” has no usable stock.",
+    "ambiguous": "Several products match — be more specific:",
+    "add_ok": "✅ Added {qty} of {name} in {loc}",
+    "use_confirm": "I will record {qty} of {name}. Confirm?",
+    "confirm_yes": "✓ Bestätigen",
+    "confirm_no": "✕ Abbrechen",
+    "confirm_expired": "That confirmation expired — run /use again.",
+    "use_cancelled": "Abgebrochen.",
+    "use_ok": "✅ Used {qty} of {name}",
+    "error_generic": "Etwas ist schiefgelaufen."
   }
 }

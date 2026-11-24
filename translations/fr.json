@@ -589,7 +589,12 @@
     "ai_tip_show_product": "Montrez le produit entier ou l’étiquette avant",
     "ai_tip_show_barcode": "S’il y a un code-barres, gardez-le lisible et stable",
     "ai_working": "Analyse de l’image…",
-    "method_med_ocr": "OCR étiquette"
+    "method_med_ocr": "OCR étiquette",
+    "status_not_product": "Ce code n’est pas un produit",
+    "own_label_using": "Enregistrement de la portion…",
+    "own_label_ok": "Portion enregistrée",
+    "own_label_empty": "Rien en réserve pour cette étiquette",
+    "own_label_fail": "Impossible d’enregistrer la portion"
   },
   "action": {
     "title": "Que voulez-vous faire ?",
@@ -874,10 +879,10 @@
     "unit_for_input": "Unité de mesure",
     "enter_in": "Saisir la valeur en",
     "mealie_no_match": "Aucune recette de votre livre n’a tous les ingrédients dont vous disposez : faites-en générer une par l’IA.",
-    "engine_choice_title": "Comment la faire ?",
-    "engine_ai": "✨ Générer une nouvelle recette avec l’IA",
-    "engine_mealie": "📚 Prendre une recette du livre Mealie",
-    "engine_choice_hint": "L’IA invente un nouveau plat avec ce qu’il y a dans le garde-manger ; le livre renvoie une de vos recettes enregistrées, seulement si vous avez tous les ingrédients.",
+    "engine_choice_title": "Des recettes du carnet sont compatibles",
+    "engine_ai": "✨ Créer une nouvelle recette avec l’IA",
+    "engine_mealie": "📚 Utiliser une recette Mealie déjà prête",
+    "engine_choice_hint": "Le carnet a au moins une recette cuisinable avec ce que tu as. Tu peux l’utiliser, ou en faire inventer une nouvelle à l’IA.",
     "source_ai": "✨ générée par l’IA",
     "source_mealie": "📚 du livre",
     "coverage_all": "Les {n} ingrédients sont dans le garde-manger",
@@ -973,7 +978,8 @@
     "cook_none_selected": "Sélectionnez au moins un ingrédient.",
     "cook_deduct_done": "{n} ingrédients déduits",
     "cook_deduct_partial": "{n} non déduits — réessayez via Utiliser",
-    "save_favorite": "⭐ Enregistrer en favori"
+    "save_favorite": "⭐ Enregistrer en favori",
+    "engine_probe_mealie": "Je cherche des recettes compatibles dans le carnet…"
   },
   "shopping": {
     "already_on_list": "Déjà dans la liste",
@@ -3654,5 +3660,25 @@
     "error_already_frozen": "Déjà congelé",
     "error_not_frozen": "N'est pas congelé",
     "error_medical": "Les médicaments ne se congèlent pas"
+  },
+  "telegram": {
+    "help": "Commands:\n/lista — shopping list\n/scadenze — expiring in 7 days\n/add [qty] [product] [location] — add to pantry\n/use [qty] [product] — record a use (asks for confirmation)\n/help — this list",
+    "empty_list": "🛒 Liste vide",
+    "empty_expiring": "📅 Rien n’expire dans les 7 prochains jours",
+    "expiring_header": "📅 À consommer bientôt :",
+    "unknown_cmd": "Je n’ai pas compris. /help pour les commandes.",
+    "add_usage": "Usage: /add [qty] [product] [location]\nExample: /add 2 eggs fridge",
+    "use_usage": "Usage: /use [qty] [product]\nExample: /use 1 milk\nI will ask for confirmation before writing.",
+    "product_not_found": "I cannot find “{name}” in the pantry.",
+    "product_not_stocked": "“{name}” has no usable stock.",
+    "ambiguous": "Several products match — be more specific:",
+    "add_ok": "✅ Added {qty} of {name} in {loc}",
+    "use_confirm": "I will record {qty} of {name}. Confirm?",
+    "confirm_yes": "✓ Confirmer",
+    "confirm_no": "✕ Annuler",
+    "confirm_expired": "That confirmation expired — run /use again.",
+    "use_cancelled": "Annulé.",
+    "use_ok": "✅ Used {qty} of {name}",
+    "error_generic": "Un problème est survenu."
   }
 }

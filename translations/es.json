@@ -589,7 +589,12 @@
     "ai_tip_show_product": "Muestra el producto entero o la etiqueta frontal",
     "ai_tip_show_barcode": "Si hay código de barras, manténlo legible y firme",
     "ai_working": "Analizando la imagen…",
-    "method_med_ocr": "OCR etiqueta"
+    "method_med_ocr": "OCR etiqueta",
+    "status_not_product": "Este código no es un producto",
+    "own_label_using": "Registrando la porción…",
+    "own_label_ok": "Porción registrada",
+    "own_label_empty": "Nada en la despensa para esta etiqueta",
+    "own_label_fail": "No pude registrar la porción"
   },
   "action": {
     "title": "¿Qué quieres hacer?",
@@ -874,10 +879,10 @@
     "unit_for_input": "Unidad de medida",
     "enter_in": "Introduce el valor en",
     "mealie_no_match": "Ninguna receta de tu libro tiene todos los ingredientes que tienes: genera una nueva con la IA.",
-    "engine_choice_title": "¿Cómo la genero?",
-    "engine_ai": "✨ Generar una receta nueva con la IA",
-    "engine_mealie": "📚 Tomar una receta del libro Mealie",
-    "engine_choice_hint": "La IA inventa un plato nuevo con lo que hay en la despensa; el libro devuelve una de tus recetas guardadas, solo si tienes todos los ingredientes.",
+    "engine_choice_title": "Hay recetas compatibles en tu recetario",
+    "engine_ai": "✨ Crear una receta nueva con la IA",
+    "engine_mealie": "📚 Usar una receta lista de Mealie",
+    "engine_choice_hint": "El recetario tiene al menos una receta cocinable con lo que tienes. Úsala, o deja que la IA invente una nueva.",
     "source_ai": "✨ generada por la IA",
     "source_mealie": "📚 del libro",
     "coverage_all": "Los {n} ingredientes están en la despensa",
@@ -973,7 +978,8 @@
     "cook_none_selected": "Selecciona al menos un ingrediente.",
     "cook_deduct_done": "Descontados {n} ingredientes",
     "cook_deduct_partial": "{n} no descontados — prueba Usar",
-    "save_favorite": "⭐ Guardar en favoritos"
+    "save_favorite": "⭐ Guardar en favoritos",
+    "engine_probe_mealie": "Busco recetas compatibles en el recetario…"
   },
   "shopping": {
     "already_on_list": "Ya estaba en la lista",
@@ -3654,5 +3660,25 @@
     "error_already_frozen": "Ya está congelado",
     "error_not_frozen": "No está congelado",
     "error_medical": "Los medicamentos no se congelan"
+  },
+  "telegram": {
+    "help": "Commands:\n/lista — shopping list\n/scadenze — expiring in 7 days\n/add [qty] [product] [location] — add to pantry\n/use [qty] [product] — record a use (asks for confirmation)\n/help — this list",
+    "empty_list": "🛒 Lista vacía",
+    "empty_expiring": "📅 Nada caduca en los próximos 7 días",
+    "expiring_header": "📅 Caducan pronto:",
+    "unknown_cmd": "No entendí. /help para los comandos.",
+    "add_usage": "Usage: /add [qty] [product] [location]\nExample: /add 2 eggs fridge",
+    "use_usage": "Usage: /use [qty] [product]\nExample: /use 1 milk\nI will ask for confirmation before writing.",
+    "product_not_found": "I cannot find “{name}” in the pantry.",
+    "product_not_stocked": "“{name}” has no usable stock.",
+    "ambiguous": "Several products match — be more specific:",
+    "add_ok": "✅ Added {qty} of {name} in {loc}",
+    "use_confirm": "I will record {qty} of {name}. Confirm?",
+    "confirm_yes": "✓ Confirmar",
+    "confirm_no": "✕ Cancelar",
+    "confirm_expired": "That confirmation expired — run /use again.",
+    "use_cancelled": "Cancelado.",
+    "use_ok": "✅ Used {qty} of {name}",
+    "error_generic": "Algo salió mal."
   }
 }
