@@ -5,6 +5,16 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.19] - 2026-11-24
+
+### Finished products no longer invent a phantom purchase
+
+After use-all, `confirmFinishedCore(…, false)` aligned a negative ledger by writing an
+`IN` «Stock accepted as-is» on an empty shelf (Minesteone out 100 + in 202 in the same
+second; 22 such pairs on the field install). That path now only raises the ledger when
+the shelf still holds stock. Swiping «bought» on a `🛒 Esaurito` row no longer calls
+`inventory_add` either — restock is scan / spesa / manual add once the bag is home.
+
 ## [2.2.18] - 2026-11-24
 
 ### Scanner reads QR / DataMatrix with a payload rule (#323)
