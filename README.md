@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.20-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.21-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -226,6 +226,14 @@ the gate this release was developed against.
 
 <details open>
 <summary><b>Last five releases</b></summary>
+
+**v2.2.21 — «Urgente» is a habit, not a single purchase.** v2.2.20 made every finished
+article urgent so the list's «Urgente» pill would finally hold what is out of stock — and
+overshot: a beer, a cake roll, a tin of sardines bought once and used once read «⚡ Urgente».
+A finished row is now graded by the household's own habit (a staple of ≥ 3–4 uses a month is
+«Urgente», something used at least monthly or bought twice is «Presto», a one-off is
+«Pianifica» and stays on the list), and the deliberate `🛒 Esaurito` marker follows the same
+scale.
 
 **v2.2.20 — finished products are «Urgente», and a passed date is never silent.** The
 shopping list's «Urgente» filter now holds what is really out of stock *and* really used

@@ -5,6 +5,25 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.21] - 2026-11-27
+
+### «Urgente» is a habit, not a single purchase
+
+2.2.20 made every finished article urgent so the list's «Urgente» pill would finally hold
+what is out of stock — and overshot: a product bought once, or used a couple of times, was
+promoted too («nella lista della spesa mi ritrovo come urgenti prodotti che ho preso una
+volta sola oppure che uso molto raramente»).
+
+- **A finished row is graded by the household's own habit.** `smartShopping()` asks for
+  `uses_per_month ≥ 1` or at least two purchases before it calls a finished article `high`,
+  and keeps `critical` for a real staple (≥ 3–4 uses a month). Everything else finished — the
+  beer, the cake roll, the tin of sardines — lands in `medium` («🟡 Pianifica») and is still
+  on the list, one tap from the next trip. `$isRegular` (0.5 uses a month, i.e. once every two
+  months) is no longer evidence for a badge; it only keeps the row on the list.
+- **The deliberate `🛒 Esaurito` marker follows the same scale** through
+  `resolveShoppingListItemUrgency()`: never `null`, never the calmest badge, and never
+  «Urgente» on a product the pantry has only ever bought once.
+
 ## [2.2.20] - 2026-11-27
 
 ### Finished products are «Urgente», and a passed date is never silent
