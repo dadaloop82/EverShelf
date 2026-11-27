@@ -22023,10 +22023,12 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                 //   high     → used at least monthly, or bought twice: «Presto»;
                 //   medium   → bought/used once and not even monthly: «Pianifica», a rebuy
                 //              that can wait for the next trip.
-                // Promoting every empty row to critical is what filled «Urgente» with things
-                // bought once a year («prodotti che ho preso una volta sola oppure che uso
-                // molto raramente»), and a red badge that means everything means nothing.
-                $finishedHabit = $isFrequent || $isRegular || $usesPerMonth >= 1.0 || $buyCount >= 2;
+                // NOT `$isRegular` (which starts at 0.5 uses a month, i.e. once every two
+                // months): on the field pantry it put «🟠 Presto» on a cake roll, a beer and a
+                // tin of sardines bought once and used once — «come urgenti mi ritrovo
+                // prodotti che ho preso una volta sola oppure che uso molto raramente».
+                // A red/orange badge that means everything means nothing.
+                $finishedHabit = $usesPerMonth >= 1.0 || $buyCount >= 2;
                 if ($isTopStaple || $isUrgentStaple) {
                     $urgency = 'critical'; $score += 120;
                 } elseif ($finishedHabit) {
