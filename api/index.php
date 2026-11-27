@@ -3017,10 +3017,15 @@ function ttsProxy() {
 
 /**
  * True when an inventory row deserves an expiry alert (HA / notify).
- * Mirrors assets/js `getExpiredSafety` + `shouldShowExpiredBanner`: low-risk
- * "best before" leftovers (cracker, flour, spices…) stay silent for 30 days past
- * the printed date, crumbs are ignored, vacuum-sealed items keep their grace window.
- * That is why HA used to show scadenze the dashboard did not.
+ *
+ * Mirrors assets/js `getExpiredSafety` + `shouldShowExpiredBanner` for the GRACE windows a
+ * printed best-before really deserves (crumbs are ignored, vacuum-sealed items keep their
+ * extension, a freezer row keeps its months), but **not** for silence: a low-risk item past
+ * its date is still past its date, and telling nobody is how a 748 g bag of wholemeal flour
+ * expired on 13/11 in silence («la farina integrale bio è scaduta il 13/11 e non me l'hai
+ * mai detto»). The safety level decides the PILL («Va bene» / «Controlla» / «Buttalo»), never
+ * whether the row exists. It used to return false for 30 days on low-risk categories, which
+ * is why HA and the dashboard both ignored it.
  */
 function evershelfExpiryNeedsAttention(array $row, ?int $alertHorizonDays = null): bool {
     if ((float)($row['quantity'] ?? 0) <= 0) {
@@ -3066,14 +3071,12 @@ function evershelfExpiryNeedsAttention(array $row, ?int $alertHorizonDays = null
         return ($daysExpired - $bonus) > 0;
     }
 
-    if (in_array($cat, ['latticini', 'carne', 'pesce', 'verdura', 'frutta'], true)) {
-        return true;
-    }
-    if (in_array($cat, ['pane', 'surgelati'], true)) {
-        return true;
-    }
-    // Low-risk shelf-stable: silent while the UI still says "ok"
-    return $daysExpired > 30;
+    // Everything else is expired too. The category only feeds `getExpiredSafety()` (the pill:
+    // «Va Bene» / «Controlla» / «Buttalo») and the freezer bonus above; it never decides
+    // whether the household is told. Low-risk shelf-stable food (flour, pasta, crackers,
+    // spices) used to stay silent for 30 days past its best-before — that silence is exactly
+    // how a 748 g bag of wholemeal flour expired on 13/11 without a word.
+    return true;
 }
 
 /** HA_WEBHOOK_EVENTS uses "expiry"; cron/notify fire "expiry_alert". */
@@ -3633,7 +3636,7 @@ function haInventorySensor(PDO $db): void {
  *
  * By default every dated pack is an event (useful for planning).
  * Pass attention=1 to keep only rows that deserve an alert (same rules as ha_sensor /
- * the EverShelf dashboard) — hide silent low-risk "best before" leftovers.
+ * the EverShelf dashboard: crumbs and the vacuum extension are out, an expired row is in).
  */
 function haCalendar(PDO $db): void {
     header('Content-Type: application/json; charset=utf-8');
@@ -6950,12 +6953,28 @@ function useFromInventory(PDO $db): void {
     }
 
     try {
-        dbWithRetry(function () use ($db, $productId, $quantity, $useAll, $location, $notes, $confirmDuplicate): void {
-            useFromInventoryCore($db, $productId, $quantity, $useAll, $location, $notes, $confirmDuplicate);
-            // A product the household keeps consuming moves to the favourites on its
-            // own (lib/auto_favorite.php: AUTO_FAVORITE_MIN_USES uses in 90 days).
-            maybeAutoFavorite($db, (int)$productId);
+        // A place can hold one article in several rows: consuming only the first one made the
+        // sheet's «hai 608 g» and the ledger's 108 g disagree. The plan is empty (or one row)
+        // for the ordinary case, which then takes the exact same path as before. «Tutto, ovunque»
+        // keeps its own branch below, which already walks every place.
+        $plan = ($location === '__all__') ? [] : dbWithRetry(function () use ($db, $productId, $location, $useAll, $quantity): array {
+            return inventoryUseRowPlan($db, (int)$productId, (string)$location, (bool)$useAll, (float)$quantity);
         });
+        if (count($plan) > 1) {
+            $merged = dbWithRetry(function () use ($db, $productId, $plan, $useAll, $location, $notes, $confirmDuplicate): array {
+                return inventoryApplyUsePlan($db, (int)$productId, $plan, (bool)$useAll, (string)$location, (string)$notes, $confirmDuplicate);
+            });
+            // A product the household keeps consuming moves to the favourites on its own.
+            maybeAutoFavorite($db, (int)$productId);
+            echo json_encode($merged, JSON_UNESCAPED_UNICODE);
+        } else {
+            dbWithRetry(function () use ($db, $productId, $quantity, $useAll, $location, $notes, $confirmDuplicate): void {
+                useFromInventoryCore($db, $productId, $quantity, $useAll, $location, $notes, $confirmDuplicate);
+                // A product the household keeps consuming moves to the favourites on its
+                // own (lib/auto_favorite.php: AUTO_FAVORITE_MIN_USES uses in 90 days).
+                maybeAutoFavorite($db, (int)$productId);
+            });
+        }
         // The intent is applied: its id makes a replay answer from the shelf, not again.
         clientOpMark($db, $clientOpId);
     } catch (\PDOException $e) {
@@ -6971,7 +6990,27 @@ function useFromInventory(PDO $db): void {
  *
  * @return array{row:array,location:string,fallback:bool,requested:string}|null
  */
-function resolveInventoryUseTarget(PDO $db, int $productId, string $location): ?array {
+function resolveInventoryUseTarget(PDO $db, int $productId, string $location, ?int $onlyRowId = null): ?array {
+    // A multi-row use (inventoryApplyUsePlan) pins the exact pack it is writing, so the
+    // precedence below cannot send the second chunk back to the row the first one emptied.
+    if ($onlyRowId !== null && $onlyRowId > 0) {
+        $stmt = $db->prepare(
+            "SELECT id, quantity, opened_at, vacuum_sealed, location FROM inventory
+              WHERE id = ? AND product_id = ? AND quantity > 0"
+        );
+        $stmt->execute([$onlyRowId, $productId]);
+        $pinned = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$pinned) {
+            return null;
+        }
+        return [
+            'row'       => $pinned,
+            'location'  => (string)$pinned['location'],
+            'fallback'  => ((string)$pinned['location'] !== $location),
+            'requested' => $location,
+        ];
+    }
+
     // Prefer ALWAYS already-opened packs anywhere (es. latte aperto in frigo)
     // before opening a sealed pack in the requested location (es. dispensa).
     $fracFirst = "(quantity != CAST(CAST(quantity AS INTEGER) AS REAL)) DESC, quantity ASC";
@@ -7046,7 +7085,162 @@ function resolveInventoryUseTarget(PDO $db, int $productId, string $location): ?
     ];
 }
 
-function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location, $notes, bool $confirmDuplicate = false): void {
+/**
+ * The rows ONE use request really has to touch, inside the place it resolves to.
+ *
+ * A pantry holds one article in several rows (a pack per purchase, an opened one, a
+ * leftover), and `resolveInventoryUseTarget()` hands the write a single row: asking for
+ * 300 g from a place holding 108 g + 500 g in two rows recorded 108 g and left the bigger
+ * pack untouched — the sheet said «hai 608 g», the ledger said 108. That is the report
+ * «le quantità sono diverse da quelle realmente disponibili».
+ *
+ * The plan splits the request across the rows of THAT place, in the resolver's own order
+ * (the opened pack it picked first, then fractional/smallest), so one answer consumes what
+ * the household asked. `use_all` takes the whole place.
+ *
+ * An empty plan — or one with a single row — means «use the normal single-row path»: the
+ * common case must behave exactly as before, dedup and fallback included.
+ *
+ * @return array<int, array{id:int, quantity:float, location:string}>
+ */
+function inventoryUseRowPlan(PDO $db, int $productId, string $location, bool $useAll, float $quantity): array {
+    $resolved = resolveInventoryUseTarget($db, $productId, $location);
+    if (!$resolved) {
+        return [];
+    }
+    $place = (string)$resolved['location'];
+    $firstId = (int)$resolved['row']['id'];
+    $stmt = $db->prepare(
+        "SELECT id, quantity, opened_at, location FROM inventory
+          WHERE product_id = ? AND location = ? AND quantity > 0
+          ORDER BY (opened_at IS NOT NULL AND opened_at != '') DESC, opened_at ASC, quantity ASC"
+    );
+    $stmt->execute([$productId, $place]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (count($rows) <= 1) {
+        return [];
+    }
+    // The resolver's pick leads (it may be an opened pack anywhere), the rest of the place follows.
+    $ordered = [];
+    foreach ($rows as $row) {
+        if ((int)$row['id'] === $firstId) $ordered[] = $row;
+    }
+    foreach ($rows as $row) {
+        if ((int)$row['id'] !== $firstId) $ordered[] = $row;
+    }
+    $plan = [];
+    if ($useAll) {
+        foreach ($ordered as $row) {
+            $avail = (float)$row['quantity'];
+            if ($avail <= 0) continue;
+            $plan[] = ['id' => (int)$row['id'], 'quantity' => $avail, 'location' => $place];
+        }
+        return count($plan) > 1 ? $plan : [];
+    }
+    $left = max(0.0, $quantity);
+    foreach ($ordered as $row) {
+        if ($left <= 0) break;
+        $avail = (float)$row['quantity'];
+        if ($avail <= 0) continue;
+        $take = min($left, $avail);
+        $plan[] = ['id' => (int)$row['id'], 'quantity' => $take, 'location' => $place];
+        $left -= $take;
+    }
+    return count($plan) > 1 ? $plan : [];
+}
+
+/**
+ * Run the normal single-row write and hand its JSON answer back as an array.
+ * `useFromInventoryCore()` echoes on purpose (the action is its only normal caller);
+ * the multi-row path needs to merge several answers into one.
+ */
+function inventoryRunUseCore(PDO $db, int $productId, float $quantity, bool $useAll, string $location, string $notes, bool $confirmDuplicate, int $onlyRowId): array {
+    ob_start();
+    try {
+        useFromInventoryCore($db, $productId, $quantity, $useAll, $location, $notes, $confirmDuplicate, $onlyRowId);
+    } finally {
+        $raw = ob_get_clean();
+    }
+    $decoded = json_decode((string)$raw, true);
+    return is_array($decoded) ? $decoded : ['success' => false, 'error' => 'use_failed', 'error_key' => 'error.generic'];
+}
+
+/**
+ * Apply a multi-row plan: one write per pack (so the ledger, the opened clock and the
+ * shopping sync behave exactly as a single use), ONE answer for the household.
+ */
+function inventoryApplyUsePlan(PDO $db, int $productId, array $plan, bool $useAll, string $requestedLocation, string $notes, bool $confirmDuplicate): array {
+    $txIds = [];
+    $openedId = null;
+    $openedVacuum = null;
+    $added = false;
+    $removed = 0.0;
+    $last = null;
+    foreach ($plan as $i => $chunk) {
+        $res = inventoryRunUseCore(
+            $db,
+            $productId,
+            $useAll ? 0.0 : (float)$chunk['quantity'],
+            $useAll,
+            (string)$chunk['location'],
+            $notes,
+            $i > 0 ? true : $confirmDuplicate,
+            (int)$chunk['id']
+        );
+        if (empty($res['success'])) {
+            if ($last === null) {
+                // Nothing has been applied yet: the row-level answer is the honest one.
+                return $res;
+            }
+            break;
+        }
+        $last = $res;
+        $removed += (float)$chunk['quantity'];
+        $tid = (int)($res['transaction_id'] ?? 0);
+        if ($tid > 0) $txIds[] = $tid;
+        if (!empty($res['opened_id'])) {
+            $openedId = (int)$res['opened_id'];
+            $openedVacuum = $res['opened_vacuum_sealed'] ?? 0;
+        }
+        if (!empty($res['added_to_shopping']) || !empty($res['added_to_bring'])) {
+            $added = true;
+        }
+    }
+    if ($last === null) {
+        return ['success' => false, 'error' => 'use_failed', 'error_key' => 'error.generic'];
+    }
+    $merged = $last;
+    $merged['success'] = true;
+    $merged['removed'] = round($removed, 3);
+    $merged['transaction_ids'] = $txIds;
+    if ($txIds) {
+        $merged['transaction_id'] = $txIds[count($txIds) - 1];
+    }
+    $merged['added_to_shopping'] = $added;
+    $merged['added_to_bring'] = $added; // legacy alias
+    if ($openedId !== null) {
+        $merged['opened_id'] = $openedId;
+        $merged['opened_vacuum_sealed'] = $openedVacuum;
+    } else {
+        unset($merged['opened_id'], $merged['opened_vacuum_sealed']);
+    }
+    $usedLocation = (string)($last['used_location'] ?? $requestedLocation);
+    $merged['used_location'] = $usedLocation;
+    if ($usedLocation !== $requestedLocation) {
+        $merged['location_fallback'] = true;
+        $merged['requested_location'] = $requestedLocation;
+    }
+    EverLog::info('useFromInventory applied across rows', [
+        'event'      => 'api_inventory_use_multi_row',
+        'product_id' => $productId,
+        'rows'       => count($plan),
+        'removed'    => round($removed, 3),
+        'location'   => $usedLocation,
+    ]);
+    return $merged;
+}
+
+function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location, $notes, bool $confirmDuplicate = false, ?int $onlyRowId = null): void {
     $requestedLocation = $location;
     $locationFallback = false;
     $lastTransactionId = null;
@@ -7174,7 +7368,7 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
         return;
     }
     
-    $resolved = resolveInventoryUseTarget($db, (int)$productId, (string)$location);
+    $resolved = resolveInventoryUseTarget($db, (int)$productId, (string)$location, $onlyRowId);
     if (!$resolved) {
         EverLog::warn('useFromInventory: product not found in inventory (404)');
         http_response_code(404);
@@ -7267,9 +7461,15 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
             // "half a piece" accounting to split, so this is the same row marked open — and a
             // NON-perishable (the 9999 sentinel: salt, sugar, a detergent) is never "opened",
             // which is what keeps the Home's «Aperti» list honest.
+            //
+            // LOOSE PRODUCE IS NOT A PACKAGE: taking an apple from the bowl or two onions from
+            // the net does not «open» anything, and a banana in the «Aperti» list reads as a
+            // mistake («che non sia ovviamente frutta e verdura»). Only the `pz` branch skips
+            // it: a produce row sold by WEIGHT is a bag (nuts, a tray of fruit) and opens like
+            // any other package; a `conf` bag of salad opens too.
             $pName = (string)($prodInfo['name'] ?? '');
             $pCat = (string)($prodInfo['category'] ?? '');
-            if (estimateOpenedExpiryDaysPHP($pName, $pCat, $location) < 9999) {
+            if (!isProduceCategory($pCat) && estimateOpenedExpiryDaysPHP($pName, $pCat, $location) < 9999) {
                 $isNowOpened = true;
             }
         } elseif (in_array($unit, ['g','kg','ml','l']) && $defQty > 0) {
@@ -17814,9 +18014,20 @@ function resolveShoppingListItemUrgency(string $name, string $rawName, string $s
         $si = _matchSmartShoppingItem($rawName, $smartItems);
     }
     if ($si !== null && !empty($si['urgency']) && ($si['urgency'] ?? 'none') !== 'none') {
+        // The frequency-graded answer: a top staple is «Urgente», a repeat purchase «Presto»,
+        // a product bought once «Pianifica».
         return (string)$si['urgency'];
     }
-    return parseUrgencyFromShoppingSpec($spec);
+    $fromSpec = parseUrgencyFromShoppingSpec($spec);
+    // «🛒 Esaurito» is the household's own word that the shelf is empty: never the calmest
+    // badge (it used to answer `null` and render «Previsione» on the most finished article),
+    // but never «Urgente» without a history either — a product bought once belongs in
+    // «Presto» / «Pianifica». The row is only kept while the family is still empty
+    // (`internalShoppingPruneCovered` / `evershelfFamilyBackInStock` clear it otherwise).
+    if (evershelfSpecIsDeliberate($spec)) {
+        return in_array($fromSpec, ['critical', 'high'], true) ? $fromSpec : 'medium';
+    }
+    return $fromSpec;
 }
 
 /** Pick the most useful smart-shopping reason code for list UI (stable order). */
@@ -21302,6 +21513,13 @@ function shoppingIsEssentialItem(array $item): bool
  * is out becomes "Presto"; anything else settles at "A breve". Nothing is ever
  * promoted by this pass — it only ever calms a badge down, and the server stays the
  * one authority on the scale.
+ *
+ * A row at zero is graded by USE where it is built (`smartShopping`: a top/urgent staple is
+ * «Urgente», a repeat purchase «Presto», a product bought once «Pianifica»), so this pass only
+ * has to keep «Urgente» honest: red belongs to an ESSENTIAL item (≥ 8 uses a month) that is
+ * finished, never to the onions — and a finished article bought once must not wear it either
+ * («nella lista della spesa mi ritrovo prodotti che ho preso una volta sola … dovrebbero andare
+ * su Presto o Pianifica»).
  */
 function shoppingRecalibrateUrgency(array $items): array
 {
@@ -21789,21 +22007,37 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             if ($coveredByEquivalent) continue;
 
             // For DEPLETED products: recency is misleading — the product may not have been
-            // "used recently" precisely because it ran out. Base urgency on usage rate only.
+            // "used recently" precisely because it ran out.
             $reasons[] = 'out_of_stock';
-            if ($isTopStaple) {
-                $urgency = 'critical'; $score += 120;
-                $reasons[] = 'frequent_use:' . max(1, (int)round($usesPerMonth));
-            } elseif ($isUrgentStaple) {
-                $urgency = 'high'; $score += 90;
-                $reasons[] = 'frequent_use:' . max(1, (int)round($usesPerMonth));
-            } elseif ($isFrequent && $useCount >= 3 && $dailyRate > 0) {
-                $urgency = 'medium'; $score += 50;
-            } elseif ($isRegular && ($useCount >= 3 || $buyCount >= 2)) {
-                $urgency = 'medium'; $score += 40;
-            } elseif ($useCount >= 1 || $buyCount >= 1 || $recentlyExhausted) {
-                // Anything the household has actually bought or finished must reappear.
-                $urgency = 'medium'; $score += 35;
+            // A finished article is nobody's «Previsione», but «Urgente» is the household's ONE
+            // signal for what must be rebought NOW: grading it by USE keeps a product bought once
+            // in «Presto» / «Pianifica» instead of shouting it («nella lista della spesa mi ritrovo
+            // prodotti che ho preso una volta sola … dovrebbero andare su Presto o Pianifica»).
+            // The rate still decides the QUANTITY, and a product never bought nor used is not a
+            // hint at all: it stays quiet.
+            $finishedEvidence = $isTopStaple || $isUrgentStaple || $isFrequent || $isRegular
+                || $useCount >= 1 || $buyCount >= 1 || $recentlyExhausted;
+            if ($finishedEvidence) {
+                // The HABIT decides the badge, in the household's own scale:
+                //   critical → a staple (≥ 3–4 uses a month): rebuy it today;
+                //   high     → used at least monthly, or bought twice: «Presto»;
+                //   medium   → bought/used once and not even monthly: «Pianifica», a rebuy
+                //              that can wait for the next trip.
+                // Promoting every empty row to critical is what filled «Urgente» with things
+                // bought once a year («prodotti che ho preso una volta sola oppure che uso
+                // molto raramente»), and a red badge that means everything means nothing.
+                $finishedHabit = $isFrequent || $isRegular || $usesPerMonth >= 1.0 || $buyCount >= 2;
+                if ($isTopStaple || $isUrgentStaple) {
+                    $urgency = 'critical'; $score += 120;
+                } elseif ($finishedHabit) {
+                    $urgency = 'high'; $score += 90;
+                } else {
+                    // Bought or used once, and not even monthly: a rebuy, not an emergency.
+                    $urgency = 'medium'; $score += 40;
+                }
+                if ($usesPerMonth > 0) {
+                    $reasons[] = 'frequent_use:' . max(1, (int)round($usesPerMonth));
+                }
             } else {
                 $urgency = 'low'; $score += 10;
             }

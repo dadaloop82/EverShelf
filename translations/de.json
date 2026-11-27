@@ -35,6 +35,13 @@
     "card": "Familie {name}: {qty} in {count} Varianten"
   },
   "audit": {
+    "confirm_finish_title": "Als aufgebraucht markieren?",
+    "confirm_finish_msg": "{name} ({qty}) wird aus dem Vorrat entfernt und als aufgebraucht erfasst.",
+    "confirm_yes_finish": "Ja, aufgebraucht",
+    "confirm_spoiled_title": "Als verdorben markieren?",
+    "confirm_spoiled_msg": "{name} ({qty}) wird aus dem Vorrat entfernt und als Abfall erfasst.",
+    "confirm_yes_spoiled": "Ja, wegwerfen",
+
     "med_already_opened": "Bereits geöffnet",
     "med_days_q": "Seit wie vielen Tagen ist es geöffnet?",
     "med_days_today": "Heute",

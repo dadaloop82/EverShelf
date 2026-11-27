@@ -14615,6 +14615,26 @@ body.offline-mode #smart-shopping {
     line-height: 1;
     cursor: pointer;
 }
+/* The 🔄 mirrors the ✕ on the other corner: the camera the household points at the shelf is
+   its own choice (`camera_facing`, shared with the shopping scanner), and without it a device
+   that opened the front camera had no way back («non ho modo di "ruotare" la telecamera»). */
+.audit-cam-flip {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font: inherit;
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.audit-cam-flip:active,
+.audit-cam-stop:active { background: rgba(0, 0, 0, 0.75); }
 .audit-scan-status {
     margin: 0 0 6px;
     min-height: 1.2em;
@@ -14878,6 +14898,45 @@ body.offline-mode #smart-shopping {
     cursor: pointer;
 }
 .audit-cell:active { background: var(--bg-app, #f1f5f9); }
+/* ── A destructive answer asks first, ON the card ─────────────────────────────
+   «Finito» and «Andato a male» empty a row and write the ledger, and they sat one tap away from
+   the emerald «Confermo»: a thumb aiming at «✓ C'è» finished the product instead («se premo su
+   Finito non mi chiede nessuna conferma»). The question replaces the answers in place — the shared
+   destructive dialog would sit BEHIND this sheet (its own overlay) and its 5 s bar confirms by
+   itself, which is the opposite of asking. Red is the answer that loses stock; «Annulla» is the
+   neutral door, and it is the one on the left. */
+.audit-confirm {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--tone-danger, #dc2626) 34%, transparent);
+    background: color-mix(in srgb, var(--tone-danger, #dc2626) 7%, var(--surface-bg, #f8fafc));
+}
+.audit-confirm-title {
+    margin: 0 0 4px;
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.25;
+    color: var(--text-main, inherit);
+}
+.audit-confirm-msg {
+    margin: 0 0 10px;
+    font-size: 0.88rem;
+    line-height: 1.35;
+    color: var(--text-muted, #64748b);
+}
+.audit-confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.audit-answer-yes {
+    border-color: var(--tone-danger, #dc2626);
+    background: var(--tone-danger, #dc2626);
+    color: #fff;
+    font-weight: 800;
+}
+.audit-answer-yes:active { background: color-mix(in srgb, var(--tone-danger, #dc2626) 88%, #000); }
 /* ── The card of a row this stocktake ALREADY answered ───────────────────────
    A barcode re-scanned, a pack line of «Anche in», a name picked a second time: the card
    used to look exactly like an open one — the emerald «Confermo …» included — and answering

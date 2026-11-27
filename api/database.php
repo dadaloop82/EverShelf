@@ -1043,6 +1043,9 @@ function migrateDB(PDO $db): void {
         $db->exec("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('migration_fridge_expiry_v1', '1')");
     }
 
+    // «Aperto» da un uso parziale — e la frutta non si apre (see migrateOpenPartialUseV1()).
+    migrateOpenPartialUseV1($db);
+
     // Add undone column to transactions if missing
     $txCols = $db->query("PRAGMA table_info(transactions)")->fetchAll();
     $txColNames = array_column($txCols, 'name');
@@ -1270,6 +1273,112 @@ function backfillOpenedItems(PDO $db): void {
         // Only set opened_at — do NOT touch expiry_date (manufacturer date is preserved)
         $upd = $db->prepare("UPDATE inventory SET opened_at = ? WHERE id = ? AND opened_at IS NULL");
         $upd->execute([$row['updated_at'], $row['id']]);
+    }
+}
+
+/**
+ * Migration: «aperto» lo dice un uso parziale — e la frutta non si apre.
+ *
+ * Two reports in one:
+ *   * loose produce (fruit, vegetables sold by piece or by weight — never a `conf` bag) was
+ *     stamped «aperta» by a partial use, and a banana in the Home's «Aperti» list reads as a
+ *     mistake («che non sia ovviamente frutta e verdura»). The forward rule now skips produce
+ *     and this pass removes the guesses already stored;
+ *   * a row that can ONLY exist after a partial use (a `conf` fraction, a fraction of a piece,
+ *     a weight that is not a multiple of its own package) was not always stamped: created by a
+ *     correction or an import, or used before the rule existed. The household had to open them
+ *     one by one («le cose che uso e che non finisco me le metti in automatico come APERTE?»).
+ *
+ * `opened_at` is the FIRST real consumption of this row's life (a `transactions` row after
+ * `added_at`, moves and manual corrections excluded), falling back to `added_at`: the earliest
+ * bound, never «now», so an old leftover is not made to look fresh. `expiry_date` is never
+ * touched — `getStats()` derives the post-opening date, and a backfill that overwrote the
+ * printed one is what `migration_fix_nonfrigo_opened_v1` had to undo. A non-perishable (the
+ * 9999 sentinel: salt, sugar, vinegar) is never «open», and a medicine answers with its own
+ * PAO (`med_open`), so both are skipped.
+ */
+function migrateOpenPartialUseV1(PDO $db): void
+{
+    $done = $db->query("SELECT value FROM app_settings WHERE key = 'migration_open_partial_use_v1'")->fetchColumn();
+    if ($done) {
+        return;
+    }
+    // The same two slugs `isProduceCategory()` knows: index.php is not loaded by the cron, and
+    // a migration must run from every entry point.
+    $isProduce = static function (string $cat): bool {
+        return in_array(mb_strtolower(trim($cat)), ['frutta', 'verdura'], true);
+    };
+
+    $unstamped = 0;
+    $produceRows = $db->query(
+        "SELECT i.id, p.category, p.unit
+           FROM inventory i JOIN products p ON p.id = i.product_id
+          WHERE i.opened_at IS NOT NULL AND i.quantity > 0
+            AND COALESCE(p.is_medical, 0) = 0
+            AND LOWER(TRIM(p.unit)) = 'pz'"
+    )->fetchAll(PDO::FETCH_ASSOC);
+    $clearOpened = $db->prepare('UPDATE inventory SET opened_at = NULL WHERE id = ?');
+    foreach ($produceRows as $row) {
+        if (!$isProduce((string)$row['category'])) continue;
+        $clearOpened->execute([(int)$row['id']]);
+        $unstamped++;
+    }
+
+    $stamped = 0;
+    $rows = $db->query(
+        "SELECT i.id, i.product_id, i.quantity, i.location, i.added_at, i.updated_at,
+                p.name, p.category, p.unit, COALESCE(p.default_quantity, 0) AS default_quantity,
+                COALESCE(p.is_medical, 0) AS is_medical
+           FROM inventory i JOIN products p ON p.id = i.product_id
+          WHERE i.opened_at IS NULL AND i.quantity > 0"
+    )->fetchAll(PDO::FETCH_ASSOC);
+    $traces = defined('EVERSHELF_TRACE_QTY') ? EVERSHELF_TRACE_QTY : [];
+    $firstOut = $db->prepare(
+        "SELECT MIN(created_at) FROM transactions
+          WHERE product_id = ? AND location = ? AND type = 'out' AND undone = 0
+            AND COALESCE(notes, '') NOT LIKE '[Spostamento]%'
+            AND COALESCE(notes, '') NOT LIKE '[Manual correction]%'
+            AND created_at >= ?"
+    );
+    $markOpened = $db->prepare('UPDATE inventory SET opened_at = ? WHERE id = ? AND opened_at IS NULL');
+    foreach ($rows as $row) {
+        if ((int)$row['is_medical'] === 1) continue;
+        $unit = mb_strtolower(trim((string)$row['unit']));
+        $qty  = (float)$row['quantity'];
+        $def  = (float)$row['default_quantity'];
+        if (isset($traces[$unit]) && $qty <= (float)$traces[$unit]) continue;   // a trace is not a pack
+        // Loose produce (pieces) never «opens»; a bag sold by weight does (nuts, a tray).
+        if ($unit === 'pz' && $isProduce((string)$row['category'])) continue;
+        $fractional = abs($qty - floor($qty + 0.001)) > 0.001;
+        $partial = ($unit === 'conf' && $fractional)
+            || ($unit === 'pz' && $fractional)
+            || (in_array($unit, ['g', 'kg', 'ml', 'l'], true) && $def > 1
+                && abs($qty - round($qty / $def) * $def) > $def * 0.01);
+        if (!$partial) continue;
+        if (estimateOpenedExpiryDaysPHP((string)$row['name'], (string)$row['category'], (string)$row['location']) >= 9999) {
+            continue;   // salt, sugar, vinegar: never «open»
+        }
+        $since = (string)($row['added_at'] ?: ($row['updated_at'] ?: ''));
+        $openedAt = '';
+        if ($since !== '') {
+            $firstOut->execute([(int)$row['product_id'], (string)$row['location'], $since]);
+            $openedAt = (string)($firstOut->fetchColumn() ?: '');
+        }
+        if ($openedAt === '') {
+            $openedAt = $since !== '' ? $since : date('Y-m-d H:i:s');
+        }
+        $markOpened->execute([$openedAt, (int)$row['id']]);
+        $stamped++;
+    }
+
+    $db->exec("INSERT OR REPLACE INTO app_settings (key, value)
+               VALUES ('migration_open_partial_use_v1', '1')");
+    if (class_exists('EverLog') && ($stamped > 0 || $unstamped > 0)) {
+        EverLog::info('Partial uses and produce: «open» repaired', [
+            'event'             => 'open_partial_use_migration',
+            'stamped'           => $stamped,
+            'unstamped_produce' => $unstamped,
+        ]);
     }
 }
 

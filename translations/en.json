@@ -35,6 +35,13 @@
     "card": "Family {name}: {qty} across {count} variants"
   },
   "audit": {
+    "confirm_finish_title": "Mark as finished?",
+    "confirm_finish_msg": "{name} ({qty}) will be removed from the pantry and logged as finished.",
+    "confirm_yes_finish": "Yes, it's finished",
+    "confirm_spoiled_title": "Mark as spoiled?",
+    "confirm_spoiled_msg": "{name} ({qty}) will be removed from the pantry and logged as waste.",
+    "confirm_yes_spoiled": "Yes, throw it away",
+
     "med_already_opened": "Already open",
     "med_days_q": "How many days has it been open?",
     "med_days_today": "Today",

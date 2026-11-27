@@ -467,6 +467,15 @@ function evershelfNotifySend(string $event, string $title, string $message, arra
     $result   = ['event' => $event, 'channels' => []];
     $channels = evershelfNotifyChannels();
     $allowed  = $isTest || (evershelfNotifyEnabled() && evershelfNotifyEventEnabled($event));
+    // Web Push is its OWN opt-in: Settings → «Notifiche push» writes WEB_PUSH_ENABLED and the
+    // browser subscription is the household's answer. Requiring NOTIFY_ENABLED as well meant
+    // the switch promised a notification the server never sent — a subscribed device got
+    // nothing, and the daily expiry digest never left the cron.
+    $webPushAllowed = $isTest || (
+        function_exists('evershelfWebPushEnabled')
+        && evershelfWebPushEnabled()
+        && evershelfNotifyEventEnabled($event)
+    );
 
     if ($allowed && in_array('ntfy', $channels, true)) {
         $result['channels']['ntfy'] = evershelfNtfySend($title, $message, $data);
@@ -482,7 +491,7 @@ function evershelfNotifySend(string $event, string $title, string $message, arra
         $result['channels']['ha'] = evershelfHaNotifySend($message, $data);
     }
     // Browser Web Push (empty payload + inbox) — optional, free, user-opt-in.
-    if ($allowed && function_exists('evershelfWebPushNotify') && evershelfWebPushEnabled()) {
+    if ($webPushAllowed && function_exists('evershelfWebPushNotify') && evershelfWebPushEnabled()) {
         try {
             $db = getDB();
             // `$data` carries the rows of the event: on an expiry alert the push builds

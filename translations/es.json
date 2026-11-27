@@ -35,6 +35,13 @@
     "card": "Familia {name}: {qty} en {count} variantes"
   },
   "audit": {
+    "confirm_finish_title": "¿Marcar como terminado?",
+    "confirm_finish_msg": "{name} ({qty}) se quitará de la despensa y se registrará como terminado.",
+    "confirm_yes_finish": "Sí, terminado",
+    "confirm_spoiled_title": "¿Marcar como en mal estado?",
+    "confirm_spoiled_msg": "{name} ({qty}) se quitará de la despensa y se registrará como desperdicio.",
+    "confirm_yes_spoiled": "Sí, tirarlo",
+
     "med_already_opened": "Ya abierto",
     "med_days_q": "¿Desde cuántos días está abierto?",
     "med_days_today": "Hoy",

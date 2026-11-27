@@ -35,6 +35,13 @@
     "card": "系列 {name}：{count} 个变体共 {qty}"
   },
   "audit": {
+    "confirm_finish_title": "标记为已用完？",
+    "confirm_finish_msg": "{name}（{qty}）将从储藏中移除并记录为已用完。",
+    "confirm_yes_finish": "是，已用完",
+    "confirm_spoiled_title": "标记为已变质？",
+    "confirm_spoiled_msg": "{name}（{qty}）将从储藏中移除并记录为浪费。",
+    "confirm_yes_spoiled": "是，丢弃",
+
     "med_already_opened": "已开封",
     "med_days_q": "已开封几天？",
     "med_days_today": "今天",
