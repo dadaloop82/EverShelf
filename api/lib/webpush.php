@@ -101,6 +101,27 @@ function evershelfWebPushEnsureTable(PDO $db): void
 }
 
 /**
+ * Is at least one browser subscribed?
+ *
+ * The expiry digest runs in the CRON, which has no page and no browser: a web-push-only
+ * install needs this answer to know there is a door to knock on. Without it the cron's
+ * expiry pass only ran for ntfy/webhook/HA (`$notifyExpiryReady` / `$haExpiryReady`), so a
+ * household that had turned on «Notifiche push» in Settings received nothing at all.
+ */
+function evershelfWebPushHasSubscriptions(PDO $db): bool
+{
+    try {
+        evershelfWebPushEnsureTable($db);
+        return (int)$db->query('SELECT COUNT(*) FROM webpush_subscriptions')->fetchColumn() > 0;
+    } catch (Throwable $e) {
+        EverLog::warn('webpush subscription count failed: ' . $e->getMessage(), [
+            'event' => 'webpush_count_failed',
+        ]);
+        return false;
+    }
+}
+
+/**
  * Mint a fresh inbox token for one subscription (32 random bytes, only the SHA-256
  * is stored). Called by `webpush_subscribe`: an upsert returns the new value so a
  * device that re-subscribes refreshes its worker.

@@ -35,6 +35,13 @@
     "card": "Famille {name} : {qty} sur {count} variantes"
   },
   "audit": {
+    "confirm_finish_title": "Marquer comme terminé ?",
+    "confirm_finish_msg": "{name} ({qty}) sera retiré du garde-manger et enregistré comme terminé.",
+    "confirm_yes_finish": "Oui, terminé",
+    "confirm_spoiled_title": "Marquer comme périmé ?",
+    "confirm_spoiled_msg": "{name} ({qty}) sera retiré du garde-manger et enregistré comme perte.",
+    "confirm_yes_spoiled": "Oui, à jeter",
+
     "med_already_opened": "Déjà ouvert",
     "med_days_q": "Ouvert depuis combien de jours ?",
     "med_days_today": "Aujourd'hui",

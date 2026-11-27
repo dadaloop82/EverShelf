@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.19-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.20-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -226,6 +226,20 @@ the gate this release was developed against.
 
 <details open>
 <summary><b>Last five releases</b></summary>
+
+**v2.2.20 — finished products are «Urgente», and a passed date is never silent.** The
+shopping list's «Urgente» filter now holds what is really out of stock *and* really used
+(rows stamped `🛒 Esaurito` included, a once-bought item graded «Presto» / «Pianifica»), the
+screensaver ranks by urgency before calling two rows «i più
+urgenti», a recipe «Usa» can take the whole place even when the article stands in several
+rows, and a best-before date that has passed — flour included — reaches the notice strip and
+the daily digest instead of being hidden for 30 days by its own safety verdict. The stocktake's
+own camera can now flip front ↔ rear too, fruit & veg are never marked «aperte» by a partial
+use, and the half-used packs already stored are repaired. In the stocktake, «Finito» and «Andato a
+male» now ask for confirmation before emptying a shelf position, and every stocktake answer —
+«✓ C'è» included — applies only to the lot on the card (the other batches keep their stock and get
+their own question). Every change of an article now also refreshes
+every screen — the list you are working in included.
 
 **v2.2.19 — finished products stop inventing a phantom purchase.** After use-all the
 ledger no longer writes an `IN` on an empty shelf, and swiping «bought» on a `🛒 Esaurito`

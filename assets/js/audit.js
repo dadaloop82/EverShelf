@@ -77,6 +77,16 @@ let _auditCamOn = false;
 let _auditScanStream = null;
 let _auditScanTimer = 0;
 let _auditScanGen = 0;
+/**
+ * A destructive answer («Finito», «Andato a male») waiting for its yes.
+ *
+ * Both buttons empty a row of the shelf and write the ledger, and they sat one tap away from the
+ * emerald «Confermo» — a thumb aiming at «✓ C'è» finished the product instead, with nothing to
+ * undo but «↩ Indietro» (report: «se premo su Finito non mi chiede nessuna conferma, dovrebbe
+ * chiedermi se voglio davvero segnare quel prodotto come finito»). It holds the KIND and the row
+ * it was asked for, so a repaint of another card can never confirm it.
+ */
+let _auditPendingAnswer = null; // { kind: 'finished'|'spoiled', invId:number } | null
 
 function _auditLoadMode() {
     try {
@@ -1096,9 +1106,13 @@ function _auditScanBodyHtml() {
 function _auditScanLiveHtml() {
     const place = _auditScopeLabel(_auditScopeKey());
     const stopTitle = t('audit.scan_stop_camera');
+    const flipTitle = t('scan.flip_hint');
     return `<div class="audit-cam">
             <video id="audit-scan-video" playsinline muted autoplay aria-hidden="true"></video>
             <div class="audit-scan-frame" aria-hidden="true"></div>
+            <button type="button" class="audit-cam-flip" id="audit-scan-flip"
+                title="${escapeAttr(flipTitle)}" aria-label="${escapeAttr(flipTitle)}"
+                onclick="_auditScanFlip()"><span aria-hidden="true">🔄</span></button>
             <button type="button" class="audit-cam-stop" id="audit-scan-close"
                 title="${escapeAttr(stopTitle)}" aria-label="${escapeAttr(stopTitle)}"
                 onclick="_auditScanStop(true)">✕</button>
@@ -1107,6 +1121,47 @@ function _auditScanLiveHtml() {
         <div class="audit-scan-progress" id="audit-scan-progress"></div>
         <p class="audit-hint">${escapeHtml(t('audit.scan_finder_hint'))}</p>
         ${place ? `<p class="audit-hint audit-search-scope-note"><span aria-hidden="true">📍</span> ${escapeHtml(t('audit.search_in_place', { place }))}</p>` : ''}`;
+}
+
+/**
+ * Flip the stocktake's camera (front ↔ rear) WITHOUT touching the run.
+ *
+ * The choice is the SAME setting the shopping scanner uses (`camera_facing`), written to the
+ * server: a phone propped over a shelf that needs the rear camera must not choose it again at
+ * every box. `flipCamera()` cannot be reused — it restarts the SHOPPING scanner, which is not
+ * on screen here and would take the device back — and `_auditScanStart()` would drop the
+ * proposed run (`_audit = null`), so only the stream is restarted.
+ */
+async function _auditScanFlip() {
+    const s = getSettings();
+    const current = s.camera_facing || 'environment';
+    const next = current === 'environment' ? 'user' : 'environment';
+    s.camera_facing = next;
+    _saveSettingToServer({ camera_facing: next });
+    showToast(next === 'user' ? t('scan.flip_front') : t('scan.flip_back'), 'info');
+
+    // Release the old track FIRST: a phone has one camera bus, and the new request waits for it.
+    _auditScanGen++;
+    clearTimeout(_auditScanTimer);
+    const video = document.getElementById('audit-scan-video');
+    if (video) {
+        try { video.pause(); } catch (_e) { /* already stopped */ }
+        video.srcObject = null;
+    }
+    if (_auditScanStream) {
+        try { _auditScanStream.getTracks().forEach(tr => { try { tr.stop(); } catch (_e) { /* gone */ } }); } catch (_e) { /* gone */ }
+        _auditScanStream = null;
+    }
+    _auditCamOn = true;
+    _auditScanActive = true;
+    await _auditScanStreamStart();
+    // That camera is not there (or the permission died on the second request): go back to the
+    // one that worked, so the next «Apri la fotocamera» is not a third guess. The failure path
+    // inside the stream helper has already said why and reopened the sheet.
+    if (!_auditScanStream && s.camera_facing !== current) {
+        s.camera_facing = current;
+        _saveSettingToServer({ camera_facing: current });
+    }
 }
 
 function _auditScanStatus(text) {
@@ -1147,7 +1202,14 @@ async function _auditScanStart() {
     _auditStartPaint();          // the sheet, with the viewfinder in its body
     _auditScanStatus(t('audit.scan_finder_hint'));
     _auditScanProgressPaint();
+    await _auditScanStreamStart();
+}
 
+/**
+ * Ask for the camera and hand it to the viewfinder. Shared by the open and by the flip, so the
+ * generation guard, the engine warm-up and the failure path exist once.
+ */
+async function _auditScanStreamStart() {
     const gen = ++_auditScanGen;
     const video = document.getElementById('audit-scan-video');
     let constraints = { video: { facingMode: 'environment' } };
@@ -1911,6 +1973,23 @@ function _auditRender() {
     const answeredKind = String((_audit.answered || {})[String(it.id)] || '');
     const answered = answeredKind !== '';
     const answeredAt = answered ? _auditAnsweredAt(it.id) : 0;
+    // A destructive answer waiting for its yes. Anything that repaints another card drops it: a
+    // confirmation must belong to the row it was asked for, never to whatever is on screen next.
+    const pending = _auditPendingAnswer && Number(_auditPendingAnswer.invId) === Number(it.id)
+        ? _auditPendingAnswer : null;
+    if (_auditPendingAnswer && !pending) _auditPendingAnswer = null;
+    const pendingName = it.display_name || it.name || '';
+    const pendingTitle = pending
+        ? (pending.kind === 'finished' ? t('audit.confirm_finish_title') : t('audit.confirm_spoiled_title'))
+        : '';
+    const pendingMsg = pending
+        ? (pending.kind === 'finished'
+            ? t('audit.confirm_finish_msg', { name: pendingName, qty: qtyPlain })
+            : t('audit.confirm_spoiled_msg', { name: pendingName, qty: qtyPlain }))
+        : '';
+    const pendingYes = pending
+        ? (pending.kind === 'finished' ? t('audit.confirm_yes_finish') : t('audit.confirm_yes_spoiled'))
+        : '';
     el.innerHTML = `<div class="audit-panel" role="dialog" aria-modal="true" aria-label="${escapeAttr(t('audit.title'))}">
         <div class="audit-top">
             ${_auditProgressHtml(!answered)}
@@ -1947,6 +2026,13 @@ function _auditRender() {
         ${answered ? `<div class="audit-answered-actions">
             <button type="button" class="audit-cell audit-answer-again" onclick="_auditReopen(${Number(it.id)})"><span aria-hidden="true">↩</span> ${escapeHtml(t('audit.answer_again'))}</button>
             <button type="button" class="audit-cell audit-answer-next" onclick="_auditNext()">${escapeHtml(t('audit.continue_next'))} <span aria-hidden="true">→</span></button>
+        </div>` : (pending ? `<div class="audit-confirm" role="alertdialog" aria-label="${escapeAttr(pendingTitle)}">
+            <p class="audit-confirm-title">${escapeHtml(pendingTitle)}</p>
+            <p class="audit-confirm-msg">${escapeHtml(pendingMsg)}</p>
+            <div class="audit-confirm-actions">
+                <button type="button" class="audit-cell audit-answer-no" onclick="_auditCancelAnswer()">${escapeHtml(t('confirm.cancel'))}</button>
+                <button type="button" class="audit-cell audit-answer-yes" onclick="_auditAnswer('${pending.kind === 'finished' ? 'finished' : 'spoiled'}', true)"><span aria-hidden="true">${pending.kind === 'finished' ? '🏁' : '🗑️'}</span> ${escapeHtml(pendingYes)}</button>
+            </div>
         </div>` : `<button type="button" class="audit-there" onclick="_auditAnswer('there')"><span aria-hidden="true">✓</span> <span class="audit-there-full">${escapeHtml(confirmFull)}</span><span class="audit-there-short">${escapeHtml(confirmShort)}</span></button>
         <div class="audit-grid">
             <button type="button" class="audit-cell audit-finished" onclick="_auditAnswer('finished')"><span aria-hidden="true">🏁</span> ${escapeHtml(t('audit.exhausted'))}</button>
@@ -1961,14 +2047,14 @@ function _auditRender() {
             <button type="button" class="audit-cell audit-edit" onclick="_auditEdit('quantity')"><span aria-hidden="true">✏️</span> ${escapeHtml(t('audit.change_qty'))}</button>
             <button type="button" class="audit-cell audit-edit" onclick="_auditEdit('location')"><span aria-hidden="true">📍</span> ${escapeHtml(t('audit.change_location'))}</button>
         </div>
-        ${_auditScaleReady(it) ? `<button type="button" class="audit-scale-pill" onclick="_auditScale()"><span aria-hidden="true">⚖️</span> ${escapeHtml(t('audit.read_scale'))}</button>` : ''}`}
+        ${_auditScaleReady(it) ? `<button type="button" class="audit-scale-pill" onclick="_auditScale()"><span aria-hidden="true">⚖️</span> ${escapeHtml(t('audit.read_scale'))}</button>` : ''}`)}
         <div class="audit-foot">
-            ${(_audit.history.length && !answered)
+            ${(_audit.history.length && !answered && !pending)
                 ? `<button type="button" class="audit-back" onclick="_auditUndo()">↩ ${escapeHtml(t('audit.undo_last'))}</button>`
                 : ''}
             ${isSearch
                 ? `<button type="button" class="audit-skip" onclick="_auditSearchBack()">🔎 ${escapeHtml(t('audit.search_another'))}</button>`
-                : (isScan || answered
+                : (isScan || answered || pending
                     ? ''
                     : `<button type="button" class="audit-skip" onclick="_auditAnswer('skip')">${escapeHtml(t('audit.skip'))} →</button>`)}
         </div>
@@ -2224,7 +2310,7 @@ function _auditMedDaysCancel() {
     _auditRender();
 }
 
-function _auditAnswer(kind) {
+function _auditAnswer(kind, confirmed = false) {
     if (!_audit || _audit.finished) return;
     _audit.medDaysAsk = false;   // any real answer closes the «da quanti giorni?» question
     const it = _audit.items[_audit.index];
@@ -2234,10 +2320,21 @@ function _auditAnswer(kind) {
     // the tally (and, for «finisce»/«butta», queue a second write). The session's `answered` map is
     // the ledger; `_auditUndo()` deletes the entry, so a real correction still goes through.
     if (_audit.answered && _audit.answered[String(it.id)]) {
+        _auditPendingAnswer = null;
         _auditAdvancePastAnswered();
         _auditRender();
         return;
     }
+    // «Finito» and «Andato a male» empty the shelf and write the ledger: they ASK FIRST, on the
+    // card itself. The shared `_showDestructiveConfirm` would sit behind this sheet (the sheet is
+    // its own overlay) and its 5 s bar confirms by itself — the opposite of a question. `confirmed`
+    // is set only by the confirm's own button, so neither a stray tap nor a shortcut key writes it.
+    if ((kind === 'finished' || kind === 'spoiled') && !confirmed) {
+        _auditPendingAnswer = { kind, invId: Number(it.id) };
+        _auditRender();
+        return;
+    }
+    _auditPendingAnswer = null;
     const label = it.display_name || it.name;
     const entry = {
         item: { ...it },
@@ -2251,31 +2348,28 @@ function _auditAnswer(kind) {
         rows: [],
         siblings: [],
     };
-    // The other packs of the same article on the SAME shelf.
-    const place = normalizeLocationKey(it.location);
-    const siblings = _auditItems().filter(r => r
-        && String(r.product_id) === String(it.product_id)
-        && Number(r.id) !== Number(it.id)
-        && normalizeLocationKey(r.location) === place
-        && !(_audit.answered && _audit.answered[String(r.id)]));
-    entry.siblings = siblings.map(r => Number(r.id));
+    // A LOT IS A LOT — for EVERY answer. «Finito», «Andato a male», «✓ C'è» and «Salta» are about
+    // the pack this card shows, never about its siblings: a pantry holds several batches of one
+    // article (three bags of starch with three dates), and one answer used to stamp all of them
+    // («se segno finito un lotto e ci sono altri lotti mi segna finiti anche quelli», «confermo un
+    // lotto e mi conferma tutti quelli dello stesso tipo»). Each lot has its own quantity and its
+    // own date, so it is its own question; «Salta» is the one tap that leaves a lot alone.
+    const destructive = kind === 'finished' || kind === 'spoiled';
+    entry.siblings = [];
     _audit.answered[String(it.id)] = kind;
-    siblings.forEach(r => { _audit.answered[String(r.id)] = kind; });
-    if (kind === 'finished' || kind === 'spoiled') {
-        // One write per pack: `inventory_use` empties ONE row of that product in that place per
-        // call, so two packs need two, and the whole shelf position really ends up empty.
-        [it, ...siblings].forEach(r => {
-            const row = {
-                kind: kind === 'finished' ? 'use' : 'waste',
-                product_id: r.product_id,
-                location: r.location,
-                label,
-            };
-            if (kind === 'spoiled') row.notes = _wasteNotesForReason('spoiled');
-            entry.rows.push(row);
-            _audit.queue.push(row);
-        });
-        entry.row = entry.rows[0];
+    if (destructive) {
+        // ONE write, on the row the card showed — the other lots of the same article keep their
+        // stock and get their own card (or «Salta» if the household does not want to check them).
+        const row = {
+            kind: kind === 'finished' ? 'use' : 'waste',
+            product_id: it.product_id,
+            location: it.location,
+            label,
+        };
+        if (kind === 'spoiled') row.notes = _wasteNotesForReason('spoiled');
+        entry.rows.push(row);
+        _audit.queue.push(row);
+        entry.row = row;
         if (kind === 'finished') _audit.counts.finished++;
         else _audit.counts.spoiled++;
     } else if (kind === 'there') {
@@ -2287,6 +2381,12 @@ function _auditAnswer(kind) {
     if (_audit.queue.length >= _auditBatchSize) _auditFlush();
     _auditAdvancePastAnswered();
     _auditPersist();
+    _auditRender();
+}
+
+/** «No» on the confirm: nothing was written, the card asks its question again. */
+function _auditCancelAnswer() {
+    _auditPendingAnswer = null;
     _auditRender();
 }
 
@@ -2489,6 +2589,7 @@ async function _auditFlush() {
 
 async function _auditFinish() {
     const state = _audit;
+    _auditPendingAnswer = null;   // a pending «Finito?» never survives leaving the card
     await _auditFlush();
     // Another PACK of the same article: back to the card the household was on, run intact — this
     // was a question inside the stocktake, not a stocktake of its own.
@@ -2588,6 +2689,9 @@ function _auditEndSession(reload = true) {
 function _auditStop(reload = false) {
     // A camera that outlives the sheet is a stream nobody is looking at: always release it.
     _auditScanStop(false);
+    // A confirmation is about THIS card: leaving the stocktake drops it, or reopening would ask
+    // about a row the household is no longer looking at.
+    _auditPendingAnswer = null;
     if (_audit && !_audit.finished) {
         // Closing mid-run keeps the point reached: it can be resumed within an hour.
         _auditPersist();

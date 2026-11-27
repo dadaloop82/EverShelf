@@ -180,9 +180,9 @@ Auto-generated action → handler mapping. Regenerate: `bash scripts/gen-code-in
 | 1802 | calendar_ics | calendarIcsFeed |
 | 1806 | get_ics_settings | getIcsSettings |
 | 1810 | rotate_ics_token | rotateIcsToken |
-| 6586 | spoiled | — |
-| 6593 | expired | — |
-| 6595 | kept_too_long | — |
-| 6599 | wrong_location | _guessPreferredStorageLocation |
-| 6605 | bought_too_much | — |
-| 6611 | bad_quality | — |
+| 6589 | spoiled | — |
+| 6596 | expired | — |
+| 6598 | kept_too_long | — |
+| 6602 | wrong_location | _guessPreferredStorageLocation |
+| 6608 | bought_too_much | — |
+| 6614 | bad_quality | — |

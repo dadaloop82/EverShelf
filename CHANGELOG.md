@@ -5,6 +5,102 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.20] - 2026-11-27
+
+### Finished products are «Urgente», and a passed date is never silent
+
+Three household reports, three roots:
+
+- **The shopping list's «Urgente» filter hid what was finished — and «Urgente» is a HABIT,
+  not a single purchase.** Every row at zero was calmed down to «Presto» / «A breve» by
+  `shoppingRecalibrateUrgency()` unless it was an *essential* (≥ 8 uses a month), and a row
+  stamped `🛒 Esaurito` with no smart-shopping match even answered `urgency: null` — the most
+  finished article wore the calmest badge (field pantry: 47 products at zero, 4 under
+  «Urgente»). A finished row is now exempt from the calm-down — `out_of_stock` is a fact, not
+  a forecast — and `smartShopping()` grades it on the household's OWN habit: a top or urgent
+  staple (≥ 3–4 uses a month) is `critical`, a product used at least monthly or bought twice
+  is `high`, a one-off (bought once, used a few times) is `medium`. The first attempt shouted
+  «⚡ Urgente» on everything the pantry ever finished — «nella lista della spesa mi ritrovo
+  come urgenti prodotti che ho preso una volta sola oppure che uso molto raramente» — and a
+  red badge that means everything means nothing. The deliberate `🛒 Esaurito` marker follows
+  the same graded scale server- and client-side (never `null`, never the calmest badge), and a
+  product never bought nor used stays in the suggestions.
+- **The screensaver named the first two rows «i più urgenti».** The list is ordered by when
+  a row was added, so it named a forgotten «Previsione» while the ⚡ Urgente ones sat three
+  screens below (`_ssFactCandidates()` now ranks by urgency first, stable, then names).
+- **A recipe «Usa» could not take more than one pack.** The sheet measures the whole PLACE,
+  but `inventory_use` wrote a single row and silently capped the request there: three rows
+  of sugar (108 g + 500 g) answered «hai 608 g» and the ledger recorded 108 g.
+  `inventoryUseRowPlan()` splits the request across the rows of that place
+  (`inventoryApplyUsePlan()`: one write per pack, one answer, the same ledger, opened clock
+  and shopping sync), `use_all` clears the whole place instead of one pack, and the recipe
+  sheet reads the same shelf the ingredient line was measured on
+  (`inventory_list?include_depleted=1&for_recipe=1`).
+- **A date passed in silence.** A row past its best-before on a *low-risk* category
+  (flour, pasta, crackers, spices) was hidden for 30 days by the safety verdict — the app
+  knew and said nothing: the strip never drew it, `evershelfExpiryNeedsAttention()` dropped
+  it from the Home Assistant sensor and from the daily digest, and the notification channel
+  was not even reachable. A 748 g bag of wholemeal flour expired on 13/11 without a word
+  («non mi pare che me lo avessi mai detto»). The verdict is now the **pill**
+  («Va bene» / «Controlla» / «Buttalo») and never the door: `shouldShowExpiredBanner()`
+  shows the row in the calm `banner-expired-ok` layout it always had, the digest includes it,
+  and only the two extensions that really extend life survive (freezer bonus, vacuum
+  `VACUUM_EXPIRY_EXTENSION_DAYS`). Web Push is also its own switch now: a subscribed browser
+  receives the digest without `NOTIFY_ENABLED`, and the cron's expiry pass counts web push as
+  a configured channel (`evershelfWebPushHasSubscriptions()`).
+- **A medicine's printed date leads the cabinet badge.** An opened pack was judged only by its
+  PAO, so a cream expiring in 34 days read «🕓 75 gg» and nothing else. The effective deadline
+  is the sooner of the two clocks (a pack cannot outlive its own date), and
+  `_inventoryExpiryBadgeHtml()` now prints the printed date when it comes first
+  (`medical.sealed_expires_in` / `sealed_expired`) — the PAO badge stays for the pack a date
+  does not constrain.
+- **The stocktake camera can flip.** The camera inside «Inventario veloce» had no 🔄, so a
+  device that opened the front one had no way back to the rear («non ho modo di "ruotare" la
+  telecamera»). `_auditScanFlip()` toggles the SAME `camera_facing` setting the shopping scanner
+  uses (saved on the server, so the choice survives the session) and restarts **only the
+  stream** (`_auditScanStreamStart()`): `flipCamera()` would restart the shopping scanner, and
+  `_auditScanStart()` would drop the proposed run. A facing the device cannot open reverts to
+  the one that worked, and the failure keeps its own message.
+- **An apple is not an opened package, and a half-used bag now says so.** A partial use stamped
+  `opened_at` on every perishable `pz` row, loose produce included — apples, oranges, onions and
+  potatoes sat in «Aperti». Produce sold by the piece is skipped now (a `conf` bag of salad and
+  a bag sold by weight still open, a non-perishable never does). `migrateOpenPartialUseV1()`
+  repairs the rows already stored: it clears the guessed `opened_at` on loose produce and stamps
+  the packs that can only exist after a partial use (a `conf`/piece fraction, a weight that is
+  not a multiple of its own package) at the FIRST real consumption of the row's life — never
+  «now», so an old leftover is not made to look fresh — and it never touches `expiry_date`
+  (the backfill that overwrote printed dates is what `migration_fix_nonfrigo_opened_v1` had to
+  undo).
+- **«Finito» asks first in the stocktake.** The two answers that empty a shelf position
+  («🏁 Finito», «🗑️ Andato a male») sat one tap away from the emerald «Confermo» and wrote
+  immediately («se premo su Finito non mi chiede nessuna conferma»). The card now replaces its
+  answers with the question — «Segnare come finito?» / «{name} verrà tolto dalla dispensa…», a red
+  confirm and a neutral «Annulla», in the six locales. The shared destructive dialog is not reused
+  on purpose: it would sit BEHIND the stocktake's own overlay and its 5 s bar confirms by itself.
+  The pending answer is bound to the row id and dropped by `_auditStop()`/`_auditFinish()`, so
+  another card can never confirm it.
+- **A lot is a lot: every answer is about the pack on the card.** One answer stamped EVERY pack of
+  the article in that place, so finishing one batch marked the others finished too («se segno finito
+  un lotto e ci sono altri lotti mi segna finiti anche quelli») and confirming one marked the others
+  present («confermo un lotto e mi conferma tutti quelli dello stesso tipo»). «✓ C'è», «Salta»,
+  «Finito» and «Andato a male» now apply ONLY to the row the card showed (`entry.siblings` empty; a
+  destructive answer writes one row) — each lot has its own quantity and date, so it is its own
+  question, and «Salta» is the one tap that leaves a lot alone. The confirm names the lot's
+  quantity. The earlier one-card-per-article rule is gone: it hid batches instead of asking about
+  them.
+- **Every change of an article reaches every screen, the list you are working in included.** The
+  refresh was explicit (21 call sites the author had to remember), and more than one write path
+  forgot it — the stocktake, the scanner, parts of the sheets — so the pantry, the product sheet's
+  «Anche in», the Home blocks and SHELFY could keep showing rows the app had already changed.
+  `api()` now hands every successful POST to `_afterPantryWrite()`, whose `_PANTRY_WRITE_ACTIONS`
+  lists the writes that touch stock, catalogue, place or PAO: one debounced `_runAppWideSync()`
+  (150 ms, single flight, a burst collapses) drops the read and local caches, re-reads
+  `inventory_list` once into `currentInventory` + `_allInventoryCache`, and repaints the pantry
+  list (the one being worked in), the banner, the Home blocks (when on screen), the active page
+  (shopping with its smart list, catalogue, history, recipe archive) and the Spesa badge. A
+  refused, queued, duplicate or non-pantry write schedules nothing, and off the shopping page the
+  recommendation engine is never run — it is the heavy pass of the page that shows it.
+
 ## [2.2.19] - 2026-11-24
 
 ### Finished products no longer invent a phantom purchase

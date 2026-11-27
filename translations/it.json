@@ -35,6 +35,13 @@
     "card": "Famiglia {name}: {qty} in {count} varianti"
   },
   "audit": {
+    "confirm_finish_title": "Segnare come finito?",
+    "confirm_finish_msg": "{name} ({qty}) verrà tolto dalla dispensa e registrato come finito.",
+    "confirm_yes_finish": "Sì, è finito",
+    "confirm_spoiled_title": "Segnare come andato a male?",
+    "confirm_spoiled_msg": "{name} ({qty}) verrà tolto dalla dispensa e registrato come scarto.",
+    "confirm_yes_spoiled": "Sì, buttalo",
+
     "med_already_opened": "Già aperta",
     "med_days_q": "Da quanti giorni è aperto?",
     "med_days_today": "Oggi",

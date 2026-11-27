@@ -488,7 +488,17 @@ function _ssFactCandidates() {
     // 1) The shopping list: how much and what is urgent.
     const items = (typeof shoppingItems !== 'undefined' && Array.isArray(shoppingItems)) ? shoppingItems : [];
     if (items.length) {
-        const names = items.map(i => (i && (i.name || i.display_name)) || '').filter(Boolean);
+        // «I più urgenti» is a CLAIM. The list is ordered by when a row was added, so naming
+        // its first two rows called a forgotten «Previsione» the most urgent thing to buy
+        // while the ⚡ Urgente ones sat three screens below (the report: «mi scrivi che da
+        // comprare più urgente son prodotti che non uso nemmeno così tanto»). Rank first,
+        // then name — stable, so rows of the same urgency keep the list's own order.
+        const rank = { critical: 4, high: 3, medium: 2, low: 1 };
+        const ranked = items
+            .map((it, i) => ({ it, i, r: rank[String((it && it.urgency) || '').toLowerCase()] || 0 }))
+            .sort((a, b) => (b.r - a.r) || (a.i - b.i))
+            .map((x) => x.it);
+        const names = ranked.map(i => (i && (i.name || i.display_name)) || '').filter(Boolean);
         const price = (typeof _canonicalShoppingTotal !== 'undefined' && _canonicalShoppingTotal && _canonicalShoppingTotal.label)
             ? String(_canonicalShoppingTotal.label).replace(/^ca\.\s*/, '') : '';
         const line = items.length === 1

@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261124j'; // bump when translations change
+const _I18N_VERSION = '20261127j'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4205,9 +4205,26 @@ function shouldShowExpiredBanner(item) {
     const pao = _openedPao(item);
     if (pao && pao.state !== 'ok') return !_openedIsSnoozed(item);
     const days = item.days_expired ?? Math.abs(item.days_to_expiry ?? 0);
-    if (getExpiredSafety(item, days).level === 'ok') return false;
+    // THE SAFETY VERDICT IS THE PILL, NOT THE DOOR. `getExpiredSafety()` answers "is it
+    // still edible" (a flour or a pack of crackers is «Va bene» for 30 days past its
+    // best-before), and this gate used that answer to decide whether to MENTION the row:
+    // the household was never told (report: «la farina integrale bio è scaduta il 13/11 e
+    // non me l'hai mai detto»). The strip has always had a calm `banner-expired-ok` layout
+    // for exactly that row — it was simply never reached.
+    // Two real extensions survive, because there the food is genuinely NOT expired:
+    //   * a freezer row inside its bonus — the cold really did buy those months;
+    //   * a vacuum-sealed pack inside VACUUM_EXPIRY_EXTENSION_DAYS, the same rule the
+    //     server applies to the «Scaduti» list, so strip and list cannot contradict.
+    if (storageKindOfLocation(item.location) === 'freezer'
+        && getExpiredSafety(item, days).level === 'ok') {
+        return false;
+    }
+    if (item.vacuum_sealed) {
+        const vacExt = Number(getSettings().vacuum_expiry_extension_days ?? 30);
+        if (Number.isFinite(vacExt) && days <= vacExt) return false;
+    }
     if (item.opened_at && item.is_edible === true) return false;
-    return true;
+    return days >= 1;
 }
 
 
@@ -9409,7 +9426,11 @@ function _apiReadKey(action, params) {
 async function api(action, params = {}, method = 'GET', body = null, extraHeaders = {}, timeoutMs = 0) {
     if (method !== 'GET') {
         _apiDropReadCache();
-        return _apiFetchJson(action, params, method, body, extraHeaders, timeoutMs);
+        const result = await _apiFetchJson(action, params, method, body, extraHeaders, timeoutMs);
+        // ONE choke point for the whole app: every write that changes an ARTICLE schedules the
+        // same sync, so no screen can keep showing the rows it read a second ago.
+        _afterPantryWrite(action, result);
+        return result;
     }
     if (!_API_READ_CACHEABLE.has(action) || _offlineMode || _demoMode) {
         return _apiFetchJson(action, params, method, body, extraHeaders, timeoutMs);
@@ -9799,7 +9820,111 @@ function _dashboardLiveRefresh(inventoryId) {
     }, inventoryId ? 280 : 120);
 }
 
-/** Reload banner + current page (and shopping tabs when relevant) after a mutation. */
+/**
+ * The one list of WRITES that change an ARTICLE — stock, catalogue, place, PAO.
+ *
+ * Every one of them ends in `_scheduleAppWideSync()` (called from `api()` itself), so no screen
+ * can keep showing rows it read a second ago. The action has to be listed HERE, once: a write
+ * that forgets its refresh is how the pantry, the product sheet's «Anche in», the stocktake and
+ * SHELFY's capture ended up disagreeing («tutti i dati degli articoli … ad ogni cambiamento
+ * devono essere aggiornati in ogni dove! anche nella lista in cui si sta lavorando!»).
+ */
+const _PANTRY_WRITE_ACTIONS = new Set([
+    // the shelves
+    'inventory_add', 'inventory_update', 'inventory_delete', 'inventory_use',
+    'inventory_freeze', 'inventory_thaw', 'inventory_confirm_finished', 'inventory_restore_ghost',
+    'transaction_undo', 'import_inventory',
+    // the article a row is drawn from
+    'product_save', 'product_delete', 'product_set_parent', 'product_tags_set',
+    'product_barcode_set', 'products_apply_auto_rules', 'products_toggle_favorite',
+    // the medicine module writes on the same rows
+    'med_classify', 'med_open',
+    // a place: renaming/deleting it moves or hides rows
+    'location_delete', 'location_rename', 'location_restore',
+    // the household's own PAO changes the verdict of an opened row
+    'pao_save', 'pao_reset',
+]);
+
+/** A write answered successfully → one debounced sync for the whole app. */
+function _afterPantryWrite(action, result) {
+    if (!result || result.success === false) return;      // a refusal changed nothing
+    if (result._offline || result._queued) return;        // it is in the offline queue, not on the server
+    if (result.duplicate === true) return;                // the answer says the write was ignored
+    if (_demoMode) return;                                // the demo refuses writes; nothing changes
+    if (!_PANTRY_WRITE_ACTIONS.has(String(action))) return;
+    _scheduleAppWideSync();
+}
+
+let _appSyncTimer = 0;
+let _appSyncRunning = false;
+let _appSyncAgain = false;
+
+/**
+ * Everything that shows an article, re-read from ONE answer.
+ *
+ * A burst (a stocktake batch, a use split over several packs) collapses into one pass; a request
+ * that arrives while one is running is not dropped, it is replayed once afterwards.
+ */
+function _scheduleAppWideSync(delay = 150) {
+    clearTimeout(_appSyncTimer);
+    _appSyncTimer = setTimeout(() => { _runAppWideSync(); }, delay);
+}
+
+async function _runAppWideSync() {
+    if (_appSyncRunning) { _appSyncAgain = true; return; }
+    _appSyncRunning = true;
+    try {
+        // The local caches keyed on "what is on the shelves".
+        _captureInventoryCacheAt = 0;
+        _recipeLiveProductIds = null;
+        _recipeLiveProductIdsAt = 0;
+        _apiDropReadCache();
+        // ONE read feeds every surface: `loadInventory()` refills `currentInventory` AND
+        // `_allInventoryCache` — which is what the product sheet's «Anche in», the stocktake,
+        // SHELFY's capture and the shopping hint read — and repaints the list on screen.
+        await loadInventory();
+        if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
+        // The Home rebuilds itself when it is the page on screen (debounced, row fades first).
+        _dashboardLiveRefresh();
+        if (_currentPageId === 'shopping') {
+            loadShoppingList._bgCall = true;
+            loadShoppingList();
+            if (typeof loadSmartShopping === 'function') loadSmartShopping(true);
+        } else {
+            // The list itself is not on screen, but its badge is: a finished article is added
+            // to it and a refilled one is pruned. One light read, never the recommendation
+            // engine (that is the heavy pass and belongs to the page that shows it).
+            _refreshShoppingBadgeLight();
+        }
+        if (_currentPageId === 'products' && typeof loadAllProducts === 'function') loadAllProducts();
+        // The other pages that read the shelves: the history (a use is a row there) and the
+        // recipe archive (an ingredient's availability is judged against what is on them).
+        if (_currentPageId === 'log' && typeof loadLog === 'function') loadLog();
+        if (_currentPageId === 'recipe' && typeof loadRecipeArchive === 'function') loadRecipeArchive();
+    } catch (_e) {
+        // A sync that dies leaves the screens as they were: the next write (or the next
+        // navigation, which reloads its own page) asks again. Never a blank app.
+    } finally {
+        _appSyncRunning = false;
+        if (_appSyncAgain) { _appSyncAgain = false; _scheduleAppWideSync(80); }
+    }
+}
+
+/** The Spesa tab's count, without rendering the list: 1 GET, no recommendation pass. */
+function _refreshShoppingBadgeLight() {
+    api('shopping_list').then((data) => {
+        if (data && data.success && Array.isArray(data.purchase)) {
+            _setNavBadge('shopping', data.purchase.length);
+        }
+    }).catch(() => { /* the badge keeps its number */ });
+}
+
+/**
+ * Any change the user just made shows up everywhere — the pantry list it was made in included.
+ *
+ * Kept as the name every existing caller uses: it invalidates the caches SYNCHRONOUSLY (a caller
+ * can read `_allInventoryCache` right after) and hands the reloads to the one app-wide sync.
+ */
 function refreshAppDataAfterMutation() {
     // The capture keeps its own short-lived copy of the rows: a write invalidates it.
     _captureInventoryCacheAt = 0;
@@ -9810,13 +9935,7 @@ function refreshAppDataAfterMutation() {
     // kept telling the household «hai tutti gli ingredienti» about a product it had just finished.
     _recipeLiveProductIds = null;
     _recipeLiveProductIdsAt = 0;
-    if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
-    // One choke point: whatever mutated, the dashboard rebuilds itself if it is on screen.
-    _dashboardLiveRefresh();
-    refreshCurrentPage();
-    if (_currentPageId === 'shopping' && typeof loadSmartShopping === 'function') {
-        loadSmartShopping(true);
-    }
+    _scheduleAppWideSync(0);
 }
 
 function showPage(pageId, param = null, options = {}) {
@@ -16515,6 +16634,19 @@ function _inventoryExpiryBadgeHtml(item) {
         const daysOpen = _medDaysOpen(item);
         if (daysOpen != null) {
             const max = Number(item.med_pao_days) || 0;
+            // The PACK's own date is a HARD limit: an open jar cannot outlive it. When that
+            // date is sooner than the PAO deadline it is the fact the household must read —
+            // the cabinet used to say only «🕓 75gg» on a cream expiring in 34 days.
+            const daysToDate = item.expiry_date ? daysUntilExpiry(item.expiry_date) : null;
+            const paoLeft = max > 0 ? (max - daysOpen) : null;
+            if (Number.isFinite(daysToDate) && (paoLeft === null || daysToDate < paoLeft)) {
+                if (daysToDate < 0) {
+                    return `<span class="inv-time inv-time-expired"><span class="inv-time-ico" aria-hidden="true">⚠️</span> ${escapeHtml(t('medical.sealed_expired', { n: Math.abs(daysToDate) }))}</span>`;
+                }
+                if (daysToDate <= 60) {
+                    return `<span class="inv-time inv-time-urgent"><span class="inv-time-ico" aria-hidden="true">🛡️</span> ${escapeHtml(t('medical.sealed_expires_in', { n: daysToDate }))}</span>`;
+                }
+            }
             if (max > 0) {
                 const over = daysOpen >= max;
                 const key = over ? 'medical.pao_opened_over' : 'medical.pao_opened';
@@ -22170,7 +22302,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261124j';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261127j';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -22180,7 +22312,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261124j';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261127j';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -34192,6 +34324,11 @@ function _resolveShoppingItemUrgency(item, smartData) {
     if (item?.urgency) return item.urgency;
     if (smartData?.urgency) return smartData.urgency;
     const spec = (item?.specification || '').toLowerCase();
+    // «🛒 Esaurito» / «🛒 Finished» is the household's own word that the shelf is empty
+    // (`EVERSHELF_FINISHED_MARKERS`): never «Previsione», but not «Urgente» without a history
+    // either (a product bought once belongs in «Presto»/«Pianifica»). A payload rendered from a
+    // cache written before the server learned this still lands here.
+    if (spec.includes('esaurito') || spec.includes('finished')) return 'medium';
     if (spec.includes('urgente') || item?.specification?.includes('⚡')) return 'critical';
     if (spec.includes('presto') || item?.specification?.includes('🟠')) return 'high';
     if (spec.includes('a breve') || spec.includes('pianifica') || item?.specification?.includes('🟡')) return 'medium';
@@ -37906,7 +38043,11 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
 
     // Fetch inventory to build the modal
     try {
-        const data = await api('inventory_list');
+        // The SAME shelf the recipe line was measured on: `for_recipe=1, include_depleted=1`
+        // is what `enrichRecipeIngredientsStock()` read, so a residual pack (19 g of butter)
+        // is offered here too instead of the recipe promising stock this sheet cannot see —
+        // and medicines stay out, exactly as in the ingredient list.
+        const data = await api('inventory_list', { include_depleted: 1, for_recipe: 1 });
         const items = (data.inventory || []).filter(i => i.product_id == productId);
         _recipeUseContext.items = items; // cache for "use all" quantity lookup
         

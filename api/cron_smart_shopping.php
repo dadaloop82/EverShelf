@@ -215,7 +215,15 @@ $notifyExpiryReady = function_exists('evershelfNotifyEnabled')
     && function_exists('evershelfNotifyEventEnabled')
     && evershelfNotifyEventEnabled('expiry_alert')
     && count(evershelfNotifyChannels()) > 0;
-if ($haExpiryReady || $notifyExpiryReady) {
+// Browser Web Push is its own switch (Settings → «Notifiche push»): the cron has no page, so
+// a subscribed install must be able to receive the digest without NOTIFY_ENABLED as well.
+$webPushExpiryReady = function_exists('evershelfWebPushEnabled')
+    && evershelfWebPushEnabled()
+    && function_exists('evershelfWebPushVapidMaterial')
+    && evershelfWebPushVapidMaterial() !== null
+    && function_exists('evershelfWebPushHasSubscriptions')
+    && evershelfWebPushHasSubscriptions($db);
+if ($haExpiryReady || $notifyExpiryReady || $webPushExpiryReady) {
     try {
         // The check runs on the first cron pass of the day (once-per-day flag file).
         // The image's PHP runs on UTC, so a US household got its alert in the evening:
@@ -281,7 +289,9 @@ if ($haExpiryReady || $notifyExpiryReady) {
             $expiringItems = array_map('_haFormatProduct', $expiringItems);
             $expiredItems  = array_map('_haFormatProduct', $expiredItems);
 
-            // Dashboard-parity: drop low-risk "best before" leftovers HA used to shout about.
+            // Same attention rules as the EverShelf dashboard: crumbs and the vacuum extension
+            // are respected, but a row past its date is IN the digest — the safety verdict is
+            // the pill the app shows («Va bene»), never a reason to keep quiet.
             $expiringItems = array_values(array_filter(
                 $expiringItems,
                 static fn(array $r): bool => evershelfExpiryNeedsAttention($r, $expiryDays)
