@@ -5,6 +5,38 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.22] - 2026-11-28
+
+### The scan proposes the pack that is OPEN, and asks when it cannot tell
+
+Scanning a barcode of an article the pantry holds in several places opened the sheet on
+whatever row the list happened to return first — often the sealed bag in the pantry while the
+opened one sat in the fridge — and pressing «✓ Usa» wrote its number on yet another row, because
+`resolveInventoryUseTarget()` prefers an opened pack *anywhere* (`chi ha più confezioni, una
+aperta, non si vede mai proporre quella aperta, e non mi chiede mai quale usare`).
+
+- **One order for every pack.** `_inventoryRowsForProduct()` / `_packPickOrder()`
+  (`assets/js/app.js`) read the whole pantry and sort it the way a shelf is read: the opened
+  pack first (oldest open first — it is the one losing days), then the place the pantry has
+  open, then the nearest date. `_inventoryRowForProduct()` and `_inventoryIdFor()` both use it,
+  so the scan, the Home's «✓ Usa» and SHELFY open the sheet on the opened pack — and a «✓ Usa»
+  that belongs to ONE row (pantry list, Home alerts, banner, a long-press) now passes that row
+  (`quickUse(productId, location, inventoryId)`), because two packs of the same article in the
+  same place are two different dates.
+- **A real doubt is a question, never a guess.** When the article stands in more than one room
+  with none opened, or in two opened packs, `_scanPackNeedsChoice()` asks — «Quale confezione?»
+  (`inventory.pick_pack_title` / `_lead` / `_opened`, six locales, `_showScanPackChoice()`):
+  one line per pack with place, opened mark, date and stock, and the line opens that pack's
+  sheet. One pack, one opened pack, or everything on one shelf stays a single tap.
+- **The chosen pack is the pack that is written.** The sheet now sends `inventory_id`, and
+  `useFromInventory()` pins it (`inventoryUseRowPlan(..., $onlyRowId)`,
+  `useFromInventoryCore(..., $onlyRowId)`): a use recorded from the pack on screen is not
+  silently applied to another room's opened pack any more, and the answer no longer carries a
+  `location_fallback` the household never asked for. A pin whose pack was emptied in the
+  meantime is dropped (`api_inventory_use_pin_stale`) and the ordinary precedence decides;
+  a pin of another product is refused. Every caller that does not choose (the legacy USE page,
+  the recipes, an older client) keeps the opened-first-anywhere behaviour unchanged.
+
 ## [2.2.21] - 2026-11-27
 
 ### «Urgente» is a habit, not a single purchase
