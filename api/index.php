@@ -6911,6 +6911,12 @@ function useFromInventory(PDO $db): void {
     $notes = $input['notes'] ?? '';
     // Household confirmed a soft duplicate (same dose again within ~30 s).
     $confirmDuplicate = !empty($input['confirm_duplicate']);
+    // The sheet the household answered is about ONE pack: `inventory_id` pins the row it showed,
+    // so a use recorded from the sealed bag it just opened is not silently written on the opened
+    // pack of another room. The resolver's "opened packs anywhere" precedence stays the default
+    // for every caller that does not choose (the legacy USE page, the recipes, an older client),
+    // and it is what the scan now offers as the FIRST choice — but a choice is never overruled.
+    $inventoryId = (int)($input['inventory_id'] ?? 0);
 
     // A response lost on the way back is replayed by the offline queue, and the use had
     // already taken the stock: the same id means the same intent, answered from the shelf.
@@ -6953,12 +6959,36 @@ function useFromInventory(PDO $db): void {
     }
 
     try {
+        // The pack the household picked is honoured only while it still holds stock: a second
+        // device (or a stocktake) can have emptied it between the sheet and the tap, and the
+        // honest answer there is the ordinary precedence, never a 404 on a product that exists.
+        if ($inventoryId > 0) {
+            $pin = $db->prepare('SELECT quantity FROM inventory WHERE id = ? AND product_id = ?');
+            $pin->execute([$inventoryId, (int)$productId]);
+            $pinnedQty = $pin->fetchColumn();
+            if ($pinnedQty === false || (float)$pinnedQty <= 0) {
+                EverLog::info('useFromInventory: the pinned pack is gone, the resolver decides', [
+                    'event'        => 'api_inventory_use_pin_stale',
+                    'product_id'   => (int)$productId,
+                    'inventory_id' => $inventoryId,
+                ]);
+                $inventoryId = 0;
+            }
+        }
+        if ($inventoryId > 0) {
+            EverLog::info('useFromInventory honours the chosen pack', [
+                'event'        => 'api_inventory_use_pinned',
+                'product_id'   => (int)$productId,
+                'inventory_id' => $inventoryId,
+                'requested'    => (string)$location,
+            ]);
+        }
         // A place can hold one article in several rows: consuming only the first one made the
         // sheet's «hai 608 g» and the ledger's 108 g disagree. The plan is empty (or one row)
         // for the ordinary case, which then takes the exact same path as before. «Tutto, ovunque»
         // keeps its own branch below, which already walks every place.
-        $plan = ($location === '__all__') ? [] : dbWithRetry(function () use ($db, $productId, $location, $useAll, $quantity): array {
-            return inventoryUseRowPlan($db, (int)$productId, (string)$location, (bool)$useAll, (float)$quantity);
+        $plan = ($location === '__all__') ? [] : dbWithRetry(function () use ($db, $productId, $location, $useAll, $quantity, $inventoryId): array {
+            return inventoryUseRowPlan($db, (int)$productId, (string)$location, (bool)$useAll, (float)$quantity, $inventoryId ?: null);
         });
         if (count($plan) > 1) {
             $merged = dbWithRetry(function () use ($db, $productId, $plan, $useAll, $location, $notes, $confirmDuplicate): array {
@@ -6968,8 +6998,10 @@ function useFromInventory(PDO $db): void {
             maybeAutoFavorite($db, (int)$productId);
             echo json_encode($merged, JSON_UNESCAPED_UNICODE);
         } else {
-            dbWithRetry(function () use ($db, $productId, $quantity, $useAll, $location, $notes, $confirmDuplicate): void {
-                useFromInventoryCore($db, $productId, $quantity, $useAll, $location, $notes, $confirmDuplicate);
+            dbWithRetry(function () use ($db, $productId, $quantity, $useAll, $location, $notes, $confirmDuplicate, $inventoryId): void {
+                // The pinned row travels as `$onlyRowId`, so the single-row path writes the pack
+                // the sheet showed instead of re-resolving to another shelf's opened one.
+                useFromInventoryCore($db, $productId, $quantity, $useAll, $location, $notes, $confirmDuplicate, $inventoryId ?: null);
                 // A product the household keeps consuming moves to the favourites on its
                 // own (lib/auto_favorite.php: AUTO_FAVORITE_MIN_USES uses in 90 days).
                 maybeAutoFavorite($db, (int)$productId);
@@ -7101,10 +7133,14 @@ function resolveInventoryUseTarget(PDO $db, int $productId, string $location, ?i
  * An empty plan — or one with a single row — means «use the normal single-row path»: the
  * common case must behave exactly as before, dedup and fallback included.
  *
+ * `$onlyRowId` is the pack the household picked in the sheet: it leads the plan, and it is the
+ * row the single-row path then writes, so «usa quello che ti ho mostrato» is not re-resolved to
+ * a different shelf's opened pack by the precedence.
+ *
  * @return array<int, array{id:int, quantity:float, location:string}>
  */
-function inventoryUseRowPlan(PDO $db, int $productId, string $location, bool $useAll, float $quantity): array {
-    $resolved = resolveInventoryUseTarget($db, $productId, $location);
+function inventoryUseRowPlan(PDO $db, int $productId, string $location, bool $useAll, float $quantity, ?int $onlyRowId = null): array {
+    $resolved = resolveInventoryUseTarget($db, $productId, $location, $onlyRowId);
     if (!$resolved) {
         return [];
     }

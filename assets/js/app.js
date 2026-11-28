@@ -2267,7 +2267,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261127k'; // bump when translations change
+const _I18N_VERSION = '20261128a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11168,7 +11168,7 @@ function _rowMenuButtons(item) {
     // A stale row calls its inventory id `inventory_id`: one builder, one grammar, whichever
     // shape the endpoint that filled the list chose.
     const invId = (item.id !== undefined && item.id !== null) ? item.id : item.inventory_id;
-    return `<button type="button" class="row-use-btn" title="${escapeAttr(useKey)}" aria-label="${escapeAttr(useKey)}" onclick="event.stopPropagation(); quickUse(${item.product_id}, '${loc}')">✓<span class="row-use-label">${escapeHtml(useKey)}</span></button>`
+    return `<button type="button" class="row-use-btn" title="${escapeAttr(useKey)}" aria-label="${escapeAttr(useKey)}" onclick="event.stopPropagation(); quickUse(${item.product_id}, '${loc}', ${Number(invId) || 0})">✓<span class="row-use-label">${escapeHtml(useKey)}</span></button>`
         + `<button type="button" class="alert-item-menu" title="${escapeAttr(menuKey)}" aria-label="${escapeAttr(menuKey)}" onclick="event.stopPropagation(); showAlertItemDetail(${invId}, ${item.product_id})">⋮</button>`;
 }
 
@@ -12568,11 +12568,15 @@ async function _shelfyApplyConsume(ticket) {
     const label = _shelfyQtyLabel(ticket);
     const name = _plainUiText((ticket.item && ticket.item.name) || '');
     try {
-        const res = await api('inventory_use', {}, 'POST', {
+        const body = {
             product_id: ticket.productId,
             quantity: Number(ticket.quantity),
             location: ticket.location,
-        });
+        };
+        // The card named ONE row (its stock capped the dictated amount): the ledger writes that
+        // row, never another shelf's opened pack the resolver would prefer.
+        if (Number(ticket.inventoryId) > 0) body.inventory_id = Number(ticket.inventoryId);
+        const res = await api('inventory_use', {}, 'POST', body);
         if (res && res.success) {
             showToast(t('inventory.detail_consumed', { qty: label, name }), 'success');
             _dashboardLiveRefresh(ticket.inventoryId);
@@ -15316,7 +15320,8 @@ function bannerQuickUse() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry) return;
     const item = entry.data;
-    quickUse(item.product_id, item.location);
+    // The strip names ONE pack (its date, its days): open that one, not the first of the place.
+    quickUse(item.product_id, item.location, Number(item.id ?? item.inventory_id) || 0);
     dismissBannerItem();
 }
 
@@ -16786,7 +16791,7 @@ function renderInventoryItem(item, opts = {}) {
                 <span class="inv-qty-pill${qtyTone === 'low' ? ' is-low' : ''}">${escapeHtml(qtyPlain)}</span>
                 ${_inventoryExpiryBadgeHtml(item)}
                 <button type="button" class="inv-quick-use" title="${escapeAttr(useKey)}" aria-label="${escapeAttr(useKey)}"
-                    onclick="event.stopPropagation(); quickUse(${item.product_id}, '${locJs}')">✓ <span class="inv-quick-use-label">${escapeHtml(useKey)}</span></button>
+                    onclick="event.stopPropagation(); quickUse(${item.product_id}, '${locJs}', ${Number(item.id) || 0})">✓ <span class="inv-quick-use-label">${escapeHtml(useKey)}</span></button>
                 <button type="button" class="inv-card-menu" title="${escapeAttr(menuKey)}" aria-label="${escapeAttr(menuKey)}"
                     onclick="event.stopPropagation(); showItemDetail(${item.id}, ${item.product_id})">⋮</button>
             </div>
@@ -16944,7 +16949,9 @@ function _openInventoryRow(row) {
     if (isNaN(productId)) return;
     row.dataset.invSwipeDone = '1';
     setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
-    quickUse(productId, location);
+    // The row knows its OWN inventory id: opening the first pack found would show another lot of
+    // the same article (two packs in one place are two different dates).
+    quickUse(productId, location, parseInt(row.dataset.invId, 10));
 }
 
 function _findInventoryItem(id) {
@@ -19093,6 +19100,10 @@ async function _itemDetailConsume() {
         quantity: q.value,
         location: q.location,
     };
+    // The sheet is about ONE pack: `inventory_id` pins it, so a use recorded from the sealed bag
+    // it opened is not silently written on the opened pack of another room (the server prefers
+    // an opened pack anywhere only while nobody chose).
+    if (Number(q.inventoryId) > 0) payload.inventory_id = Number(q.inventoryId);
     try {
         const res = await api('inventory_use', {}, 'POST', payload);
         if (res && res.success) {
@@ -20774,18 +20785,20 @@ async function _loadUseProduct(productId, location) {
     await loadUseInventoryInfo();
 }
 
-/** The inventory row of one product in one place (0 when the row is not loaded). */
+/**
+ * The inventory row of one product in one place (0 when the row is not loaded).
+ *
+ * The pack the household means is the OPENED one when that place has one: the first row of a
+ * shelf is the purchase order, and a `✓ Usa` that opened the sealed bag while the open one sat
+ * beside it is the same report the scan had.
+ */
 function _inventoryIdFor(productId, location) {
     const pid = Number(productId) || 0;
     const loc = String(location || '');
-    for (const pool of [currentInventory, _allInventoryCache]) {
-        if (!Array.isArray(pool)) continue;
-        const hit = pool.find(i => Number(i.product_id) === pid
-            && String(i.location || '') === loc
-            && Number(i.id) > 0);
-        if (hit) return Number(hit.id);
-    }
-    return 0;
+    if (!pid) return 0;
+    const at = _inventoryRowsForProduct(pid).filter(i => String(i.location || '') === loc);
+    const hit = at.find(_isOpenedInventoryItem) || at[0];
+    return hit ? Number(hit.id) : 0;
 }
 
 /**
@@ -20800,10 +20813,21 @@ function _inventoryIdFor(productId, location) {
  * the household on that old page («mi va subito in usa»). The row is now read from the server and
  * the sheet opens on it; a product with no row anywhere gets the honest "esaurito" card.
  */
-async function quickUse(productId, location) {
+async function quickUse(productId, location, inventoryId) {
     const pid = Number(productId) || 0;
     if (!pid) return;
     const loc = String(location || '');
+    // The row the household tapped is the pack it means: a «✓» on the lot expiring in March opens
+    // THAT lot — the shelf may hold a sealed pack beside an opened one, and the two are not
+    // interchangeable (the same rule `_initInventoryRowSwipe()` follows).
+    const wanted = Number(inventoryId) || 0;
+    if (wanted > 0) {
+        const row = _findInventoryItem(wanted);
+        if (row && Number(row.product_id) === pid && !isInventoryDepleted(row)) {
+            showItemDetail(Number(row.id), pid);
+            return;
+        }
+    }
     const invId = _inventoryIdFor(pid, loc);
     if (invId) {
         showItemDetail(invId, pid);
@@ -20819,8 +20843,16 @@ async function quickUse(productId, location) {
         showToast(t('error.connection'), 'error');
         return;
     }
-    const sameProduct = rows.filter(i => Number(i.product_id) === pid && Number(i.id) > 0);
-    const hit = sameProduct.find(i => String(i.location || '') === loc) || sameProduct[0];
+    const sameProduct = rows.filter(i => Number(i.product_id) === pid
+        && Number(i.id) > 0
+        && !isInventoryDepleted(i));
+    // The opened pack of the requested place wins over the first row of that shelf, and over
+    // another room entirely: the sheet must describe the pack that will be used.
+    const at = sameProduct.filter(i => String(i.location || '') === loc);
+    const hit = at.find(_isOpenedInventoryItem)
+        || at[0]
+        || sameProduct.find(_isOpenedInventoryItem)
+        || sameProduct[0];
     if (!hit) {
         closeModal();
         _showExhaustedProductModal(pid);
@@ -22302,7 +22334,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261127k';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261128a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -22312,7 +22344,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261127k';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261128a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -25241,18 +25273,140 @@ async function _confirmShoppingScanMatch(product) {
     return window.confirm(msg);
 }
 
-/** First usable inventory row of a product (any location) — 0 when there is none. */
-function _inventoryRowForProduct(productId) {
+/**
+ * The order a household reads its own shelf in: the pack that MUST be finished first, then the
+ * one in the room it has open, then the nearest date.
+ *
+ * A barcode points at an ARTICLE, but a use is written on a PACK — and the pack that has to go
+ * first is the opened one (it is the one losing days), never "whatever row the list happened to
+ * return first". That is the report: a milk opened in the fridge and a sealed one in the pantry,
+ * and the app proposed/consumed the sealed one.
+ */
+function _packPickOrder(row, openPlace) {
+    const opened = _isOpenedInventoryItem(row);
+    return [
+        opened ? '0' : '1',
+        // Oldest open first: the pack opened a week ago is the one to finish.
+        opened ? (String(row.opened_at || '') || '9999-99-99') : '9999-99-99',
+        // Then the place the pantry has open (a shelf the household is looking at).
+        (openPlace && String(row.location || '') === openPlace) ? '0' : '1',
+        // Then the first to expire.
+        String(row.expiry_date || '9999-99-99'),
+        String(Number(row.id) || 0).padStart(10, '0'),
+    ].join('|');
+}
+
+/**
+ * Every usable pack of one article, ordered by `_packPickOrder()`.
+ *
+ * Both caches are read because `currentInventory` is only the place the pantry is filtered to:
+ * coming from the Home it can be empty, and the pack in the fridge lives in `_allInventoryCache`.
+ */
+function _inventoryRowsForProduct(productId) {
     const pid = Number(productId) || 0;
-    if (!pid) return null;
+    if (!pid) return [];
+    const rows = [];
+    const seen = new Set();
     for (const pool of [currentInventory, _allInventoryCache]) {
         if (!Array.isArray(pool)) continue;
-        const hit = pool.find(i => Number(i.product_id) === pid
-            && Number(i.id) > 0
-            && !isInventoryDepleted(i));
-        if (hit) return hit;
+        for (const row of pool) {
+            if (!row || Number(row.product_id) !== pid || !(Number(row.id) > 0)) continue;
+            if (typeof isInventoryDepleted === 'function' && isInventoryDepleted(row)) continue;
+            const key = String(row.id);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            rows.push(row);
+        }
     }
-    return null;
+    const here = String(currentLocation || '');
+    return rows.sort((a, b) => {
+        const ka = _packPickOrder(a, here);
+        const kb = _packPickOrder(b, here);
+        if (ka === kb) return 0;
+        return ka < kb ? -1 : 1;
+    });
+}
+
+/** First usable inventory row of a product, best pack first — null when there is none. */
+function _inventoryRowForProduct(productId) {
+    return _inventoryRowsForProduct(productId)[0] || null;
+}
+
+/**
+ * Does the app really have to ASK which pack the household is holding?
+ *
+ * Three answers are obvious and must not become a question:
+ *  - one usable pack;
+ *  - exactly one OPENED pack (that is the one that must be finished, and it is proposed);
+ *  - every pack on ONE shelf (no trip to decide, and the nearest date is the answer).
+ * What is left is a real doubt — the article in two rooms with none opened, or two opened packs
+ * — and only the household knows. It used to take the first row it found, in silence.
+ */
+function _scanPackNeedsChoice(rows) {
+    if (!Array.isArray(rows) || rows.length < 2) return false;
+    const opened = rows.filter(_isOpenedInventoryItem);
+    if (opened.length === 1) return false;
+    const places = new Set(rows.map(r => String(r.location || '')));
+    if (places.size < 2) return false;
+    const here = String(currentLocation || '');
+    if (here && rows.some(r => String(r.location || '') === here)) return false;
+    return true;
+}
+
+/**
+ * «Quale confezione?» — the article stands in several packs the app cannot tell apart.
+ *
+ * One line per pack (place, opened mark, date, stock) and the line IS the door to that pack's
+ * sheet, where «✓ Usa» writes on THAT row (`inventory_use` with `inventory_id`). The opened pack
+ * comes first, so «quello aperto» is the first choice even here.
+ */
+function _showScanPackChoice(product, rows) {
+    const list = Array.isArray(rows) ? rows : [];
+    if (!list.length) return;
+    const name = product?.name || list[0].name || '';
+    const openLabel = t('inventory.pick_pack_opened');
+    const lines = list.map((row) => {
+        const loc = LOCATIONS[normalizeLocationKey(row.location)] || { icon: '📦', label: row.location || '' };
+        const place = loc.label || row.location || '';
+        const qty = stripHtml(formatQuantityForItem(row));
+        const date = row.expiry_date ? formatDate(String(row.expiry_date).slice(0, 10)) : '';
+        const isOpen = _isOpenedInventoryItem(row);
+        return `<button type="button" class="waste-place-btn pack-pick-btn" data-pack-inv="${Number(row.id)}"
+                    aria-label="${escapeAttr(`${place} · ${qty}${date ? ' · ' + date : ''}`)}">
+                <span class="waste-place-ico" aria-hidden="true">${loc.icon || '📦'}</span>
+                <span class="pack-pick-main">
+                    <span class="pack-pick-place">
+                        <span class="pack-pick-place-name">${escapeHtml(place)}</span>
+                        ${isOpen ? `<span class="pack-pick-open">🕓 ${escapeHtml(openLabel)}</span>` : ''}
+                    </span>
+                    ${date ? `<span class="pack-pick-meta">📅 ${escapeHtml(date)}</span>` : ''}
+                </span>
+                <span class="waste-place-qty">${escapeHtml(qty)}</span>
+            </button>`;
+    }).join('');
+    document.getElementById('modal-content').innerHTML = `
+        <div class="waste-modal pack-pick-modal">
+            <div class="modal-header">
+                <h3>${escapeHtml(t('inventory.pick_pack_title'))}</h3>
+                <button type="button" class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <p class="waste-modal-product">${escapeHtml(name)}</p>
+            <p class="waste-modal-section-label">${escapeHtml(t('inventory.pick_pack_lead', { n: list.length }))}</p>
+            <div class="waste-place-list">${lines}</div>
+            <button type="button" class="btn btn-secondary full-width waste-modal-cancel" onclick="closeModal()">${escapeHtml(t('confirm.cancel'))}</button>
+        </div>
+    `;
+    _showModalOverlay();
+    // A background refresh can rebuild the caches under the dialog: keep the rows we printed.
+    const byId = new Map(list.map(row => [Number(row.id), row]));
+    document.querySelectorAll('[data-pack-inv]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const id = parseInt(btn.getAttribute('data-pack-inv'), 10);
+            const row = _findInventoryItem(id) || byId.get(id);
+            if (!row) { closeModal(); return; }
+            showItemDetail(Number(row.id), Number(row.product_id));
+        });
+    });
 }
 
 async function _finishBarcodeResolved(barcode) {
@@ -25286,9 +25440,28 @@ async function _finishBarcodeResolved(barcode) {
         // Already in the pantry: a barcode scanned at the fridge is an ACTION, not a
         // description to read — open the product modal (consume / consume all / throw)
         // instead of the old full-page product sheet (audit, round 14).
-        const row = _inventoryRowForProduct(currentProduct.id);
-        if (row) {
-            showItemDetail(Number(row.id), Number(row.product_id));
+        //
+        // The article can stand in several packs, and the sheet must open on the pack that has
+        // to be finished FIRST — the opened one — never on the first row the list returned. When
+        // only the household can tell (two rooms, none opened; two opened packs) the app asks
+        // which pack it is holding instead of guessing.
+        let rows = _inventoryRowsForProduct(currentProduct.id);
+        if (!rows.length && Number(currentProduct.id) > 0) {
+            // A cold cache (the Home never loaded the pantry, a scan right after a boot) must
+            // not answer «not in the pantry»: read the shelf once, the way `quickUse()` does.
+            try {
+                const data = await api('inventory_list', { include_depleted: 1 });
+                const list = Array.isArray(data?.inventory) ? data.inventory : [];
+                if (list.length) _allInventoryCache = list;
+                rows = _inventoryRowsForProduct(currentProduct.id);
+            } catch (_) { /* the old behaviour: the action page */ }
+        }
+        if (rows.length > 1 && _scanPackNeedsChoice(rows)) {
+            _showScanPackChoice(currentProduct, rows);
+            return;
+        }
+        if (rows.length) {
+            showItemDetail(Number(rows[0].id), Number(rows[0].product_id));
             return;
         }
     }

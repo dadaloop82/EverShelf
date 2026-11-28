@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.21-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-2.2.22-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -226,6 +226,17 @@ the gate this release was developed against.
 
 <details open>
 <summary><b>Last five releases</b></summary>
+
+**v2.2.22 — the scan proposes the pack that is OPEN, and asks when it cannot tell.** An article
+held in two places opened the sheet on whichever row the list returned first — usually the
+sealed bag in the pantry while the opened one sat in the fridge — and «✓ Usa» could write on a
+third row, because the ledger preferred any opened pack. The packs are now ordered the way a
+shelf is read (the opened one first, oldest open first, then the room you have open, then the
+nearest date), and when only the household can tell — two rooms with none opened, two opened
+packs — the app asks «Quale confezione?» with one line per pack (place, open mark, date, stock)
+that opens that pack's sheet. The sheet also pins the row it shows (`inventory_id`), so the use
+lands on the pack you chose and never on another room's, while a pack emptied in the meantime
+falls back to the usual rule.
 
 **v2.2.21 — «Urgente» is a habit, not a single purchase.** v2.2.20 made every finished
 article urgent so the list's «Urgente» pill would finally hold what is out of stock — and
