@@ -335,6 +335,14 @@ runtime/binary files — if a task truly needs one, ask first.
   realmente disponibili»). `use_all` clears the whole place (`__all__` keeps its own branch),
   a one-row place takes the path it always took, and the recipe sheet reads the shelf the
   ingredient line was measured on (`inventory_list?include_depleted=1&for_recipe=1`).
+  **The pack on the SCREEN is pinned.** The sheet the household answered sends `inventory_id`
+  and `useFromInventory()` hands it to `inventoryUseRowPlan(..., $onlyRowId)` /
+  `useFromInventoryCore(..., $onlyRowId)`: `resolveInventoryUseTarget()`'s "opened pack
+  ANYWHERE" precedence is a default for callers that do not choose (the legacy USE page, the
+  recipes, an older client) and must never overrule a choice — a use recorded from the sealed
+  bag on screen was written on another room's opened pack (`location_fallback` nobody asked
+  for). A pin whose pack was emptied meanwhile is dropped (`api_inventory_use_pin_stale`) and
+  the precedence decides; a pin of another product is refused.
 - **The safety verdict is the pill, never the door.** `getExpiredSafety()` answers "is it still
   edible" (low-risk flour/pasta/crackers: «Va bene» up to 30 days past the best-before), and
   `shouldShowExpiredBanner()` used that answer to decide whether to MENTION the row: the strip
@@ -370,6 +378,17 @@ runtime/binary files — if a task truly needs one, ask first.
 - **The stocktake answers once per LOT, never per article.** 17 groups of the same article exist in a real pantry (Amido ×3, Limone ×3, il tonno, i dadi…) and each pack has its own quantity and date, so it is its own question: «✓ C'è», «Salta», «Finito» and «Andato a male» all apply to the row the card shows (`entry.siblings` stays empty; a destructive answer writes one row). Stamping the siblings made one answer cover every batch («se segno finito un lotto e ci sono altri lotti mi segna finiti anche quelli», «confermo un lotto e mi conferma tutti quelli dello stesso tipo»): the other lots keep their stock and get their own card, and «Salta» is the one tap that leaves a lot alone. Never queue one write per pack (`inventory_use` empties one row per call); `_auditUndo()` reverts whatever the answer wrote; another SHELF stays another question.
 - **A card of a row already answered says so, and is not a question.** A barcode read twice, a pack line of «Anche in» (`_auditOpenPack`) or a name picked again (`_auditSearchPick`) opens the card of a row that IS in the ledger; it used to look identical to an open one — emerald «Confermo …» and all — and pressing it counted nothing and closed the sheet, which the household reads as "the app ignored my tap". `_auditRender()` now paints `_auditAnsweredHtml(kind, at)` (mint line: the ANSWER KIND + the hour from `entry.at`) and gives the card two doors only: «↩ Cambia risposta» → `_auditReopen(id)` (reverts that answer through `_auditRevertEntry()` — shared with `_auditUndo()`, so queued/sent writes, siblings, ledger and tally are undone the same way — then puts the question back) and «Avanti →» → `_auditNext()` (the step a real answer takes, counting nothing). «Salta» and «Indietro» are hidden there: they would duplicate the forward door or undo a DIFFERENT row. `_auditOtherPacksHtml()` marks the answered packs with a mint ✓, because «Amido di mais ×3» opens three cards.
 - **A barcode points at an ARTICLE, not at a package.** A product standing in several packs must never show only the one on screen: the product sheet's «Anche in» block (`_itemDetailOtherPlacesHtml`) reads the WHOLE pantry (`_allInventoryCache`, never the place the list is filtered to), one line per ROW with place, stock and expiry, the line itself opens that pack's sheet (`_itemDetailSwitchPack`) and the ✏️ edits that row; the head adds the total across the packs (`_itemDetailTotalPacksHtml`). The stocktake card lists them too (`_auditOtherPacksHtml` → `_auditOpenPack`, mode `pack`) and `_auditFinish` returns to the run instead of closing it. «6 pz» on a shelf that also holds a 30-pack is half the answer (report: i dadi di brodo).
+  **A scan opens the OPENED pack first, and asks when it cannot tell.** A barcode scanned on an
+  article held in two rooms used to open the sheet on the row the list returned first — often the
+  sealed bag in the pantry while the opened one sat in the fridge — and «✓ Usa» could land on a
+  third row. `_packPickOrder()` / `_inventoryRowsForProduct()` (app.js) order every pack the way a
+  shelf is read (opened first, oldest open first, then the place the pantry has open, then the
+  nearest date) and `_inventoryRowForProduct()` / `_inventoryIdFor()` both use it; when the choice
+  is genuinely ambiguous — several rooms with none opened, two opened packs — `_scanPackNeedsChoice()`
+  asks «Quale confezione?» (`_showScanPackChoice()`: place, opened mark, date, stock, one line per
+  pack, the line opens that pack's sheet), while one pack / one opened pack / one shelf stays a
+  single tap. The sheet then pins its row (`inventory_use` with `inventory_id`) — see «A use is
+  measured on the PLACE».
 - **One discard sheet.** `openWasteSheet()` → `_showWasteRecordModal()` (quantity + the four
   reasons) is every "Butta": row, banner, swipe, action page. A medicine keeps its short
   confirm. Never re-add `showThrowForm()` / `throwAll` / `throwPartial`.
